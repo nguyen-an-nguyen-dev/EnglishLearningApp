@@ -15,4 +15,10 @@ export const env = {
   dbUser: process.env.DB_USER || '',
   dbPassword: process.env.DB_PASSWORD || '',
   dbName: process.env.DB_NAME || 'english_learning',
+  jwtSecret: process.env.JWT_SECRET || '',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:8081,http://127.0.0.1:8081')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 };

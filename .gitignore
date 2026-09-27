@@ -5,3 +5,5 @@ backend/dist/
 .env.*
 !.env.example
 npm-debug.log*
+mobile/node_modules/
+mobile/.expo/
