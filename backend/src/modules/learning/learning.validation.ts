@@ -1,5 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
-import type { CompleteLessonInput, SubmittedAnswer } from './learning.types';
+import type { CheckAnswerInput, CompleteLessonInput, SubmittedAnswer } from './learning.types';
 
 function asObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -44,6 +44,14 @@ export function parseCompleteLessonInput(value: unknown): CompleteLessonInput {
   };
 }
 
+export function parseCheckAnswerInput(value: unknown): CheckAnswerInput {
+  const body = asObject(value);
+  if (typeof body.answer !== 'string' || body.answer.trim().length === 0) {
+    throw new HttpError(422, 'Validation failed', ['answer must be a non-empty string.']);
+  }
+  return { answer: body.answer.trim() };
+}
+
 export function parseStageId(value: unknown): number {
   const str = Array.isArray(value) ? value[0] : typeof value === 'string' ? value : String(value ?? '');
   const id = Number(str);
@@ -55,5 +63,12 @@ export function parseLessonId(value: unknown): number {
   const str = Array.isArray(value) ? value[0] : typeof value === 'string' ? value : String(value ?? '');
   const id = Number(str);
   if (!Number.isInteger(id) || id < 1) throw new HttpError(400, 'Invalid lesson ID.');
+  return id;
+}
+
+export function parseQuestionId(value: unknown): number {
+  const str = Array.isArray(value) ? value[0] : typeof value === 'string' ? value : String(value ?? '');
+  const id = Number(str);
+  if (!Number.isInteger(id) || id < 1) throw new HttpError(400, 'Invalid question ID.');
   return id;
 }

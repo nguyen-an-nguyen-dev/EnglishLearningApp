@@ -2,6 +2,8 @@ import { HttpError } from '../../middleware/error-handler';
 import * as repo from './learning.repository';
 import type {
   Answer,
+  CheckAnswerInput,
+  CheckAnswerResult,
   CompleteLessonInput,
   CompleteLessonResult,
   Lesson,
@@ -289,6 +291,32 @@ async function isAnswerCorrect(
   }
 
   return false;
+}
+
+export async function checkLessonAnswer(
+  lessonId: number,
+  questionId: number,
+  userId: number,
+  input: CheckAnswerInput,
+): Promise<CheckAnswerResult> {
+  const lesson = await getLessonDetail(lessonId, userId);
+  if (lesson.state.status === 'locked') {
+    throw new HttpError(403, 'This lesson is locked. Complete the previous lesson first.');
+  }
+
+  const question = (await repo.getQuestionsByLesson(lessonId)).find((row) => row.id === questionId);
+  if (!question) throw new HttpError(404, 'Question not found in this lesson.');
+
+  const answerRows = await repo.getAnswersByQuestions([questionId]);
+  const submitted = { questionId, answer: input.answer };
+  const isCorrect = await isAnswerCorrect(question, submitted, answerRows);
+  const correctAnswer = answerRows.find((answer) => answer.is_correct === true || answer.is_correct === 1);
+
+  return {
+    is_correct: isCorrect,
+    correct_answer: correctAnswer?.answer_text ?? '',
+    meaning_vi: question.explanation,
+  };
 }
 
 export async function completeLesson(

@@ -12,6 +12,7 @@ learningRouter.get('/stages/:stageId/lessons', authenticate, controller.getLesso
 // Lessons
 learningRouter.get('/lessons/:lessonId', authenticate, controller.getLesson);
 learningRouter.get('/lessons/:lessonId/questions', authenticate, controller.getLessonQuestions);
+learningRouter.post('/lessons/:lessonId/questions/:questionId/check', authenticate, controller.checkLessonAnswer);
 learningRouter.post('/lessons/:lessonId/complete', authenticate, controller.completeLesson);
 
 // Progress

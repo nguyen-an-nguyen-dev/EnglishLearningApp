@@ -13,6 +13,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
 import {
+  checkLessonAnswer,
+  CheckAnswerFeedback,
   CompleteLessonResult,
   fetchLessonDetail,
   fetchLessonQuestions,
@@ -37,8 +39,10 @@ export default function LessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isAnswerChecked, setIsAnswerChecked] = useState(false);
+  const [answerFeedback, setAnswerFeedback] = useState<CheckAnswerFeedback | null>(null);
   const [answersLog, setAnswersLog] = useState<SubmittedAnswer[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<CompleteLessonResult | null>(null);
 
   function returnToLearningPath() {
@@ -98,9 +102,19 @@ export default function LessonScreen() {
     setSelectedAnswer(String(answerId));
   }
 
-  function handleCheckAnswer() {
-    if (!selectedAnswer) return;
-    setIsAnswerChecked(true);
+  async function handleCheckAnswer() {
+    if (!selectedAnswer || !currentQuestion) return;
+    try {
+      setChecking(true);
+      const feedback = await checkLessonAnswer(lessonId, currentQuestion.id, selectedAnswer);
+      setAnswerFeedback(feedback);
+      setIsAnswerChecked(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể kiểm tra đáp án.';
+      Alert.alert('Lỗi kiểm tra đáp án', msg);
+    } finally {
+      setChecking(false);
+    }
   }
 
   async function handleNextQuestion() {
@@ -116,6 +130,7 @@ export default function LessonScreen() {
       setCurrentIndex((prev) => prev + 1);
       setSelectedAnswer(null);
       setIsAnswerChecked(false);
+      setAnswerFeedback(null);
     } else {
       // Finished all questions, submit
       try {
@@ -286,17 +301,20 @@ export default function LessonScreen() {
         <View style={styles.optionsList}>
           {currentQuestion.answers.map((opt, idx) => {
             const isSelected = selectedAnswer === String(opt.id);
+            const isCorrectOption = answerFeedback?.correct_answer === opt.answer_text;
             const letter = String.fromCharCode(65 + idx);
 
             return (
               <Pressable
                 key={opt.id}
                 onPress={() => handleSelectOption(opt.id)}
-                disabled={isAnswerChecked}
+                disabled={isAnswerChecked || checking}
                 style={[
                   styles.optionItem,
                   isSelected && !isAnswerChecked && styles.optionItemSelected,
-                  isSelected && isAnswerChecked && styles.optionItemChecked,
+                  isSelected && answerFeedback?.is_correct && styles.optionItemCorrect,
+                  isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionItemIncorrect,
+                  !answerFeedback?.is_correct && isCorrectOption && styles.optionItemCorrect,
                 ]}
               >
                 <View
@@ -318,7 +336,9 @@ export default function LessonScreen() {
                   style={[
                     styles.optionText,
                     isSelected && !isAnswerChecked && styles.optionTextSelected,
-                    isSelected && isAnswerChecked && styles.optionTextChecked,
+                    isSelected && answerFeedback?.is_correct && styles.optionTextCorrect,
+                    isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionTextIncorrect,
+                    !answerFeedback?.is_correct && isCorrectOption && styles.optionTextCorrect,
                   ]}
                 >
                   {opt.answer_text}
@@ -328,41 +348,52 @@ export default function LessonScreen() {
           })}
         </View>
 
-        {/* Explanation when checked */}
-        {isAnswerChecked && currentQuestion.explanation && (
-          <View style={styles.explanationBox}>
-            <Text style={styles.explanationTitle}>💡 Giải thích chi tiết:</Text>
-            <Text style={styles.explanationBody}>{currentQuestion.explanation}</Text>
-          </View>
-        )}
       </ScrollView>
 
       {/* Footer Controls */}
-      <View style={styles.footer}>
-        {!isAnswerChecked ? (
-          <Pressable
-            disabled={!selectedAnswer}
-            onPress={handleCheckAnswer}
-            style={[styles.actionBtn, !selectedAnswer && styles.actionBtnDisabled]}
-          >
-            <Text style={styles.actionBtnText}>Kiểm tra đáp án</Text>
-          </Pressable>
-        ) : (
+      {answerFeedback ? (
+        <View style={[styles.feedbackFooter, answerFeedback.is_correct ? styles.feedbackFooterCorrect : styles.feedbackFooterIncorrect]}>
+          <Text style={[styles.feedbackTitle, answerFeedback.is_correct ? styles.feedbackTitleCorrect : styles.feedbackTitleIncorrect]}>
+            {answerFeedback.is_correct ? '✓  Xuất sắc!' : '✕  Không chính xác'}
+          </Text>
+          {answerFeedback.is_correct ? (
+            <Text style={[styles.feedbackMeaning, styles.feedbackTitleCorrect]}>
+              Nghĩa là: {answerFeedback.meaning_vi || currentQuestion.explanation || 'Chưa có bản dịch cho câu này.'}
+            </Text>
+          ) : (
+            <Text style={[styles.feedbackMeaning, styles.feedbackTitleIncorrect]}>
+              Đáp án: {answerFeedback.correct_answer}
+            </Text>
+          )}
           <Pressable
             disabled={submitting}
             onPress={handleNextQuestion}
-            style={styles.actionBtnActive}
+            style={[styles.feedbackButton, answerFeedback.is_correct ? styles.feedbackButtonCorrect : styles.feedbackButtonIncorrect]}
           >
             {submitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color="#102c24" size="small" />
             ) : (
-              <Text style={styles.actionBtnText}>
-                {currentIndex + 1 === totalQuestions ? 'Hoàn thành bài học' : 'Câu tiếp theo ➔'}
+              <Text style={styles.feedbackButtonText}>
+                {answerFeedback.is_correct ? 'TIẾP TỤC' : 'ĐÃ HIỂU'}
               </Text>
             )}
           </Pressable>
-        )}
-      </View>
+        </View>
+      ) : (
+        <View style={styles.footer}>
+          <Pressable
+            disabled={!selectedAnswer || checking}
+            onPress={handleCheckAnswer}
+            style={[styles.actionBtn, (!selectedAnswer || checking) && styles.actionBtnDisabled]}
+          >
+            {checking ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.actionBtnText}>Kiểm tra đáp án</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
     </SafeAreaView>
   );
@@ -472,7 +503,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 100,
+    paddingBottom: 250,
   },
   questionCard: {
     backgroundColor: '#FFFFFF',
@@ -533,6 +564,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryDark,
     backgroundColor: '#EBF8FF',
   },
+  optionItemCorrect: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+  },
+  optionItemIncorrect: {
+    borderColor: '#e65c5b',
+    backgroundColor: '#fff0ef',
+  },
   optionBadge: {
     width: 32,
     height: 32,
@@ -565,6 +604,14 @@ const styles = StyleSheet.create({
   optionTextChecked: {
     color: '#0F172A',
     fontWeight: '700',
+  },
+  optionTextCorrect: {
+    color: Colors.primaryDark,
+    fontWeight: '800',
+  },
+  optionTextIncorrect: {
+    color: '#b7353b',
+    fontWeight: '800',
   },
   explanationBox: {
     marginTop: 18,
@@ -618,6 +665,58 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  feedbackFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 24,
+    borderTopWidth: 1,
+    backgroundColor: '#203038',
+  },
+  feedbackFooterCorrect: {
+    borderTopColor: Colors.primary,
+  },
+  feedbackFooterIncorrect: {
+    borderTopColor: '#ee5a59',
+  },
+  feedbackTitle: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  feedbackTitleCorrect: {
+    color: Colors.primary,
+  },
+  feedbackTitleIncorrect: {
+    color: '#f0605e',
+  },
+  feedbackMeaning: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  feedbackButton: {
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  feedbackButtonCorrect: {
+    backgroundColor: Colors.primary,
+  },
+  feedbackButtonIncorrect: {
+    backgroundColor: '#f05c5b',
+  },
+  feedbackButtonText: {
+    color: '#14252a',
+    fontSize: 16,
+    fontWeight: '900',
   },
   modalOverlay: {
     flex: 1,

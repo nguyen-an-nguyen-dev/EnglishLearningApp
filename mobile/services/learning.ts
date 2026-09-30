@@ -56,6 +56,12 @@ export interface SubmittedAnswer {
   answer: string;
 }
 
+export interface CheckAnswerFeedback {
+  is_correct: boolean;
+  correct_answer: string;
+  meaning_vi: string | null;
+}
+
 export interface CompleteLessonResult {
   score: number;
   correct_answers: number;
@@ -99,4 +105,15 @@ export async function submitLessonCompletion(
     body: JSON.stringify({ answers }),
   });
   return data;
+}
+
+export async function checkLessonAnswer(
+  lessonId: number,
+  questionId: number,
+  answer: string,
+): Promise<CheckAnswerFeedback> {
+  return request<CheckAnswerFeedback>(`/lessons/${lessonId}/questions/${questionId}/check`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  });
 }

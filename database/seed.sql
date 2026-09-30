@@ -33,6 +33,7 @@ CREATE TEMPORARY TABLE seed_questions (
   lesson_code VARCHAR(80) NOT NULL,
   sort_order TINYINT UNSIGNED NOT NULL,
   question_text TEXT NOT NULL,
+  explanation TEXT NULL,
   correct_answer VARCHAR(500) NOT NULL,
   distractor_one VARCHAR(500) NOT NULL,
   distractor_two VARCHAR(500) NOT NULL,
@@ -161,20 +162,51 @@ INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answ
   ('s3-job-interview', 9, 'Which phrase is suitable at the end of an interview?', 'Thank you for your time.', 'Give me your time back.', 'I am interviewing you now.'),
   ('s3-job-interview', 10, 'Which response gives a clear availability date?', 'I can start on the first of June.', 'I can start when the chair is blue.', 'I started tomorrow last week.');
 
+UPDATE seed_questions
+SET explanation = CASE CONCAT(lesson_code, ':', sort_order)
+  WHEN 's1-greetings:1' THEN 'Lời chào nào thường được dùng vào buổi sáng?'
+  WHEN 's1-greetings:2' THEN 'Cụm từ nào là cách thân thiện để nói xin chào?'
+  WHEN 's1-introductions:1' THEN 'Bạn trả lời câu hỏi "Tên bạn là gì?" như thế nào?'
+  WHEN 's1-introductions:2' THEN 'Câu nào dùng để giới thiệu bản thân?'
+  WHEN 's1-numbers:1' THEN 'Số 7 được viết bằng chữ như thế nào?'
+  WHEN 's1-numbers:2' THEN 'Số nào đứng sau số mười hai?'
+  WHEN 's1-family:1' THEN 'Bạn gọi mẹ hoặc bố của mẹ là gì?'
+  WHEN 's1-family:2' THEN 'Em trai của bố bạn được gọi là gì?'
+  WHEN 's2-food:1' THEN 'Món ăn nào thường được làm từ sữa và có thể cắt lát?'
+  WHEN 's2-food:2' THEN 'Loại trái cây nào thường có màu vàng và dễ bóc vỏ?'
+  WHEN 's2-shopping:1' THEN 'Câu hỏi nào dùng để hỏi giá của một món đồ?'
+  WHEN 's2-shopping:2' THEN 'Bạn thường đựng đồ tạp hóa trong gì để mang về?'
+  WHEN 's2-daily-activities:1' THEN 'Bạn thường làm gì sau khi thức dậy?'
+  WHEN 's2-daily-activities:2' THEN 'Hoạt động nào thường diễn ra vào buổi sáng trước khi đi làm?'
+  WHEN 's2-transportation:1' THEN 'Hành khách chờ tàu ở đâu?'
+  WHEN 's2-transportation:2' THEN 'Phương tiện nào chạy trên đường ray?'
+  WHEN 's3-travel:1' THEN 'Nhiều du khách cần giấy tờ nào để qua biên giới quốc tế?'
+  WHEN 's3-travel:2' THEN 'Du khách nhận hành lý ở đâu sau chuyến bay?'
+  WHEN 's3-school:1' THEN 'Học sinh dùng gì để ghi chép?'
+  WHEN 's3-school:2' THEN 'Ai dạy học sinh trong lớp?'
+  WHEN 's3-hobbies:1' THEN 'Sở thích nào sử dụng máy ảnh để chụp hình?'
+  WHEN 's3-hobbies:2' THEN 'Động từ nào có nghĩa là chơi nhạc bằng đàn guitar?'
+  WHEN 's3-job-interview:1' THEN 'Lời chào lịch sự nào phù hợp khi gặp người phỏng vấn?'
+  WHEN 's3-job-interview:2' THEN 'Câu hỏi nào hỏi về kinh nghiệm làm việc của ứng viên?'
+  ELSE NULL
+END
+WHERE sort_order <= 2;
+
 DELETE q
 FROM questions AS q
 JOIN lessons AS l ON l.id = q.lesson_id
 JOIN (SELECT DISTINCT lesson_code FROM seed_questions) AS seeded ON seeded.lesson_code = l.code
 WHERE q.sort_order > 2;
 
-INSERT INTO questions (lesson_id, question_text, question_type, difficulty, sort_order)
-SELECT l.id, seed.question_text, 'multiple_choice', 'beginner', seed.sort_order
+INSERT INTO questions (lesson_id, question_text, question_type, explanation, difficulty, sort_order)
+SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, 'beginner', seed.sort_order
 FROM seed_questions AS seed
 JOIN lessons AS l ON l.code = seed.lesson_code
 WHERE seed.sort_order <= 2
 ON DUPLICATE KEY UPDATE
   question_text = VALUES(question_text),
   question_type = VALUES(question_type),
+  explanation = VALUES(explanation),
   difficulty = VALUES(difficulty);
 
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order)

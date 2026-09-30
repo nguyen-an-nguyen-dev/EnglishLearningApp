@@ -106,6 +106,16 @@ export interface CompleteLessonInput {
   answers: SubmittedAnswer[];
 }
 
+export interface CheckAnswerInput {
+  answer: string;
+}
+
+export interface CheckAnswerResult {
+  is_correct: boolean;
+  correct_answer: string;
+  meaning_vi: string | null;
+}
+
 export interface CompleteLessonResult {
   score: number;
   correct_answers: number;

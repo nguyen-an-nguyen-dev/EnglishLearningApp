@@ -1,7 +1,13 @@
 import type { RequestHandler } from 'express';
 import { HttpError } from '../../middleware/error-handler';
 import * as learningService from './learning.service';
-import { parseCompleteLessonInput, parseLessonId, parseStageId } from './learning.validation';
+import {
+  parseCheckAnswerInput,
+  parseCompleteLessonInput,
+  parseLessonId,
+  parseQuestionId,
+  parseStageId,
+} from './learning.validation';
 
 // GET /api/stages
 export const getStages: RequestHandler = async (_request, response, next) => {
@@ -55,6 +61,20 @@ export const getLessonQuestions: RequestHandler = async (request, response, next
     const lessonId = parseLessonId(request.params.lessonId);
     const questions = await learningService.getLessonQuestions(lessonId, request.auth.userId);
     response.json({ success: true, data: { questions } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/lessons/:lessonId/questions/:questionId/check
+export const checkLessonAnswer: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const lessonId = parseLessonId(request.params.lessonId);
+    const questionId = parseQuestionId(request.params.questionId);
+    const input = parseCheckAnswerInput(request.body);
+    const result = await learningService.checkLessonAnswer(lessonId, questionId, request.auth.userId, input);
+    response.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

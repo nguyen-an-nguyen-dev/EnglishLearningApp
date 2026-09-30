@@ -60,6 +60,7 @@ test('lesson completion requires every answer to be correct before unlocking the
   interface AnswerRow extends RowDataPacket {
     question_id: number;
     answer_id: number;
+    answer_text: string;
     is_correct: boolean | 0 | 1;
   }
 
@@ -78,7 +79,7 @@ test('lesson completion requires every answer to be correct before unlocking the
   const stageLessonIds = stageLessonRows.map((row) => Number(row.id));
 
   const [answerRows] = await testPool.execute<AnswerRow[]>(
-    `SELECT q.id AS question_id, a.id AS answer_id, a.is_correct
+    `SELECT q.id AS question_id, a.id AS answer_id, a.answer_text, a.is_correct
      FROM questions q JOIN answers a ON a.question_id = q.id
      WHERE q.lesson_id = ? ORDER BY q.sort_order, a.sort_order`,
     [lessonId],
@@ -98,6 +99,33 @@ test('lesson completion requires every answer to be correct before unlocking the
     assert.ok(incorrect, `Question ${questionId} must have an incorrect answer.`);
     return { questionId, answer: String(incorrect.answer_id) };
   });
+
+  const firstQuestionId = questionIds[0];
+  const correctAnswer = answerRows.find((row) => row.question_id === firstQuestionId && (row.is_correct === true || row.is_correct === 1));
+  assert.ok(correctAnswer);
+  const checkAnswer = (answer: string) => fetch(
+    `${baseUrl}/api/lessons/${lessonId}/questions/${firstQuestionId}/check`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ answer }),
+    },
+  );
+
+  const correctCheck = await checkAnswer(correctSubmission[0].answer);
+  assert.equal(correctCheck.status, 200);
+  const correctFeedback = await correctCheck.json() as {
+    data: { is_correct: boolean; correct_answer: string; meaning_vi: string | null };
+  };
+  assert.equal(correctFeedback.data.is_correct, true);
+  assert.equal(correctFeedback.data.correct_answer, correctAnswer.answer_text);
+  assert.ok(correctFeedback.data.meaning_vi);
+
+  const incorrectCheck = await checkAnswer(incorrectSubmission[0].answer);
+  assert.equal(incorrectCheck.status, 200);
+  const incorrectFeedback = await incorrectCheck.json() as { data: { is_correct: boolean; correct_answer: string } };
+  assert.equal(incorrectFeedback.data.is_correct, false);
+  assert.equal(incorrectFeedback.data.correct_answer, correctAnswer.answer_text);
 
   const submit = (targetLessonId: number, answers: typeof correctSubmission) => fetch(`${baseUrl}/api/lessons/${targetLessonId}/complete`, {
     method: 'POST',
@@ -143,7 +171,7 @@ test('lesson completion requires every answer to be correct before unlocking the
 
   for (const [index, stageLessonId] of stageLessonIds.slice(1).entries()) {
     const [stageAnswerRows] = await testPool.execute<AnswerRow[]>(
-      `SELECT q.id AS question_id, a.id AS answer_id, a.is_correct
+      `SELECT q.id AS question_id, a.id AS answer_id, a.answer_text, a.is_correct
        FROM questions q JOIN answers a ON a.question_id = q.id
        WHERE q.lesson_id = ? ORDER BY q.sort_order, a.sort_order`,
       [stageLessonId],
