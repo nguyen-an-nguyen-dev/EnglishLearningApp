@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
 
 type AuthMode = 'login' | 'register';
@@ -47,10 +48,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brandMark}><Text style={styles.brandLetter}>L</Text></View>
         <Text style={styles.eyebrow}>LINGUA / ENGLISH</Text>
-        <Text style={styles.title}>{isRegister ? 'Start speaking.' : 'Welcome back.'}</Text>
-        <Text style={styles.subtitle}>
-          {isRegister ? 'Create your account and build a learning habit.' : 'Pick up where your English journey left off.'}
-        </Text>
+        <Text style={styles.title}>{isRegister ? 'Start speaking.' : 'English for life'}</Text>
+
 
         {isRegister && (
           <View style={styles.fieldGroup}>
@@ -60,7 +59,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               autoCapitalize="words"
               onChangeText={setName}
               placeholder="Your name"
-              placeholderTextColor="#7b8781"
+              placeholderTextColor="#8ea2b8"
               style={styles.input}
               value={name}
             />
@@ -75,7 +74,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             keyboardType="email-address"
             onChangeText={setEmail}
             placeholder="you@example.com"
-            placeholderTextColor="#7b8781"
+            placeholderTextColor="#8ea2b8"
             style={styles.input}
             textContentType="emailAddress"
             value={email}
@@ -88,7 +87,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             onChangeText={setPassword}
             placeholder={isRegister ? 'At least 6 characters' : 'Your password'}
-            placeholderTextColor="#7b8781"
+            placeholderTextColor="#8ea2b8"
             secureTextEntry
             style={styles.input}
             textContentType={isRegister ? 'newPassword' : 'password'}
@@ -124,22 +123,22 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f7faf8' },
+  screen: { flex: 1, backgroundColor: Colors.primarySoft },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 48, maxWidth: 520, width: '100%', alignSelf: 'center' },
-  brandMark: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#137b64', marginBottom: 24 },
-  brandLetter: { color: '#ffffff', fontSize: 25, fontWeight: '800' },
-  eyebrow: { color: '#137b64', fontSize: 12, fontWeight: '700', marginBottom: 12 },
-  title: { color: '#172820', fontSize: 34, fontWeight: '800' },
-  subtitle: { color: '#62736a', fontSize: 16, lineHeight: 23, marginTop: 10, marginBottom: 32 },
+  brandMark: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: Colors.primary, marginBottom: 24, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 4 },
+  brandLetter: { color: '#ffffff', fontSize: 28, fontWeight: '800' },
+  eyebrow: { color: Colors.primaryDark, fontSize: 12, fontWeight: '700', marginBottom: 12, letterSpacing: 0.8 },
+  title: { color: '#0F172A', fontSize: 34, fontWeight: '800' },
+  subtitle: { color: '#64748B', fontSize: 16, lineHeight: 23, marginTop: 10, marginBottom: 32 },
   fieldGroup: { marginBottom: 18 },
-  label: { color: '#23362d', fontWeight: '700', fontSize: 14, marginBottom: 8 },
-  input: { borderColor: '#d8e2dc', borderWidth: 1, borderRadius: 10, backgroundColor: '#ffffff', color: '#172820', paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
-  error: { color: '#a43832', backgroundColor: '#fff0ee', borderRadius: 8, padding: 12, marginBottom: 16, lineHeight: 20 },
-  submit: { minHeight: 50, backgroundColor: '#137b64', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  label: { color: '#1E293B', fontWeight: '700', fontSize: 14, marginBottom: 8 },
+  input: { borderColor: Colors.light.border, borderWidth: 1.5, borderRadius: 12, backgroundColor: '#ffffff', color: '#0F172A', paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+  error: { color: '#b91c1c', backgroundColor: '#fee2e2', borderRadius: 8, padding: 12, marginBottom: 16, lineHeight: 20 },
+  submit: { minHeight: 52, backgroundColor: Colors.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 10, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 3 },
   submitText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
-  pressed: { opacity: 0.86 },
+  pressed: { opacity: 0.9, backgroundColor: Colors.primaryDark },
   disabled: { opacity: 0.65 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
-  footerText: { color: '#62736a' },
-  footerLink: { color: '#137b64', fontWeight: '700' },
+  footerText: { color: '#64748B' },
+  footerLink: { color: Colors.primaryDark, fontWeight: '700' },
 });

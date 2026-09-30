@@ -11,10 +11,13 @@ export const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   charset: 'utf8mb4',
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  connectTimeout: 10000,
 });
 
 pool.on('connection', (connection) => {
-  connection.on('error', (error) => {
-    console.error('MySQL connection error:', error.code ?? 'UNKNOWN');
+  connection.on('error', (error: { code?: string }) => {
+    console.error('MariaDB connection error:', error.code ?? 'UNKNOWN');
   });
 });

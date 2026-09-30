@@ -161,11 +161,17 @@ INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answ
   ('s3-job-interview', 9, 'Which phrase is suitable at the end of an interview?', 'Thank you for your time.', 'Give me your time back.', 'I am interviewing you now.'),
   ('s3-job-interview', 10, 'Which response gives a clear availability date?', 'I can start on the first of June.', 'I can start when the chair is blue.', 'I started tomorrow last week.');
 
+DELETE q
+FROM questions AS q
+JOIN lessons AS l ON l.id = q.lesson_id
+JOIN (SELECT DISTINCT lesson_code FROM seed_questions) AS seeded ON seeded.lesson_code = l.code
+WHERE q.sort_order > 2;
+
 INSERT INTO questions (lesson_id, question_text, question_type, difficulty, sort_order)
 SELECT l.id, seed.question_text, 'multiple_choice', 'beginner', seed.sort_order
 FROM seed_questions AS seed
 JOIN lessons AS l ON l.code = seed.lesson_code
-WHERE TRUE
+WHERE seed.sort_order <= 2
 ON DUPLICATE KEY UPDATE
   question_text = VALUES(question_text),
   question_type = VALUES(question_type),
@@ -188,7 +194,7 @@ CROSS JOIN JSON_TABLE(
     is_correct BOOLEAN PATH '$.is_correct'
   )
 ) AS choice
-WHERE TRUE
+WHERE seed.sort_order <= 2
 ON DUPLICATE KEY UPDATE
   is_correct = VALUES(is_correct),
   sort_order = VALUES(sort_order);

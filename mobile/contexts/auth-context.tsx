@@ -1,6 +1,5 @@
-import * as SecureStore from 'expo-secure-store';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
+import { readToken, removeToken, request, writeToken } from '@/services/api';
 
 export interface AuthUser {
   id: number;
@@ -20,60 +19,7 @@ interface AuthContextValue {
   getCurrentUser: () => Promise<AuthUser | null>;
 }
 
-interface ApiEnvelope<T> {
-  success: true;
-  data: T;
-}
-
-interface ApiError {
-  message?: string;
-  errors?: string[];
-}
-
-const TOKEN_KEY = 'english-learning.auth-token';
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 const AuthContext = createContext<AuthContextValue | null>(null);
-let webToken: string | null = null;
-
-async function readToken(): Promise<string | null> {
-  return Platform.OS === 'web' ? webToken : SecureStore.getItemAsync(TOKEN_KEY);
-}
-
-async function writeToken(token: string): Promise<void> {
-  if (Platform.OS === 'web') webToken = token;
-  else await SecureStore.setItemAsync(TOKEN_KEY, token, {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
-}
-
-async function removeToken(): Promise<void> {
-  if (Platform.OS === 'web') webToken = null;
-  else await SecureStore.deleteItemAsync(TOKEN_KEY);
-}
-
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
-  } catch {
-    throw new Error('Cannot reach the server. Check the API address and connection.');
-  }
-
-  const body = await response.json() as ApiEnvelope<T> | ApiError;
-  if (!response.ok || !('success' in body)) {
-    const apiError = body as ApiError;
-    const detail = apiError.errors?.length ? ` ${apiError.errors.join(' ')}` : '';
-    throw new Error(`${apiError.message || 'Request failed.'}${detail}`);
-  }
-  return body.data;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -100,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, []);
 
-  async function login(email: string, password: string): Promise<AuthUser> {
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const data = await request<{ token: string; user: AuthUser }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -109,31 +55,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setUser(data.user);
     return data.user;
-  }
+  }, []);
 
-  async function register(name: string, email: string, password: string): Promise<AuthUser> {
+  const register = useCallback(async (name: string, email: string, password: string): Promise<AuthUser> => {
     await request<{ user: AuthUser }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
     });
     return login(email, password);
-  }
+  }, [login]);
 
-  async function logout(): Promise<void> {
+  const logout = useCallback(async (): Promise<void> => {
     await removeToken();
     setToken(null);
     setUser(null);
-  }
+  }, []);
 
-  async function getCurrentUser(): Promise<AuthUser | null> {
+  const getCurrentUser = useCallback(async (): Promise<AuthUser | null> => {
     if (!token) return null;
     const data = await request<{ user: AuthUser }>('/auth/me', {}, token);
     setUser(data.user);
     return data.user;
-  }
+  }, [token]);
+
+  const value = useMemo(() => ({
+    user,
+    token,
+    isLoading,
+    register,
+    login,
+    logout,
+    getCurrentUser,
+  }), [user, token, isLoading, register, login, logout, getCurrentUser]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, register, login, logout, getCurrentUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

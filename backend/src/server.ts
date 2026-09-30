@@ -27,7 +27,7 @@ async function shutdown(signal: string): Promise<void> {
     try {
       await pool.end();
     } catch (poolError) {
-      console.error('MySQL pool shutdown error:', poolError instanceof Error ? poolError.message : 'Unknown error');
+      console.error('MariaDB pool shutdown error:', poolError instanceof Error ? poolError.message : 'Unknown error');
       process.exitCode = 1;
     }
   });
