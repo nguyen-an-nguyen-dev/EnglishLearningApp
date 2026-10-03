@@ -5,7 +5,9 @@ START TRANSACTION;
 INSERT INTO stages (code, title, description, sort_order) VALUES
   ('stage-1', 'English Foundations', 'Build confidence with everyday beginner English.', 1),
   ('stage-2', 'Everyday English', 'Use English in common daily situations.', 2),
-  ('stage-3', 'English in Action', 'Practice English for school, travel, and work.', 3)
+  ('stage-3', 'English in Action', 'Practice English for school, travel, and work.', 3),
+  ('stage-4', 'English at Work', 'Build confidence in professional situations.', 4),
+  ('stage-5', 'Confident Communication', 'Express ideas clearly in everyday conversations.', 5)
 ON DUPLICATE KEY UPDATE
   title = VALUES(title),
   description = VALUES(description),
@@ -23,7 +25,15 @@ INSERT INTO lessons (stage_id, code, title, topic, sort_order) VALUES
   ((SELECT id FROM stages WHERE code = 'stage-3'), 's3-travel', 'Travel', 'Travel', 1),
   ((SELECT id FROM stages WHERE code = 'stage-3'), 's3-school', 'School', 'School', 2),
   ((SELECT id FROM stages WHERE code = 'stage-3'), 's3-hobbies', 'Hobbies', 'Hobbies', 3),
-  ((SELECT id FROM stages WHERE code = 'stage-3'), 's3-job-interview', 'Job Interview', 'Job Interview', 4)
+  ((SELECT id FROM stages WHERE code = 'stage-3'), 's3-job-interview', 'Job Interview', 'Job Interview', 4),
+  ((SELECT id FROM stages WHERE code = 'stage-4'), 's4-telephone', 'Telephone Calls', 'Telephone Calls', 1),
+  ((SELECT id FROM stages WHERE code = 'stage-4'), 's4-meetings', 'Meetings', 'Meetings', 2),
+  ((SELECT id FROM stages WHERE code = 'stage-4'), 's4-emails', 'Emails', 'Emails', 3),
+  ((SELECT id FROM stages WHERE code = 'stage-4'), 's4-workplace', 'At the Workplace', 'At the Workplace', 4),
+  ((SELECT id FROM stages WHERE code = 'stage-5'), 's5-opinions', 'Sharing Opinions', 'Sharing Opinions', 1),
+  ((SELECT id FROM stages WHERE code = 'stage-5'), 's5-storytelling', 'Storytelling', 'Storytelling', 2),
+  ((SELECT id FROM stages WHERE code = 'stage-5'), 's5-goals', 'Plans and Goals', 'Plans and Goals', 3),
+  ((SELECT id FROM stages WHERE code = 'stage-5'), 's5-review', 'Everyday Review', 'Everyday Review', 4)
 ON DUPLICATE KEY UPDATE
   title = VALUES(title),
   topic = VALUES(topic),
@@ -160,7 +170,23 @@ INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answ
   ('s3-job-interview', 7, 'Which sentence correctly describes a past job?', 'I worked as a sales assistant for two years.', 'I work as a sales assistant last year.', 'I working as a sales assistant for two years.'),
   ('s3-job-interview', 8, 'How can you show that you listened to a question?', 'That is a good question. I would say...', 'I did not hear anything, goodbye.', 'Your question is my answer.'),
   ('s3-job-interview', 9, 'Which phrase is suitable at the end of an interview?', 'Thank you for your time.', 'Give me your time back.', 'I am interviewing you now.'),
-  ('s3-job-interview', 10, 'Which response gives a clear availability date?', 'I can start on the first of June.', 'I can start when the chair is blue.', 'I started tomorrow last week.');
+  ('s3-job-interview', 10, 'Which response gives a clear availability date?', 'I can start on the first of June.', 'I can start when the chair is blue.', 'I started tomorrow last week.'),
+  ('s4-telephone', 1, 'How can you politely ask to speak with someone on the phone?', 'May I speak to Alex, please?', 'Give me Alex right now.', 'Alex must answer me.'),
+  ('s4-telephone', 2, 'What can you say when you did not hear the caller clearly?', 'Could you repeat that, please?', 'You are speaking incorrectly.', 'I will not listen.'),
+  ('s4-meetings', 1, 'Which phrase politely asks a colleague to repeat a point?', 'Could you say that again, please?', 'Say it again now.', 'You did not explain anything.'),
+  ('s4-meetings', 2, 'Which response shows that you agree with an idea?', 'I agree with your suggestion.', 'I suggest your agreement.', 'I do not know this meeting.'),
+  ('s4-emails', 1, 'What is the purpose of an email subject line?', 'To summarize the email topic.', 'To list the sender''s password.', 'To replace the email message.'),
+  ('s4-emails', 2, 'Which greeting is suitable for a formal work email?', 'Dear Ms. Nguyen,', 'Hey you there!', 'What is happening, boss?'),
+  ('s4-workplace', 1, 'How can you politely ask a coworker for help?', 'Could you help me with this task, please?', 'Do this task for me now.', 'You must finish my work.'),
+  ('s4-workplace', 2, 'What does a project deadline mean?', 'The date when the work should be finished.', 'The place where the project begins.', 'The person who planned the project.'),
+  ('s5-opinions', 1, 'Which phrase introduces a personal opinion?', 'In my opinion, this is a good idea.', 'Your opinion is my idea.', 'I opinion this idea.'),
+  ('s5-opinions', 2, 'How can you politely disagree with someone?', 'I see your point, but I think differently.', 'You are completely wrong.', 'I will not hear your idea.'),
+  ('s5-storytelling', 1, 'Which word can introduce the first event in a story?', 'First,', 'Although,', 'Instead of,'),
+  ('s5-storytelling', 2, 'Which phrase can describe what happened next?', 'After that,', 'Before because,', 'Next to it,'),
+  ('s5-goals', 1, 'Which sentence describes a future plan?', 'I am going to study English tonight.', 'I studied English last night.', 'I study English every Monday.'),
+  ('s5-goals', 2, 'Which phrase describes a personal goal?', 'I hope to become more confident.', 'I became confident yesterday.', 'I am confidence at home.'),
+  ('s5-review', 1, 'Which response is a polite way to ask someone to clarify?', 'Could you explain what you mean?', 'Your meaning is not important.', 'Explain everything faster.'),
+  ('s5-review', 2, 'Which phrase is suitable for ending a friendly conversation?', 'It was nice talking with you.', 'I talk nice you.', 'Finish this conversation now.');
 
 UPDATE seed_questions
 SET explanation = CASE CONCAT(lesson_code, ':', sort_order)

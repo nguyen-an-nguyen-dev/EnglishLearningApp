@@ -14,24 +14,43 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import Svg, { Circle, Path } from 'react-native-svg';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
-import { fetchUserProgress, Lesson, StageWithLessons, UserProgress } from '@/services/learning';
+import { fetchUserProgress, type Lesson, type StageWithLessons, type UserProgress } from '@/services/learning';
 
-const STAGE_ROW_HEIGHT = 190;
+const STAGE_HEADER_HEIGHT = 146;
+const STAGE_GAP = 22;
 const CAR_SIZE = 46;
+const STAGE_RING_SIZE = 88;
+const STAGE_RING_STROKE = 4;
+const STAGE_RING_RADIUS = (STAGE_RING_SIZE - STAGE_RING_STROKE) / 2;
+const STAGE_NODE_TOP = 10;
+const STAGE_ICONS = [
+  { ios: 'graduationcap.fill', android: 'school', web: 'school' },
+  { ios: 'map.fill', android: 'explore', web: 'explore' },
+  { ios: 'bolt.fill', android: 'rocket_launch', web: 'rocket_launch' },
+  { ios: 'briefcase.fill', android: 'work', web: 'work' },
+  { ios: 'bubble.left.and.bubble.right.fill', android: 'forum', web: 'forum' },
+] as const;
 
 export default function LearningPathScreen() {
   const { user, logout, getCurrentUser } = useAuth();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const carPosition = useRef(new Animated.Value(0)).current;
   const hasPositionedCar = useRef(false);
+  const lastCarTarget = useRef<number | null>(null);
+  const pathScrollRef = useRef<ScrollView>(null);
+  const pathOffset = useRef(0);
+  const scrollOffset = useRef(0);
 
   const [progressData, setProgressData] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -84,23 +103,16 @@ export default function LearningPathScreen() {
     });
   }
 
-  function handleStageClick(stage: StageWithLessons, isLocked: boolean) {
-    if (isLocked) {
-      Alert.alert('Stage đang khóa', 'Hoàn thành stage trước để mở chặng đường tiếp theo.');
-      return;
-    }
-
-    const nextLesson = stage.lessons.find((lesson) => lesson.state.status === 'unlocked' || lesson.state.status === 'available')
-      ?? stage.lessons.find((lesson) => lesson.state.status !== 'completed')
-      ?? stage.lessons[0];
-
-    if (nextLesson) handleLessonClick(nextLesson);
+  function handleStageClick(stage: StageWithLessons) {
+    setSelectedStageId(stage.id);
   }
 
   const allLessons = progressData?.stages.flatMap((s) => s.lessons) ?? [];
   const totalLessons = allLessons.length;
   const completedCount = allLessons.filter((l) => l.state.status === 'completed').length;
-  const overallPercentage = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+  const activeLessonIndex = allLessons.findIndex((lesson) => lesson.state.status !== 'completed');
+  const currentLessonIndex = activeLessonIndex >= 0 ? activeLessonIndex : allLessons.length - 1;
+  const currentLesson = allLessons[currentLessonIndex];
   const stageProgress = (progressData?.stages ?? []).map((stage) => {
     const completedLessons = stage.lessons.filter((lesson) => lesson.state.status === 'completed').length;
     const totalLessonsInStage = stage.lessons.length;
@@ -111,57 +123,81 @@ export default function LearningPathScreen() {
       isCompleted: totalLessonsInStage > 0 && completedLessons === totalLessonsInStage,
     };
   });
-  const activeStageIndex = stageProgress.findIndex((item) => item.totalLessons > 0 && !item.isCompleted);
-  const currentStage = activeStageIndex >= 0 ? stageProgress[activeStageIndex] : null;
-  const currentLesson = currentStage?.stage.lessons.find(
-    (lesson) => lesson.state.status === 'unlocked' || lesson.state.status === 'available',
-  );
-  const routeWidth = Math.max(width - 36, 280);
+  const selectedStage = progressData?.stages.find((stage) => stage.id === selectedStageId) ?? null;
+  const selectedLesson = selectedStage?.lessons.find((lesson) => lesson.state.status !== 'completed')
+    ?? selectedStage?.lessons[0]
+    ?? null;
+  const selectedLessonIndex = selectedStage && selectedLesson
+    ? selectedStage.lessons.findIndex((lesson) => lesson.id === selectedLesson.id)
+    : -1;
+  const selectedLessonLocked = selectedLesson?.state.status === 'locked';
+  const currentStageIndex = currentLesson
+    ? stageProgress.findIndex((item) => item.stage.lessons.some((lesson) => lesson.id === currentLesson.id))
+    : -1;
+  const currentStage = currentStageIndex >= 0 ? stageProgress[currentStageIndex] : null;
+  const routeWidth = width - 36;
+  const stageStops: number[] = [];
+  let mapHeight = 0;
+  stageProgress.forEach((_, stageIndex) => {
+    stageStops.push(mapHeight + STAGE_NODE_TOP + (STAGE_RING_SIZE - CAR_SIZE) / 2);
+    mapHeight += STAGE_HEADER_HEIGHT;
+    if (stageIndex < stageProgress.length - 1) mapHeight += STAGE_GAP;
+  });
   const stageIndices = stageProgress.map((_, index) => index);
-  const carLeftPositions = stageProgress.map((_, index) =>
-    routeWidth * (index % 2 === 0 ? 0.22 : 0.78) - CAR_SIZE / 2,
-  );
 
   useEffect(() => {
-    if (activeStageIndex < 0) return;
+    if (currentStageIndex < 0) return;
     if (!hasPositionedCar.current) {
-      carPosition.setValue(activeStageIndex);
+      carPosition.setValue(currentStageIndex);
       hasPositionedCar.current = true;
+      lastCarTarget.current = currentStageIndex;
       return;
     }
+
+    const previousTarget = lastCarTarget.current ?? currentStageIndex;
+    const distance = Math.abs(currentStageIndex - previousTarget);
+    if (distance === 0) return;
+
+    const targetTop = stageStops[currentStageIndex] ?? 0;
     Animated.timing(carPosition, {
-      toValue: activeStageIndex,
-      duration: 4000,
+      toValue: currentStageIndex,
+      duration: Math.min(8000, distance * 2200),
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: false,
-    }).start();
-  }, [activeStageIndex, carPosition]);
+    }).start(({ finished }) => {
+      if (!finished) return;
+      const destinationY = pathOffset.current + targetTop;
+      const destinationScreenY = destinationY - scrollOffset.current;
+      if (destinationScreenY < 110 || destinationScreenY > height - 210) {
+        pathScrollRef.current?.scrollTo({
+          y: Math.max(0, destinationY - height * 0.38),
+          animated: true,
+        });
+      }
+    });
+    lastCarTarget.current = currentStageIndex;
+  }, [currentStageIndex, carPosition, height, stageStops]);
 
-  const carLeft = stageIndices.length > 1
-    ? carPosition.interpolate({ inputRange: stageIndices, outputRange: carLeftPositions, extrapolate: 'clamp' })
-    : carLeftPositions[0] ?? 0;
   const carTop = stageIndices.length > 1
-    ? carPosition.interpolate({
-        inputRange: stageIndices,
-        outputRange: stageIndices.map((index) => index * STAGE_ROW_HEIGHT + 29),
-        extrapolate: 'clamp',
-      })
-    : 29;
+    ? carPosition.interpolate({ inputRange: stageIndices, outputRange: stageStops, extrapolate: 'clamp' })
+    : stageStops[0] ?? 0;
+  const carLeft = routeWidth / 2 - CAR_SIZE / 2;
+  const currentStageLessonIndex = currentStage && currentLesson
+    ? currentStage.stage.lessons.findIndex((lesson) => lesson.id === currentLesson.id)
+    : -1;
+  const stagePercentage = currentStage && currentStage.totalLessons > 0
+    ? Math.round((currentStage.completedLessons / currentStage.totalLessons) * 100)
+    : 0;
+
+  function handleStartSelectedLesson() {
+    if (!selectedLesson || selectedLessonLocked) return;
+    setSelectedStageId(null);
+    handleLessonClick(selectedLesson);
+  }
 
   return (
     <SafeAreaView style={styles.journeySafeArea}>
-      <ScrollView
-        contentContainerStyle={styles.journeyScroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#f2b544"
-            colors={['#f2b544']}
-          />
-        }
-      >
+      <View style={styles.fixedTop} onTouchStart={() => setSelectedStageId(null)}>
         <View style={styles.journeyHeader}>
           <View style={styles.brandGroup}>
             <Text style={styles.brandCar}>🚘</Text>
@@ -193,83 +229,185 @@ export default function LearningPathScreen() {
           </View>
         )}
 
+        {!loading && progressData && currentStage && currentLesson && (
+          <View style={styles.lessonOverview}>
+            <View style={styles.overviewTopRow}>
+              <Text style={styles.overviewStageLabel}>STAGE {currentStageIndex + 1}</Text>
+              <Text style={styles.overviewCount}>
+                BÀI {currentStageLessonIndex + 1} / {currentStage.totalLessons}
+              </Text>
+            </View>
+            <Text numberOfLines={2} style={styles.overviewTitle}>{currentStage.stage.title}</Text>
+            <Text numberOfLines={1} style={styles.overviewSubtitle}>
+              {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : `Đang học: ${currentLesson.title} (${currentLesson.topic})`}
+            </Text>
+            <View style={styles.overviewProgressTrack}>
+              <View style={[styles.overviewProgressFill, { width: `${stagePercentage}%` }]} />
+            </View>
+          </View>
+        )}
+
+      </View>
+      {!loading && progressData && (
+        <ScrollView
+          ref={pathScrollRef}
+          style={styles.roadScroll}
+          onStartShouldSetResponderCapture={() => {
+            setSelectedStageId(null);
+            return false;
+          }}
+          onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.journeyScroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#f2b544"
+              colors={['#f2b544']}
+            />
+          }
+        >
         {!loading && progressData && (
-          <View style={styles.stageMap}>
-            {stageProgress.map(({ stage, completedLessons: stageCompleted, totalLessons: stageTotal, isCompleted }, stageIndex) => {
-              const isCurrent = stageIndex === activeStageIndex;
-              const isLocked = activeStageIndex >= 0 && stageIndex > activeStageIndex;
+          <View
+            style={[styles.stageMap, { minHeight: mapHeight }]}
+            onLayout={(event) => { pathOffset.current = event.nativeEvent.layout.y; }}
+          >
+            <View style={[styles.centerRoad, styles.nonInteractive]} />
+            <View style={[styles.centerRoadLine, styles.nonInteractive]} />
+            {stageProgress.map(({ stage, completedLessons, totalLessons: stageTotal, isCompleted }, stageIndex) => {
               const markerOnLeft = stageIndex % 2 === 0;
-              const percentage = stageTotal > 0 ? Math.round((stageCompleted / stageTotal) * 100) : 0;
+              const percentage = stageTotal > 0 ? Math.round((completedLessons / stageTotal) * 100) : 0;
+              const ringCenter = STAGE_RING_SIZE / 2;
+              const progressEndAngle = (percentage / 100) * Math.PI * 2 - Math.PI / 2;
+              const progressEndX = ringCenter + STAGE_RING_RADIUS * Math.cos(progressEndAngle);
+              const progressEndY = ringCenter + STAGE_RING_RADIUS * Math.sin(progressEndAngle);
+              const progressArcPath = `M ${ringCenter} ${ringCenter - STAGE_RING_RADIUS} A ${STAGE_RING_RADIUS} ${STAGE_RING_RADIUS} 0 ${percentage > 50 ? 1 : 0} 1 ${progressEndX} ${progressEndY}`;
+              const isStageLocked = stage.lessons.length > 0
+                && stage.lessons.every((lesson) => lesson.state.status === 'locked');
+              const isCurrentStage = stageIndex === currentStageIndex && activeLessonIndex >= 0;
 
               return (
-                <View key={stage.id} style={styles.stageMapRow}>
-                  {stageIndex < stageProgress.length - 1 && (
-                    <View style={[styles.roadSegment, markerOnLeft ? styles.roadSlopeRight : styles.roadSlopeLeft]} />
-                  )}
-                  <View style={[
-                    styles.stageMarker,
-                    markerOnLeft ? styles.stageMarkerLeft : styles.stageMarkerRight,
-                    isCompleted && styles.stageMarkerCompleted,
-                    isCurrent && styles.stageMarkerCurrent,
-                    isLocked && styles.stageMarkerLocked,
-                  ]}>
-                    <Text style={styles.stageMarkerText}>{isCompleted ? '✓' : isLocked ? '🔒' : String(stageIndex + 1)}</Text>
-                  </View>
+                <View
+                  key={stage.id}
+                  style={[styles.stageSection, stageIndex < stageProgress.length - 1 && styles.stageSectionSpaced]}
+                >
                   <Pressable
-                    onPress={() => handleStageClick(stage, isLocked)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${stage.title}, ${stageCompleted} trên ${stageTotal} bài hoàn thành`}
-                    style={[
-                      styles.stageInfo,
-                      markerOnLeft ? styles.stageInfoRight : styles.stageInfoLeft,
-                      isCompleted && styles.stageInfoCompleted,
-                      isCurrent && styles.stageInfoCurrent,
-                      isLocked && styles.stageInfoLocked,
-                    ]}
+                    onPress={() => setSelectedStageId(null)}
+                    style={styles.stageWaypoint}
                   >
-                    <Text style={styles.stageEyebrow}>STAGE {String(stageIndex + 1).padStart(2, '0')}</Text>
-                    <Text numberOfLines={1} style={styles.stageName}>{stage.title}</Text>
-                    <Text numberOfLines={1} style={styles.stageDescription}>{stage.description || 'Chặng học tiếng Anh'}</Text>
-                    <View style={styles.stageProgressRow}>
-                      <View style={styles.stageProgressTrack}>
-                        <View style={[styles.stageProgressFill, { width: `${percentage}%` }, isCompleted && styles.stageProgressFillDone]} />
+                    <View
+                      style={[styles.stageConnector, markerOnLeft ? styles.connectorLeft : styles.connectorRight, styles.nonInteractive]}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Stage ${stageIndex + 1}, ${stage.title}, ${completedLessons} trên ${stageTotal} bài đã hoàn thành. Nhấn để tiếp tục.`}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleStageClick(stage);
+                      }}
+                      style={[
+                        styles.stageMarker,
+                        markerOnLeft ? styles.stageMarkerLeft : styles.stageMarkerRight,
+                        isCompleted && styles.stageMarkerCompleted,
+                        isCurrentStage && styles.stageMarkerCurrent,
+                        isStageLocked && styles.stageMarkerLocked,
+                      ]}
+                    >
+                      <View style={styles.stageRing}>
+                        <Svg width={STAGE_RING_SIZE} height={STAGE_RING_SIZE} style={styles.stageRingSvg}>
+                          <Circle
+                            cx={STAGE_RING_SIZE / 2}
+                            cy={STAGE_RING_SIZE / 2}
+                            r={STAGE_RING_RADIUS}
+                            fill="none"
+                            stroke="#d8e3e9"
+                            strokeWidth={STAGE_RING_STROKE}
+                          />
+                          {percentage >= 100 ? (
+                            <Circle
+                              cx={ringCenter}
+                              cy={ringCenter}
+                              r={STAGE_RING_RADIUS}
+                              fill="none"
+                              stroke={Colors.primaryDark}
+                              strokeWidth={STAGE_RING_STROKE}
+                            />
+                          ) : percentage > 0 ? (
+                            <Path
+                              d={progressArcPath}
+                              fill="none"
+                              stroke={Colors.primaryDark}
+                              strokeWidth={STAGE_RING_STROKE}
+                              strokeLinecap="round"
+                            />
+                          ) : null}
+                        </Svg>
+                        <View style={styles.stageRingCenter}>
+                          <SymbolView
+                            name={STAGE_ICONS[stageIndex % STAGE_ICONS.length]}
+                            tintColor="#fff"
+                            size={28}
+                          />
+                        </View>
                       </View>
-                      <Text style={styles.stageProgressText}>{stageCompleted}/{stageTotal}</Text>
+                    </Pressable>
+                    <View
+                      style={[
+                        styles.stageInfo,
+                        markerOnLeft ? styles.stageInfoLeft : styles.stageInfoRight,
+                        isCompleted && styles.stageInfoCompleted,
+                        isCurrentStage && styles.stageInfoCurrent,
+                        isStageLocked && styles.stageInfoLocked,
+                      ]}
+                    >
+                      <Text numberOfLines={2} style={styles.stageName}>
+                        {stageIndex + 1}. {stage.title}
+                      </Text>
                     </View>
-                    {isCurrent && <Text style={styles.currentStageHint}>ĐANG HỌC</Text>}
-                    {isCompleted && <Text style={styles.replayStageHint}>↻ ÔN TẬP</Text>}
                   </Pressable>
                 </View>
               );
             })}
-            {activeStageIndex >= 0 && (
+            {currentStageIndex >= 0 && (
               <Animated.View
-                pointerEvents="none"
-                style={[styles.movingCar, { left: carLeft, top: carTop }]}
+                style={[styles.movingCar, { left: carLeft, top: carTop }, styles.nonInteractive]}
               >
-                <Text style={styles.movingCarText}>🚙</Text>
+                <Text style={styles.movingCarText}>🚘</Text>
               </Animated.View>
             )}
           </View>
         )}
-      </ScrollView>
-      {!loading && currentStage && (
-        <View style={styles.bottomDock}>
-          <View style={styles.dockInfo}>
-            <Text style={styles.dockEyebrow}>ĐANG HỌC · STAGE {activeStageIndex + 1}</Text>
-            <Text numberOfLines={1} style={styles.dockTitle}>{currentStage.stage.title}</Text>
-            <Text style={styles.dockProgress}>{currentStage.completedLessons}/{currentStage.totalLessons} bài đã xong</Text>
-          </View>
-          <Pressable
-            disabled={!currentLesson}
-            onPress={() => currentLesson && handleLessonClick(currentLesson)}
-            style={[styles.dockButton, !currentLesson && styles.dockButtonDisabled]}
-          >
-            <Text style={styles.dockButtonText}>▶ Học</Text>
-          </Pressable>
-        </View>
+        </ScrollView>
       )}
-      {!loading && progressData && !currentStage && totalLessons > 0 && (
+      {selectedStage && (
+        <Pressable
+          onPress={() => setSelectedStageId(null)}
+          style={styles.stageLessonPanel}
+        >
+          <Text numberOfLines={2} style={styles.stageLessonTitle}>
+            {selectedLesson?.title ?? 'Chưa có bài học'}
+          </Text>
+          <Text style={styles.stageLessonCount}>
+            {selectedLesson
+              ? `Bài học ${selectedLessonIndex + 1}/${selectedStage.lessons.length}`
+              : 'Bài học 0/0'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={!selectedLesson || selectedLessonLocked}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleStartSelectedLesson();
+            }}
+            style={[styles.stageLessonButton, (!selectedLesson || selectedLessonLocked) && styles.stageLessonButtonDisabled]}
+          >
+            <Text style={styles.stageLessonButtonText}>Bắt đầu</Text>
+          </Pressable>
+        </Pressable>
+      )}
+      {!selectedStage && !loading && progressData && totalLessons > 0 && activeLessonIndex < 0 && (
         <View style={styles.completedDock}>
           <Text style={styles.completedDockText}>🏁 Bạn đã hoàn thành tất cả stage!</Text>
         </View>
@@ -597,12 +735,19 @@ const styles = StyleSheet.create({
   },
   journeySafeArea: {
     flex: 1,
-    backgroundColor: '#17142f',
+    backgroundColor: '#f7f8fc',
+  },
+  fixedTop: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+  },
+  roadScroll: {
+    flex: 1,
   },
   journeyScroll: {
     paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 30,
+    paddingBottom: 28,
   },
   journeyHeader: {
     flexDirection: 'row',
@@ -619,7 +764,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   brandTitle: {
-    color: '#fff',
+    color: '#17263b',
     fontSize: 19,
     fontWeight: '900',
   },
@@ -630,14 +775,14 @@ const styles = StyleSheet.create({
   },
   xpChip: {
     borderWidth: 1,
-    borderColor: '#4d5e92',
-    borderRadius: 18,
-    backgroundColor: '#242748',
+    borderColor: '#d5e6ec',
+    borderRadius: 16,
+    backgroundColor: '#fff',
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   xpChipText: {
-    color: '#90c7ff',
+    color: '#078fa7',
     fontSize: 13,
     fontWeight: '800',
   },
@@ -645,7 +790,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#f28b45',
+    backgroundColor: '#11b9cf',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -661,11 +806,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     borderRadius: 12,
-    backgroundColor: '#4a2539',
+    backgroundColor: '#fff0f0',
   },
   journeyErrorText: {
     flex: 1,
-    color: '#ffd5dd',
+    color: '#a52e3c',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -673,7 +818,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#be5363',
+    backgroundColor: '#c84352',
   },
   retryButtonText: {
     color: '#fff',
@@ -686,7 +831,7 @@ const styles = StyleSheet.create({
   },
   journeyLoadingText: {
     marginTop: 12,
-    color: '#d4cee9',
+    color: '#5c6c7d',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -694,150 +839,99 @@ const styles = StyleSheet.create({
     position: 'relative',
     paddingBottom: 14,
   },
-  stageMapRow: {
-    height: STAGE_ROW_HEIGHT,
-    position: 'relative',
-    overflow: 'visible',
-  },
-  roadSegment: {
-    position: 'absolute',
-    left: '9%',
-    top: 138,
-    width: '82%',
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#77738e',
-    borderWidth: 1,
-    borderColor: '#a09cb4',
-    zIndex: 0,
-  },
-  roadSlopeRight: {
-    transform: [{ rotate: '43deg' }],
-  },
-  roadSlopeLeft: {
-    transform: [{ rotate: '-43deg' }],
-  },
   stageMarker: {
     position: 'absolute',
-    top: 20,
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    top: STAGE_NODE_TOP,
+    width: STAGE_RING_SIZE,
+    height: STAGE_RING_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: '#5f5b79',
-    backgroundColor: '#34304f',
     zIndex: 2,
   },
   stageMarkerLeft: {
-    left: '13%',
+    left: '8%',
   },
   stageMarkerRight: {
-    left: '69%',
+    right: '8%',
   },
   stageMarkerCompleted: {
-    backgroundColor: '#20b878',
-    borderColor: '#53e0a0',
+    opacity: 0.9,
   },
   stageMarkerCurrent: {
-    backgroundColor: '#ef8b28',
-    borderColor: '#ffb245',
+    transform: [{ scale: 1.04 }],
   },
   stageMarkerLocked: {
-    backgroundColor: '#252243',
-    borderColor: '#343052',
-  },
-  stageMarkerText: {
-    color: '#fff',
-    fontSize: 21,
-    fontWeight: '900',
+    opacity: 0.48,
   },
   stageInfo: {
     position: 'absolute',
-    top: 21,
-    width: '58%',
-    minHeight: 104,
-    padding: 11,
-    borderWidth: 1,
-    borderColor: '#484363',
-    borderRadius: 12,
-    backgroundColor: '#35314f',
-    zIndex: 1,
-  },
-  stageInfoRight: {
-    left: '38%',
+    top: STAGE_NODE_TOP + STAGE_RING_SIZE + 4,
+    width: '48%',
+    minHeight: 32,
+    justifyContent: 'center',
   },
   stageInfoLeft: {
-    left: '4%',
+    left: '-2%',
+    alignItems: 'center',
+  },
+  stageInfoRight: {
+    right: '-2%',
+    alignItems: 'center',
   },
   stageInfoCompleted: {
-    borderColor: '#347b68',
-    backgroundColor: '#2e3b53',
+    opacity: 1,
   },
   stageInfoCurrent: {
-    borderColor: '#a96a44',
-    backgroundColor: '#40344f',
+    opacity: 1,
   },
   stageInfoLocked: {
     opacity: 0.55,
   },
-  stageEyebrow: {
-    color: '#a49dbd',
-    fontSize: 9,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
   stageName: {
+    color: '#33485a',
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 14,
+    textAlign: 'center',
+  },
+  stageLessonPanel: {
+    gap: 5,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryDark,
+    elevation: 4,
+  },
+  stageLessonTitle: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '900',
+    textAlign: 'center',
   },
-  stageDescription: {
-    color: '#c1bad6',
-    fontSize: 10,
-    marginTop: 2,
+  stageLessonCount: {
+    color: '#d9f7ff',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 5,
   },
-  stageProgressRow: {
-    flexDirection: 'row',
+  stageLessonButton: {
+    minHeight: 44,
     alignItems: 'center',
-    gap: 8,
-    marginTop: 9,
+    justifyContent: 'center',
+    marginTop: 3,
+    borderRadius: 9,
+    backgroundColor: '#fff',
   },
-  stageProgressTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: '#5b5675',
-    overflow: 'hidden',
+  stageLessonButtonDisabled: {
+    opacity: 0.58,
   },
-  stageProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#f09a48',
-  },
-  stageProgressFillDone: {
-    backgroundColor: '#35d293',
-  },
-  stageProgressText: {
-    color: '#d0c9df',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  currentStageHint: {
-    position: 'absolute',
-    right: 10,
-    top: 9,
-    color: '#ffc15f',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  replayStageHint: {
-    position: 'absolute',
-    right: 10,
-    top: 9,
-    color: '#7ce2b0',
-    fontSize: 8,
+  stageLessonButtonText: {
+    color: Colors.primaryDark,
+    fontSize: 15,
     fontWeight: '900',
   },
   movingCar: {
@@ -846,13 +940,18 @@ const styles = StyleSheet.create({
     height: CAR_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderRadius: CAR_SIZE / 2,
+    backgroundColor: '#08b9d1',
+    zIndex: 5,
+    elevation: 7,
   },
   movingCarText: {
-    fontSize: 34,
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 4,
+    fontSize: 29,
+    textShadowColor: 'rgba(0,0,0,0.22)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
   bottomDock: {
     minHeight: 84,
@@ -907,12 +1006,125 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 22,
     borderTopWidth: 1,
-    borderTopColor: '#413b5f',
-    backgroundColor: '#211d3b',
+    borderTopColor: '#dce5ec',
+    backgroundColor: '#fff',
   },
   completedDockText: {
-    color: '#fff',
+    color: '#146b55',
     textAlign: 'center',
     fontWeight: '800',
+  },
+  lessonOverview: {
+    paddingTop: 2,
+    paddingBottom: 16,
+  },
+  overviewTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  overviewStageLabel: {
+    color: '#079ab1',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  overviewCount: {
+    color: '#536170',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  overviewTitle: {
+    color: '#17263b',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  overviewSubtitle: {
+    color: '#697785',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  overviewProgressTrack: {
+    height: 6,
+    marginTop: 12,
+    borderRadius: 4,
+    backgroundColor: '#e5edf2',
+    overflow: 'hidden',
+  },
+  overviewProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#11b9cf',
+  },
+  centerRoad: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    bottom: 0,
+    width: 78,
+    marginLeft: -39,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#d7dfe8',
+    borderRadius: 39,
+    backgroundColor: '#e6ebf1',
+  },
+  nonInteractive: {
+    pointerEvents: 'none',
+  },
+  centerRoadLine: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    marginLeft: -1,
+    borderStyle: 'dashed',
+    borderLeftWidth: 2,
+    borderColor: '#fff',
+  },
+  stageSection: {
+    position: 'relative',
+  },
+  stageSectionSpaced: {
+    marginBottom: STAGE_GAP,
+  },
+  stageWaypoint: {
+    height: STAGE_HEADER_HEIGHT,
+    position: 'relative',
+  },
+  stageConnector: {
+    position: 'absolute',
+    top: STAGE_NODE_TOP + STAGE_RING_SIZE / 2,
+    height: 3,
+    backgroundColor: '#c8d7df',
+    zIndex: 1,
+  },
+  connectorLeft: {
+    left: '29%',
+    right: '50%',
+  },
+  connectorRight: {
+    left: '50%',
+    right: '29%',
+  },
+  stageRing: {
+    position: 'relative',
+    width: STAGE_RING_SIZE,
+    height: STAGE_RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageRingSvg: {
+    position: 'absolute',
+  },
+  stageRingCenter: {
+    width: 62,
+    height: 62,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 31,
+    backgroundColor: Colors.primaryDark,
+    elevation: 2,
   },
 });
