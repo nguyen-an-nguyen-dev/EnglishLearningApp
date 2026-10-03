@@ -24,6 +24,13 @@ import {
   submitLessonCompletion,
 } from '@/services/learning';
 
+const BADGE_ICONS: Record<string, string> = {
+  first_lesson: '🎓',
+  lessons_10: '🏅',
+  xp_100: '💯',
+  xp_500: '🏆',
+};
+
 export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const lessonId = Number(id);
@@ -240,6 +247,21 @@ export default function LessonScreen() {
               <Text style={styles.statValueXp}>+{result.xp_earned} XP</Text>
             </View>
           </View>
+
+          {result.badges_awarded.length > 0 && (
+            <View style={styles.badgeAwards}>
+              <Text style={styles.badgeAwardsHeading}>HUY HIỆU MỚI</Text>
+              {result.badges_awarded.map((badge) => (
+                <View key={badge.code} style={styles.badgeAwardRow}>
+                  <Text style={styles.badgeAwardIcon}>{BADGE_ICONS[badge.code] ?? '🏅'}</Text>
+                  <View style={styles.badgeAwardCopy}>
+                    <Text style={styles.badgeAwardName}>{badge.name}</Text>
+                    <Text style={styles.badgeAwardDescription}>{badge.description}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <Pressable
             style={styles.modalPrimaryBtn}
@@ -792,6 +814,43 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#D97706',
+  },
+  badgeAwards: {
+    width: '100%',
+    gap: 8,
+    marginTop: -8,
+    marginBottom: 18,
+  },
+  badgeAwardsHeading: {
+    color: Colors.primaryDark,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  badgeAwardRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  badgeAwardIcon: {
+    fontSize: 21,
+  },
+  badgeAwardCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  badgeAwardName: {
+    color: '#203447',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  badgeAwardDescription: {
+    color: '#71818d',
+    fontSize: 10,
+    marginTop: 2,
   },
   modalPrimaryBtn: {
     width: '100%',

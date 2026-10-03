@@ -3,7 +3,9 @@ import cors from 'cors';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { authRouter } from './modules/auth/auth.routes';
+import { badgesRouter } from './modules/badges/badges.routes';
 import { learningRouter } from './modules/learning/learning.routes';
+import { rankingRouter } from './modules/ranking/ranking.routes';
 import { healthRouter } from './routes/health';
 
 export const app = express();
@@ -26,6 +28,8 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/ranking', rankingRouter);
+app.use('/api/badges', badgesRouter);
 app.use('/api', learningRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);

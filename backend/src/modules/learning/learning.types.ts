@@ -1,5 +1,6 @@
 // Row types (from database)
 import type { RowDataPacket } from 'mysql2';
+import type { Badge } from '../badges/badges.types';
 
 export interface StageRow extends RowDataPacket {
   id: number;
@@ -123,4 +124,5 @@ export interface CompleteLessonResult {
   xp_earned: number;
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
+  badges_awarded: Badge[];
 }

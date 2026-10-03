@@ -69,6 +69,12 @@ export interface CompleteLessonResult {
   xp_earned: number;
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
+  badges_awarded: Array<{
+    code: string;
+    name: string;
+    description: string;
+    icon: string | null;
+  }>;
 }
 
 export async function fetchStages(): Promise<Stage[]> {

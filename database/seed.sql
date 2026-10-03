@@ -2,6 +2,16 @@ USE english_learning;
 
 START TRANSACTION;
 
+INSERT INTO badges (code, name, description, icon) VALUES
+  ('first_lesson', 'First Lesson', 'Complete your first lesson.', 'school'),
+  ('lessons_10', '10 Lessons Completed', 'Complete 10 lessons.', 'workspace_premium'),
+  ('xp_100', '100 XP', 'Earn 100 XP.', 'bolt'),
+  ('xp_500', '500 XP', 'Earn 500 XP.', 'military_tech')
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  description = VALUES(description),
+  icon = VALUES(icon);
+
 INSERT INTO stages (code, title, description, sort_order) VALUES
   ('stage-1', 'English Foundations', 'Build confidence with everyday beginner English.', 1),
   ('stage-2', 'Everyday English', 'Use English in common daily situations.', 2),

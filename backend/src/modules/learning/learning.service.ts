@@ -370,6 +370,7 @@ export async function completeLesson(
       xp_earned: 0,
       lesson_status: 'retry',
       stage_completed: false,
+      badges_awarded: [],
     };
   }
 
@@ -390,5 +391,6 @@ export async function completeLesson(
     xp_earned: result.xpEarned,
     lesson_status: 'completed',
     stage_completed: stageCompleted,
+    badges_awarded: result.badgesAwarded,
   };
 }

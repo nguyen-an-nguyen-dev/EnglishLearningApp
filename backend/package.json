@@ -6,7 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && node dist/server.js",
-    "test": "tsx --test test/auth.test.ts test/learning.test.ts",
+    "test": "tsx --test test/auth.test.ts test/learning.test.ts test/ranking.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

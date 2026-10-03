@@ -1,5 +1,7 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../../db/pool';
+import { awardEligibleBadges } from '../badges/badges.repository';
+import type { Badge } from '../badges/badges.types';
 import type {
   AnswerRow,
   LessonRow,
@@ -216,6 +218,7 @@ export interface CompletionData {
   score: number;
   xpEarned: number;
   isFirstCompletion: boolean;
+  badgesAwarded: Badge[];
 }
 
 export async function completeLesson(
@@ -231,9 +234,19 @@ export async function completeLesson(
   try {
     await connection.beginTransaction();
 
+    // Serialize a user's completions so XP and badge milestones cannot race.
+    interface UserXpRow extends RowDataPacket {
+      xp: number;
+    }
+    const [userRows] = await connection.execute<UserXpRow[]>(
+      'SELECT xp FROM users WHERE id = ? FOR UPDATE',
+      [userId],
+    );
+    if (!userRows[0]) throw new Error('User not found while completing lesson.');
+
     // 1. Check existing progress
     const [progressRows] = await connection.execute<ProgressRow[]>(
-      `SELECT id, status FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1`,
+      `SELECT id, status FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1 FOR UPDATE`,
       [userId, lessonId],
     );
     const existing = progressRows[0];
@@ -267,9 +280,25 @@ export async function completeLesson(
       );
     }
 
+    interface CompletedCountRow extends RowDataPacket {
+      completed_count: number;
+    }
+    const [completedRows] = await connection.execute<CompletedCountRow[]>(
+      `SELECT COUNT(*) AS completed_count
+       FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100`,
+      [userId],
+    );
+    const totalXp = Number(userRows[0].xp) + xpEarned;
+    const badgesAwarded = await awardEligibleBadges(
+      connection,
+      userId,
+      Number(completedRows[0]?.completed_count ?? 0),
+      totalXp,
+    );
+
     await connection.commit();
 
-    return { correctAnswers, totalQuestions, score, xpEarned, isFirstCompletion };
+    return { correctAnswers, totalQuestions, score, xpEarned, isFirstCompletion, badgesAwarded };
   } catch (error) {
     await connection.rollback();
     throw error;
