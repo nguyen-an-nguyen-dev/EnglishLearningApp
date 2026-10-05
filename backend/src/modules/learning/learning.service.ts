@@ -173,6 +173,12 @@ export async function getLessonQuestions(
     question_text: q.question_text,
     question_type: q.question_type,
     explanation: q.explanation,
+    audio_url: q.audio_url,
+    word_bank: Array.isArray(q.word_bank)
+      ? q.word_bank
+      : typeof q.word_bank === 'string'
+        ? JSON.parse(q.word_bank) as string[]
+        : [],
     difficulty: q.difficulty,
     sort_order: q.sort_order,
     answers: answersMap.get(q.id) ?? [],

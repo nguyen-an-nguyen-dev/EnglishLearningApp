@@ -109,7 +109,9 @@ test('lesson completion awards eligible badges once and persists them', async ()
   }
   interface AnswerRow extends RowDataPacket {
     question_id: number;
+    question_type: string;
     answer_id: number;
+    answer_text: string;
     is_correct: boolean | 0 | 1;
   }
 
@@ -137,7 +139,7 @@ test('lesson completion awards eligible badges once and persists them', async ()
 
   const targetLessonId = lessonRows[9].id;
   const [answerRows] = await testPool.execute<AnswerRow[]>(
-    `SELECT q.id AS question_id, a.id AS answer_id, a.is_correct
+    `SELECT q.id AS question_id, q.question_type, a.id AS answer_id, a.answer_text, a.is_correct
      FROM questions q JOIN answers a ON a.question_id = q.id
      WHERE q.lesson_id = ? ORDER BY q.sort_order, a.sort_order`,
     [targetLessonId],
@@ -147,7 +149,10 @@ test('lesson completion awards eligible badges once and persists them', async ()
   const answers = questionIds.map((questionId) => {
     const correct = answerRows.find((row) => row.question_id === questionId && (row.is_correct === true || row.is_correct === 1));
     assert.ok(correct, `Question ${questionId} needs a correct answer.`);
-    return { questionId, answer: String(correct.answer_id) };
+    return {
+      questionId,
+      answer: correct.question_type === 'word_order' ? correct.answer_text : String(correct.answer_id),
+    };
   });
 
   const completionUrl = `${baseUrl}/api/lessons/${targetLessonId}/complete`;

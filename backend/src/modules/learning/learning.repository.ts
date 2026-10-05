@@ -158,7 +158,7 @@ export async function getNextLesson(lessonId: number): Promise<LessonRow | undef
 
 export async function getQuestionsByLesson(lessonId: number): Promise<QuestionRow[]> {
   const [rows] = await pool.execute<QuestionRow[]>(
-    `SELECT id, lesson_id, question_text, question_type, explanation, difficulty, sort_order
+    `SELECT id, lesson_id, question_text, question_type, explanation, audio_url, word_bank, difficulty, sort_order
      FROM questions WHERE lesson_id = ? ORDER BY sort_order ASC`,
     [lessonId],
   );

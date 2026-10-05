@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAudioPlayer } from 'expo-audio';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +46,8 @@ export default function LessonScreen() {
   // Quiz state
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [selectedWordIds, setSelectedWordIds] = useState<number[]>([]);
+  const [wordTileOrder, setWordTileOrder] = useState<number[]>([]);
   const [isAnswerChecked, setIsAnswerChecked] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<CheckAnswerFeedback | null>(null);
   const [answersLog, setAnswersLog] = useState<SubmittedAnswer[]>([]);
@@ -103,10 +106,35 @@ export default function LessonScreen() {
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
+  const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null);
+
+  useEffect(() => {
+    if (currentQuestion?.question_type !== 'word_order') {
+      setSelectedWordIds([]);
+      setWordTileOrder([]);
+      return;
+    }
+    setSelectedWordIds([]);
+    const shuffledIds = currentQuestion.word_bank.map((_, index) => index);
+    for (let index = shuffledIds.length - 1; index > 0; index--) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffledIds[index], shuffledIds[swapIndex]] = [shuffledIds[swapIndex], shuffledIds[index]];
+    }
+    setWordTileOrder(shuffledIds);
+  }, [currentQuestion?.id]);
 
   function handleSelectOption(answerId: number) {
     if (isAnswerChecked) return;
     setSelectedAnswer(String(answerId));
+  }
+
+  function handleSelectWord(wordId: number) {
+    if (isAnswerChecked || checking) return;
+    const next = selectedWordIds.includes(wordId)
+      ? selectedWordIds.filter((id) => id !== wordId)
+      : [...selectedWordIds, wordId];
+    setSelectedWordIds(next);
+    setSelectedAnswer(next.map((id) => currentQuestion.word_bank[id]).join(' '));
   }
 
   async function handleCheckAnswer() {
@@ -175,6 +203,7 @@ export default function LessonScreen() {
     setResult(null);
     setCurrentIndex(0);
     setSelectedAnswer(null);
+    setSelectedWordIds([]);
     setIsAnswerChecked(false);
     setAnswersLog([]);
   }
@@ -308,6 +337,49 @@ export default function LessonScreen() {
 
       {/* Question Content */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {currentQuestion.question_type === 'word_order' ? (
+          <View style={styles.wordOrderQuestion}>
+            <Text style={styles.wordOrderPrompt}>Dịch câu này</Text>
+            <View style={styles.englishSentenceRow}>
+              <Text style={styles.englishSentence}>{currentQuestion.question_text}</Text>
+              {currentQuestion.audio_url ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Nghe phát âm câu tiếng Anh"
+                  style={styles.audioButton}
+                  onPress={() => audioPlayer.play()}
+                >
+                  <Text style={styles.audioButtonIcon}>🔊</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <View style={styles.answerSlots}>
+              {selectedWordIds.map((wordId) => (
+                <Pressable
+                  key={`selected-${wordId}`}
+                  disabled={isAnswerChecked || checking}
+                  onPress={() => handleSelectWord(wordId)}
+                  style={styles.selectedWordTile}
+                >
+                  <Text style={styles.selectedWordText}>{currentQuestion.word_bank[wordId]}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.wordBank}>
+              {wordTileOrder.filter((wordId) => !selectedWordIds.includes(wordId)).map((wordId) => (
+                <Pressable
+                  key={`bank-${wordId}`}
+                  disabled={isAnswerChecked || checking}
+                  onPress={() => handleSelectWord(wordId)}
+                  style={styles.wordTile}
+                >
+                  <Text style={styles.wordTileText}>{currentQuestion.word_bank[wordId]}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : (
+        <>
         <View style={styles.questionCard}>
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>
@@ -369,6 +441,8 @@ export default function LessonScreen() {
             );
           })}
         </View>
+        </>
+        )}
 
       </ScrollView>
 
@@ -539,6 +613,93 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
     marginBottom: 20,
+  },
+  wordOrderQuestion: {
+    minHeight: 420,
+    paddingTop: 18,
+  },
+  wordOrderPrompt: {
+    color: '#17232b',
+    fontSize: 25,
+    fontWeight: '800',
+    marginBottom: 28,
+  },
+  englishSentenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 78,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: '#33454e',
+    borderRadius: 18,
+    backgroundColor: '#fff',
+  },
+  englishSentence: {
+    flex: 1,
+    color: '#17232b',
+    fontSize: 19,
+    lineHeight: 27,
+    fontWeight: '600',
+  },
+  audioButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dff5fa',
+  },
+  audioButtonIcon: {
+    fontSize: 23,
+  },
+  answerSlots: {
+    minHeight: 104,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignContent: 'flex-start',
+    gap: 8,
+    marginTop: 36,
+    paddingBottom: 14,
+    borderBottomWidth: 2,
+    borderColor: '#aab6bc',
+  },
+  wordBank: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 42,
+  },
+  wordTile: {
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    borderWidth: 2,
+    borderColor: '#aab6bc',
+    borderBottomWidth: 5,
+    borderRadius: 13,
+    backgroundColor: '#fff',
+  },
+  selectedWordTile: {
+    minHeight: 46,
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderBottomWidth: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryLight,
+  },
+  wordTileText: {
+    color: '#23323a',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  selectedWordText: {
+    color: Colors.primaryDark,
+    fontSize: 17,
+    fontWeight: '700',
   },
   typeBadge: {
     alignSelf: 'flex-start',

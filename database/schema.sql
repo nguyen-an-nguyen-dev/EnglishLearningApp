@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS questions (
   question_text TEXT NOT NULL,
   question_type VARCHAR(40) NOT NULL DEFAULT 'multiple_choice',
   explanation TEXT NULL,
+  audio_url VARCHAR(2048) NULL,
+  word_bank JSON NULL,
   difficulty ENUM('beginner', 'intermediate', 'advanced') NOT NULL DEFAULT 'beginner',
   sort_order TINYINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

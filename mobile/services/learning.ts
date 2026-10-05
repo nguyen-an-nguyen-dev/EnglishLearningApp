@@ -40,6 +40,8 @@ export interface Question {
   question_text: string;
   question_type: string;
   explanation: string | null;
+  audio_url: string | null;
+  word_bank: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   sort_order: number;
   answers: AnswerOption[];

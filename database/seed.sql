@@ -60,6 +60,16 @@ CREATE TEMPORARY TABLE seed_questions (
   PRIMARY KEY (lesson_code, sort_order)
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TEMPORARY TABLE seed_word_order_questions (
+  lesson_code VARCHAR(80) NOT NULL,
+  sort_order TINYINT UNSIGNED NOT NULL,
+  question_text TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  correct_answer VARCHAR(500) NOT NULL,
+  word_bank JSON NOT NULL,
+  PRIMARY KEY (lesson_code, sort_order)
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answer, distractor_one, distractor_two) VALUES
   ('s1-greetings', 1, 'Which greeting is commonly used in the morning?', 'Good morning', 'Good night', 'Goodbye'),
   ('s1-greetings', 2, 'Which phrase is a friendly way to say hello?', 'Hello', 'Sorry', 'Please'),
@@ -198,6 +208,50 @@ INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answ
   ('s5-review', 1, 'Which response is a polite way to ask someone to clarify?', 'Could you explain what you mean?', 'Your meaning is not important.', 'Explain everything faster.'),
   ('s5-review', 2, 'Which phrase is suitable for ending a friendly conversation?', 'It was nice talking with you.', 'I talk nice you.', 'Finish this conversation now.');
 
+INSERT INTO seed_word_order_questions
+  (lesson_code, sort_order, question_text, explanation, correct_answer, word_bank)
+VALUES
+  ('s1-greetings', 3, 'How are you this morning?', 'Sáng nay bạn khỏe không?', 'Sáng nay bạn khỏe không?', JSON_ARRAY('Sáng', 'nay', 'bạn', 'khỏe', 'không?', 'Tôi', 'rất')),
+  ('s1-greetings', 4, 'It is nice to see you again.', 'Thật vui khi được gặp lại bạn.', 'Thật vui khi được gặp lại bạn.', JSON_ARRAY('Thật', 'vui', 'khi', 'được', 'gặp', 'lại', 'bạn.', 'ngủ', 'mai')),
+  ('s1-introductions', 3, 'My name is Anna.', 'Tên tôi là Anna.', 'Tên tôi là Anna.', JSON_ARRAY('Tên', 'tôi', 'là', 'Anna.', 'Bạn', 'đến')),
+  ('s1-introductions', 4, 'I live in Hanoi.', 'Tôi sống ở Hà Nội.', 'Tôi sống ở Hà Nội.', JSON_ARRAY('Tôi', 'sống', 'ở', 'Hà', 'Nội.', 'một', 'ngày')),
+  ('s1-numbers', 3, 'I have three books.', 'Tôi có ba quyển sách.', 'Tôi có ba quyển sách.', JSON_ARRAY('Tôi', 'có', 'ba', 'quyển', 'sách.', 'mười', 'bạn')),
+  ('s1-numbers', 4, 'There are ten students in the class.', 'Có mười học sinh trong lớp.', 'Có mười học sinh trong lớp.', JSON_ARRAY('Có', 'mười', 'học', 'sinh', 'trong', 'lớp.', 'hai', 'nhà')),
+  ('s1-family', 3, 'This is my younger sister.', 'Đây là em gái tôi.', 'Đây là em gái tôi.', JSON_ARRAY('Đây', 'là', 'em', 'gái', 'tôi.', 'anh', 'họ')),
+  ('s1-family', 4, 'My parents live nearby.', 'Bố mẹ tôi sống gần đây.', 'Bố mẹ tôi sống gần đây.', JSON_ARRAY('Bố', 'mẹ', 'tôi', 'sống', 'gần', 'đây.', 'xa', 'trường')),
+  ('s2-food', 3, 'I would like a glass of water.', 'Tôi muốn một ly nước.', 'Tôi muốn một ly nước.', JSON_ARRAY('Tôi', 'muốn', 'một', 'ly', 'nước.', 'cái', 'bánh')),
+  ('s2-food', 4, 'The soup is hot and delicious.', 'Món súp nóng và ngon.', 'Món súp nóng và ngon.', JSON_ARRAY('Món', 'súp', 'nóng', 'và', 'ngon.', 'lạnh', 'nhanh')),
+  ('s2-shopping', 3, 'How much is this shirt?', 'Chiếc áo này giá bao nhiêu?', 'Chiếc áo này giá bao nhiêu?', JSON_ARRAY('Chiếc', 'áo', 'này', 'giá', 'bao', 'nhiêu?', 'mua', 'đẹp')),
+  ('s2-shopping', 4, 'I need a small shopping bag.', 'Tôi cần một chiếc túi mua sắm nhỏ.', 'Tôi cần một chiếc túi mua sắm nhỏ.', JSON_ARRAY('Tôi', 'cần', 'một', 'chiếc', 'túi', 'mua', 'sắm', 'nhỏ.', 'lớn')),
+  ('s2-daily-activities', 3, 'She wakes up at six every morning.', 'Cô ấy thức dậy lúc sáu giờ mỗi sáng.', 'Cô ấy thức dậy lúc sáu giờ mỗi sáng.', JSON_ARRAY('Cô', 'ấy', 'thức', 'dậy', 'lúc', 'sáu', 'giờ', 'mỗi', 'sáng.', 'tối')),
+  ('s2-daily-activities', 4, 'We cook dinner together.', 'Chúng tôi cùng nhau nấu bữa tối.', 'Chúng tôi cùng nhau nấu bữa tối.', JSON_ARRAY('Chúng', 'tôi', 'cùng', 'nhau', 'nấu', 'bữa', 'tối.', 'trưa', 'đi')),
+  ('s2-transportation', 3, 'The bus stops near the station.', 'Xe buýt dừng gần nhà ga.', 'Xe buýt dừng gần nhà ga.', JSON_ARRAY('Xe', 'buýt', 'dừng', 'gần', 'nhà', 'ga.', 'chợ', 'chạy')),
+  ('s2-transportation', 4, 'I ride my bicycle to work.', 'Tôi đi xe đạp đến chỗ làm.', 'Tôi đi xe đạp đến chỗ làm.', JSON_ARRAY('Tôi', 'đi', 'xe', 'đạp', 'đến', 'chỗ', 'làm.', 'nhà', 'mua')),
+  ('s3-travel', 3, 'Where is the nearest hotel?', 'Khách sạn gần nhất ở đâu?', 'Khách sạn gần nhất ở đâu?', JSON_ARRAY('Khách', 'sạn', 'gần', 'nhất', 'ở', 'đâu?', 'đẹp', 'xa')),
+  ('s3-travel', 4, 'I have a reservation for tonight.', 'Tôi có đặt phòng cho tối nay.', 'Tôi có đặt phòng cho tối nay.', JSON_ARRAY('Tôi', 'có', 'đặt', 'phòng', 'cho', 'tối', 'nay.', 'mai', 'vé')),
+  ('s3-school', 3, 'Please open your book to page ten.', 'Vui lòng mở sách đến trang mười.', 'Vui lòng mở sách đến trang mười.', JSON_ARRAY('Vui', 'lòng', 'mở', 'sách', 'đến', 'trang', 'mười.', 'đóng', 'bảy')),
+  ('s3-school', 4, 'The students are studying in the library.', 'Học sinh đang học trong thư viện.', 'Học sinh đang học trong thư viện.', JSON_ARRAY('Học', 'sinh', 'đang', 'học', 'trong', 'thư', 'viện.', 'chơi', 'sân')),
+  ('s3-hobbies', 3, 'I enjoy listening to music.', 'Tôi thích nghe nhạc.', 'Tôi thích nghe nhạc.', JSON_ARRAY('Tôi', 'thích', 'nghe', 'nhạc.', 'ghét', 'xem')),
+  ('s3-hobbies', 4, 'He plays tennis on weekends.', 'Anh ấy chơi quần vợt vào cuối tuần.', 'Anh ấy chơi quần vợt vào cuối tuần.', JSON_ARRAY('Anh', 'ấy', 'chơi', 'quần', 'vợt', 'vào', 'cuối', 'tuần.', 'bóng', 'ngày')),
+  ('s3-job-interview', 3, 'I have five years of experience.', 'Tôi có năm năm kinh nghiệm.', 'Tôi có năm năm kinh nghiệm.', JSON_ARRAY('Tôi', 'có', 'năm', 'năm', 'kinh', 'nghiệm.', 'tháng', 'việc')),
+  ('s3-job-interview', 4, 'I am interested in this position.', 'Tôi quan tâm đến vị trí này.', 'Tôi quan tâm đến vị trí này.', JSON_ARRAY('Tôi', 'quan', 'tâm', 'đến', 'vị', 'trí', 'này.', 'công', 'ty')),
+  ('s4-telephone', 3, 'Could you speak more slowly, please?', 'Bạn có thể nói chậm hơn được không?', 'Bạn có thể nói chậm hơn được không?', JSON_ARRAY('Bạn', 'có', 'thể', 'nói', 'chậm', 'hơn', 'được', 'không?', 'nhanh', 'tôi')),
+  ('s4-telephone', 4, 'I will call you back this afternoon.', 'Tôi sẽ gọi lại cho bạn chiều nay.', 'Tôi sẽ gọi lại cho bạn chiều nay.', JSON_ARRAY('Tôi', 'sẽ', 'gọi', 'lại', 'cho', 'bạn', 'chiều', 'nay.', 'mai', 'viết')),
+  ('s4-meetings', 3, 'Let us begin the meeting on time.', 'Chúng ta hãy bắt đầu cuộc họp đúng giờ.', 'Chúng ta hãy bắt đầu cuộc họp đúng giờ.', JSON_ARRAY('Chúng', 'ta', 'hãy', 'bắt', 'đầu', 'cuộc', 'họp', 'đúng', 'giờ.', 'muộn')),
+  ('s4-meetings', 4, 'I agree with your suggestion.', 'Tôi đồng ý với đề xuất của bạn.', 'Tôi đồng ý với đề xuất của bạn.', JSON_ARRAY('Tôi', 'đồng', 'ý', 'với', 'đề', 'xuất', 'của', 'bạn.', 'không', 'kế')),
+  ('s4-emails', 3, 'Please find the report attached.', 'Vui lòng xem báo cáo đính kèm.', 'Vui lòng xem báo cáo đính kèm.', JSON_ARRAY('Vui', 'lòng', 'xem', 'báo', 'cáo', 'đính', 'kèm.', 'gửi', 'sớm')),
+  ('s4-emails', 4, 'I look forward to your reply.', 'Tôi mong nhận được phản hồi của bạn.', 'Tôi mong nhận được phản hồi của bạn.', JSON_ARRAY('Tôi', 'mong', 'nhận', 'được', 'phản', 'hồi', 'của', 'bạn.', 'gửi', 'thư')),
+  ('s4-workplace', 3, 'Could you help me with this task?', 'Bạn có thể giúp tôi việc này không?', 'Bạn có thể giúp tôi việc này không?', JSON_ARRAY('Bạn', 'có', 'thể', 'giúp', 'tôi', 'việc', 'này', 'không?', 'xong', 'nhanh')),
+  ('s4-workplace', 4, 'The deadline is next Friday.', 'Hạn chót là thứ Sáu tới.', 'Hạn chót là thứ Sáu tới.', JSON_ARRAY('Hạn', 'chót', 'là', 'thứ', 'Sáu', 'tới.', 'Hai', 'tháng')),
+  ('s5-opinions', 3, 'I think this plan will work well.', 'Tôi nghĩ kế hoạch này sẽ hiệu quả.', 'Tôi nghĩ kế hoạch này sẽ hiệu quả.', JSON_ARRAY('Tôi', 'nghĩ', 'kế', 'hoạch', 'này', 'sẽ', 'hiệu', 'quả.', 'khó', 'hôm')),
+  ('s5-opinions', 4, 'In my opinion, we should wait.', 'Theo tôi, chúng ta nên chờ.', 'Theo tôi, chúng ta nên chờ.', JSON_ARRAY('Theo', 'tôi,', 'chúng', 'ta', 'nên', 'chờ.', 'đi', 'đây')),
+  ('s5-storytelling', 3, 'At first, I felt a little nervous.', 'Lúc đầu, tôi hơi lo lắng.', 'Lúc đầu, tôi hơi lo lắng.', JSON_ARRAY('Lúc', 'đầu,', 'tôi', 'hơi', 'lo', 'lắng.', 'vui', 'sau')),
+  ('s5-storytelling', 4, 'Then we found a quiet place to rest.', 'Sau đó chúng tôi tìm thấy một nơi yên tĩnh để nghỉ.', 'Sau đó chúng tôi tìm thấy một nơi yên tĩnh để nghỉ.', JSON_ARRAY('Sau', 'đó', 'chúng', 'tôi', 'tìm', 'thấy', 'một', 'nơi', 'yên', 'tĩnh', 'để', 'nghỉ.', 'nhanh')),
+  ('s5-goals', 3, 'I am going to practice every day.', 'Tôi sẽ luyện tập mỗi ngày.', 'Tôi sẽ luyện tập mỗi ngày.', JSON_ARRAY('Tôi', 'sẽ', 'luyện', 'tập', 'mỗi', 'ngày.', 'học', 'đêm')),
+  ('s5-goals', 4, 'My goal is to speak confidently.', 'Mục tiêu của tôi là nói chuyện tự tin.', 'Mục tiêu của tôi là nói chuyện tự tin.', JSON_ARRAY('Mục', 'tiêu', 'của', 'tôi', 'là', 'nói', 'chuyện', 'tự', 'tin.', 'đọc', 'sách')),
+  ('s5-review', 3, 'Could you tell me where the station is?', 'Bạn có thể cho tôi biết nhà ga ở đâu không?', 'Bạn có thể cho tôi biết nhà ga ở đâu không?', JSON_ARRAY('Bạn', 'có', 'thể', 'cho', 'tôi', 'biết', 'nhà', 'ga', 'ở', 'đâu', 'không?', 'đường', 'phố')),
+  ('s5-review', 4, 'It was a pleasure talking with you.', 'Rất vui được trò chuyện với bạn.', 'Rất vui được trò chuyện với bạn.', JSON_ARRAY('Rất', 'vui', 'được', 'trò', 'chuyện', 'với', 'bạn.', 'gặp', 'mai'));
+
 UPDATE seed_questions
 SET explanation = CASE CONCAT(lesson_code, ':', sort_order)
   WHEN 's1-greetings:1' THEN 'Lời chào nào thường được dùng vào buổi sáng?'
@@ -232,7 +286,7 @@ DELETE q
 FROM questions AS q
 JOIN lessons AS l ON l.id = q.lesson_id
 JOIN (SELECT DISTINCT lesson_code FROM seed_questions) AS seeded ON seeded.lesson_code = l.code
-WHERE q.sort_order > 2;
+WHERE q.sort_order > 2 AND q.question_type <> 'word_order';
 
 INSERT INTO questions (lesson_id, question_text, question_type, explanation, difficulty, sort_order)
 SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, 'beginner', seed.sort_order
@@ -243,6 +297,18 @@ ON DUPLICATE KEY UPDATE
   question_text = VALUES(question_text),
   question_type = VALUES(question_type),
   explanation = VALUES(explanation),
+  difficulty = VALUES(difficulty);
+
+INSERT INTO questions
+  (lesson_id, question_text, question_type, explanation, word_bank, difficulty, sort_order)
+SELECT l.id, seed.question_text, 'word_order', seed.explanation, seed.word_bank, 'beginner', seed.sort_order
+FROM seed_word_order_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+ON DUPLICATE KEY UPDATE
+  question_text = VALUES(question_text),
+  question_type = VALUES(question_type),
+  explanation = VALUES(explanation),
+  word_bank = VALUES(word_bank),
   difficulty = VALUES(difficulty);
 
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
@@ -263,6 +329,15 @@ CROSS JOIN JSON_TABLE(
   )
 ) AS choice
 WHERE seed.sort_order <= 2
+ON DUPLICATE KEY UPDATE
+  is_correct = VALUES(is_correct),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
+SELECT q.id, seed.correct_answer, TRUE, 1
+FROM seed_word_order_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
 ON DUPLICATE KEY UPDATE
   is_correct = VALUES(is_correct),
   sort_order = VALUES(sort_order);

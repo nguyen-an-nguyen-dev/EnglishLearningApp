@@ -27,6 +27,8 @@ export interface QuestionRow extends RowDataPacket {
   question_text: string;
   question_type: string;
   explanation: string | null;
+  audio_url: string | null;
+  word_bank: string[] | string | null;
   difficulty: string;
   sort_order: number;
 }
@@ -71,6 +73,8 @@ export interface Question {
   question_text: string;
   question_type: string;
   explanation: string | null;
+  audio_url: string | null;
+  word_bank: string[];
   difficulty: string;
   sort_order: number;
   answers: Answer[];
