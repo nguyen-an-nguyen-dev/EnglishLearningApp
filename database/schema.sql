@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS matches (
   winner_user_id BIGINT UNSIGNED NULL,
   started_at TIMESTAMP NULL,
   completed_at TIMESTAMP NULL,
+  finished_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_matches_player_one (player_one_id, created_at),
@@ -184,11 +185,21 @@ CREATE TABLE IF NOT EXISTS matches (
     ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS battle_questions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  prompt_vi VARCHAR(500) NOT NULL,
+  answer_en VARCHAR(500) NOT NULL,
+  sort_order TINYINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_battle_questions_sort_order (sort_order)
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS match_answers (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   match_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
-  question_id BIGINT UNSIGNED NOT NULL,
+  question_id BIGINT UNSIGNED NULL,
+  round SMALLINT UNSIGNED NULL,
   answer_id BIGINT UNSIGNED NULL,
   answer_text VARCHAR(500) NULL,
   is_correct BOOLEAN NOT NULL DEFAULT FALSE,
@@ -196,6 +207,7 @@ CREATE TABLE IF NOT EXISTS match_answers (
   answered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_match_answers_attempt (match_id, user_id, question_id),
+  UNIQUE KEY uq_match_answers_round (match_id, user_id, round),
   KEY idx_match_answers_user (user_id, match_id),
   KEY idx_match_answers_question (question_id),
   KEY idx_match_answers_answer (answer_id),

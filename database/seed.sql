@@ -342,4 +342,29 @@ ON DUPLICATE KEY UPDATE
   is_correct = VALUES(is_correct),
   sort_order = VALUES(sort_order);
 
+INSERT INTO battle_questions (prompt_vi, answer_en, sort_order) VALUES
+  ('mèo', 'cat', 1),
+  ('chó', 'dog', 2),
+  ('táo', 'apple', 3),
+  ('sách', 'book', 4),
+  ('nước', 'water', 5),
+  ('nhà', 'house', 6),
+  ('trường', 'school', 7),
+  ('bạn', 'friend', 8),
+  ('vui', 'happy', 9),
+  ('nhanh', 'fast', 10),
+  ('đẹp', 'beautiful', 11),
+  ('ăn', 'eat', 12),
+  ('uống', 'drink', 13),
+  ('chạy', 'run', 14),
+  ('đọc', 'read', 15),
+  ('viết', 'write', 16),
+  ('lớn', 'big', 17),
+  ('nhỏ', 'small', 18),
+  ('lạnh', 'cold', 19),
+  ('nóng', 'hot', 20)
+ON DUPLICATE KEY UPDATE
+  prompt_vi = VALUES(prompt_vi),
+  answer_en = VALUES(answer_en);
+
 COMMIT;

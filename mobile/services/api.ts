@@ -22,6 +22,10 @@ export function getApiBaseUrl(): string {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+export function getSocketBaseUrl(): string {
+  return API_BASE_URL.replace(/\/api\/?$/, '');
+}
+
 export async function readToken(): Promise<string | null> {
   if (Platform.OS === 'web') return inMemoryWebToken;
   try {

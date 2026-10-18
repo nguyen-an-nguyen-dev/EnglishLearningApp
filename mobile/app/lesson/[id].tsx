@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAudioPlayer } from 'expo-audio';
+import { AudioModule, useAudioPlayer } from 'expo-audio';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
+import { CORRECT_ANSWER_CHIME, INCORRECT_ANSWER_CHIME } from '@/constants/feedback-sounds';
 import { useAuth } from '@/contexts/auth-context';
 import {
   checkLessonAnswer,
@@ -107,6 +108,12 @@ export default function LessonScreen() {
   const totalQuestions = questions.length;
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
   const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null);
+  const correctAnswerPlayer = useAudioPlayer(CORRECT_ANSWER_CHIME);
+  const incorrectAnswerPlayer = useAudioPlayer(INCORRECT_ANSWER_CHIME);
+
+  useEffect(() => {
+    void AudioModule.setAudioModeAsync({ playsInSilentMode: true });
+  }, []);
 
   useEffect(() => {
     if (currentQuestion?.question_type !== 'word_order') {
@@ -144,6 +151,8 @@ export default function LessonScreen() {
       const feedback = await checkLessonAnswer(lessonId, currentQuestion.id, selectedAnswer);
       setAnswerFeedback(feedback);
       setIsAnswerChecked(true);
+      const feedbackPlayer = feedback.is_correct ? correctAnswerPlayer : incorrectAnswerPlayer;
+      void feedbackPlayer.seekTo(0).then(() => feedbackPlayer.play()).catch(() => feedbackPlayer.play());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể kiểm tra đáp án.';
       Alert.alert('Lỗi kiểm tra đáp án', msg);

@@ -1,10 +1,11 @@
 import { SymbolView } from 'expo-symbols';
+import type { SymbolViewProps } from 'expo-symbols';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 interface TabDestinationProps {
   title: string;
   message: string;
-  symbol: { ios: string; android: string; web: string };
+  symbol: SymbolViewProps['name'];
 }
 
 export default function TabDestination({ title, message, symbol }: TabDestinationProps) {

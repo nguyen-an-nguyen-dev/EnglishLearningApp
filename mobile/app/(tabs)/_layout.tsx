@@ -7,7 +7,7 @@ const tabSymbols = {
   translate: { ios: 'character.bubble.fill', android: 'translate', web: 'translate' },
   talk: { ios: 'bubble.left.and.bubble.right.fill', android: 'forum', web: 'forum' },
   settings: { ios: 'gearshape.fill', android: 'settings', web: 'settings' },
-};
+} as const;
 
 export default function TabLayout() {
   return (
