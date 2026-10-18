@@ -21,6 +21,10 @@ const BADGE_ICONS: Record<string, string> = {
   xp_500: '🏆',
 };
 
+const LEADERBOARD_VISIBLE_ROWS = 4;
+const LEADERBOARD_ROW_HEIGHT = 66;
+const LEADERBOARD_ROW_GAP = 7;
+
 export default function RankingScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -57,6 +61,9 @@ export default function RankingScreen() {
 
   const currentUserEntry = ranking?.leaderboard.find((entry) => entry.userId === user?.id);
   const currentUserRank = ranking?.current_user_rank;
+  const leaderboardHeight =
+    LEADERBOARD_VISIBLE_ROWS * LEADERBOARD_ROW_HEIGHT +
+    (LEADERBOARD_VISIBLE_ROWS - 1) * LEADERBOARD_ROW_GAP;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -98,37 +105,43 @@ export default function RankingScreen() {
           <Text style={styles.sectionMeta}>{ranking?.leaderboard.length ?? 0} học viên</Text>
         </View>
 
-        {loading && !refreshing ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={Colors.primaryDark} />
-          </View>
-        ) : ranking?.leaderboard.length ? (
-          <View style={styles.leaderboard}>
-            {ranking.leaderboard.map((entry: RankingEntry) => {
-              const isCurrentUser = entry.userId === user?.id;
-              const initials = entry.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-              return (
-                <View key={entry.userId} style={[styles.rankingRow, isCurrentUser && styles.currentRankingRow]}>
-                  <Text style={[styles.rankNumber, entry.rank <= 3 && styles.topRank]}>{entry.rank}</Text>
-                  <View style={[styles.avatar, entry.rank === 1 && styles.firstAvatar]}>
-                    <Text style={styles.avatarText}>{entry.avatar || initials || '?'}</Text>
+        <View style={[styles.leaderboardViewport, { height: leaderboardHeight }]}>
+          {loading && !refreshing ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator color={Colors.primaryDark} />
+            </View>
+          ) : ranking?.leaderboard.length ? (
+            <ScrollView
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.leaderboard}
+            >
+              {ranking.leaderboard.map((entry: RankingEntry) => {
+                const isCurrentUser = entry.userId === user?.id;
+                const initials = entry.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+                return (
+                  <View key={entry.userId} style={[styles.rankingRow, isCurrentUser && styles.currentRankingRow]}>
+                    <Text style={[styles.rankNumber, entry.rank <= 3 && styles.topRank]}>{entry.rank}</Text>
+                    <View style={[styles.avatar, entry.rank === 1 && styles.firstAvatar]}>
+                      <Text style={styles.avatarText}>{entry.avatar || initials || '?'}</Text>
+                    </View>
+                    <View style={styles.rankingIdentity}>
+                      <Text numberOfLines={1} style={[styles.rankingName, isCurrentUser && styles.currentRankingName]}>
+                        {entry.name}{isCurrentUser ? ' · Bạn' : ''}
+                      </Text>
+                      <Text style={styles.rankingXp}>{entry.xp.toLocaleString()} XP</Text>
+                    </View>
+                    {entry.rank <= 3 && <Text style={styles.medal}>{['🥇', '🥈', '🥉'][entry.rank - 1]}</Text>}
                   </View>
-                  <View style={styles.rankingIdentity}>
-                    <Text numberOfLines={1} style={[styles.rankingName, isCurrentUser && styles.currentRankingName]}>
-                      {entry.name}{isCurrentUser ? ' · Bạn' : ''}
-                    </Text>
-                    <Text style={styles.rankingXp}>{entry.xp.toLocaleString()} XP</Text>
-                  </View>
-                  {entry.rank <= 3 && <Text style={styles.medal}>{['🥇', '🥈', '🥉'][entry.rank - 1]}</Text>}
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Chưa có dữ liệu xếp hạng.</Text>
-          </View>
-        )}
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Chưa có dữ liệu xếp hạng.</Text>
+            </View>
+          )}
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Huy hiệu</Text>
@@ -188,9 +201,10 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 23, marginBottom: 10 },
   sectionTitle: { color: '#203447', fontSize: 16, fontWeight: '900' },
   sectionMeta: { color: '#738290', fontSize: 11, fontWeight: '700' },
+  leaderboardViewport: { flexShrink: 0 },
   loadingState: { minHeight: 100, alignItems: 'center', justifyContent: 'center' },
-  leaderboard: { gap: 7 },
-  rankingRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e4ebef', borderRadius: 9, backgroundColor: '#fff' },
+  leaderboard: { gap: LEADERBOARD_ROW_GAP },
+  rankingRow: { minHeight: LEADERBOARD_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#e4ebef', borderRadius: 9, backgroundColor: '#fff' },
   currentRankingRow: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
   rankNumber: { width: 24, color: '#637482', fontSize: 14, fontWeight: '900', textAlign: 'center' },
   topRank: { color: Colors.primaryDark },
