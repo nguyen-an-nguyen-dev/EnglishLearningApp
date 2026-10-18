@@ -20,12 +20,12 @@ export default {
   },
   dark: {
     text: '#FFFFFF',
-    textMuted: '#94A3B8',
-    background: '#08141C',
-    cardBackground: '#0E2330',
-    border: '#15394D',
+    textMuted: '#A1AAB5',
+    background: '#0D1117',
+    cardBackground: '#161B22',
+    border: '#30363D',
     tint: primary,
-    tabIconDefault: '#64748B',
+    tabIconDefault: '#8B949E',
     tabIconSelected: primary,
   },
 };

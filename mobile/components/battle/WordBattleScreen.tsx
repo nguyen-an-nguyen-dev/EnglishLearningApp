@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Colors from '@/constants/Colors';
+import { useAppTheme } from '@/contexts/theme-context';
 import type { WordBattleScreenProps } from './types';
 
 export function WordBattleScreen({
@@ -14,6 +15,8 @@ export function WordBattleScreen({
   onBack,
   onSubmit,
 }: WordBattleScreenProps) {
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
   const [answer, setAnswer] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -32,22 +35,22 @@ export function WordBattleScreen({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>‹</Text>
+          <Text style={[styles.backText, { color: colors.text }]}>‹</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Word Battle</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Word Battle</Text>
         <Text style={styles.roundLabel}>{question ? `${question.round}/${game.totalRounds}` : '...'}</Text>
       </View>
       <View style={styles.content}>
         <View style={styles.scoreRow}>
           {game.players.map((player) => (
-            <View key={player.userId} style={styles.scoreCard}>
-              <Text numberOfLines={1} style={styles.playerName}>
+            <View key={player.userId} style={[styles.scoreCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text numberOfLines={1} style={[styles.playerName, { color: colors.textMuted }]}>
                 {player.userId === currentUserId ? 'Bạn' : player.name}
               </Text>
-              <Text style={styles.score}>{scores.find((item) => item.userId === player.userId)?.score ?? 0}</Text>
+              <Text style={[styles.score, { color: colors.text }]}>{scores.find((item) => item.userId === player.userId)?.score ?? 0}</Text>
             </View>
           ))}
         </View>
@@ -64,7 +67,7 @@ export function WordBattleScreen({
               onSubmitEditing={submit}
               placeholder="Nhập câu trả lời..."
               returnKeyType="send"
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
               value={answer}
             />
             {localError || error ? <Text accessibilityRole="alert" style={styles.error}>{localError ?? error}</Text> : null}
@@ -78,7 +81,7 @@ export function WordBattleScreen({
                 {submitted ? 'Đang chuyển câu...' : answerResult && !answerResult.correct ? 'Trả lời lại' : 'Gửi câu trả lời'}
               </Text>
             </Pressable>
-            {submitted ? <Text style={styles.waiting}>Đang chuyển sang câu tiếp theo...</Text> : null}
+            {submitted ? <Text style={[styles.waiting, { color: colors.textMuted }]}>Đang chuyển sang câu tiếp theo...</Text> : null}
             {answerResult ? (
               <Text style={[styles.feedback, answerResult.correct ? styles.correct : styles.incorrect]}>
                 {answerResult.correct ? 'Chính xác!' : 'Chưa chính xác'}
@@ -87,7 +90,7 @@ export function WordBattleScreen({
             ) : null}
           </>
         ) : (
-          <Text style={styles.waiting}>Đang tải câu tiếp theo...</Text>
+          <Text style={[styles.waiting, { color: colors.textMuted }]}>Đang tải câu tiếp theo...</Text>
         )}
         {error && !question ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       </View>
@@ -105,8 +108,8 @@ const styles = StyleSheet.create({
   content: { flex: 1, padding: 20 },
   scoreRow: { flexDirection: 'row', gap: 12 },
   scoreCard: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.light.border },
-  playerName: { maxWidth: '90%', color: '#71818d', fontSize: 12, fontWeight: '700' },
-  score: { color: '#203447', fontSize: 23, fontWeight: '900', marginTop: 2 },
+  playerName: { maxWidth: '90%', color: '#A1AAB5', fontSize: 12, fontWeight: '700' },
+  score: { fontSize: 23, fontWeight: '900', marginTop: 2 },
   promptCard: { alignItems: 'center', justifyContent: 'center', minHeight: 180, marginTop: 28, padding: 22, borderRadius: 16, backgroundColor: '#173d56' },
   eyebrow: { color: '#a9eafa', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   prompt: { color: '#fff', fontSize: 21, fontWeight: '800', textAlign: 'center', lineHeight: 30, marginTop: 16 },

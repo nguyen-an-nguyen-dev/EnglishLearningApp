@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import type { SymbolViewProps } from 'expo-symbols';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import Colors from '@/constants/Colors';
+import { useAppTheme } from '@/contexts/theme-context';
 
 interface TabDestinationProps {
   title: string;
@@ -9,14 +11,17 @@ interface TabDestinationProps {
 }
 
 export default function TabDestination({ title, message, symbol }: TabDestinationProps) {
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <View style={styles.iconWrap}>
           <SymbolView name={symbol} tintColor="#00A9D8" size={38} />
         </View>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.message}>{message}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
       </View>
     </SafeAreaView>
   );

@@ -1,8 +1,11 @@
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import Colors from '@/constants/Colors';
+import { useAppTheme } from '@/contexts/theme-context';
 import type { BattleResultScreenProps } from './types';
 
 export function BattleResultScreen({ currentUserId, error, onBack, result }: BattleResultScreenProps) {
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
   const currentPlayer = result.scores.find((player) => player.userId === currentUserId);
   const opponent = result.scores.find((player) => player.userId !== currentUserId);
   const title = result.status === 'cancelled'
@@ -12,19 +15,19 @@ export function BattleResultScreen({ currentUserId, error, onBack, result }: Bat
     : result.winnerUserId === null ? 'Trận đấu hòa!' : result.winnerUserId === currentUserId ? 'Bạn đã chiến thắng!' : 'Đối thủ chiến thắng';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <View style={styles.iconCircle}><Text style={styles.icon}>{result.status === 'completed' && result.winnerUserId === currentUserId ? '🏆' : '⚔️'}</Text></View>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           {result.status === 'completed' ? `Kết quả sau ${result.totalRounds} từ vựng` : 'Trận đấu đã kết thúc.'}
         </Text>
         <View style={styles.scoreRow}>
           {[currentPlayer, opponent].filter((player) => player !== undefined).map((player) => (
-            <View key={player.userId} style={styles.scoreCard}>
-              <Text style={styles.playerName}>{player.userId === currentUserId ? 'Bạn' : player.name}</Text>
-              <Text style={styles.score}>{player.score}</Text>
-              <Text style={styles.points}>điểm</Text>
+            <View key={player.userId} style={[styles.scoreCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.playerName, { color: colors.textMuted }]}>{player.userId === currentUserId ? 'Bạn' : player.name}</Text>
+              <Text style={[styles.score, { color: colors.text }]}>{player.score}</Text>
+              <Text style={[styles.points, { color: colors.textMuted }]}>điểm</Text>
             </View>
           ))}
         </View>

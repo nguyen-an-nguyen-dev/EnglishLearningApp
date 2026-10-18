@@ -12,6 +12,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useAppTheme } from '@/contexts/theme-context';
 import { EarnedBadge, fetchMyBadges, fetchRanking, RankingData, RankingEntry } from '@/services/ranking';
 
 const BADGE_ICONS: Record<string, string> = {
@@ -27,6 +28,8 @@ const LEADERBOARD_ROW_GAP = 7;
 
 export default function RankingScreen() {
   const router = useRouter();
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
   const { user } = useAuth();
   const [ranking, setRanking] = useState<RankingData | null>(null);
   const [badges, setBadges] = useState<EarnedBadge[]>([]);
@@ -66,22 +69,22 @@ export default function RankingScreen() {
     (LEADERBOARD_VISIBLE_ROWS - 1) * LEADERBOARD_ROW_GAP;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { backgroundColor: colors.background }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryDark} />}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>ENGLISH LEARNING</Text>
-            <Text style={styles.title}>Ranking</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Ranking</Text>
           </View>
           <Text style={styles.headerIcon}>🏆</Text>
         </View>
 
         {errorMessage && (
-          <View style={styles.errorBanner}>
+          <View style={[styles.errorBanner, theme === 'dark' && { backgroundColor: '#351C1C' }]}>
             <Text style={styles.errorText}>{errorMessage}</Text>
             <Pressable onPress={onRefresh} accessibilityRole="button">
               <Text style={styles.retryText}>Thử lại</Text>
@@ -89,10 +92,10 @@ export default function RankingScreen() {
           </View>
         )}
 
-        <View style={styles.currentUserPanel}>
+        <View style={[styles.currentUserPanel, theme === 'dark' && { backgroundColor: '#1F6F8B' }]}>
           <View>
             <Text style={styles.currentUserLabel}>VỊ TRÍ CỦA BẠN</Text>
-            <Text style={styles.currentUserName}>{currentUserEntry?.name ?? user?.name ?? 'Học viên'}</Text>
+            <Text style={[styles.currentUserName, { color: colors.text }]}>{currentUserEntry?.name ?? user?.name ?? 'Học viên'}</Text>
           </View>
           <View style={styles.currentUserStats}>
             <Text style={styles.currentUserRank}>{currentUserRank ? `#${currentUserRank}` : '—'}</Text>
@@ -101,8 +104,8 @@ export default function RankingScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Bảng xếp hạng</Text>
-          <Text style={styles.sectionMeta}>{ranking?.leaderboard.length ?? 0} học viên</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Bảng xếp hạng</Text>
+          <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>{ranking?.leaderboard.length ?? 0} học viên</Text>
         </View>
 
         <View style={[styles.leaderboardViewport, { height: leaderboardHeight }]}>
@@ -120,16 +123,24 @@ export default function RankingScreen() {
                 const isCurrentUser = entry.userId === user?.id;
                 const initials = entry.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
                 return (
-                  <View key={entry.userId} style={[styles.rankingRow, isCurrentUser && styles.currentRankingRow]}>
+                  <View key={entry.userId} style={[
+                    styles.rankingRow,
+                    { backgroundColor: colors.cardBackground, borderColor: colors.border },
+                    isCurrentUser && styles.currentRankingRow,
+                  ]}>
                     <Text style={[styles.rankNumber, entry.rank <= 3 && styles.topRank]}>{entry.rank}</Text>
                     <View style={[styles.avatar, entry.rank === 1 && styles.firstAvatar]}>
                       <Text style={styles.avatarText}>{entry.avatar || initials || '?'}</Text>
                     </View>
                     <View style={styles.rankingIdentity}>
-                      <Text numberOfLines={1} style={[styles.rankingName, isCurrentUser && styles.currentRankingName]}>
+                      <Text numberOfLines={1} style={[
+                        styles.rankingName,
+                        { color: colors.text },
+                        isCurrentUser && styles.currentRankingName,
+                      ]}>
                         {entry.name}{isCurrentUser ? ' · Bạn' : ''}
                       </Text>
-                      <Text style={styles.rankingXp}>{entry.xp.toLocaleString()} XP</Text>
+                      <Text style={[styles.rankingXp, { color: colors.textMuted }]}>{entry.xp.toLocaleString()} XP</Text>
                     </View>
                     {entry.rank <= 3 && <Text style={styles.medal}>{['🥇', '🥈', '🥉'][entry.rank - 1]}</Text>}
                   </View>
@@ -137,32 +148,32 @@ export default function RankingScreen() {
               })}
             </ScrollView>
           ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Chưa có dữ liệu xếp hạng.</Text>
+            <View style={[styles.emptyState, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>Chưa có dữ liệu xếp hạng.</Text>
             </View>
           )}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Huy hiệu</Text>
-          <Text style={styles.sectionMeta}>{badges.length} đã nhận</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Huy hiệu</Text>
+          <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>{badges.length} đã nhận</Text>
         </View>
         {badges.length ? (
           <View style={styles.badgeList}>
             {badges.map((badge) => (
-              <View key={badge.code} style={styles.badgeRow}>
+              <View key={badge.code} style={[styles.badgeRow, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                 <View style={styles.badgeIconWrap}>
                   <Text style={styles.badgeIcon}>{BADGE_ICONS[badge.code] ?? '🏅'}</Text>
                 </View>
                 <View style={styles.badgeCopy}>
-                  <Text style={styles.badgeName}>{badge.name}</Text>
-                  <Text style={styles.badgeDescription}>{badge.description}</Text>
+                  <Text style={[styles.badgeName, { color: colors.text }]}>{badge.name}</Text>
+                  <Text style={[styles.badgeDescription, { color: colors.textMuted }]}>{badge.description}</Text>
                 </View>
               </View>
             ))}
           </View>
         ) : (
-          <Text style={styles.noBadges}>Hoàn thành bài học để nhận huy hiệu.</Text>
+          <Text style={[styles.noBadges, { color: colors.textMuted }]}>Hoàn thành bài học để nhận huy hiệu.</Text>
         )}
 
         <Pressable

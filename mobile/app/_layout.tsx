@@ -3,11 +3,12 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments }
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { AppThemeProvider, useAppTheme } from '@/contexts/theme-context';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -42,14 +43,16 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { theme, isLoading: themeLoading } = useAppTheme();
   const { isLoading, token } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -61,16 +64,28 @@ function RootLayoutNav() {
     if (token && inAuthGroup) router.replace('/');
   }, [isLoading, router, segments, token]);
 
-  if (isLoading) {
+  if (isLoading || themeLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primarySoft }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[theme].background }}>
+        <StatusBar style={theme} />
         <ActivityIndicator color={Colors.primary} size="large" />
       </View>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={{
+      ...(theme === 'dark' ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(theme === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+        primary: Colors[theme].tint,
+        background: Colors[theme].background,
+        card: Colors[theme].cardBackground,
+        text: Colors[theme].text,
+        border: Colors[theme].border,
+      },
+    }}>
+      <StatusBar style={theme} />
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

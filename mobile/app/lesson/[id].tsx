@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { CORRECT_ANSWER_CHIME, INCORRECT_ANSWER_CHIME } from '@/constants/feedback-sounds';
 import { useAuth } from '@/contexts/auth-context';
+import { useAppTheme } from '@/contexts/theme-context';
 import {
   checkLessonAnswer,
   CheckAnswerFeedback,
@@ -38,6 +39,8 @@ export default function LessonScreen() {
   const lessonId = Number(id);
   const router = useRouter();
   const { getCurrentUser } = useAuth();
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -219,19 +222,19 @@ export default function LessonScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Đang chuẩn bị bài học...</Text>
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Đang chuẩn bị bài học...</Text>
       </SafeAreaView>
     );
   }
 
   if (errorMsg || !lesson) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorTitle}>Không thể mở bài học</Text>
-        <Text style={styles.errorDescription}>{errorMsg || 'Không tìm thấy dữ liệu.'}</Text>
+        <Text style={[styles.errorTitle, { color: colors.text }]}>Không thể mở bài học</Text>
+        <Text style={[styles.errorDescription, { color: colors.textMuted }]}>{errorMsg || 'Không tìm thấy dữ liệu.'}</Text>
         <Pressable style={styles.primaryBtn} onPress={() => router.back()}>
           <Text style={styles.primaryBtnText}>Quay lại</Text>
         </Pressable>
@@ -241,10 +244,10 @@ export default function LessonScreen() {
 
   if (questions.length === 0) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Text style={styles.errorIcon}>📚</Text>
-        <Text style={styles.errorTitle}>Chưa có câu hỏi</Text>
-        <Text style={styles.errorDescription}>Bài học này hiện chưa có nội dung câu hỏi nào.</Text>
+        <Text style={[styles.errorTitle, { color: colors.text }]}>Chưa có câu hỏi</Text>
+        <Text style={[styles.errorDescription, { color: colors.textMuted }]}>Bài học này hiện chưa có nội dung câu hỏi nào.</Text>
         <Pressable style={styles.primaryBtn} onPress={() => router.back()}>
           <Text style={styles.primaryBtnText}>Quay lại lộ trình</Text>
         </Pressable>
@@ -257,13 +260,13 @@ export default function LessonScreen() {
     const isStageCompleted = isCompleted && result.stage_completed;
 
     return (
-      <SafeAreaView style={styles.resultScreen}>
-        <View style={styles.resultContent}>
+      <SafeAreaView style={[styles.resultScreen, { backgroundColor: colors.background }]}>
+        <View style={[styles.resultContent, { backgroundColor: colors.cardBackground }]}>
           <View style={[styles.resultIconCircle, isCompleted ? styles.resultSuccessIcon : styles.resultRetryIcon]}>
             <Text style={styles.resultIcon}>{isCompleted ? '🎉' : '🔁'}</Text>
           </View>
-          <Text style={styles.modalTitle}>{isCompleted ? 'Chúc mừng!' : 'Chưa qua bài học'}</Text>
-          <Text style={styles.modalSubtitle}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>{isCompleted ? 'Chúc mừng!' : 'Chưa qua bài học'}</Text>
+          <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
             {isStageCompleted
               ? 'Bạn đã hoàn thành toàn bộ stage này. Bản đồ sẽ mở chặng tiếp theo ngay sau đây.'
               : isCompleted
@@ -271,17 +274,17 @@ export default function LessonScreen() {
               : 'Bạn cần trả lời đúng tất cả câu hỏi để mở bài tiếp theo. Hãy thử lại bài học này nhé.'}
           </Text>
 
-          <View style={styles.statsGrid}>
+          <View style={[styles.statsGrid, { backgroundColor: theme === 'dark' ? '#0D1117' : '#F8FAFC', borderColor: colors.border }]}>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>ĐIỂM SỐ</Text>
-              <Text style={styles.statValue}>{result.score}%</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>ĐIỂM SỐ</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{result.score}%</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>SỐ CÂU ĐÚNG</Text>
-              <Text style={styles.statValue}>{result.correct_answers}/{result.total_questions}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>SỐ CÂU ĐÚNG</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{result.correct_answers}/{result.total_questions}</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>KINH NGHIỆM</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>KINH NGHIỆM</Text>
               <Text style={styles.statValueXp}>+{result.xp_earned} XP</Text>
             </View>
           </View>
@@ -290,11 +293,11 @@ export default function LessonScreen() {
             <View style={styles.badgeAwards}>
               <Text style={styles.badgeAwardsHeading}>HUY HIỆU MỚI</Text>
               {result.badges_awarded.map((badge) => (
-                <View key={badge.code} style={styles.badgeAwardRow}>
+                <View key={badge.code} style={[styles.badgeAwardRow, { backgroundColor: theme === 'dark' ? '#0D1117' : '#FFFFFF' }]}>
                   <Text style={styles.badgeAwardIcon}>{BADGE_ICONS[badge.code] ?? '🏅'}</Text>
                   <View style={styles.badgeAwardCopy}>
-                    <Text style={styles.badgeAwardName}>{badge.name}</Text>
-                    <Text style={styles.badgeAwardDescription}>{badge.description}</Text>
+                    <Text style={[styles.badgeAwardName, { color: colors.text }]}>{badge.name}</Text>
+                    <Text style={[styles.badgeAwardDescription, { color: colors.textMuted }]}>{badge.description}</Text>
                   </View>
                 </View>
               ))}
@@ -313,7 +316,7 @@ export default function LessonScreen() {
             style={styles.modalSecondaryBtn}
             onPress={() => isCompleted ? handleRestart() : router.back()}
           >
-            <Text style={styles.modalSecondaryBtnText}>{isCompleted ? 'Ôn tập bài này' : 'Quay lại lộ trình'}</Text>
+            <Text style={[styles.modalSecondaryBtnText, { color: colors.textMuted }]}>{isCompleted ? 'Ôn tập bài này' : 'Quay lại lộ trình'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -321,9 +324,9 @@ export default function LessonScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header with progress */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
         <Pressable onPress={handleExit} hitSlop={12} style={styles.closeBtn}>
           <Text style={styles.closeBtnText}>✕</Text>
         </Pressable>
@@ -331,7 +334,7 @@ export default function LessonScreen() {
           <View style={[styles.progressBarFill, { width: `${Math.round(progressRatio * 100)}%` }]} />
         </View>
         <View style={styles.counterBadge}>
-          <Text style={styles.counterText}>
+          <Text style={[styles.counterText, { color: colors.text }]}>
             {currentIndex + 1}/{totalQuestions}
           </Text>
         </View>
@@ -339,18 +342,18 @@ export default function LessonScreen() {
 
       {/* Lesson title hint */}
       <View style={styles.topicBar}>
-        <Text style={styles.topicText}>
+        <Text style={[styles.topicText, { color: colors.textMuted }]}>
           {lesson.title} • {lesson.topic}
         </Text>
       </View>
 
       {/* Question Content */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
         {currentQuestion.question_type === 'word_order' ? (
           <View style={styles.wordOrderQuestion}>
-            <Text style={styles.wordOrderPrompt}>Dịch câu này</Text>
-            <View style={styles.englishSentenceRow}>
-              <Text style={styles.englishSentence}>{currentQuestion.question_text}</Text>
+            <Text style={[styles.wordOrderPrompt, { color: colors.textMuted }]}>Dịch câu này</Text>
+            <View style={[styles.englishSentenceRow, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.englishSentence, { color: colors.text }]}>{currentQuestion.question_text}</Text>
               {currentQuestion.audio_url ? (
                 <Pressable
                   accessibilityRole="button"
@@ -368,9 +371,9 @@ export default function LessonScreen() {
                   key={`selected-${wordId}`}
                   disabled={isAnswerChecked || checking}
                   onPress={() => handleSelectWord(wordId)}
-                  style={styles.selectedWordTile}
+                  style={[styles.selectedWordTile, theme === 'dark' && { backgroundColor: '#18333C' }]}
                 >
-                  <Text style={styles.selectedWordText}>{currentQuestion.word_bank[wordId]}</Text>
+                  <Text style={[styles.selectedWordText, { color: colors.text }]}>{currentQuestion.word_bank[wordId]}</Text>
                 </Pressable>
               ))}
             </View>
@@ -380,16 +383,16 @@ export default function LessonScreen() {
                   key={`bank-${wordId}`}
                   disabled={isAnswerChecked || checking}
                   onPress={() => handleSelectWord(wordId)}
-                  style={styles.wordTile}
+                  style={[styles.wordTile, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
                 >
-                  <Text style={styles.wordTileText}>{currentQuestion.word_bank[wordId]}</Text>
+                  <Text style={[styles.wordTileText, { color: colors.text }]}>{currentQuestion.word_bank[wordId]}</Text>
                 </Pressable>
               ))}
             </View>
           </View>
         ) : (
         <>
-        <View style={styles.questionCard}>
+        <View style={[styles.questionCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>
               {currentQuestion.question_type === 'multiple_choice'
@@ -397,7 +400,7 @@ export default function LessonScreen() {
                 : 'CÂU HỎI TIẾNG ANH'}
             </Text>
           </View>
-          <Text style={styles.questionPrompt}>{currentQuestion.question_text}</Text>
+          <Text style={[styles.questionPrompt, { color: colors.text }]}>{currentQuestion.question_text}</Text>
         </View>
 
         {/* Options */}
@@ -414,6 +417,7 @@ export default function LessonScreen() {
                 disabled={isAnswerChecked || checking}
                 style={[
                   styles.optionItem,
+                  { backgroundColor: colors.cardBackground, borderColor: colors.border },
                   isSelected && !isAnswerChecked && styles.optionItemSelected,
                   isSelected && answerFeedback?.is_correct && styles.optionItemCorrect,
                   isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionItemIncorrect,
@@ -429,6 +433,7 @@ export default function LessonScreen() {
                   <Text
                     style={[
                       styles.optionBadgeText,
+                      { color: colors.textMuted },
                       isSelected && !isAnswerChecked && styles.optionBadgeTextSelected,
                     ]}
                   >
@@ -438,6 +443,7 @@ export default function LessonScreen() {
                 <Text
                   style={[
                     styles.optionText,
+                    { color: colors.text },
                     isSelected && !isAnswerChecked && styles.optionTextSelected,
                     isSelected && answerFeedback?.is_correct && styles.optionTextCorrect,
                     isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionTextIncorrect,
@@ -457,7 +463,7 @@ export default function LessonScreen() {
 
       {/* Footer Controls */}
       {answerFeedback ? (
-        <View style={[styles.feedbackFooter, answerFeedback.is_correct ? styles.feedbackFooterCorrect : styles.feedbackFooterIncorrect]}>
+        <View style={[styles.feedbackFooter, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }, answerFeedback.is_correct ? styles.feedbackFooterCorrect : styles.feedbackFooterIncorrect]}>
           <Text style={[styles.feedbackTitle, answerFeedback.is_correct ? styles.feedbackTitleCorrect : styles.feedbackTitleIncorrect]}>
             {answerFeedback.is_correct ? '✓  Xuất sắc!' : '✕  Không chính xác'}
           </Text>
@@ -485,7 +491,7 @@ export default function LessonScreen() {
           </Pressable>
         </View>
       ) : (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
           <Pressable
             disabled={!selectedAnswer || checking}
             onPress={handleCheckAnswer}

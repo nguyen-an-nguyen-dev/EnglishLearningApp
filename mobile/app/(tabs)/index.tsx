@@ -15,14 +15,15 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type StageWithLessons, type UserProgress } from '@/services/learning';
 
 const STAGE_HEADER_HEIGHT = 146;
 const STAGE_GAP = 22;
-const CAR_SIZE = 46;
+const CAR_SIZE = 62;
 const STAGE_RING_SIZE = 88;
 const STAGE_RING_STROKE = 4;
 const STAGE_RING_RADIUS = (STAGE_RING_SIZE - STAGE_RING_STROKE) / 2;
@@ -37,6 +38,8 @@ const STAGE_ICONS = [
 
 export default function LearningPathScreen() {
   const { user, logout, getCurrentUser } = useAuth();
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const carPosition = useRef(new Animated.Value(0)).current;
@@ -181,7 +184,7 @@ export default function LearningPathScreen() {
   const carTop = stageIndices.length > 1
     ? carPosition.interpolate({ inputRange: stageIndices, outputRange: stageStops, extrapolate: 'clamp' })
     : stageStops[0] ?? 0;
-  const carLeft = routeWidth / 2 - CAR_SIZE / 2;
+  const carLeft = routeWidth / 2 - 25;
   const currentStageLessonIndex = currentStage && currentLesson
     ? currentStage.stage.lessons.findIndex((lesson) => lesson.id === currentLesson.id)
     : -1;
@@ -196,15 +199,15 @@ export default function LearningPathScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.journeySafeArea}>
-      <View style={styles.fixedTop} onTouchStart={() => setSelectedStageId(null)}>
+    <SafeAreaView style={[styles.journeySafeArea, { backgroundColor: colors.background }]}>
+      <View style={[styles.fixedTop, { backgroundColor: colors.background }]} onTouchStart={() => setSelectedStageId(null)}>
         <View style={styles.journeyHeader}>
           <View style={styles.brandGroup}>
-            <Text style={styles.brandCar}>🚘</Text>
-            <Text style={styles.brandTitle}>DriveEnglish</Text>
+
+            <Text style={[styles.brandTitle, { color: colors.text }]}>Lingua</Text>
           </View>
           <View style={styles.headerActions}>
-            <View style={styles.xpChip}>
+            <View style={[styles.xpChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={styles.xpChipText}>💎 {user?.xp ?? progressData?.total_xp ?? 0}</Text>
             </View>
             <Pressable onPress={() => void logout()} style={styles.avatarButton} accessibilityLabel="Đăng xuất">
@@ -233,12 +236,12 @@ export default function LearningPathScreen() {
           <View style={styles.lessonOverview}>
             <View style={styles.overviewTopRow}>
               <Text style={styles.overviewStageLabel}>STAGE {currentStageIndex + 1}</Text>
-              <Text style={styles.overviewCount}>
+              <Text style={[styles.overviewCount, { color: colors.textMuted }]}>
                 BÀI {currentStageLessonIndex + 1} / {currentStage.totalLessons}
               </Text>
             </View>
-            <Text numberOfLines={2} style={styles.overviewTitle}>{currentStage.stage.title}</Text>
-            <Text numberOfLines={1} style={styles.overviewSubtitle}>
+            <Text numberOfLines={2} style={[styles.overviewTitle, { color: colors.text }]}>{currentStage.stage.title}</Text>
+            <Text numberOfLines={1} style={[styles.overviewSubtitle, { color: colors.textMuted }]}>
               {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : `Đang học: ${currentLesson.title} (${currentLesson.topic})`}
             </Text>
             <View style={styles.overviewProgressTrack}>
@@ -258,7 +261,7 @@ export default function LearningPathScreen() {
           }}
           onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
-          contentContainerStyle={styles.journeyScroll}
+          contentContainerStyle={[styles.journeyScroll, { backgroundColor: colors.background }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -274,8 +277,20 @@ export default function LearningPathScreen() {
             style={[styles.stageMap, { minHeight: mapHeight }]}
             onLayout={(event) => { pathOffset.current = event.nativeEvent.layout.y; }}
           >
-            <View style={[styles.centerRoad, styles.nonInteractive]} />
-            <View style={[styles.centerRoadLine, styles.nonInteractive]} />
+            <View
+              style={[
+                styles.centerRoad,
+                theme === 'dark' && { backgroundColor: '#161B22', borderColor: '#30363D' },
+                styles.nonInteractive,
+              ]}
+            />
+            <View
+              style={[
+                styles.centerRoadLine,
+                theme === 'dark' && { borderColor: '#484F58' },
+                styles.nonInteractive,
+              ]}
+            />
             {stageProgress.map(({ stage, completedLessons, totalLessons: stageTotal, isCompleted }, stageIndex) => {
               const markerOnLeft = stageIndex % 2 === 0;
               const percentage = stageTotal > 0 ? Math.round((completedLessons / stageTotal) * 100) : 0;
@@ -297,9 +312,6 @@ export default function LearningPathScreen() {
                     onPress={() => setSelectedStageId(null)}
                     style={styles.stageWaypoint}
                   >
-                    <View
-                      style={[styles.stageConnector, markerOnLeft ? styles.connectorLeft : styles.connectorRight, styles.nonInteractive]}
-                    />
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Stage ${stageIndex + 1}, ${stage.title}, ${completedLessons} trên ${stageTotal} bài đã hoàn thành. Nhấn để tiếp tục.`}
@@ -362,7 +374,7 @@ export default function LearningPathScreen() {
                         isStageLocked && styles.stageInfoLocked,
                       ]}
                     >
-                      <Text numberOfLines={2} style={styles.stageName}>
+                      <Text numberOfLines={2} style={[styles.stageName, { color: colors.text }]}>
                         {stageIndex + 1}. {stage.title}
                       </Text>
                     </View>
@@ -374,7 +386,20 @@ export default function LearningPathScreen() {
               <Animated.View
                 style={[styles.movingCar, { left: carLeft, top: carTop }, styles.nonInteractive]}
               >
-                <Text style={styles.movingCarText}>🚘</Text>
+                <Svg width={50} height={62} viewBox="0 0 50 62">
+                  <Path d="M13 8 Q14 3 20 2 L30 2 Q36 3 37 8 L43 20 L45 48 Q45 56 38 59 L12 59 Q5 56 5 48 L7 20 Z" fill="#0B7285" />
+                  <Path d="M14 10 Q15 6 20 5 L30 5 Q35 6 36 10 L39 18 L11 18 Z" fill="#8DE5F2" />
+                  <Path d="M11 22 L39 22 L40 37 L10 37 Z" fill="#D8F8FC" />
+                  <Path d="M10 41 L40 41 L39 49 Q38 53 33 54 L17 54 Q12 53 11 49 Z" fill="#57C7D8" />
+                  <Path d="M7 23 L11 23 L10 34 L6 34 Z M39 23 L43 23 L44 34 L40 34 Z" fill="#17212B" />
+                  <Path d="M6 43 L10 43 L11 52 L8 53 Q5 51 5 48 Z M40 43 L44 43 L45 48 Q45 51 42 53 L39 52 Z" fill="#17212B" />
+                  <Rect x="10" y="7" width="5" height="10" rx="2" fill="#17212B" />
+                  <Rect x="35" y="7" width="5" height="10" rx="2" fill="#17212B" />
+                  <Rect x="8" y="4" width="7" height="3" rx="1.5" fill="#FFF4B8" />
+                  <Rect x="35" y="4" width="7" height="3" rx="1.5" fill="#FFF4B8" />
+                  <Rect x="11" y="56" width="8" height="3" rx="1" fill="#FF6B6B" />
+                  <Rect x="31" y="56" width="8" height="3" rx="1" fill="#FF6B6B" />
+                </Svg>
               </Animated.View>
             )}
           </View>
@@ -408,7 +433,7 @@ export default function LearningPathScreen() {
         </Pressable>
       )}
       {!selectedStage && !loading && progressData && totalLessons > 0 && activeLessonIndex < 0 && (
-        <View style={styles.completedDock}>
+        <View style={[styles.completedDock, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
           <Text style={styles.completedDockText}>🏁 Bạn đã hoàn thành tất cả stage!</Text>
         </View>
       )}
@@ -936,22 +961,11 @@ const styles = StyleSheet.create({
   },
   movingCar: {
     position: 'absolute',
-    width: CAR_SIZE,
+    width: 50,
     height: CAR_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-    borderRadius: CAR_SIZE / 2,
-    backgroundColor: '#08b9d1',
     zIndex: 5,
-    elevation: 7,
-  },
-  movingCarText: {
-    fontSize: 29,
-    textShadowColor: 'rgba(0,0,0,0.22)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
   },
   bottomDock: {
     minHeight: 84,
@@ -1092,21 +1106,6 @@ const styles = StyleSheet.create({
   stageWaypoint: {
     height: STAGE_HEADER_HEIGHT,
     position: 'relative',
-  },
-  stageConnector: {
-    position: 'absolute',
-    top: STAGE_NODE_TOP + STAGE_RING_SIZE / 2,
-    height: 3,
-    backgroundColor: '#c8d7df',
-    zIndex: 1,
-  },
-  connectorLeft: {
-    left: '29%',
-    right: '50%',
-  },
-  connectorRight: {
-    left: '50%',
-    right: '29%',
   },
   stageRing: {
     position: 'relative',

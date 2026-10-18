@@ -1,24 +1,28 @@
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import Colors from '@/constants/Colors';
+import { useAppTheme } from '@/contexts/theme-context';
 
 export function FindOpponentScreen({ error, onBack, onFind }: {
   error: string | null;
   onBack: () => void;
   onFind: () => void;
 }) {
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>‹</Text>
+          <Text style={[styles.backText, { color: colors.text }]}>‹</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Word Battle</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Word Battle</Text>
         <View style={styles.headerSpacer} />
       </View>
       <View style={styles.content}>
         <View style={styles.iconCircle}><Text style={styles.icon}>⚔️</Text></View>
-        <Text style={styles.title}>Word Battle</Text>
-        <Text style={styles.description}>Thi đấu dịch 20 từ vựng tiếng Việt sang tiếng Anh. Mỗi từ đúng nhanh hơn sẽ ghi điểm.</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Word Battle</Text>
+        <Text style={[styles.description, { color: colors.textMuted }]}>Thi đấu dịch 20 từ vựng tiếng Việt sang tiếng Anh. Mỗi từ đúng nhanh hơn sẽ ghi điểm.</Text>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" onPress={onFind} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>Tìm đối thủ</Text>

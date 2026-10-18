@@ -1,5 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
+import Colors from '@/constants/Colors';
+import { useAppTheme } from '@/contexts/theme-context';
 
 const tabSymbols = {
   learning: { ios: 'map.fill', android: 'map', web: 'map' },
@@ -10,18 +12,21 @@ const tabSymbols = {
 } as const;
 
 export default function TabLayout() {
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#00C7FF',
-        tabBarInactiveTintColor: '#74838d',
+        tabBarActiveTintColor: colors.tabIconSelected,
+        tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarStyle: {
           height: 68,
           paddingTop: 7,
           paddingBottom: 7,
-          backgroundColor: '#ffffff',
-          borderTopColor: '#dce8ed',
+          backgroundColor: colors.cardBackground,
+          borderTopColor: colors.border,
         },
         tabBarLabelStyle: {
           fontSize: 10,

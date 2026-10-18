@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useAppTheme } from '@/contexts/theme-context';
 
 type AuthMode = 'login' | 'register';
 
@@ -20,6 +21,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const isRegister = mode === 'register';
   const router = useRouter();
   const auth = useAuth();
+  const { theme } = useAppTheme();
+  const colors = Colors[theme];
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,32 +45,32 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={[styles.screen, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brandMark}><Text style={styles.brandLetter}>L</Text></View>
         <Text style={styles.eyebrow}>LINGUA / ENGLISH</Text>
-        <Text style={styles.title}>{isRegister ? 'Start speaking.' : 'English for life'}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{isRegister ? 'Start speaking.' : 'English for life'}</Text>
 
 
         {isRegister && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Name</Text>
+            <Text style={[styles.label, { color: colors.text } ]}>Name</Text>
             <TextInput
               autoComplete="name"
               autoCapitalize="words"
               onChangeText={setName}
               placeholder="Your name"
               placeholderTextColor="#8ea2b8"
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
               value={name}
             />
           </View>
         )}
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Email</Text>
           <TextInput
             autoComplete="email"
             autoCapitalize="none"
@@ -75,21 +78,21 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             onChangeText={setEmail}
             placeholder="you@example.com"
             placeholderTextColor="#8ea2b8"
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
             textContentType="emailAddress"
             value={email}
           />
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Password</Text>
           <TextInput
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             onChangeText={setPassword}
             placeholder={isRegister ? 'At least 6 characters' : 'Your password'}
             placeholderTextColor="#8ea2b8"
             secureTextEntry
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
             textContentType={isRegister ? 'newPassword' : 'password'}
             value={password}
           />
@@ -109,7 +112,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         </Pressable>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>{isRegister ? 'Already learning with us?' : 'New to Lingua?'}</Text>
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>{isRegister ? 'Already learning with us?' : 'New to Lingua?'}</Text>
           <Pressable
             accessibilityRole="link"
             onPress={() => router.replace(isRegister ? '/login' : '/register')}
