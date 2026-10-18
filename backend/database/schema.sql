@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS user_badges (
 CREATE TABLE IF NOT EXISTS chats (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
+  topic ENUM('DAILY_CONVERSATION', 'TRAVEL', 'FOOD', 'SHOPPING', 'SCHOOL', 'FAMILY', 'HOBBIES', 'JOB_INTERVIEW') NOT NULL DEFAULT 'DAILY_CONVERSATION',
   title VARCHAR(200) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -136,7 +137,7 @@ CREATE TABLE IF NOT EXISTS chats (
 CREATE TABLE IF NOT EXISTS messages (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   chat_id BIGINT UNSIGNED NOT NULL,
-  role ENUM('user', 'assistant', 'system') NOT NULL,
+  role ENUM('USER', 'AI', 'SYSTEM') NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -148,13 +149,31 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS ai_feedback (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   message_id BIGINT UNSIGNED NOT NULL,
-  corrected_text TEXT NULL,
-  explanation TEXT NULL,
+  type ENUM('GRAMMAR', 'VOCABULARY', 'TENSE', 'WORD_ORDER', 'OTHER') NOT NULL,
+  original_text TEXT NOT NULL,
+  corrected_text TEXT NOT NULL,
+  explanation TEXT NOT NULL,
   rating ENUM('helpful', 'not_helpful') NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_ai_feedback_message (message_id),
+  KEY idx_ai_feedback_message (message_id),
   CONSTRAINT fk_ai_feedback_message FOREIGN KEY (message_id) REFERENCES messages (id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS learning_answer_attempts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  question_id BIGINT UNSIGNED NOT NULL,
+  submitted_answer TEXT NOT NULL,
+  is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_learning_attempt_user_correct_date (user_id, is_correct, created_at),
+  KEY idx_learning_attempt_question (question_id),
+  CONSTRAINT fk_learning_attempt_user FOREIGN KEY (user_id) REFERENCES users (id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_learning_attempt_question FOREIGN KEY (question_id) REFERENCES questions (id)
     ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

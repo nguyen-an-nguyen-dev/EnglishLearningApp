@@ -318,6 +318,8 @@ export async function checkLessonAnswer(
   const isCorrect = await isAnswerCorrect(question, submitted, answerRows);
   const correctAnswer = answerRows.find((answer) => answer.is_correct === true || answer.is_correct === 1);
 
+  await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect);
+
   return {
     is_correct: isCorrect,
     correct_answer: correctAnswer?.answer_text ?? '',

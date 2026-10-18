@@ -28,6 +28,7 @@ const STAGE_RING_SIZE = 88;
 const STAGE_RING_STROKE = 4;
 const STAGE_RING_RADIUS = (STAGE_RING_SIZE - STAGE_RING_STROKE) / 2;
 const STAGE_NODE_TOP = 10;
+const ROAD_CURVE_STEPS = 12;
 const STAGE_ICONS = [
   { ios: 'graduationcap.fill', android: 'school', web: 'school' },
   { ios: 'map.fill', android: 'explore', web: 'explore' },
@@ -146,12 +147,63 @@ export default function LearningPathScreen() {
     mapHeight += STAGE_HEADER_HEIGHT;
     if (stageIndex < stageProgress.length - 1) mapHeight += STAGE_GAP;
   });
-  const stageIndices = stageProgress.map((_, index) => index);
+  const roadWaypoints = stageStops.map((top, index) => ({
+    x: routeWidth / 2 + (index % 2 === 0 ? -20 : 20),
+    y: top + CAR_SIZE / 2,
+  }));
+  const getRoadCurveControls = (index: number) => {
+    const start = roadWaypoints[index];
+    const end = roadWaypoints[index + 1];
+    const previous = roadWaypoints[index - 1] ?? {
+      x: 2 * start.x - end.x,
+      y: 2 * start.y - end.y,
+    };
+    const next = roadWaypoints[index + 2] ?? {
+      x: 2 * end.x - start.x,
+      y: 2 * end.y - start.y,
+    };
+    return {
+      first: {
+        x: start.x + (end.x - previous.x) / 4.5,
+        y: start.y + (end.y - previous.y) / 4.5,
+      },
+      second: {
+        x: end.x - (next.x - start.x) / 4.5,
+        y: end.y - (next.y - start.y) / 4.5,
+      },
+    };
+  };
+  const roadPath = roadWaypoints.length > 0
+    ? roadWaypoints.slice(1).reduce((path, point, index) => {
+      const previous = roadWaypoints[index];
+      const { first, second } = getRoadCurveControls(index);
+      return `${path} C ${first.x} ${first.y}, ${second.x} ${second.y}, ${point.x} ${point.y}`;
+    }, `M ${roadWaypoints[0].x} 0 C ${roadWaypoints[0].x} ${roadWaypoints[0].y * 0.65}, ${roadWaypoints[0].x} ${roadWaypoints[0].y * 0.85}, ${roadWaypoints[0].x} ${roadWaypoints[0].y}`)
+    : '';
+  const roadMotionPoints = roadWaypoints.length > 1
+    ? roadWaypoints.slice(1).reduce((points, point, index) => {
+      const start = roadWaypoints[index];
+      const { first, second } = getRoadCurveControls(index);
+      for (let step = 1; step <= ROAD_CURVE_STEPS; step += 1) {
+        const t = step / ROAD_CURVE_STEPS;
+        const inverseT = 1 - t;
+        points.push({
+          x: inverseT ** 3 * start.x + 3 * inverseT ** 2 * t * first.x
+            + 3 * inverseT * t ** 2 * second.x + t ** 3 * point.x,
+          y: inverseT ** 3 * start.y + 3 * inverseT ** 2 * t * first.y
+            + 3 * inverseT * t ** 2 * second.y + t ** 3 * point.y,
+        });
+      }
+      return points;
+    }, [roadWaypoints[0]])
+    : roadWaypoints;
+  const roadMotionIndices = roadMotionPoints.map((_, index) => index);
 
   useEffect(() => {
     if (currentStageIndex < 0) return;
+    const targetPosition = currentStageIndex * ROAD_CURVE_STEPS;
     if (!hasPositionedCar.current) {
-      carPosition.setValue(currentStageIndex);
+      carPosition.setValue(targetPosition);
       hasPositionedCar.current = true;
       lastCarTarget.current = currentStageIndex;
       return;
@@ -163,7 +215,7 @@ export default function LearningPathScreen() {
 
     const targetTop = stageStops[currentStageIndex] ?? 0;
     Animated.timing(carPosition, {
-      toValue: currentStageIndex,
+      toValue: targetPosition,
       duration: Math.min(8000, distance * 2200),
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: false,
@@ -181,10 +233,20 @@ export default function LearningPathScreen() {
     lastCarTarget.current = currentStageIndex;
   }, [currentStageIndex, carPosition, height, stageStops]);
 
-  const carTop = stageIndices.length > 1
-    ? carPosition.interpolate({ inputRange: stageIndices, outputRange: stageStops, extrapolate: 'clamp' })
-    : stageStops[0] ?? 0;
-  const carLeft = routeWidth / 2 - 25;
+  const carLeft = roadMotionPoints.length > 1
+    ? carPosition.interpolate({
+      inputRange: roadMotionIndices,
+      outputRange: roadMotionPoints.map((point) => point.x - 25),
+      extrapolate: 'clamp',
+    })
+    : (roadMotionPoints[0]?.x ?? routeWidth / 2) - 25;
+  const carTop = roadMotionPoints.length > 1
+    ? carPosition.interpolate({
+      inputRange: roadMotionIndices,
+      outputRange: roadMotionPoints.map((point) => point.y - CAR_SIZE / 2),
+      extrapolate: 'clamp',
+    })
+    : (roadMotionPoints[0]?.y ?? 0) - CAR_SIZE / 2;
   const currentStageLessonIndex = currentStage && currentLesson
     ? currentStage.stage.lessons.findIndex((lesson) => lesson.id === currentLesson.id)
     : -1;
@@ -204,7 +266,7 @@ export default function LearningPathScreen() {
         <View style={styles.journeyHeader}>
           <View style={styles.brandGroup}>
 
-            <Text style={[styles.brandTitle, { color: colors.text }]}>Lingua</Text>
+            <Text style={[styles.brandTitle, { color: '#079ab1' }]}>Lingua</Text>
           </View>
           <View style={styles.headerActions}>
             <View style={[styles.xpChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -235,12 +297,12 @@ export default function LearningPathScreen() {
         {!loading && progressData && currentStage && currentLesson && (
           <View style={styles.lessonOverview}>
             <View style={styles.overviewTopRow}>
-              <Text style={styles.overviewStageLabel}>STAGE {currentStageIndex + 1}</Text>
+              <Text style={styles.overviewStageLabel}>STAGE {currentStageIndex + 1}{currentStage.stage.title}</Text>
               <Text style={[styles.overviewCount, { color: colors.textMuted }]}>
                 BÀI {currentStageLessonIndex + 1} / {currentStage.totalLessons}
               </Text>
             </View>
-            <Text numberOfLines={2} style={[styles.overviewTitle, { color: colors.text }]}>{currentStage.stage.title}</Text>
+
             <Text numberOfLines={1} style={[styles.overviewSubtitle, { color: colors.textMuted }]}>
               {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : `Đang học: ${currentLesson.title} (${currentLesson.topic})`}
             </Text>
@@ -277,20 +339,38 @@ export default function LearningPathScreen() {
             style={[styles.stageMap, { minHeight: mapHeight }]}
             onLayout={(event) => { pathOffset.current = event.nativeEvent.layout.y; }}
           >
-            <View
-              style={[
-                styles.centerRoad,
-                theme === 'dark' && { backgroundColor: '#161B22', borderColor: '#30363D' },
-                styles.nonInteractive,
-              ]}
-            />
-            <View
-              style={[
-                styles.centerRoadLine,
-                theme === 'dark' && { borderColor: '#484F58' },
-                styles.nonInteractive,
-              ]}
-            />
+            {roadPath ? (
+              <Svg
+                height={Math.max(mapHeight, 1)}
+                width={routeWidth}
+                viewBox={`0 0 ${routeWidth} ${Math.max(mapHeight, 1)}`}
+                style={[styles.curvedRoad, styles.nonInteractive]}
+              >
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke={theme === 'dark' ? '#30363D' : '#AAB7C4'}
+                  strokeWidth={82}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke={theme === 'dark' ? '#161B22' : '#C7D1DC'}
+                  strokeWidth={78}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke={theme === 'dark' ? '#484F58' : '#ffffff'}
+                  strokeWidth={2}
+                  strokeDasharray="8 12"
+                />
+              </Svg>
+            ) : null}
             {stageProgress.map(({ stage, completedLessons, totalLessons: stageTotal, isCompleted }, stageIndex) => {
               const markerOnLeft = stageIndex % 2 === 0;
               const percentage = stageTotal > 0 ? Math.round((completedLessons / stageTotal) * 100) : 0;
@@ -790,7 +870,7 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: '#17263b',
-    fontSize: 19,
+    fontSize: 30,
     fontWeight: '900',
   },
   headerActions: {
@@ -1037,9 +1117,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+     color: '#079ab1'
   },
   overviewStageLabel: {
-    color: '#079ab1',
+    color: '#a4bccb',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -1070,32 +1151,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#11b9cf',
   },
-  centerRoad: {
+  curvedRoad: {
     position: 'absolute',
-    left: '50%',
     top: 0,
-    bottom: 0,
-    width: 78,
-    marginLeft: -39,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#d7dfe8',
-    borderRadius: 39,
-    backgroundColor: '#e6ebf1',
+    left: 0,
   },
   nonInteractive: {
     pointerEvents: 'none',
-  },
-  centerRoadLine: {
-    position: 'absolute',
-    left: '50%',
-    top: 0,
-    bottom: 0,
-    width: 2,
-    marginLeft: -1,
-    borderStyle: 'dashed',
-    borderLeftWidth: 2,
-    borderColor: '#fff',
   },
   stageSection: {
     position: 'relative',

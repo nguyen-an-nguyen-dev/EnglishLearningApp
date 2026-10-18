@@ -187,6 +187,19 @@ export async function countQuestionsByLesson(lessonId: number): Promise<number> 
   return rows[0]?.cnt ?? 0;
 }
 
+export async function recordAnswerAttempt(
+  userId: number,
+  questionId: number,
+  answer: string,
+  isCorrect: boolean,
+): Promise<void> {
+  await pool.execute(
+    `INSERT INTO learning_answer_attempts (user_id, question_id, submitted_answer, is_correct)
+     VALUES (?, ?, ?, ?)`,
+    [userId, questionId, answer, isCorrect],
+  );
+}
+
 // ─── Progress ─────────────────────────────────────────────────────────────────
 
 export async function getUserProgress(userId: number): Promise<ProgressRow[]> {
