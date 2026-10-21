@@ -244,9 +244,40 @@ test('listening questions return a playable Supabase audio URL and hide the tran
   assert.equal(listening.answers.length, 0);
   assert.match(
     String(listening.audio_url),
-    /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\/listening\//,
+    /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\//,
   );
 
   const audioHead = await fetch(String(listening.audio_url), { method: 'HEAD' });
+  assert.equal(audioHead.status, 200);
+});
+
+test('listen_choice questions expose options and a playable Supabase audio URL', async () => {
+  const [lessonRows] = await testPool.execute<RowDataPacket[]>(
+    `SELECT l.id
+     FROM lessons l
+     JOIN questions q ON q.lesson_id = l.id
+     WHERE q.question_type = 'listen_choice' AND q.audio_url IS NOT NULL
+     ORDER BY l.id, q.sort_order
+     LIMIT 1`,
+  );
+  assert.ok(lessonRows[0], 'Seed at least one listen_choice question before running this test.');
+  const lessonId = Number(lessonRows[0].id);
+
+  const response = await fetch(`${baseUrl}/api/lessons/${lessonId}/questions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as {
+    data: { questions: Array<{ question_type: string; audio_url: string | null; answers: Array<{ answer_text: string }> }> };
+  };
+  const question = body.data.questions.find((item) => item.question_type === 'listen_choice');
+  assert.ok(question);
+  assert.equal(question.answers.length, 3);
+  assert.match(
+    String(question.audio_url),
+    /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\//,
+  );
+
+  const audioHead = await fetch(String(question.audio_url), { method: 'HEAD' });
   assert.equal(audioHead.status, 200);
 });

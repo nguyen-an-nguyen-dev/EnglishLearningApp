@@ -150,7 +150,11 @@ export function resolveAudioUrl(
   projectUrl = env.supabaseUrl,
   bucket = env.supabaseBucket,
 ): string | null {
-  if (!audioUrl || /^https?:\/\//i.test(audioUrl) || questionType !== 'listening') {
+  if (
+    !audioUrl ||
+    /^https?:\/\//i.test(audioUrl) ||
+    (questionType !== 'listening' && questionType !== 'listen_choice')
+  ) {
     return audioUrl;
   }
 
@@ -296,7 +300,11 @@ export function isAnswerCorrect(
 ): boolean {
   const qAnswers = answerRows.filter((a) => a.question_id === question.id);
 
-  if (question.question_type === 'multiple_choice') {
+  if (
+    question.question_type === 'multiple_choice' ||
+    question.question_type === 'fill_choice' ||
+    question.question_type === 'listen_choice'
+  ) {
     // submitted.answer should be the answer id as string, or the answer_text
     const submittedId = Number(submitted.answer);
     if (Number.isInteger(submittedId) && submittedId > 0) {

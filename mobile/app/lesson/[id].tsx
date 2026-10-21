@@ -110,6 +110,11 @@ export default function LessonScreen() {
 
   const currentQuestion = questions[currentIndex];
   const isListeningQuestion = currentQuestion?.question_type === 'listening';
+  const isListenChoiceQuestion = currentQuestion?.question_type === 'listen_choice';
+  const isFillChoiceQuestion = currentQuestion?.question_type === 'fill_choice';
+  const selectedOptionText = currentQuestion?.answers.find(
+    (opt) => String(opt.id) === selectedAnswer,
+  )?.answer_text ?? null;
   const totalQuestions = questions.length;
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
   const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null, { downloadFirst: true });
@@ -153,6 +158,64 @@ export default function LessonScreen() {
     } catch {
       audioPlayer.play();
     }
+  }
+
+  function renderOptions() {
+    if (!currentQuestion) return null;
+    return (
+      <View style={styles.optionsList}>
+        {currentQuestion.answers.map((opt, idx) => {
+          const isSelected = selectedAnswer === String(opt.id);
+          const isCorrectOption = answerFeedback?.correct_answer === opt.answer_text;
+          const letter = String.fromCharCode(65 + idx);
+
+          return (
+            <Pressable
+              key={opt.id}
+              onPress={() => handleSelectOption(opt.id)}
+              disabled={isAnswerChecked || checking}
+              style={[
+                styles.optionItem,
+                { backgroundColor: colors.cardBackground, borderColor: colors.border },
+                isSelected && !isAnswerChecked && styles.optionItemSelected,
+                isSelected && answerFeedback?.is_correct && styles.optionItemCorrect,
+                isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionItemIncorrect,
+                !answerFeedback?.is_correct && isCorrectOption && styles.optionItemCorrect,
+              ]}
+            >
+              <View
+                style={[
+                  styles.optionBadge,
+                  isSelected && !isAnswerChecked && styles.optionBadgeSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.optionBadgeText,
+                    { color: colors.textMuted },
+                    isSelected && !isAnswerChecked && styles.optionBadgeTextSelected,
+                  ]}
+                >
+                  {letter}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.optionText,
+                  { color: colors.text },
+                  isSelected && !isAnswerChecked && styles.optionTextSelected,
+                  isSelected && answerFeedback?.is_correct && styles.optionTextCorrect,
+                  isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionTextIncorrect,
+                  !answerFeedback?.is_correct && isCorrectOption && styles.optionTextCorrect,
+                ]}
+              >
+                {opt.answer_text}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
   }
 
   function handleSelectWord(wordId: number) {
@@ -369,45 +432,52 @@ export default function LessonScreen() {
 
       {/* Question Content */}
       <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-        {isListeningQuestion ? (
-          <View style={styles.listeningQuestion}>
-            {currentQuestion.audio_url ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={audioStatus.playing ? 'Tạm dừng đoạn âm thanh' : 'Phát đoạn âm thanh tiếng Anh'}
-                style={[
-                  styles.listeningAudioButton,
-                  audioStatus.playing && styles.listeningAudioButtonPlaying,
-                ]}
-                onPress={() => {
-                  void playQuestionAudio();
-                }}
-              >
-                <Text style={styles.listeningAudioIcon}>{audioStatus.playing ? '⏸️' : '🔊'}</Text>
-              </Pressable>
-            ) : (
-              <Text style={[styles.audioUnavailable, { color: colors.textMuted }]}>
-                Âm thanh chưa được cấu hình cho câu hỏi này.
+        {isListeningQuestion || isListenChoiceQuestion ? (
+          <>
+            <View style={styles.listeningQuestion}>
+              {currentQuestion.audio_url ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={audioStatus.playing ? 'Tạm dừng đoạn âm thanh' : 'Phát đoạn âm thanh tiếng Anh'}
+                  style={[
+                    styles.listeningAudioButton,
+                    audioStatus.playing && styles.listeningAudioButtonPlaying,
+                  ]}
+                  onPress={() => {
+                    void playQuestionAudio();
+                  }}
+                >
+                  <Text style={styles.listeningAudioIcon}>{audioStatus.playing ? '⏸️' : '🔊'}</Text>
+                </Pressable>
+              ) : (
+                <Text style={[styles.audioUnavailable, { color: colors.textMuted }]}>
+                  Âm thanh chưa được cấu hình cho câu hỏi này.
+                </Text>
+              )}
+              <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
+                {isListenChoiceQuestion
+                  ? currentQuestion.question_text
+                  : 'Nhấn vào loa để nghe, sau đó nhập nội dung bạn nghe được.'}
               </Text>
-            )}
-            <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
-              Nhấn vào loa để nghe, sau đó nhập nội dung bạn nghe được.
-            </Text>
-            <TextInput
-              accessibilityLabel="Nhập nội dung nghe được"
-              editable={!isAnswerChecked && !checking}
-              multiline
-              onChangeText={setSelectedAnswer}
-              placeholder="Nhập câu tiếng Anh bạn nghe được..."
-              placeholderTextColor={colors.textMuted}
-              style={[
-                styles.listeningInput,
-                { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text },
-                isAnswerChecked && styles.listeningInputDisabled,
-              ]}
-              value={selectedAnswer ?? ''}
-            />
-          </View>
+              {isListenChoiceQuestion ? null : (
+                <TextInput
+                  accessibilityLabel="Nhập nội dung nghe được"
+                  editable={!isAnswerChecked && !checking}
+                  multiline
+                  onChangeText={setSelectedAnswer}
+                  placeholder="Nhập câu tiếng Anh bạn nghe được..."
+                  placeholderTextColor={colors.textMuted}
+                  style={[
+                    styles.listeningInput,
+                    { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text },
+                    isAnswerChecked && styles.listeningInputDisabled,
+                  ]}
+                  value={selectedAnswer ?? ''}
+                />
+              )}
+            </View>
+            {isListenChoiceQuestion ? renderOptions() : null}
+          </>
         ) : currentQuestion.question_type === 'word_order' ? (
           <View style={styles.wordOrderQuestion}>
             <Text style={[styles.wordOrderPrompt, { color: colors.textMuted }]}>Dịch câu này</Text>
@@ -458,65 +528,33 @@ export default function LessonScreen() {
             <Text style={styles.typeBadgeText}>
               {currentQuestion.question_type === 'multiple_choice'
                 ? 'CHỌN ĐÁP ÁN ĐÚNG'
-                : 'CÂU HỎI TIẾNG ANH'}
+                : isFillChoiceQuestion
+                  ? 'ĐIỀN TỪ CÒN THIẾU'
+                  : 'CÂU HỎI TIẾNG ANH'}
             </Text>
           </View>
-          <Text style={[styles.questionPrompt, { color: colors.text }]}>{currentQuestion.question_text}</Text>
+          {isFillChoiceQuestion ? (
+            <Text style={[styles.questionPrompt, { color: colors.text }]}>
+              {currentQuestion.question_text.split('___').map((segment, segmentIndex, segments) => (
+                <Text key={`fill-segment-${segmentIndex}`}>
+                  {segment}
+                  {segmentIndex < segments.length - 1 ? (
+                    selectedOptionText ? (
+                      <Text style={[styles.fillBlankFilled, { color: colors.text }]}> {selectedOptionText} </Text>
+                    ) : (
+                      <Text style={{ color: colors.textMuted }}> ____ </Text>
+                    )
+                  ) : null}
+                </Text>
+              ))}
+            </Text>
+          ) : (
+            <Text style={[styles.questionPrompt, { color: colors.text }]}>{currentQuestion.question_text}</Text>
+          )}
         </View>
 
         {/* Options */}
-        <View style={styles.optionsList}>
-          {currentQuestion.answers.map((opt, idx) => {
-            const isSelected = selectedAnswer === String(opt.id);
-            const isCorrectOption = answerFeedback?.correct_answer === opt.answer_text;
-            const letter = String.fromCharCode(65 + idx);
-
-            return (
-              <Pressable
-                key={opt.id}
-                onPress={() => handleSelectOption(opt.id)}
-                disabled={isAnswerChecked || checking}
-                style={[
-                  styles.optionItem,
-                  { backgroundColor: colors.cardBackground, borderColor: colors.border },
-                  isSelected && !isAnswerChecked && styles.optionItemSelected,
-                  isSelected && answerFeedback?.is_correct && styles.optionItemCorrect,
-                  isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionItemIncorrect,
-                  !answerFeedback?.is_correct && isCorrectOption && styles.optionItemCorrect,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.optionBadge,
-                    isSelected && !isAnswerChecked && styles.optionBadgeSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.optionBadgeText,
-                      { color: colors.textMuted },
-                      isSelected && !isAnswerChecked && styles.optionBadgeTextSelected,
-                    ]}
-                  >
-                    {letter}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.optionText,
-                    { color: colors.text },
-                    isSelected && !isAnswerChecked && styles.optionTextSelected,
-                    isSelected && answerFeedback?.is_correct && styles.optionTextCorrect,
-                    isSelected && answerFeedback && !answerFeedback.is_correct && styles.optionTextIncorrect,
-                    !answerFeedback?.is_correct && isCorrectOption && styles.optionTextCorrect,
-                  ]}
-                >
-                  {opt.answer_text}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {renderOptions()}
         </>
         )}
 
@@ -846,6 +884,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     lineHeight: 28,
+  },
+  fillBlankFilled: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    fontWeight: '800',
   },
   optionsList: {
     gap: 12,

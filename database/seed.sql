@@ -80,6 +80,29 @@ CREATE TEMPORARY TABLE seed_listening_questions (
   PRIMARY KEY (lesson_code, sort_order)
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TEMPORARY TABLE seed_fill_choice_questions (
+  lesson_code VARCHAR(80) NOT NULL,
+  sort_order TINYINT UNSIGNED NOT NULL,
+  question_text TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  correct_answer VARCHAR(500) NOT NULL,
+  distractor_one VARCHAR(500) NOT NULL,
+  distractor_two VARCHAR(500) NOT NULL,
+  PRIMARY KEY (lesson_code, sort_order)
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TEMPORARY TABLE seed_listen_choice_questions (
+  lesson_code VARCHAR(80) NOT NULL,
+  sort_order TINYINT UNSIGNED NOT NULL,
+  question_text TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  audio_url VARCHAR(2048) NOT NULL,
+  correct_answer VARCHAR(500) NOT NULL,
+  distractor_one VARCHAR(500) NOT NULL,
+  distractor_two VARCHAR(500) NOT NULL,
+  PRIMARY KEY (lesson_code, sort_order)
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answer, distractor_one, distractor_two) VALUES
   ('s1-greetings', 1, 'Which greeting is commonly used in the morning?', 'Good morning', 'Good night', 'Goodbye'),
   ('s1-greetings', 2, 'Which phrase is a friendly way to say hello?', 'Hello', 'Sorry', 'Please'),
@@ -269,6 +292,37 @@ VALUES
   ('s1-introductions', 5, 'Nghe đoạn âm thanh và nhập lại nội dung bạn nghe được.', 'Tên tôi là Lina.', 'My name is Lina.', 'listening/my-name-is-lina.wav'),
   ('s2-food', 5, 'Nghe đoạn âm thanh và nhập lại nội dung bạn nghe được.', 'Tôi muốn một tách trà.', 'I would like a cup of tea.', 'listening/i-would-like-a-cup-of-tea.wav');
 
+INSERT INTO seed_fill_choice_questions
+  (lesson_code, sort_order, question_text, explanation, correct_answer, distractor_one, distractor_two)
+VALUES
+  ('s1-greetings', 6, 'How ___ you?', 'Bạn khỏe không? (Chủ ngữ "you" đi với động từ "are")', 'are', 'is', 'am'),
+  ('s1-introductions', 6, 'My name ___ Lina.', 'Tên tôi là Lina. (Chủ ngữ số ít đi với "is")', 'is', 'am', 'are'),
+  ('s1-numbers', 6, 'Three plus four is ___.', 'Ba cộng bốn bằng bảy.', 'seven', 'six', 'eight'),
+  ('s1-family', 6, 'I have a brother and a ___.', 'Tôi có một anh trai và một chị gái.', 'sister', 'mother', 'cousin'),
+  ('s2-food', 6, 'She ___ coffee every morning.', 'Cô ấy uống cà phê mỗi sáng. (Hiện tại đơn, chủ ngữ số ít thêm "s")', 'drinks', 'drink', 'drinking'),
+  ('s2-shopping', 6, 'How ___ is this shirt?', 'Chiếc áo này giá bao nhiêu?', 'much', 'many', 'long'),
+  ('s2-daily-activities', 6, 'He ___ to school at seven every day.', 'Anh ấy đi học lúc bảy giờ mỗi ngày. (Hiện tại đơn, chủ ngữ số ít)', 'goes', 'go', 'going'),
+  ('s2-transportation', 6, 'We travel to work ___ bus.', 'Chúng tôi đi làm bằng xe buýt.', 'by', 'at', 'of'),
+  ('s3-travel', 6, 'You need a ___ to enter another country.', 'Bạn cần hộ chiếu để nhập cảnh vào quốc gia khác.', 'passport', 'pencil', 'menu'),
+  ('s3-school', 6, 'The students are studying ___ the library.', 'Học sinh đang học trong thư viện.', 'in', 'on', 'at'),
+  ('s3-hobbies', 6, 'She enjoys ___ books in the evening.', 'Cô ấy thích đọc sách vào buổi tối. (enjoy + V-ing)', 'reading', 'read', 'reads'),
+  ('s3-job-interview', 6, 'I have five years of work ___.', 'Tôi có năm năm kinh nghiệm làm việc.', 'experience', 'expensive', 'exercise'),
+  ('s4-telephone', 6, 'The line is bad. Could you speak ___, please?', 'Đường truyền kém. Bạn có thể nói to hơn được không?', 'loudly', 'loud', 'loudness'),
+  ('s4-meetings', 6, 'Please listen ___ the instructions carefully.', 'Vui lòng lắng nghe kỹ hướng dẫn. (listen to)', 'to', 'at', 'of'),
+  ('s4-emails', 6, 'I sent the report as an ___.', 'Tôi đã gửi báo cáo dưới dạng tệp đính kèm.', 'attachment', 'attach', 'attaching'),
+  ('s4-workplace', 6, 'My workday ___ at five o''clock.', 'Ngày làm việc của tôi kết thúc lúc năm giờ.', 'ends', 'end', 'ending'),
+  ('s5-opinions', 6, 'In my ___, we should start early.', 'Theo ý kiến của tôi, chúng ta nên bắt đầu sớm.', 'opinion', 'decide', 'suggest'),
+  ('s5-storytelling', 6, '___, I felt nervous before the show.', 'Lúc đầu, tôi thấy lo lắng trước buổi biểu diễn.', 'At first', 'Finally', 'Never'),
+  ('s5-goals', 6, 'I am going ___ practice English every day.', 'Tôi sẽ luyện tập tiếng Anh mỗi ngày. (be going to + V)', 'to', 'for', 'at'),
+  ('s5-review', 6, 'Thank you ___ your help.', 'Cảm ơn bạn vì đã giúp đỡ. (thank you for)', 'for', 'to', 'of');
+
+INSERT INTO seed_listen_choice_questions
+  (lesson_code, sort_order, question_text, explanation, audio_url, correct_answer, distractor_one, distractor_two)
+VALUES
+  ('s1-greetings', 7, 'Nghe và chọn câu bạn nghe được.', 'Xin chào, bạn khỏe không?', 'listening/hello-how-are-you.wav', 'Hello, how are you?', 'Good morning, my friend.', 'See you tomorrow.'),
+  ('s1-introductions', 7, 'Nghe và chọn câu bạn nghe được.', 'Tên tôi là Lina.', 'listening/my-name-is-lina.wav', 'My name is Lina.', 'I am from Canada.', 'Nice to meet you.'),
+  ('s2-food', 7, 'Nghe và chọn câu bạn nghe được.', 'Tôi muốn một tách trà.', 'listening/i-would-like-a-cup-of-tea.wav', 'I would like a cup of tea.', 'I need a glass of water.', 'The soup is very hot.');
+
 UPDATE seed_questions
 SET explanation = CASE CONCAT(lesson_code, ':', sort_order)
   WHEN 's1-greetings:1' THEN 'Lời chào nào thường được dùng vào buổi sáng?'
@@ -303,7 +357,7 @@ DELETE q
 FROM questions AS q
 JOIN lessons AS l ON l.id = q.lesson_id
 JOIN (SELECT DISTINCT lesson_code FROM seed_questions) AS seeded ON seeded.lesson_code = l.code
-WHERE q.sort_order > 2 AND q.question_type NOT IN ('word_order', 'listening');
+WHERE q.sort_order > 2 AND q.question_type NOT IN ('word_order', 'listening', 'fill_choice', 'listen_choice');
 
 INSERT INTO questions (lesson_id, question_text, question_type, explanation, difficulty, sort_order)
 SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, 'beginner', seed.sort_order
@@ -340,23 +394,42 @@ ON DUPLICATE KEY UPDATE
   audio_url = VALUES(audio_url),
   difficulty = VALUES(difficulty);
 
+INSERT INTO questions
+  (lesson_id, question_text, question_type, explanation, difficulty, sort_order)
+SELECT l.id, seed.question_text, 'fill_choice', seed.explanation, 'beginner', seed.sort_order
+FROM seed_fill_choice_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+ON DUPLICATE KEY UPDATE
+  question_text = VALUES(question_text),
+  question_type = VALUES(question_type),
+  explanation = VALUES(explanation),
+  difficulty = VALUES(difficulty);
+
+INSERT INTO questions
+  (lesson_id, question_text, question_type, explanation, audio_url, difficulty, sort_order)
+SELECT l.id, seed.question_text, 'listen_choice', seed.explanation, seed.audio_url, 'beginner', seed.sort_order
+FROM seed_listen_choice_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+ON DUPLICATE KEY UPDATE
+  question_text = VALUES(question_text),
+  question_type = VALUES(question_type),
+  explanation = VALUES(explanation),
+  audio_url = VALUES(audio_url),
+  difficulty = VALUES(difficulty);
+
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
-SELECT q.id, choice.answer_text, choice.is_correct, choice.sort_order
+SELECT q.id,
+  CASE slot.n
+    WHEN 1 THEN seed.correct_answer
+    WHEN 2 THEN seed.distractor_one
+    ELSE seed.distractor_two
+  END,
+  slot.n = 1,
+  slot.n
 FROM seed_questions AS seed
 JOIN lessons AS l ON l.code = seed.lesson_code
 JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
-CROSS JOIN JSON_TABLE(
-  JSON_ARRAY(
-    JSON_OBJECT('answer_text', seed.correct_answer, 'is_correct', TRUE),
-    JSON_OBJECT('answer_text', seed.distractor_one, 'is_correct', FALSE),
-    JSON_OBJECT('answer_text', seed.distractor_two, 'is_correct', FALSE)
-  ),
-  '$[*]' COLUMNS (
-    sort_order FOR ORDINALITY,
-    answer_text VARCHAR(500) PATH '$.answer_text',
-    is_correct BOOLEAN PATH '$.is_correct'
-  )
-) AS choice
+JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot
 WHERE seed.sort_order <= 2
 ON DUPLICATE KEY UPDATE
   is_correct = VALUES(is_correct),
@@ -376,6 +449,40 @@ SELECT q.id, seed.correct_answer, TRUE, 1
 FROM seed_listening_questions AS seed
 JOIN lessons AS l ON l.code = seed.lesson_code
 JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
+ON DUPLICATE KEY UPDATE
+  is_correct = VALUES(is_correct),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
+SELECT q.id,
+  CASE slot.n
+    WHEN 1 THEN seed.correct_answer
+    WHEN 2 THEN seed.distractor_one
+    ELSE seed.distractor_two
+  END,
+  slot.n = 1,
+  slot.n
+FROM seed_fill_choice_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
+JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot ON slot.n > 0
+ON DUPLICATE KEY UPDATE
+  is_correct = VALUES(is_correct),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
+SELECT q.id,
+  CASE slot.n
+    WHEN 1 THEN seed.correct_answer
+    WHEN 2 THEN seed.distractor_one
+    ELSE seed.distractor_two
+  END,
+  slot.n = 1,
+  slot.n
+FROM seed_listen_choice_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
+JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot ON slot.n > 0
 ON DUPLICATE KEY UPDATE
   is_correct = VALUES(is_correct),
   sort_order = VALUES(sort_order);
