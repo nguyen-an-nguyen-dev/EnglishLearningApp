@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -88,6 +89,7 @@ export default function TranslateScreen() {
 
   async function submitText() {
     if (!input.trim() || loading) return;
+    Keyboard.dismiss();
     try {
       setLoading(true);
       setError(null);
