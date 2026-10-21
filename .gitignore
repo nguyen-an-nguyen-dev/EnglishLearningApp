@@ -5,6 +5,7 @@ dist/
 .expo/
 **/.expo/
 web-build/
+backend/tmp-audio/
 
 .env
 .env.*

@@ -70,6 +70,16 @@ CREATE TEMPORARY TABLE seed_word_order_questions (
   PRIMARY KEY (lesson_code, sort_order)
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TEMPORARY TABLE seed_listening_questions (
+  lesson_code VARCHAR(80) NOT NULL,
+  sort_order TINYINT UNSIGNED NOT NULL,
+  question_text TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  correct_answer VARCHAR(500) NOT NULL,
+  audio_url VARCHAR(2048) NOT NULL,
+  PRIMARY KEY (lesson_code, sort_order)
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answer, distractor_one, distractor_two) VALUES
   ('s1-greetings', 1, 'Which greeting is commonly used in the morning?', 'Good morning', 'Good night', 'Goodbye'),
   ('s1-greetings', 2, 'Which phrase is a friendly way to say hello?', 'Hello', 'Sorry', 'Please'),
@@ -252,6 +262,13 @@ VALUES
   ('s5-review', 3, 'Could you tell me where the station is?', 'Bạn có thể cho tôi biết nhà ga ở đâu không?', 'Bạn có thể cho tôi biết nhà ga ở đâu không?', JSON_ARRAY('Bạn', 'có', 'thể', 'cho', 'tôi', 'biết', 'nhà', 'ga', 'ở', 'đâu', 'không?', 'đường', 'phố')),
   ('s5-review', 4, 'It was a pleasure talking with you.', 'Rất vui được trò chuyện với bạn.', 'Rất vui được trò chuyện với bạn.', JSON_ARRAY('Rất', 'vui', 'được', 'trò', 'chuyện', 'với', 'bạn.', 'gặp', 'mai'));
 
+INSERT INTO seed_listening_questions
+  (lesson_code, sort_order, question_text, explanation, correct_answer, audio_url)
+VALUES
+  ('s1-greetings', 5, 'Nghe đoạn âm thanh và nhập lại nội dung bạn nghe được.', 'Xin chào, bạn khỏe không?', 'Hello, how are you?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
+  ('s1-introductions', 5, 'Nghe đoạn âm thanh và nhập lại nội dung bạn nghe được.', 'Tên tôi là Lina.', 'My name is Lina.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
+  ('s2-food', 5, 'Nghe đoạn âm thanh và nhập lại nội dung bạn nghe được.', 'Tôi muốn một tách trà.', 'I would like a cup of tea.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a');
+
 UPDATE seed_questions
 SET explanation = CASE CONCAT(lesson_code, ':', sort_order)
   WHEN 's1-greetings:1' THEN 'Lời chào nào thường được dùng vào buổi sáng?'
@@ -286,7 +303,7 @@ DELETE q
 FROM questions AS q
 JOIN lessons AS l ON l.id = q.lesson_id
 JOIN (SELECT DISTINCT lesson_code FROM seed_questions) AS seeded ON seeded.lesson_code = l.code
-WHERE q.sort_order > 2 AND q.question_type <> 'word_order';
+WHERE q.sort_order > 2 AND q.question_type NOT IN ('word_order', 'listening');
 
 INSERT INTO questions (lesson_id, question_text, question_type, explanation, difficulty, sort_order)
 SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, 'beginner', seed.sort_order
@@ -309,6 +326,18 @@ ON DUPLICATE KEY UPDATE
   question_type = VALUES(question_type),
   explanation = VALUES(explanation),
   word_bank = VALUES(word_bank),
+  difficulty = VALUES(difficulty);
+
+INSERT INTO questions
+  (lesson_id, question_text, question_type, explanation, audio_url, difficulty, sort_order)
+SELECT l.id, seed.question_text, 'listening', seed.explanation, seed.audio_url, 'beginner', seed.sort_order
+FROM seed_listening_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+ON DUPLICATE KEY UPDATE
+  question_text = VALUES(question_text),
+  question_type = VALUES(question_type),
+  explanation = VALUES(explanation),
+  audio_url = VALUES(audio_url),
   difficulty = VALUES(difficulty);
 
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
@@ -336,6 +365,15 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
 SELECT q.id, seed.correct_answer, TRUE, 1
 FROM seed_word_order_questions AS seed
+JOIN lessons AS l ON l.code = seed.lesson_code
+JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
+ON DUPLICATE KEY UPDATE
+  is_correct = VALUES(is_correct),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO answers (question_id, answer_text, is_correct, sort_order)
+SELECT q.id, seed.correct_answer, TRUE, 1
+FROM seed_listening_questions AS seed
 JOIN lessons AS l ON l.code = seed.lesson_code
 JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order
 ON DUPLICATE KEY UPDATE

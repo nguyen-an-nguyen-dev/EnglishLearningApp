@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AudioModule, useAudioPlayer } from 'expo-audio';
+import { AudioModule, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -108,9 +109,11 @@ export default function LessonScreen() {
   }, [result?.stage_completed, router]);
 
   const currentQuestion = questions[currentIndex];
+  const isListeningQuestion = currentQuestion?.question_type === 'listening';
   const totalQuestions = questions.length;
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
-  const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null);
+  const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null, { downloadFirst: true });
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const correctAnswerPlayer = useAudioPlayer(CORRECT_ANSWER_CHIME);
   const incorrectAnswerPlayer = useAudioPlayer(INCORRECT_ANSWER_CHIME);
 
@@ -138,6 +141,20 @@ export default function LessonScreen() {
     setSelectedAnswer(String(answerId));
   }
 
+  async function playQuestionAudio() {
+    if (!currentQuestion?.audio_url) return;
+    try {
+      if (audioStatus.playing) {
+        audioPlayer.pause();
+        return;
+      }
+      await audioPlayer.seekTo(0);
+      audioPlayer.play();
+    } catch {
+      audioPlayer.play();
+    }
+  }
+
   function handleSelectWord(wordId: number) {
     if (isAnswerChecked || checking) return;
     const next = selectedWordIds.includes(wordId)
@@ -148,9 +165,12 @@ export default function LessonScreen() {
   }
 
   async function handleCheckAnswer() {
-    if (!selectedAnswer || !currentQuestion) return;
+    if (!selectedAnswer?.trim() || !currentQuestion) return;
     try {
       setChecking(true);
+      if (audioStatus.playing) {
+        audioPlayer.pause();
+      }
       const feedback = await checkLessonAnswer(lessonId, currentQuestion.id, selectedAnswer);
       setAnswerFeedback(feedback);
       setIsAnswerChecked(true);
@@ -349,7 +369,46 @@ export default function LessonScreen() {
 
       {/* Question Content */}
       <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-        {currentQuestion.question_type === 'word_order' ? (
+        {isListeningQuestion ? (
+          <View style={styles.listeningQuestion}>
+            {currentQuestion.audio_url ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={audioStatus.playing ? 'Tạm dừng đoạn âm thanh' : 'Phát đoạn âm thanh tiếng Anh'}
+                style={[
+                  styles.listeningAudioButton,
+                  audioStatus.playing && styles.listeningAudioButtonPlaying,
+                ]}
+                onPress={() => {
+                  void playQuestionAudio();
+                }}
+              >
+                <Text style={styles.listeningAudioIcon}>{audioStatus.playing ? '⏸️' : '🔊'}</Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.audioUnavailable, { color: colors.textMuted }]}>
+                Âm thanh chưa được cấu hình cho câu hỏi này.
+              </Text>
+            )}
+            <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
+              Nhấn vào loa để nghe, sau đó nhập nội dung bạn nghe được.
+            </Text>
+            <TextInput
+              accessibilityLabel="Nhập nội dung nghe được"
+              editable={!isAnswerChecked && !checking}
+              multiline
+              onChangeText={setSelectedAnswer}
+              placeholder="Nhập câu tiếng Anh bạn nghe được..."
+              placeholderTextColor={colors.textMuted}
+              style={[
+                styles.listeningInput,
+                { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text },
+                isAnswerChecked && styles.listeningInputDisabled,
+              ]}
+              value={selectedAnswer ?? ''}
+            />
+          </View>
+        ) : currentQuestion.question_type === 'word_order' ? (
           <View style={styles.wordOrderQuestion}>
             <Text style={[styles.wordOrderPrompt, { color: colors.textMuted }]}>Dịch câu này</Text>
             <View style={[styles.englishSentenceRow, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -359,7 +418,9 @@ export default function LessonScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Nghe phát âm câu tiếng Anh"
                   style={styles.audioButton}
-                  onPress={() => audioPlayer.play()}
+                  onPress={() => {
+                    void playQuestionAudio();
+                  }}
                 >
                   <Text style={styles.audioButtonIcon}>🔊</Text>
                 </Pressable>
@@ -493,9 +554,13 @@ export default function LessonScreen() {
       ) : (
         <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
           <Pressable
-            disabled={!selectedAnswer || checking}
+            disabled={!selectedAnswer?.trim() || checking || (isListeningQuestion && !currentQuestion.audio_url)}
             onPress={handleCheckAnswer}
-            style={[styles.actionBtn, (!selectedAnswer || checking) && styles.actionBtnDisabled]}
+            style={[
+              styles.actionBtn,
+              (!selectedAnswer?.trim() || checking || (isListeningQuestion && !currentQuestion.audio_url))
+                && styles.actionBtnDisabled,
+            ]}
           >
             {checking ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -632,6 +697,52 @@ const styles = StyleSheet.create({
   wordOrderQuestion: {
     minHeight: 420,
     paddingTop: 18,
+  },
+  listeningQuestion: {
+    minHeight: 420,
+    alignItems: 'center',
+    paddingTop: 48,
+  },
+  listeningAudioButton: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    marginBottom: 8,
+  },
+  listeningAudioButtonPlaying: {
+    backgroundColor: Colors.primary,
+  },
+  listeningAudioIcon: {
+    fontSize: 46,
+  },
+  audioUnavailable: {
+    textAlign: 'center',
+    padding: 20,
+  },
+  listeningHint: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 16,
+  },
+  listeningInput: {
+    alignSelf: 'stretch',
+    minHeight: 110,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 17,
+    textAlignVertical: 'top',
+  },
+  listeningInputDisabled: {
+    opacity: 0.75,
   },
   wordOrderPrompt: {
     color: '#17232b',

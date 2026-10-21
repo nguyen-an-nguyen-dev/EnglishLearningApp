@@ -1,4 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
+import { env } from '../../config/env';
 import * as repo from './learning.repository';
 import type {
   Answer,
@@ -143,6 +144,29 @@ export async function getLessonDetail(lessonId: number, userId: number): Promise
 
 // ─── Questions (for doing a lesson) ──────────────────────────────────────────
 
+export function resolveAudioUrl(
+  audioUrl: string | null,
+  questionType: string,
+  projectUrl = env.supabaseUrl,
+  bucket = env.supabaseBucket,
+): string | null {
+  if (!audioUrl || /^https?:\/\//i.test(audioUrl) || questionType !== 'listening') {
+    return audioUrl;
+  }
+
+  if (!projectUrl || !bucket) {
+    throw new HttpError(500, 'Supabase storage is not configured for listening questions.');
+  }
+
+  const objectPath = audioUrl
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+  return `${projectUrl}/storage/v1/object/public/${encodeURIComponent(bucket)}/${objectPath}`;
+}
+
 export async function getLessonQuestions(
   lessonId: number,
   userId: number,
@@ -173,7 +197,7 @@ export async function getLessonQuestions(
     question_text: q.question_text,
     question_type: q.question_type,
     explanation: q.explanation,
-    audio_url: q.audio_url,
+    audio_url: resolveAudioUrl(q.audio_url, q.question_type),
     word_bank: Array.isArray(q.word_bank)
       ? q.word_bank
       : typeof q.word_bank === 'string'
@@ -181,7 +205,7 @@ export async function getLessonQuestions(
         : [],
     difficulty: q.difficulty,
     sort_order: q.sort_order,
-    answers: answersMap.get(q.id) ?? [],
+    answers: q.question_type === 'listening' ? [] : answersMap.get(q.id) ?? [],
   }));
 }
 
@@ -265,11 +289,11 @@ function normalizeAnswer(text: string): string {
  * For MCQ: the submitted value should be the answer_id (as string).
  * For text types: fuzzy case-insensitive comparison.
  */
-async function isAnswerCorrect(
+export function isAnswerCorrect(
   question: { id: number; question_type: string },
   submitted: SubmittedAnswer,
   answerRows: Array<{ id: number; question_id: number; answer_text: string; is_correct: boolean | 0 | 1 }>,
-): Promise<boolean> {
+): boolean {
   const qAnswers = answerRows.filter((a) => a.question_id === question.id);
 
   if (question.question_type === 'multiple_choice') {
@@ -289,7 +313,8 @@ async function isAnswerCorrect(
   if (
     question.question_type === 'fill_blank' ||
     question.question_type === 'translate' ||
-    question.question_type === 'word_order'
+    question.question_type === 'word_order' ||
+    question.question_type === 'listening'
   ) {
     const correctAnswer = qAnswers.find((a) => a.is_correct === true || a.is_correct === 1);
     if (!correctAnswer) return false;
@@ -315,7 +340,7 @@ export async function checkLessonAnswer(
 
   const answerRows = await repo.getAnswersByQuestions([questionId]);
   const submitted = { questionId, answer: input.answer };
-  const isCorrect = await isAnswerCorrect(question, submitted, answerRows);
+  const isCorrect = isAnswerCorrect(question, submitted, answerRows);
   const correctAnswer = answerRows.find((answer) => answer.is_correct === true || answer.is_correct === 1);
 
   await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect);
@@ -358,7 +383,7 @@ export async function completeLesson(
     const submitted = submittedMap.get(question.id);
     if (!submitted) continue; // No answer submitted = incorrect
 
-    const correct = await isAnswerCorrect(question, submitted, answerRows as Array<{
+    const correct = isAnswerCorrect(question, submitted, answerRows as Array<{
       id: number;
       question_id: number;
       answer_text: string;

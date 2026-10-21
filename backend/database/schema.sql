@@ -243,7 +243,8 @@ CREATE TABLE IF NOT EXISTS match_answers (
 CREATE TABLE IF NOT EXISTS translations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NULL,
-  source_text TEXT NOT NULL,
+  file_name VARCHAR(255) NULL,
+  original_text TEXT NOT NULL,
   source_language VARCHAR(16) NOT NULL,
   translated_text TEXT NOT NULL,
   target_language VARCHAR(16) NOT NULL,

@@ -93,15 +93,14 @@ test('lesson completion requires every answer to be correct before unlocking the
     assert.ok(correct, `Question ${questionId} must have a correct answer.`);
     return {
       questionId,
-      answer: correct.question_type === 'word_order' ? correct.answer_text : String(correct.answer_id),
+      answer: correct.question_type === 'word_order' || correct.question_type === 'listening'
+        ? correct.answer_text
+        : String(correct.answer_id),
     };
   });
   const incorrectSubmission = correctSubmission.map((answer, index) => {
     if (index > 0) return answer;
-    const questionId = answer.questionId;
-    const incorrect = answerRows.find((row) => row.question_id === questionId && (row.is_correct === false || row.is_correct === 0));
-    assert.ok(incorrect, `Question ${questionId} must have an incorrect answer.`);
-    return { questionId, answer: String(incorrect.answer_id) };
+    return { questionId: answer.questionId, answer: '__definitely_incorrect__' };
   });
 
   const firstQuestionId = questionIds[0];
@@ -186,7 +185,9 @@ test('lesson completion requires every answer to be correct before unlocking the
       assert.ok(correct, `Question ${questionId} must have a correct answer.`);
       return {
         questionId,
-        answer: correct.question_type === 'word_order' ? correct.answer_text : String(correct.answer_id),
+        answer: correct.question_type === 'word_order' || correct.question_type === 'listening'
+          ? correct.answer_text
+          : String(correct.answer_id),
       };
     });
 
@@ -217,4 +218,35 @@ test('lesson completion requires every answer to be correct before unlocking the
   assert.equal(replayResult.data.lesson_status, 'completed');
   assert.equal(replayResult.data.stage_completed, false);
   assert.equal(replayResult.data.xp_earned, 0);
+});
+
+test('listening questions return a playable Supabase audio URL and hide the transcript', async () => {
+  const [lessonRows] = await testPool.execute<RowDataPacket[]>(
+    `SELECT l.id
+     FROM lessons l
+     JOIN questions q ON q.lesson_id = l.id
+     WHERE q.question_type = 'listening' AND q.audio_url IS NOT NULL
+     ORDER BY l.id, q.sort_order
+     LIMIT 1`,
+  );
+  assert.ok(lessonRows[0], 'Seed at least one listening question before running this test.');
+  const lessonId = Number(lessonRows[0].id);
+
+  const response = await fetch(`${baseUrl}/api/lessons/${lessonId}/questions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as {
+    data: { questions: Array<{ question_type: string; audio_url: string | null; answers: unknown[] }> };
+  };
+  const listening = body.data.questions.find((question) => question.question_type === 'listening');
+  assert.ok(listening);
+  assert.equal(listening.answers.length, 0);
+  assert.match(
+    String(listening.audio_url),
+    /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\/listening\//,
+  );
+
+  const audioHead = await fetch(String(listening.audio_url), { method: 'HEAD' });
+  assert.equal(audioHead.status, 200);
 });

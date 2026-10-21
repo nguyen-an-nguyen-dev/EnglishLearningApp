@@ -7,6 +7,7 @@ import { badgesRouter } from './modules/badges/badges.routes';
 import { learningRouter } from './modules/learning/learning.routes';
 import { rankingRouter } from './modules/ranking/ranking.routes';
 import { aiRouter } from './modules/ai/ai.routes';
+import { translationRouter } from './modules/translations/translations.routes';
 import { healthRouter } from './routes/health';
 
 export const app = express();
@@ -32,6 +33,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/ranking', rankingRouter);
 app.use('/api/badges', badgesRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api', translationRouter);
 app.use('/api', learningRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);

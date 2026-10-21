@@ -99,3 +99,25 @@ test('AI provider maps successful, empty, invalid, rate-limit, unavailable, netw
     globalThis.fetch = originalFetch;
   }
 });
+
+test('translation validation accepts only en/vi pairs and limits text', async () => {
+  const translations = await import('../src/modules/translations/translations.validation');
+  assert.deepEqual(translations.parseLanguages('en', 'vi'), { sourceLanguage: 'en', targetLanguage: 'vi' });
+  assert.deepEqual(translations.parseLanguages('vi', 'en'), { sourceLanguage: 'vi', targetLanguage: 'en' });
+  assert.throws(
+    () => translations.parseLanguages('en', 'en'),
+    (error) => error instanceof HttpError && error.statusCode === 422,
+  );
+  assert.equal(translations.parseTranslationText('  Hello  '), 'Hello');
+  assert.throws(
+    () => translations.parseTranslationText(' '.repeat(1)),
+    (error) => error instanceof HttpError && error.statusCode === 422,
+  );
+  assert.throws(
+    () => translations.parseTranslationText('x'.repeat(10_001)),
+    (error) => error instanceof HttpError && error.statusCode === 413,
+  );
+  assert.equal(translations.isSingleWord('beautiful'), true);
+  assert.equal(translations.isSingleWord("don't"), true);
+  assert.equal(translations.isSingleWord('very good'), false);
+});
