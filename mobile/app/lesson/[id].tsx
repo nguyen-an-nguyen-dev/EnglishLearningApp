@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AudioModule, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   View,
+  ViewStyle,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
+import { findDropTarget, reorderWordIds, TileLayout } from '@/utils/wordOrder';
 import { CORRECT_ANSWER_CHIME, INCORRECT_ANSWER_CHIME } from '@/constants/feedback-sounds';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
@@ -35,6 +41,71 @@ const BADGE_ICONS: Record<string, string> = {
   xp_500: '🏆',
 };
 
+function DraggableWordTile({
+  word,
+  disabled,
+  onPress,
+  onDrop,
+  onMeasure,
+  tileStyle,
+  textStyle,
+}: {
+  word: string;
+  disabled: boolean;
+  onPress: () => void;
+  onDrop: (dx: number, dy: number) => void;
+  onMeasure: (layout: TileLayout) => void;
+  tileStyle: StyleProp<ViewStyle>;
+  textStyle: StyleProp<TextStyle>;
+}) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
+  const latest = useRef({ disabled, onDrop });
+  latest.current = { disabled, onDrop };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        !latest.current.disabled && Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) >= Math.abs(gesture.dy),
+      onPanResponderGrant: () => setDragging(true),
+      onPanResponderMove: (_event, gesture) => {
+        translateX.setValue(gesture.dx);
+        translateY.setValue(gesture.dy);
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        setDragging(false);
+        Animated.parallel([
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+        ]).start();
+        latest.current.onDrop(gesture.dx, gesture.dy);
+      },
+      onPanResponderTerminate: () => {
+        setDragging(false);
+        translateX.setValue(0);
+        translateY.setValue(0);
+      },
+    }),
+  ).current;
+
+  return (
+    <Animated.View
+      {...panResponder.panHandlers}
+      onLayout={(event) => onMeasure(event.nativeEvent.layout)}
+      style={[
+        dragging && styles.draggableTileActive,
+        { transform: [{ translateX }, { translateY }] },
+      ]}
+    >
+      <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={tileStyle}>
+        <Text style={textStyle}>{word}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const lessonId = Number(id);
@@ -53,6 +124,7 @@ export default function LessonScreen() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [selectedWordIds, setSelectedWordIds] = useState<number[]>([]);
   const [wordTileOrder, setWordTileOrder] = useState<number[]>([]);
+  const slotLayoutsRef = useRef<Array<TileLayout | undefined>>([]);
   const [isAnswerChecked, setIsAnswerChecked] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<CheckAnswerFeedback | null>(null);
   const [answersLog, setAnswersLog] = useState<SubmittedAnswer[]>([]);
@@ -127,6 +199,7 @@ export default function LessonScreen() {
   }, []);
 
   useEffect(() => {
+    slotLayoutsRef.current = [];
     if (currentQuestion?.question_type !== 'word_order') {
       setSelectedWordIds([]);
       setWordTileOrder([]);
@@ -223,6 +296,22 @@ export default function LessonScreen() {
     const next = selectedWordIds.includes(wordId)
       ? selectedWordIds.filter((id) => id !== wordId)
       : [...selectedWordIds, wordId];
+    setSelectedWordIds(next);
+    setSelectedAnswer(next.map((id) => currentQuestion.word_bank[id]).join(' '));
+  }
+
+  function handleWordDrop(position: number, dx: number, dy: number) {
+    if (!currentQuestion || isAnswerChecked || checking) return;
+    const base = slotLayoutsRef.current[position];
+    if (!base) return;
+    const target = findDropTarget(
+      slotLayoutsRef.current,
+      position,
+      base.x + base.width / 2 + dx,
+      base.y + base.height / 2 + dy,
+    );
+    const next = reorderWordIds(selectedWordIds, position, target);
+    if (next === selectedWordIds) return;
     setSelectedWordIds(next);
     setSelectedAnswer(next.map((id) => currentQuestion.word_bank[id]).join(' '));
   }
@@ -497,17 +586,26 @@ export default function LessonScreen() {
               ) : null}
             </View>
             <View style={styles.answerSlots}>
-              {selectedWordIds.map((wordId) => (
-                <Pressable
+              {selectedWordIds.map((wordId, position) => (
+                <DraggableWordTile
                   key={`selected-${wordId}`}
+                  word={currentQuestion.word_bank[wordId]}
                   disabled={isAnswerChecked || checking}
                   onPress={() => handleSelectWord(wordId)}
-                  style={[styles.selectedWordTile, theme === 'dark' && { backgroundColor: '#18333C' }]}
-                >
-                  <Text style={[styles.selectedWordText, { color: colors.text }]}>{currentQuestion.word_bank[wordId]}</Text>
-                </Pressable>
+                  onMeasure={(layout) => {
+                    slotLayoutsRef.current[position] = layout;
+                  }}
+                  onDrop={(dx, dy) => handleWordDrop(position, dx, dy)}
+                  tileStyle={[styles.selectedWordTile, theme === 'dark' && { backgroundColor: '#18333C' }]}
+                  textStyle={[styles.selectedWordText, { color: colors.text }]}
+                />
               ))}
             </View>
+            {selectedWordIds.length > 1 ? (
+              <Text style={[styles.dragHint, { color: colors.textMuted }]}>
+                Kéo một từ đã chọn để đổi vị trí trong câu, chạm để gỡ ra.
+              </Text>
+            ) : null}
             <View style={styles.wordBank}>
               {wordTileOrder.filter((wordId) => !selectedWordIds.includes(wordId)).map((wordId) => (
                 <Pressable
@@ -854,6 +952,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 4,
     borderRadius: 12,
     backgroundColor: Colors.primaryLight,
+  },
+  draggableTileActive: {
+    zIndex: 10,
+    elevation: 6,
+    opacity: 0.95,
+  },
+  dragHint: {
+    fontSize: 13,
+    textAlign: 'center',
   },
   wordTileText: {
     color: '#23323a',

@@ -18,7 +18,9 @@ let token: string;
 let pool: typeof import('../src/db/pool').pool;
 let originalFetch: typeof fetch;
 let providerResponse: Response | Error | null = null;
-let providerRequest: { max_tokens?: number; response_format?: unknown; messages?: Array<{ content: string }> } | null = null;
+let persistentProviderResponse: Response | null = null;
+let providerCallCount = 0;
+let providerRequest: { model?: string; max_tokens?: number; response_format?: unknown; messages?: Array<{ content: string }> } | null = null;
 
 function geminiResponse(content: unknown, status = 200): Response {
   return new Response(JSON.stringify({
@@ -33,9 +35,11 @@ before(async () => {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input) === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions') {
+      providerCallCount++;
       providerRequest = typeof init?.body === 'string'
         ? JSON.parse(init.body) as typeof providerRequest
         : null;
+      if (persistentProviderResponse) return persistentProviderResponse;
       const response = providerResponse;
       providerResponse = null;
       if (response instanceof Error) throw response;
@@ -97,7 +101,7 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   assert.equal(firstResult.data.translatedText, 'Xin chào buổi sáng.');
   assert.equal(firstResult.data.fileName, null);
   assert.equal(providerRequest?.response_format, undefined, 'plain text translation skips structured output mode');
-  assert.ok((providerRequest?.max_tokens ?? 8192) <= 256);
+  assert.ok((providerRequest?.max_tokens ?? 8192) <= 512);
   assert.match(providerRequest?.messages?.[0]?.content ?? '', /Return only the translated text/);
 
   providerResponse = geminiResponse({
@@ -139,6 +143,20 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   assert.equal(fencedWord.status, 201);
   const fencedWordResult = await fencedWord.json() as { data: { translatedText: string } };
   assert.equal(fencedWordResult.data.translatedText, 'quyển sách');
+
+  providerResponse = geminiResponse({
+    translation: 'con chó',
+    wordDetails: [
+      { phonetic: '/tʃɔ/', partOfSpeech: 'noun', meaning: 'con chó', example: 'The dog barks loudly.' },
+    ],
+  });
+  const arrayWord = await translate('dog', 'en', 'vi');
+  assert.equal(arrayWord.status, 201);
+  const arrayWordResult = await arrayWord.json() as {
+    data: { wordDetails: { phonetic: string; partOfSpeech: string; example: string } };
+  };
+  assert.equal(arrayWordResult.data.wordDetails.phonetic, '/tʃɔ/');
+  assert.equal(arrayWordResult.data.wordDetails.partOfSpeech, 'noun');
 
   providerResponse = geminiResponse('sách');
   const plainWord = await translate('book', 'en', 'vi');
@@ -197,14 +215,18 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   });
   assert.equal(oversizedUpload.status, 413);
 
-  providerResponse = new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 });
+  persistentProviderResponse = new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 });
+  const callsBefore = providerCallCount;
   const failedTranslation = await translate('This must not be stored', 'en', 'vi');
   assert.equal(failedTranslation.status, 503);
+  assert.equal(providerCallCount - callsBefore, 2, 'a busy primary model retries once on the fallback model');
+  assert.equal(providerRequest?.model, 'gemini-3.5-flash', 'fallback model is used for the retry');
+  persistentProviderResponse = null;
 
   const historyResponse = await fetch(`${baseUrl}/api/translations`, { headers: auth });
   assert.equal(historyResponse.status, 200);
   const history = await historyResponse.json() as { data: { translations: Array<{ fileName: string | null; originalText: string }> } };
-  assert.equal(history.data.translations.length, 7);
+  assert.equal(history.data.translations.length, 8);
   assert.equal(history.data.translations[0].fileName, 'sample.txt');
   assert.equal(history.data.translations[0].originalText, 'A small text file.');
   assert.equal(history.data.translations.some((item) => item.originalText === 'This must not be stored'), false);

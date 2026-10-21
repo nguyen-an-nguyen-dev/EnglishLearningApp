@@ -62,9 +62,10 @@ export function parseProviderResult(content: string, word: string | null): Trans
     throw new HttpError(502, 'The translation provider returned an empty or invalid translation.');
   }
 
+  const rawDetails = Array.isArray(value.wordDetails) ? value.wordDetails[0] : value.wordDetails;
   let wordDetails: WordDetails | null = null;
-  if (word && isRecord(value.wordDetails)) {
-    const details = value.wordDetails;
+  if (word && isRecord(rawDetails)) {
+    const details = rawDetails;
     const rawPartOfSpeech = typeof details.partOfSpeech === 'string'
       ? details.partOfSpeech.trim().toLowerCase()
       : typeof details.part_of_speech === 'string' ? details.part_of_speech.trim().toLowerCase() : '';
@@ -112,6 +113,83 @@ function promptForTranslation(
   ].join('\n');
 }
 
+class ProviderAttemptError extends Error {
+  constructor(readonly httpError: HttpError, readonly retryable: boolean) {
+    super(httpError.message);
+  }
+}
+
+async function requestProvider(
+  model: string,
+  prompt: string,
+  word: string | null,
+  maxTokens: number,
+  timeoutMs: number,
+): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(env.aiApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + env.aiApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        ...(word ? { response_format: { type: 'json_object' } } : {}),
+        temperature: 0.1,
+        max_tokens: maxTokens,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new ProviderAttemptError(new HttpError(504, 'Translation timed out. Please try again.'), true);
+    }
+    throw new ProviderAttemptError(
+      new HttpError(503, 'The translation service is unavailable. Check your connection and try again.'),
+      true,
+    );
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new ProviderAttemptError(
+      new HttpError(503, 'Gemini rejected the backend API key or its permissions. Check backend AI_API_KEY.'),
+      false,
+    );
+  }
+  if (response.status === 429 || response.status >= 500) {
+    throw new ProviderAttemptError(
+      new HttpError(response.status === 429 ? 429 : 503, 'The translation service is busy. Falling back or retrying shortly.'),
+      true,
+    );
+  }
+  if (response.status === 400 || response.status === 404) {
+    throw new ProviderAttemptError(
+      new HttpError(503, 'Gemini rejected the model or request. Check backend AI_MODEL and Gemini settings.'),
+      true,
+    );
+  }
+  if (!response.ok) {
+    throw new ProviderAttemptError(new HttpError(503, 'The translation service is temporarily unavailable.'), true);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ProviderAttemptError(new HttpError(502, 'The translation provider returned an invalid response.'), true);
+  }
+  if (!isRecord(payload) || !Array.isArray(payload.choices)
+    || !isRecord(payload.choices[0]) || !isRecord(payload.choices[0].message)
+    || typeof payload.choices[0].message.content !== 'string'
+    || !payload.choices[0].message.content.trim()) {
+    throw new ProviderAttemptError(new HttpError(502, 'The translation provider returned an empty or invalid response.'), true);
+  }
+  return payload.choices[0].message.content.trim();
+}
+
 async function translateWithGemini(
   text: string,
   sourceLanguage: LanguageCode,
@@ -123,56 +201,24 @@ async function translateWithGemini(
   }
 
   const prompt = promptForTranslation(text, sourceLanguage, targetLanguage, word);
-  const maxTokens = Math.min(8192, Math.max(256, Math.ceil(text.length * 0.5) + 128));
-  let response: Response;
-  try {
-    response = await fetch(env.aiApiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + env.aiApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: env.aiModel,
-        messages: [{ role: 'user', content: prompt }],
-        ...(word ? { response_format: { type: 'json_object' } } : {}),
-        temperature: 0.1,
-        max_tokens: maxTokens,
-      }),
-      signal: AbortSignal.timeout(env.aiTimeoutMs),
-    });
-  } catch (error) {
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      throw new HttpError(504, 'Translation timed out. Please try again.');
+  const maxTokens = Math.min(8192, Math.max(512, Math.ceil(text.length * 0.5) + 128));
+  const attemptTimeoutMs = Math.min(env.aiTimeoutMs, 15_000);
+  const models = [env.aiModel, env.aiFallbackModel].filter((model, index, all) => model && all.indexOf(model) === index);
+
+  let lastError = new HttpError(503, 'The translation service is temporarily unavailable.');
+  for (const model of models) {
+    try {
+      const content = await requestProvider(model, prompt, word, maxTokens, attemptTimeoutMs);
+      return word
+        ? parseProviderResult(content, word)
+        : { translation: content.slice(0, MAX_TRANSLATION_CHARACTERS * 4), wordDetails: null };
+    } catch (error) {
+      if (!(error instanceof ProviderAttemptError)) throw error;
+      lastError = error.httpError;
+      if (!error.retryable) throw lastError;
     }
-    throw new HttpError(503, 'The translation service is unavailable. Check your connection and try again.');
   }
-
-  if (response.status === 429) throw new HttpError(429, 'The translation service is busy. Please try again shortly.');
-  if (response.status === 401 || response.status === 403) {
-    throw new HttpError(503, 'Gemini rejected the backend API key or its permissions. Check backend AI_API_KEY.');
-  }
-  if (response.status === 400 || response.status === 404) {
-    throw new HttpError(503, 'Gemini rejected the model or request. Check backend AI_MODEL and Gemini settings.');
-  }
-  if (!response.ok) throw new HttpError(503, 'The translation service is temporarily unavailable.');
-
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new HttpError(502, 'The translation provider returned an invalid response.');
-  }
-  if (!isRecord(payload) || !Array.isArray(payload.choices)
-    || !isRecord(payload.choices[0]) || !isRecord(payload.choices[0].message)
-    || typeof payload.choices[0].message.content !== 'string'
-    || !payload.choices[0].message.content.trim()) {
-    throw new HttpError(502, 'The translation provider returned an empty or invalid response.');
-  }
-  const content = payload.choices[0].message.content.trim();
-  return word
-    ? parseProviderResult(content, word)
-    : { translation: content.slice(0, MAX_TRANSLATION_CHARACTERS * 4), wordDetails: null };
+  throw lastError;
 }
 
 export async function translateText(
