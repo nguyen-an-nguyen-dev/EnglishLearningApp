@@ -3,7 +3,12 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
 import * as authRepository from './auth.repository';
-import { parseLoginInput, parseRegisterInput } from './auth.validation';
+import {
+  parseLoginInput,
+  parsePasswordChangeInput,
+  parseProfileInput,
+  parseRegisterInput,
+} from './auth.validation';
 import type { AuthUser } from './auth.types';
 
 const BCRYPT_ROUNDS = 12;
@@ -55,6 +60,42 @@ export async function getCurrentUser(userId: number): Promise<AuthUser> {
   const user = await authRepository.findProfileById(userId);
   if (!user) throw new HttpError(401, 'Invalid authentication token.');
   return user;
+}
+
+export async function updateProfile(userId: number, input: unknown): Promise<AuthUser> {
+  const data = parseProfileInput(input);
+  const current = await authRepository.findUserById(userId);
+  if (!current) throw new HttpError(401, 'Invalid authentication token.');
+
+  if (data.email !== current.email) {
+    const existing = await authRepository.findByEmail(data.email);
+    if (existing && existing.id !== userId) {
+      throw new HttpError(409, 'An account with this email already exists.');
+    }
+  }
+
+  try {
+    const updated = await authRepository.updateProfile(userId, data.name, data.email);
+    if (!updated) throw new HttpError(401, 'Invalid authentication token.');
+    return updated;
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new HttpError(409, 'An account with this email already exists.');
+    }
+    throw error;
+  }
+}
+
+export async function changePassword(userId: number, input: unknown): Promise<void> {
+  const data = parsePasswordChangeInput(input);
+  const current = await authRepository.findUserById(userId);
+  if (!current) throw new HttpError(401, 'Invalid authentication token.');
+
+  const matches = await bcrypt.compare(data.currentPassword, current.password_hash);
+  if (!matches) throw new HttpError(401, 'Your current password is incorrect.');
+
+  const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
+  await authRepository.updatePasswordHash(userId, passwordHash);
 }
 
 export function getVerifiedJwtSecret(): string {

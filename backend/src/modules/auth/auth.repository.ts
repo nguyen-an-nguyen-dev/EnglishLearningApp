@@ -3,7 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../../db/pool';
 import type { AuthUser } from './auth.types';
 
-interface UserRow extends RowDataPacket {
+export interface UserRow extends RowDataPacket {
   id: number;
   display_name: string;
   email: string;
@@ -38,6 +38,14 @@ export async function findProfileById(userId: number): Promise<AuthUser | undefi
   return rows[0] ? toAuthUser(rows[0]) : undefined;
 }
 
+export async function findUserById(userId: number): Promise<UserRow | undefined> {
+  const [rows] = await pool.execute<UserRow[]>(
+    'SELECT id, display_name, email, password_hash, xp, streak FROM users WHERE id = ? LIMIT 1',
+    [userId],
+  );
+  return rows[0];
+}
+
 export async function createUser(name: string, email: string, passwordHash: string): Promise<AuthUser> {
   const username = `user-${randomUUID()}`;
   const [result] = await pool.execute<ResultSetHeader>(
@@ -47,6 +55,25 @@ export async function createUser(name: string, email: string, passwordHash: stri
   const created = await findProfileById(result.insertId);
   if (!created) throw new Error('Created user could not be loaded.');
   return created;
+}
+
+export async function updateProfile(
+  userId: number,
+  name: string,
+  email: string,
+): Promise<AuthUser | undefined> {
+  await pool.execute(
+    'UPDATE users SET display_name = ?, email = ? WHERE id = ?',
+    [name, email, userId],
+  );
+  return findProfileById(userId);
+}
+
+export async function updatePasswordHash(userId: number, passwordHash: string): Promise<void> {
+  await pool.execute(
+    'UPDATE users SET password_hash = ? WHERE id = ?',
+    [passwordHash, userId],
+  );
 }
 
 export { toAuthUser };

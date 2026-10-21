@@ -236,7 +236,7 @@ export default function TalkScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
             <View style={styles.homeIntro}>
-              <Text style={styles.homeEmoji}>🗣️</Text>
+       
               <Text style={[styles.homeTitle, { color: colors.text }]}>What would you like to talk about?</Text>
               <Text style={[styles.homeDescription, { color: colors.textMuted }]}>
                 Chọn một chủ đề để bắt đầu cuộc trò chuyện. AI sẽ điều chỉnh tiếng Anh theo trình độ và bài học của bạn.

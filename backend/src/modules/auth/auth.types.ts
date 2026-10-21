@@ -9,6 +9,16 @@ export interface LoginInput {
   password: string;
 }
 
+export interface ProfileUpdateInput {
+  name: string;
+  email: string;
+}
+
+export interface PasswordChangeInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface AuthUser {
   id: number;
   name: string;

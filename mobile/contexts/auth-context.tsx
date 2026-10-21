@@ -17,6 +17,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   getCurrentUser: () => Promise<AuthUser | null>;
+  updateProfile: (name: string, email: string) => Promise<AuthUser>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -78,6 +80,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.user;
   }, [token]);
 
+  const updateProfile = useCallback(async (name: string, email: string): Promise<AuthUser> => {
+    const data = await request<{ user: AuthUser }>('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ name, email }),
+    });
+    setUser(data.user);
+    return data.user;
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<void> => {
+    await request<{ message: string }>('/auth/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }, []);
+
   const value = useMemo(() => ({
     user,
     token,
@@ -86,7 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     getCurrentUser,
-  }), [user, token, isLoading, register, login, logout, getCurrentUser]);
+    updateProfile,
+    changePassword,
+  }), [user, token, isLoading, register, login, logout, getCurrentUser, updateProfile, changePassword]);
 
   return (
     <AuthContext.Provider value={value}>

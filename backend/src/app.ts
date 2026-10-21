@@ -25,7 +25,7 @@ app.use(cors({
 		}
 	},
 	allowedHeaders: ['Content-Type', 'Authorization'],
-	methods: ['GET', 'POST', 'OPTIONS'],
+	methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/health', healthRouter);

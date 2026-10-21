@@ -29,3 +29,23 @@ export const me: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
+
+export const updateProfile: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const user = await authService.updateProfile(request.auth.userId, request.body);
+    response.json({ success: true, data: { user } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    await authService.changePassword(request.auth.userId, request.body);
+    response.json({ success: true, data: { message: 'Password updated.' } });
+  } catch (error) {
+    next(error);
+  }
+};
