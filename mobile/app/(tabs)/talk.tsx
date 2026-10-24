@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import Colors from '@/constants/Colors';
@@ -46,7 +47,7 @@ export default function TalkScreen() {
   const { theme } = useAppTheme();
   const colors = Colors[theme];
   const dark = theme === 'dark';
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance | null>(null);
   const [chats, setChats] = useState<AiChat[]>([]);
   const [activeChat, setActiveChat] = useState<AiChat | null>(null);
   const [messages, setMessages] = useState<AiMessage[]>([]);
