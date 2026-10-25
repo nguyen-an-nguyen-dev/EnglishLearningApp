@@ -122,7 +122,31 @@ test('lesson completion requires every answer to be correct before unlocking the
   };
   assert.equal(correctFeedback.data.is_correct, true);
   assert.equal(correctFeedback.data.correct_answer, correctAnswer.answer_text);
-  assert.ok(correctFeedback.data.meaning_vi);
+
+  const [explainedRows] = await testPool.execute<RowDataPacket[]>(
+    `SELECT q.id AS question_id, q.question_type, a.id AS answer_id, a.answer_text, q.explanation
+     FROM questions q JOIN answers a ON a.question_id = q.id
+     WHERE q.lesson_id = ? AND q.explanation IS NOT NULL AND a.is_correct = TRUE
+     ORDER BY q.sort_order LIMIT 1`,
+    [lessonId],
+  );
+  assert.ok(explainedRows[0], 'The first lesson must keep an explained question.');
+  const explained = explainedRows[0];
+  const explainedAnswer = explained.question_type === 'word_order' || explained.question_type === 'listening'
+    ? String(explained.answer_text)
+    : String(explained.answer_id);
+  const explainedCheck = await fetch(
+    `${baseUrl}/api/lessons/${lessonId}/questions/${Number(explained.question_id)}/check`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ answer: explainedAnswer }),
+    },
+  );
+  assert.equal(explainedCheck.status, 200);
+  const explainedFeedback = await explainedCheck.json() as { data: { is_correct: boolean; meaning_vi: string | null } };
+  assert.equal(explainedFeedback.data.is_correct, true);
+  assert.equal(explainedFeedback.data.meaning_vi, String(explained.explanation));
 
   const incorrectCheck = await checkAnswer(incorrectSubmission[0].answer);
   assert.equal(incorrectCheck.status, 200);
@@ -220,7 +244,7 @@ test('lesson completion requires every answer to be correct before unlocking the
   assert.equal(replayResult.data.xp_earned, 0);
 });
 
-test('listening questions return a playable Supabase audio URL and hide the transcript', async () => {
+test('listening questions return playable audio plus a shuffled word bank to rebuild the sentence', async () => {
   const [lessonRows] = await testPool.execute<RowDataPacket[]>(
     `SELECT l.id
      FROM lessons l
@@ -237,7 +261,16 @@ test('listening questions return a playable Supabase audio URL and hide the tran
   });
   assert.equal(response.status, 200);
   const body = await response.json() as {
-    data: { questions: Array<{ question_type: string; audio_url: string | null; answers: unknown[] }> };
+    data: {
+      questions: Array<{
+        id: number;
+        question_type: string;
+        question_text: string;
+        audio_url: string | null;
+        word_bank: string[];
+        answers: unknown[];
+      }>;
+    };
   };
   const listening = body.data.questions.find((question) => question.question_type === 'listening');
   assert.ok(listening);
@@ -246,6 +279,24 @@ test('listening questions return a playable Supabase audio URL and hide the tran
     String(listening.audio_url),
     /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\//,
   );
+
+  const [answerRows] = await testPool.execute<RowDataPacket[]>(
+    `SELECT answer_text FROM answers WHERE question_id = ? AND is_correct = TRUE`,
+    [listening.id],
+  );
+  assert.ok(answerRows[0], 'The listening question must keep a correct transcript answer.');
+  const strip = (word: string) => word.toLowerCase().replace(/[^a-z']/g, '');
+  const sentenceWords = String(answerRows[0].answer_text).trim().split(/\s+/).map(strip);
+  const bankWords = listening.word_bank.map(strip);
+  assert.ok(bankWords.length >= sentenceWords.length + 3, 'Word bank needs distractor tiles.');
+  for (const word of sentenceWords) {
+    assert.ok(bankWords.includes(word), `Word bank is missing "${word}" from the transcript.`);
+  }
+  assert.ok(
+    bankWords.some((word) => !sentenceWords.includes(word)),
+    'Word bank must contain at least one word that is not in the sentence.',
+  );
+  assert.equal(listening.question_text.includes('Nghe và sắp xếp'), true);
 
   const audioHead = await fetch(String(listening.audio_url), { method: 'HEAD' });
   assert.equal(audioHead.status, 200);

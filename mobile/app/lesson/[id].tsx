@@ -11,7 +11,6 @@ import {
   StyleProp,
   StyleSheet,
   Text,
-  TextInput,
   TextStyle,
   View,
   ViewStyle,
@@ -200,7 +199,9 @@ export default function LessonScreen() {
 
   useEffect(() => {
     slotLayoutsRef.current = [];
-    if (currentQuestion?.question_type !== 'word_order') {
+    const usesWordTiles = currentQuestion?.question_type === 'word_order'
+      || currentQuestion?.question_type === 'listening';
+    if (!usesWordTiles) {
       setSelectedWordIds([]);
       setWordTileOrder([]);
       return;
@@ -307,6 +308,69 @@ export default function LessonScreen() {
           </Text>
         ))}
       </Text>
+    );
+  }
+
+  function renderAudioButton() {
+    if (!currentQuestion?.audio_url) {
+      return (
+        <Text style={[styles.audioUnavailable, { color: colors.textMuted }]}>
+          Âm thanh chưa được cấu hình cho câu hỏi này.
+        </Text>
+      );
+    }
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={audioStatus.playing ? 'Tạm dừng đoạn âm thanh' : 'Phát đoạn âm thanh tiếng Anh'}
+        style={[styles.listeningAudioButton, audioStatus.playing && styles.listeningAudioButtonPlaying]}
+        onPress={() => {
+          void playQuestionAudio();
+        }}
+      >
+        <Text style={styles.listeningAudioIcon}>{audioStatus.playing ? '⏸️' : '🔊'}</Text>
+      </Pressable>
+    );
+  }
+
+  function renderWordEditor() {
+    if (!currentQuestion) return null;
+    return (
+      <>
+        <View style={styles.answerSlots}>
+          {selectedWordIds.map((wordId, position) => (
+            <DraggableWordTile
+              key={`selected-${wordId}`}
+              word={currentQuestion.word_bank[wordId]}
+              disabled={isAnswerChecked || checking}
+              onPress={() => handleSelectWord(wordId)}
+              onMeasure={(layout) => {
+                slotLayoutsRef.current[position] = layout;
+              }}
+              onDrop={(dx, dy) => handleWordDrop(position, dx, dy)}
+              tileStyle={[styles.selectedWordTile, theme === 'dark' && { backgroundColor: '#18333C' }]}
+              textStyle={[styles.selectedWordText, { color: colors.text }]}
+            />
+          ))}
+        </View>
+        {selectedWordIds.length > 1 ? (
+          <Text style={[styles.dragHint, { color: colors.textMuted }]}>
+            Kéo một từ đã chọn để đổi vị trí trong câu, chạm để gỡ ra.
+          </Text>
+        ) : null}
+        <View style={styles.wordBank}>
+          {wordTileOrder.filter((wordId) => !selectedWordIds.includes(wordId)).map((wordId) => (
+            <Pressable
+              key={`bank-${wordId}`}
+              disabled={isAnswerChecked || checking}
+              onPress={() => handleSelectWord(wordId)}
+              style={[styles.wordTile, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            >
+              <Text style={[styles.wordTileText, { color: colors.text }]}>{currentQuestion.word_bank[wordId]}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </>
     );
   }
 
@@ -540,59 +604,31 @@ export default function LessonScreen() {
 
       {/* Question Content */}
       <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-        {isListeningQuestion || isListenChoiceQuestion ? (
+        {isListeningQuestion ? (
+          <View style={styles.wordOrderQuestion}>
+            <View style={styles.listeningHero}>
+              {renderAudioButton()}
+              <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
+                Nhấn vào loa để nghe, sau đó chạm từng từ theo đúng thứ tự câu bạn nghe được.
+              </Text>
+            </View>
+            {renderWordEditor()}
+          </View>
+        ) : isListenChoiceQuestion ? (
           <>
             <View style={styles.listeningQuestion}>
-              {currentQuestion.audio_url ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={audioStatus.playing ? 'Tạm dừng đoạn âm thanh' : 'Phát đoạn âm thanh tiếng Anh'}
-                  style={[
-                    styles.listeningAudioButton,
-                    audioStatus.playing && styles.listeningAudioButtonPlaying,
-                  ]}
-                  onPress={() => {
-                    void playQuestionAudio();
-                  }}
-                >
-                  <Text style={styles.listeningAudioIcon}>{audioStatus.playing ? '⏸️' : '🔊'}</Text>
-                </Pressable>
-              ) : (
-                <Text style={[styles.audioUnavailable, { color: colors.textMuted }]}>
-                  Âm thanh chưa được cấu hình cho câu hỏi này.
-                </Text>
-              )}
+              {renderAudioButton()}
               <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
-                {isListenChoiceQuestion
-                  ? 'Nhấn vào loa để nghe, sau đó chọn từ còn thiếu.'
-                  : 'Nhấn vào loa để nghe, sau đó nhập nội dung bạn nghe được.'}
+                Nhấn vào loa để nghe, sau đó chọn từ còn thiếu.
               </Text>
-              {isListenChoiceQuestion ? (
-                <View style={[styles.questionCard, styles.listenChoiceCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                  <View style={styles.typeBadge}>
-                    <Text style={styles.typeBadgeText}>NGHE VÀ ĐIỀN TỪ</Text>
-                  </View>
-                  {renderBlankedSentence(currentQuestion.question_text)}
+              <View style={[styles.questionCard, styles.listenChoiceCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeBadgeText}>NGHE VÀ ĐIỀN TỪ</Text>
                 </View>
-              ) : null}
-              {isListenChoiceQuestion ? null : (
-                <TextInput
-                  accessibilityLabel="Nhập nội dung nghe được"
-                  editable={!isAnswerChecked && !checking}
-                  multiline
-                  onChangeText={setSelectedAnswer}
-                  placeholder="Nhập câu tiếng Anh bạn nghe được..."
-                  placeholderTextColor={colors.textMuted}
-                  style={[
-                    styles.listeningInput,
-                    { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text },
-                    isAnswerChecked && styles.listeningInputDisabled,
-                  ]}
-                  value={selectedAnswer ?? ''}
-                />
-              )}
+                {renderBlankedSentence(currentQuestion.question_text)}
+              </View>
             </View>
-            {isListenChoiceQuestion ? renderOptions() : null}
+            {renderOptions()}
           </>
         ) : currentQuestion.question_type === 'word_order' ? (
           <View style={styles.wordOrderQuestion}>
@@ -612,39 +648,7 @@ export default function LessonScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <View style={styles.answerSlots}>
-              {selectedWordIds.map((wordId, position) => (
-                <DraggableWordTile
-                  key={`selected-${wordId}`}
-                  word={currentQuestion.word_bank[wordId]}
-                  disabled={isAnswerChecked || checking}
-                  onPress={() => handleSelectWord(wordId)}
-                  onMeasure={(layout) => {
-                    slotLayoutsRef.current[position] = layout;
-                  }}
-                  onDrop={(dx, dy) => handleWordDrop(position, dx, dy)}
-                  tileStyle={[styles.selectedWordTile, theme === 'dark' && { backgroundColor: '#18333C' }]}
-                  textStyle={[styles.selectedWordText, { color: colors.text }]}
-                />
-              ))}
-            </View>
-            {selectedWordIds.length > 1 ? (
-              <Text style={[styles.dragHint, { color: colors.textMuted }]}>
-                Kéo một từ đã chọn để đổi vị trí trong câu, chạm để gỡ ra.
-              </Text>
-            ) : null}
-            <View style={styles.wordBank}>
-              {wordTileOrder.filter((wordId) => !selectedWordIds.includes(wordId)).map((wordId) => (
-                <Pressable
-                  key={`bank-${wordId}`}
-                  disabled={isAnswerChecked || checking}
-                  onPress={() => handleSelectWord(wordId)}
-                  style={[styles.wordTile, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-                >
-                  <Text style={[styles.wordTileText, { color: colors.text }]}>{currentQuestion.word_bank[wordId]}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {renderWordEditor()}
           </View>
         ) : (
         <>
@@ -881,18 +885,10 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 16,
   },
-  listeningInput: {
+  listeningHero: {
+    alignItems: 'center',
     alignSelf: 'stretch',
-    minHeight: 110,
-    borderWidth: 1.5,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 17,
-    textAlignVertical: 'top',
-  },
-  listeningInputDisabled: {
-    opacity: 0.75,
+    marginBottom: 12,
   },
   wordOrderPrompt: {
     color: '#17232b',
