@@ -291,6 +291,25 @@ export default function LessonScreen() {
     );
   }
 
+  function renderBlankedSentence(text: string) {
+    return (
+      <Text style={[styles.questionPrompt, { color: colors.text }]}>
+        {text.split('___').map((segment, segmentIndex, segments) => (
+          <Text key={`blank-segment-${segmentIndex}`}>
+            {segment}
+            {segmentIndex < segments.length - 1 ? (
+              selectedOptionText ? (
+                <Text style={[styles.fillBlankFilled, { color: colors.text }]}> {selectedOptionText} </Text>
+              ) : (
+                <Text style={{ color: colors.textMuted }}> ____ </Text>
+              )
+            ) : null}
+          </Text>
+        ))}
+      </Text>
+    );
+  }
+
   function handleSelectWord(wordId: number) {
     if (isAnswerChecked || checking) return;
     const next = selectedWordIds.includes(wordId)
@@ -545,9 +564,17 @@ export default function LessonScreen() {
               )}
               <Text style={[styles.listeningHint, { color: colors.textMuted }]}>
                 {isListenChoiceQuestion
-                  ? currentQuestion.question_text
+                  ? 'Nhấn vào loa để nghe, sau đó chọn từ còn thiếu.'
                   : 'Nhấn vào loa để nghe, sau đó nhập nội dung bạn nghe được.'}
               </Text>
+              {isListenChoiceQuestion ? (
+                <View style={[styles.questionCard, styles.listenChoiceCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeBadgeText}>NGHE VÀ ĐIỀN TỪ</Text>
+                  </View>
+                  {renderBlankedSentence(currentQuestion.question_text)}
+                </View>
+              ) : null}
               {isListenChoiceQuestion ? null : (
                 <TextInput
                   accessibilityLabel="Nhập nội dung nghe được"
@@ -631,24 +658,7 @@ export default function LessonScreen() {
                   : 'CÂU HỎI TIẾNG ANH'}
             </Text>
           </View>
-          {isFillChoiceQuestion ? (
-            <Text style={[styles.questionPrompt, { color: colors.text }]}>
-              {currentQuestion.question_text.split('___').map((segment, segmentIndex, segments) => (
-                <Text key={`fill-segment-${segmentIndex}`}>
-                  {segment}
-                  {segmentIndex < segments.length - 1 ? (
-                    selectedOptionText ? (
-                      <Text style={[styles.fillBlankFilled, { color: colors.text }]}> {selectedOptionText} </Text>
-                    ) : (
-                      <Text style={{ color: colors.textMuted }}> ____ </Text>
-                    )
-                  ) : null}
-                </Text>
-              ))}
-            </Text>
-          ) : (
-            <Text style={[styles.questionPrompt, { color: colors.text }]}>{currentQuestion.question_text}</Text>
-          )}
+          {renderBlankedSentence(currentQuestion.question_text)}
         </View>
 
         {/* Options */}
@@ -838,6 +848,10 @@ const styles = StyleSheet.create({
     minHeight: 420,
     alignItems: 'center',
     paddingTop: 48,
+  },
+  listenChoiceCard: {
+    alignSelf: 'stretch',
+    marginTop: 6,
   },
   listeningAudioButton: {
     width: 128,

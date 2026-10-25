@@ -251,7 +251,7 @@ test('listening questions return a playable Supabase audio URL and hide the tran
   assert.equal(audioHead.status, 200);
 });
 
-test('listen_choice questions expose options and a playable Supabase audio URL', async () => {
+test('listen_choice questions hide one word and offer 4 options with playable audio', async () => {
   const [lessonRows] = await testPool.execute<RowDataPacket[]>(
     `SELECT l.id
      FROM lessons l
@@ -268,11 +268,13 @@ test('listen_choice questions expose options and a playable Supabase audio URL',
   });
   assert.equal(response.status, 200);
   const body = await response.json() as {
-    data: { questions: Array<{ question_type: string; audio_url: string | null; answers: Array<{ answer_text: string }> }> };
+    data: { questions: Array<{ question_type: string; question_text: string; audio_url: string | null; answers: Array<{ answer_text: string }> }> };
   };
   const question = body.data.questions.find((item) => item.question_type === 'listen_choice');
   assert.ok(question);
-  assert.equal(question.answers.length, 3);
+  assert.equal(question.answers.length, 4);
+  assert.ok(question.question_text.includes('___'), 'listen_choice prompt must hide one word');
+  assert.ok(question.answers.every((option) => !option.answer_text.includes('___')));
   assert.match(
     String(question.audio_url),
     /^https:\/\/[^/]+\/storage\/v1\/object\/public\/english-media\//,

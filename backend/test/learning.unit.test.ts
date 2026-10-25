@@ -29,9 +29,10 @@ test('listen_choice audio object paths also resolve to public Supabase Storage U
 
 test('listen_choice questions are graded by answer id', () => {
   const rows = [
-    { id: 21, question_id: 12, answer_text: 'Hello, how are you?', is_correct: 1 },
-    { id: 22, question_id: 12, answer_text: 'Good morning, my friend.', is_correct: 0 },
-    { id: 23, question_id: 12, answer_text: 'See you tomorrow.', is_correct: 0 },
+    { id: 21, question_id: 12, answer_text: 'are', is_correct: 1 },
+    { id: 22, question_id: 12, answer_text: 'is', is_correct: 0 },
+    { id: 23, question_id: 12, answer_text: 'all', is_correct: 0 },
+    { id: 24, question_id: 12, answer_text: 'own', is_correct: 0 },
   ];
 
   assert.equal(

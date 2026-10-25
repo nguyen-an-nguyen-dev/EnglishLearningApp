@@ -384,6 +384,7 @@ CREATE TEMPORARY TABLE seed_listen_choice_questions (
   correct_answer VARCHAR(500) NOT NULL,
   distractor_one VARCHAR(500) NOT NULL,
   distractor_two VARCHAR(500) NOT NULL,
+  distractor_three VARCHAR(500) NOT NULL,
   PRIMARY KEY (lesson_code, sort_order)
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -619,39 +620,46 @@ INSERT INTO seed_word_order_questions (lesson_code, sort_order, question_text, e
   ('s6-masterclass', 4, 'Sắp xếp các từ thành câu định nghĩa sự hùng biện:', 'Sự hùng biện thực sự vượt lên trên từ vựng đơn thuần.', 'True eloquence transcends mere vocabulary.', '["True", "eloquence", "transcends", "mere", "vocabulary."]');
 
 -- ============================================================================
--- 6. NẠP DỮ LIỆU ĐẦY ĐỦ 30 BÀI (LISTENING)
+-- 6. NẠP DỮ LIỆU 30 BÀI LISTENING
+-- CEFR: A1 -> A2 -> B1 -> B2 -> C1 -> C2
 -- ============================================================================
+
 INSERT INTO seed_listening_questions (lesson_code, sort_order, question_text, explanation, correct_answer, audio_url) VALUES
-  ('s1-greetings', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và ghi lại chính xác câu chào.', 'Hello, how are you?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s1-introductions', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và ghi lại câu giới thiệu tên.', 'My name is Lina.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s1-numbers', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và ghi lại câu gọi đồ uống.', 'I would like a cup of tea.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s1-family', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và ghi lại câu thoại.', 'Hello, how are you?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s1-food', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và ghi lại câu gọi đồ ăn.', 'I would like a cup of tea.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s2-food', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu gọi món.', 'I would like a cup of tea.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s2-shopping', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu hỏi giá.', 'How much does this cost?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s2-daily-activities', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu hoạt động hàng ngày.', 'She wakes up at six every morning.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s2-transportation', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu giao thông.', 'The bus stops near the station.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s2-hobbies', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu sở thích.', 'I enjoy listening to music.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s3-travel', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu hỏi khách sạn.', 'Where is the nearest hotel?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s3-school', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu thư viện.', 'The students are studying in the library.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s3-hobbies', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu nghe nhạc.', 'I enjoy listening to music.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s3-job-interview', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu kinh nghiệm làm việc.', 'I have five years of experience.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s3-technology', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu công nghệ.', 'Technology makes our lives easier.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s4-telephone', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu điện thoại.', 'Could you speak more slowly, please?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s4-meetings', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu cuộc họp.', 'Let us begin the meeting on time.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s4-emails', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu email.', 'Please find the report attached.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s4-workplace', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu công sở.', 'Could you help me with this task?', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s4-negotiation', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu đàm phán.', 'We can reach an agreement today.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s5-opinions', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu bày tỏ quan điểm.', 'I think this plan will work well.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s5-storytelling', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu kể chuyện.', 'At first, I felt a little nervous.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s5-goals', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu mục tiêu.', 'I am going to practice every day.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s5-discussion', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu thảo luận.', 'This issue requires careful analysis.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s5-review', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu trò chuyện.', 'It was a pleasure talking with you.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s6-idioms', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu thành ngữ.', 'Do not beat around the bush with me.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s6-academic', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu học thuật.', 'Technology is ubiquitous in modern society.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a'),
-  ('s6-grammar', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu đảo ngữ.', 'Not only did she win, but she also excelled.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a'),
-  ('s6-rhetoric', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu hùng biện.', 'Elegance and precision define his literary style.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a'),
-  ('s6-masterclass', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Nghe và chép lại câu C2 tinh hoa.', 'Mastery requires dedication and analytical depth.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a');
+('s1-greetings', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chào buổi sáng! Hôm nay bạn thế nào?', 'Good morning! How are you today?', NULL),
+('s1-introductions', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi đến từ Việt Nam.', 'I come from Vietnam.', NULL),
+('s1-numbers', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi có ba người bạn trong lớp.', 'I have three friends in my class.', NULL),
+('s1-family', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chị gái tôi là một giáo viên.', 'My older sister is a teacher.', NULL),
+('s1-food', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi thích ăn bánh mì vào bữa sáng.', 'I like eating bread for breakfast.', NULL),
+
+('s2-food', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chúng tôi thường ăn tối cùng nhau vào cuối tuần.', 'We usually have dinner together on weekends.', NULL),
+('s2-shopping', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Bạn có thể giảm giá cho tôi một chút không?', 'Could you give me a small discount?', NULL),
+('s2-daily-activities', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Anh ấy thường đi bộ đến nơi làm việc.', 'He usually walks to work.', NULL),
+('s2-transportation', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chuyến tàu tiếp theo sẽ đến trong mười phút nữa.', 'The next train will arrive in ten minutes.', NULL),
+('s2-hobbies', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi thích chụp ảnh phong cảnh vào kỳ nghỉ.', 'I enjoy taking pictures of landscapes on vacation.', NULL),
+
+('s3-travel', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chúng tôi đã đặt phòng khách sạn gần bãi biển.', 'We booked a hotel room near the beach.', NULL),
+('s3-school', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Giáo viên yêu cầu chúng tôi hoàn thành bài tập trước thứ Sáu.', 'The teacher asked us to finish the assignment before Friday.', NULL),
+('s3-hobbies', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi bắt đầu học chơi guitar khi còn học trung học.', 'I started learning to play the guitar in high school.', NULL),
+('s3-job-interview', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi đã phát triển kỹ năng giao tiếp thông qua công việc trước đây.', 'I developed my communication skills through my previous job.', NULL),
+('s3-technology', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Các ứng dụng di động giúp mọi người quản lý thời gian hiệu quả hơn.', 'Mobile applications help people manage their time more efficiently.', NULL),
+
+('s4-telephone', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi sẽ gọi lại cho bạn ngay khi cuộc họp kết thúc.', 'I will call you back as soon as the meeting ends.', NULL),
+('s4-meetings', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chúng ta nên xem xét các lựa chọn trước khi đưa ra quyết định cuối cùng.', 'We should consider the options before making a final decision.', NULL),
+('s4-emails', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Vui lòng xác nhận rằng bạn đã nhận được tài liệu được gửi kèm.', 'Please confirm that you have received the attached documents.', NULL),
+('s4-workplace', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Việc phân chia trách nhiệm rõ ràng có thể cải thiện hiệu suất của nhóm.', 'Clearly dividing responsibilities can improve team performance.', NULL),
+('s4-negotiation', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Chúng tôi sẵn sàng xem xét một đề xuất có lợi cho cả hai bên.', 'We are willing to consider a proposal that benefits both parties.', NULL),
+
+('s5-opinions', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Theo quan điểm của tôi, việc đầu tư vào giáo dục là điều cần thiết để thúc đẩy sự phát triển bền vững.', 'In my view, investing in education is essential for promoting sustainable development.', NULL),
+('s5-storytelling', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Mặc dù ban đầu gặp phải nhiều trở ngại, cô ấy vẫn kiên trì theo đuổi mục tiêu của mình.', 'Despite encountering numerous obstacles initially, she remained committed to pursuing her goals.', NULL),
+('s5-goals', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Để đạt được thành công lâu dài, chúng ta cần liên tục đánh giá và điều chỉnh chiến lược của mình.', 'To achieve long-term success, we need to continuously evaluate and adjust our strategies.', NULL),
+('s5-discussion', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Cuộc tranh luận đã làm nổi bật sự phức tạp của vấn đề và sự cần thiết phải xem xét nhiều góc nhìn khác nhau.', 'The debate highlighted the complexity of the issue and the need to consider multiple perspectives.', NULL),
+('s5-review', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Tôi thực sự đánh giá cao cơ hội được trao đổi những ý tưởng sâu sắc với các đồng nghiệp giàu kinh nghiệm.', 'I genuinely appreciate the opportunity to exchange insightful ideas with experienced colleagues.', NULL),
+
+('s6-idioms', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Đừng vội kết luận khi chưa xem xét tất cả các bằng chứng.', 'Do not jump to conclusions before examining all the evidence.', NULL),
+('s6-academic', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Sự giao thoa giữa các ngành học khác nhau thường dẫn đến những khám phá mang tính đột phá.', 'The intersection of disparate disciplines often gives rise to groundbreaking discoveries.', NULL),
+('s6-grammar', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Hiếm khi một quyết định có ảnh hưởng sâu rộng như vậy lại được đưa ra mà không có sự cân nhắc kỹ lưỡng.', 'Rarely has a decision of such far-reaching consequences been made without careful deliberation.', NULL),
+('s6-rhetoric', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Không phải sự phong phú của ngôn từ, mà chính sự chính xác trong cách diễn đạt mới làm nên sức mạnh của lập luận.', 'It is not the abundance of words, but the precision of expression that lends an argument its strength.', NULL),
+('s6-masterclass', 5, 'Nghe và chép lại câu tiếng Anh bạn nghe được:', 'Sự xuất sắc thực sự đòi hỏi khả năng tổng hợp kiến thức, tư duy phản biện và sự kiên trì không ngừng nghỉ.', 'True excellence demands the synthesis of knowledge, critical thinking, and unwavering perseverance.', NULL);
 
 -- ============================================================================
 -- 7. NẠP DỮ LIỆU ĐẦY ĐỦ 30 BÀI (FILL CHOICE)
@@ -691,37 +699,37 @@ INSERT INTO seed_fill_choice_questions (lesson_code, sort_order, question_text, 
 -- ============================================================================
 -- 8. NẠP DỮ LIỆU ĐẦY ĐỦ 30 BÀI (LISTEN CHOICE)
 -- ============================================================================
-INSERT INTO seed_listen_choice_questions (lesson_code, sort_order, question_text, explanation, audio_url, correct_answer, distractor_one, distractor_two) VALUES
-  ('s1-greetings', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe đoạn ghi âm và chọn câu chào đúng.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Hello, how are you?', 'Good night my friend.', 'See you later.'),
-  ('s1-introductions', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe đoạn ghi âm và chọn câu giới thiệu đúng.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'My name is Lina.', 'I am from Canada.', 'Nice to meet you.'),
-  ('s1-numbers', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe đoạn ghi âm và chọn đáp án đúng.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'I would like a cup of tea.', 'I need a glass of water.', 'The soup is hot.'),
-  ('s1-family', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe đoạn ghi âm và chọn câu phù hợp.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Hello, how are you?', 'Good morning friend.', 'See you tomorrow.'),
-  ('s1-food', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe đoạn ghi âm và chọn món ăn/đồ uống được nhắc đến.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'I would like a cup of tea.', 'I need a glass of water.', 'The soup is very hot.'),
-  ('s2-food', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm và chọn câu gọi trà.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'I would like a cup of tea.', 'I need a glass of water.', 'The soup is very hot.'),
-  ('s2-shopping', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm và chọn câu hỏi giá.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'How much does this cost?', 'Where is the shop?', 'Can I pay by card?'),
-  ('s2-daily-activities', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm và chọn câu thói quen sáng.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'She wakes up at six every morning.', 'We eat breakfast together.', 'I take a shower now.'),
-  ('s2-transportation', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm và chọn câu bến xe buýt.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'The bus stops near the station.', 'I ride my bicycle to work.', 'When does the train leave?'),
-  ('s2-hobbies', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm và chọn câu nghe nhạc.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'I enjoy listening to music.', 'He plays tennis on weekends.', 'Photography is fun.'),
-  ('s3-travel', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu hỏi khách sạn.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Where is the nearest hotel?', 'I have a passport.', 'The flight is delayed.'),
-  ('s3-school', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu học sinh ở thư viện.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'The students are studying in the library.', 'Please open your books.', 'We passed the exam.'),
-  ('s3-hobbies', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu sở thích nghe nhạc.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'I enjoy listening to music.', 'He plays tennis on weekends.', 'Photography is great.'),
-  ('s3-job-interview', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu phỏng vấn kinh nghiệm.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'I have five years of experience.', 'I am interested in this position.', 'Thank you for your time.'),
-  ('s3-technology', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu công nghệ cuộc sống.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'Technology makes our lives easier.', 'I send emails every day.', 'My phone is smart.'),
-  ('s4-telephone', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu nhờ nói chậm.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Could you speak more slowly, please?', 'May I speak to Alex?', 'I will call you back.'),
-  ('s4-meetings', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu bắt đầu cuộc họp.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'Let us begin the meeting on time.', 'I agree with your suggestion.', 'Could you repeat that?'),
-  ('s4-emails', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu tệp đính kèm.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'Please find the report attached.', 'I look forward to your reply.', 'Dear Ms. Nguyen,'),
-  ('s4-workplace', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu nhờ giúp đỡ công việc.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Could you help me with this task?', 'The deadline is next Friday.', 'Teamwork is essential.'),
-  ('s4-negotiation', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu đàm phán thỏa thuận.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'We can reach an agreement today.', 'This is our final offer.', 'Let us compromise.'),
-  ('s5-opinions', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu bày tỏ quan điểm.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'I think this plan will work well.', 'In my opinion, we should wait.', 'I completely disagree with that.'),
-  ('s5-storytelling', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu cảm xúc ban đầu.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'At first, I felt a little nervous.', 'Then we found a quiet place to rest.', 'Suddenly the situation changed.'),
-  ('s5-goals', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu luyện tập mỗi ngày.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'I am going to practice every day.', 'My goal is to speak confidently.', 'I hope to succeed soon.'),
-  ('s5-discussion', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu yêu cầu phân tích.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'This issue requires careful analysis.', 'Weighing both options is necessary.', 'On the other hand, consider this.'),
-  ('s5-review', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu cảm ơn trò chuyện.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'It was a pleasure talking with you.', 'Could you tell me where the station is?', 'Thank you for your help.'),
-  ('s6-idioms', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu thành ngữ.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Do not beat around the bush with me.', 'We must bite the bullet now.', 'Let us call it a day.'),
-  ('s6-academic', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu học thuật.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'Technology is ubiquitous in modern society.', 'Empirical evidence supports this hypothesis.', 'This paradigm shift is revolutionary.'),
-  ('s6-grammar', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu đảo ngữ.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.m4a', 'Not only did she win, but she also excelled.', 'Scarcely had we arrived when it rained.', 'Had I known earlier, I would have called.'),
-  ('s6-rhetoric', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu hùng biện.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.m4a', 'Elegance and precision define his literary style.', 'Silence is sometimes the most powerful rhetoric.', 'Parallelism enhances formal speech.'),
-  ('s6-masterclass', 7, 'Nghe và chọn câu thoại chính xác:', 'Nghe ghi âm câu C2 tinh hoa.', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.m4a', 'Mastery requires dedication and analytical depth.', 'True eloquence transcends mere vocabulary.', 'C2 proficiency requires complete fluency.');
+INSERT INTO seed_listen_choice_questions (lesson_code, sort_order, question_text, explanation, audio_url, correct_answer, distractor_one, distractor_two, distractor_three) VALUES
+  ('s1-greetings', 7, 'Hello, how ___ you?', 'Câu trong audio: "Hello, how are you?" — "you" đi với "are".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/1.mp3', 'are', 'is', 'all', 'own'),
+  ('s1-introductions', 7, 'My ___ is Lina.', 'Câu trong audio: "My name is Lina." — từ còn thiếu là "name".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/2.mp3', 'name', 'age', 'home', 'job'),
+  ('s1-numbers', 7, 'I would like a cup of ___.', 'Câu trong audio: "I would like a cup of tea." — đồ uống được nhắc đến là "tea".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/3.mp3', 'tea', 'coffee', 'water', 'soup'),
+  ('s1-family', 7, 'Hello, ___ are you?', 'Câu trong audio: "Hello, how are you?" — từ để hỏi là "how".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/4.mp3', 'how', 'what', 'who', 'when'),
+  ('s1-food', 7, 'I would like a ___ of tea.', 'Câu trong audio: "I would like a cup of tea." — danh từ chỉ lượng là "cup".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/5.mp3', 'cup', 'glass', 'box', 'piece'),
+  ('s2-food', 7, 'I would ___ a cup of tea.', 'Câu trong audio: "I would like a cup of tea." — động từ là "like".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/6.mp3', 'like', 'drink', 'buy', 'bring'),
+  ('s2-shopping', 7, 'How ___ does this cost?', 'Câu trong audio: "How much does this cost?" — hỏi giá dùng "much".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/7.mp3', 'much', 'many', 'long', 'often'),
+  ('s2-daily-activities', 7, 'She ___ up at six every morning.', 'Câu trong audio: "She wakes up at six every morning." — động từ là "wakes".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/8.mp3', 'wakes', 'gets', 'puts', 'stands'),
+  ('s2-transportation', 7, 'The bus stops near the ___.', 'Câu trong audio: "The bus stops near the station." — địa điểm là "station".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/9.mp3', 'station', 'airport', 'bridge', 'garden'),
+  ('s2-hobbies', 7, 'I enjoy ___ to music.', 'Câu trong audio: "I enjoy listening to music." — động từ là "listening".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/10.mp3', 'listening', 'talking', 'dancing', 'writing'),
+  ('s3-travel', 7, 'Where is the ___ hotel?', 'Câu trong audio: "Where is the nearest hotel?" — tính từ là "nearest".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/11.mp3', 'nearest', 'biggest', 'oldest', 'cheapest'),
+  ('s3-school', 7, 'The students are studying in the ___.', 'Câu trong audio: "The students are studying in the library." — địa điểm là "library".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/12.mp3', 'library', 'kitchen', 'garden', 'pool'),
+  ('s3-hobbies', 7, 'I enjoy listening to ___.', 'Câu trong audio: "I enjoy listening to music." — danh từ là "music".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/13.mp3', 'music', 'news', 'noise', 'speech'),
+  ('s3-job-interview', 7, 'I have five years of ___.', 'Câu trong audio: "I have five years of experience." — danh từ là "experience".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/14.mp3', 'experience', 'education', 'practice', 'patience'),
+  ('s3-technology', 7, 'Technology makes our lives ___.', 'Câu trong audio: "Technology makes our lives easier." — tính từ so sánh là "easier".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/15.mp3', 'easier', 'shorter', 'slower', 'richer'),
+  ('s4-telephone', 7, 'Could you speak more ___, please?', 'Câu trong audio: "Could you speak more slowly, please?" — trạng từ là "slowly".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/16.mp3', 'slowly', 'loudly', 'kindly', 'quickly'),
+  ('s4-meetings', 7, 'Let us begin the ___ on time.', 'Câu trong audio: "Let us begin the meeting on time." — danh từ là "meeting".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/17.mp3', 'meeting', 'dinner', 'lesson', 'party'),
+  ('s4-emails', 7, 'Please find the ___ attached.', 'Câu trong audio: "Please find the report attached." — danh từ là "report".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/18.mp3', 'report', 'invoice', 'photo', 'letter'),
+  ('s4-workplace', 7, 'Could you help me with this ___?', 'Câu trong audio: "Could you help me with this task?" — danh từ là "task".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/19.mp3', 'task', 'project', 'problem', 'errand'),
+  ('s4-negotiation', 7, 'We can reach an ___ today.', 'Câu trong audio: "We can reach an agreement today." — danh từ là "agreement".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/20.mp3', 'agreement', 'argument', 'example', 'appointment'),
+  ('s5-opinions', 7, 'I think this ___ will work well.', 'Câu trong audio: "I think this plan will work well." — danh từ là "plan".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/21.mp3', 'plan', 'idea', 'rule', 'deal'),
+  ('s5-storytelling', 7, 'At first, I felt a little ___.', 'Câu trong audio: "At first, I felt a little nervous." — tính từ là "nervous".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/22.mp3', 'nervous', 'bored', 'angry', 'hungry'),
+  ('s5-goals', 7, 'I am going to ___ every day.', 'Câu trong audio: "I am going to practice every day." — động từ là "practice".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/23.mp3', 'practice', 'rest', 'sleep', 'travel'),
+  ('s5-discussion', 7, 'This issue requires careful ___.', 'Câu trong audio: "This issue requires careful analysis." — danh từ là "analysis".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/24.mp3', 'analysis', 'attention', 'distance', 'permission'),
+  ('s5-review', 7, 'It was a ___ talking with you.', 'Câu trong audio: "It was a pleasure talking with you." — danh từ là "pleasure".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/25.mp3', 'pleasure', 'shame', 'problem', 'mistake'),
+  ('s6-idioms', 7, 'Do not beat around the ___ with me.', 'Câu trong audio: "Do not beat around the bush with me." — thành ngữ cần từ "bush".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/26.mp3', 'bush', 'tree', 'corner', 'table'),
+  ('s6-academic', 7, 'Technology is ___ in modern society.', 'Câu trong audio: "Technology is ubiquitous in modern society." — tính từ là "ubiquitous".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/27.mp3', 'ubiquitous', 'invisible', 'temporary', 'local'),
+  ('s6-grammar', 7, 'Not only did she win, but she also ___.', 'Câu trong audio: "Not only did she win, but she also excelled." — động từ là "excelled".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/28.mp3', 'excelled', 'failed', 'arrived', 'agreed'),
+  ('s6-rhetoric', 7, 'Elegance and ___ define his literary style.', 'Câu trong audio: "Elegance and precision define his literary style." — danh từ là "precision".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/29.mp3', 'precision', 'patience', 'presence', 'purpose'),
+  ('s6-masterclass', 7, 'Mastery requires ___ and analytical depth.', 'Câu trong audio: "Mastery requires dedication and analytical depth." — danh từ là "dedication".', 'https://nvipkuzzxmoquhfpuedg.supabase.co/storage/v1/object/public/english-media/30.mp3', 'dedication', 'determination', 'patience', 'funding');
 
 -- ============================================================================
 -- 9. ĐỒNG BỘ DỮ LIỆU TỪ BẢNG TẠM VÀO BẢNG CHÍNH (AN TOÀN 100%)
@@ -778,12 +786,12 @@ FROM seed_fill_choice_questions AS seed JOIN lessons AS l ON l.code = seed.lesso
 JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order 
 JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot;
 
--- Answers cho Listen Choice
+-- Answers cho Listen Choice (4 phương án, đúng nhất là correct_answer)
 INSERT INTO answers (question_id, answer_text, is_correct, sort_order) 
-SELECT q.id, CASE slot.n WHEN 1 THEN seed.correct_answer WHEN 2 THEN seed.distractor_one ELSE seed.distractor_two END, slot.n = 1, slot.n 
+SELECT q.id, CASE slot.n WHEN 1 THEN seed.correct_answer WHEN 2 THEN seed.distractor_one WHEN 3 THEN seed.distractor_two ELSE seed.distractor_three END, slot.n = 1, slot.n 
 FROM seed_listen_choice_questions AS seed JOIN lessons AS l ON l.code = seed.lesson_code 
 JOIN questions AS q ON q.lesson_id = l.id AND q.sort_order = seed.sort_order 
-JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot;
+JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) AS slot;
 
 -- ============================================================================
 -- 10. NẠP DỮ LIỆU BATTLE QUESTIONS (ĐẤU TRƯỜNG TỪ VỰNG NHANH)
