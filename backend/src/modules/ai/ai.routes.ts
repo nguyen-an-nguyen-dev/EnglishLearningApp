@@ -8,5 +8,6 @@ aiRouter.use(authenticate);
 aiRouter.get('/chats', controller.listChats);
 aiRouter.post('/chats', controller.createChat);
 aiRouter.get('/chats/:chatId', controller.getChat);
+aiRouter.delete('/chats/:chatId', controller.deleteChat);
 aiRouter.post('/chats/:chatId/messages', controller.sendMessage);
 aiRouter.get('/chats/:chatId/feedback', controller.getFeedback);

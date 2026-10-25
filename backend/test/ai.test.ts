@@ -238,3 +238,63 @@ test('AI chat persists history and feedback, enforces ownership, and reports pro
   const invalidChatId = await fetch(`${baseUrl}/api/ai/chats/abc`, { headers: auth() });
   assert.equal(invalidChatId.status, 400);
 });
+
+test('AI chats can be deleted by their owner and cascade to messages and feedback', async () => {
+  const auth = (token = ownerToken) => ({ Authorization: `Bearer ${token}` });
+  const create = await fetch(`${baseUrl}/api/ai/chats`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth() },
+    body: JSON.stringify({ topic: 'TRAVEL' }),
+  });
+  assert.equal(create.status, 201);
+  const { data: { chat } } = await create.json() as { data: { chat: { id: number } } };
+
+  providerResponse = providerOk('Nice trip plan! Where will you go first?', [{
+    type: 'VOCABULARY',
+    original_text: 'I want go beach.',
+    corrected_text: 'I want to go to the beach.',
+    explanation: 'Sau “want” cần “to + động từ nguyên thể”.',
+  }]);
+  const sent = await fetch(`${baseUrl}/api/ai/chats/${chat.id}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth() },
+    body: JSON.stringify({ message: 'I want go beach.' }),
+  });
+  assert.equal(sent.status, 201);
+
+  const forbidden = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, {
+    method: 'DELETE',
+    headers: auth(otherToken),
+  });
+  assert.equal(forbidden.status, 404, 'another user must not delete this chat');
+
+  const deleted = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, {
+    method: 'DELETE',
+    headers: auth(),
+  });
+  assert.equal(deleted.status, 200);
+  const deletedBody = await deleted.json() as { data: { chat_id: number; deleted: boolean } };
+  assert.deepEqual(deletedBody.data, { chat_id: chat.id, deleted: true });
+
+  const missing = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, { headers: auth() });
+  assert.equal(missing.status, 404);
+  const repeat = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, { method: 'DELETE', headers: auth() });
+  assert.equal(repeat.status, 404);
+
+  const history = await fetch(`${baseUrl}/api/ai/chats`, { headers: auth() });
+  const historyBody = await history.json() as { data: { chats: Array<{ id: number }> } };
+  assert.ok(!historyBody.data.chats.some((item) => item.id === chat.id), 'deleted chat leaves the history list');
+
+  interface CountRow extends RowDataPacket { n: number; }
+  const [messageRows] = await pool.execute<CountRow[]>(
+    'SELECT COUNT(*) AS n FROM messages WHERE chat_id = ?',
+    [chat.id],
+  );
+  const [feedbackRows] = await pool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS n FROM ai_feedback f
+     JOIN messages m ON m.id = f.message_id WHERE m.chat_id = ?`,
+    [chat.id],
+  );
+  assert.equal(Number(messageRows[0].n), 0, 'deleting a chat cascades its messages');
+  assert.equal(Number(feedbackRows[0].n), 0, 'deleting a chat cascades its AI feedback');
+});

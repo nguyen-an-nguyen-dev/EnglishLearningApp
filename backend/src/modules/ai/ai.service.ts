@@ -185,6 +185,11 @@ export async function getChat(userId: number, chatId: number) {
   return { chat, messages };
 }
 
+export async function deleteChat(userId: number, chatId: number): Promise<void> {
+  const deleted = await repository.deleteChat(userId, chatId);
+  if (!deleted) throw new HttpError(404, 'Chat not found.');
+}
+
 export async function sendMessage(userId: number, chatId: number, message: string) {
   const chat = await repository.getChat(userId, chatId);
   if (!chat) throw new HttpError(404, 'Chat not found.');

@@ -52,6 +52,14 @@ export async function getChat(userId: number, chatId: number): Promise<ChatRow |
   return rows[0];
 }
 
+export async function deleteChat(userId: number, chatId: number): Promise<boolean> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    'DELETE FROM chats WHERE id = ? AND user_id = ?',
+    [chatId, userId],
+  );
+  return result.affectedRows > 0;
+}
+
 export async function getMessages(chatId: number): Promise<MessageRow[]> {
   const [rows] = await pool.execute<MessageDbRow[]>(
     `SELECT id, chat_id, role, content, created_at

@@ -1,14 +1,14 @@
 import { request } from './api';
 
 export const AI_TOPICS = [
-  { id: 'DAILY_CONVERSATION', label: 'Daily Conversation', icon: '💬' },
-  { id: 'TRAVEL', label: 'Travel', icon: '✈️' },
-  { id: 'FOOD', label: 'Food', icon: '🍜' },
-  { id: 'SHOPPING', label: 'Shopping', icon: '🛍️' },
-  { id: 'SCHOOL', label: 'School', icon: '📚' },
-  { id: 'FAMILY', label: 'Family', icon: '👨‍👩‍👧' },
-  { id: 'HOBBIES', label: 'Hobbies', icon: '🎨' },
-  { id: 'JOB_INTERVIEW', label: 'Job Interview', icon: '💼' },
+  { id: 'DAILY_CONVERSATION', label: 'Daily Conversation' },
+  { id: 'TRAVEL', label: 'Travel' },
+  { id: 'FOOD', label: 'Food' },
+  { id: 'SHOPPING', label: 'Shopping' },
+  { id: 'SCHOOL', label: 'School' },
+  { id: 'FAMILY', label: 'Family' },
+  { id: 'HOBBIES', label: 'Hobbies' },
+  { id: 'JOB_INTERVIEW', label: 'Job Interview' },
 ] as const;
 
 export type AiTopic = (typeof AI_TOPICS)[number]['id'];
@@ -60,6 +60,10 @@ export async function createAiChat(topic: AiTopic): Promise<AiChat> {
 
 export async function getAiChat(chatId: number): Promise<AiChatDetails> {
   return request<AiChatDetails>(`/ai/chats/${chatId}`);
+}
+
+export async function deleteAiChat(chatId: number): Promise<void> {
+  await request<{ chat_id: number; deleted: boolean }>(`/ai/chats/${chatId}`, { method: 'DELETE' });
 }
 
 export async function sendAiMessage(chatId: number, message: string): Promise<{

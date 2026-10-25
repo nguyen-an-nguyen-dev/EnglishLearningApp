@@ -35,6 +35,17 @@ export const getChat: RequestHandler = async (request, response, next) => {
   }
 };
 
+export const deleteChat: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const chatId = parseChatId(request.params.chatId);
+    await aiService.deleteChat(request.auth.userId, chatId);
+    response.json({ success: true, data: { chat_id: chatId, deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const sendMessage: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');

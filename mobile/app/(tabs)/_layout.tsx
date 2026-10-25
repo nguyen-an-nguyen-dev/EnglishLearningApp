@@ -64,7 +64,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="talk"
         options={{
-          title: 'Talk AI',
+          title: 'Chat AI',
           tabBarIcon: ({ color }) => (
             <SymbolView name={tabSymbols.talk} tintColor={color} size={22} />
           ),
