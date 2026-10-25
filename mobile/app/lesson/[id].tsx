@@ -18,7 +18,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { findDropTarget, reorderWordIds, TileLayout } from '@/utils/wordOrder';
-import { CORRECT_ANSWER_CHIME, INCORRECT_ANSWER_CHIME } from '@/constants/feedback-sounds';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import {
@@ -190,8 +189,8 @@ export default function LessonScreen() {
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
   const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null, { downloadFirst: true });
   const audioStatus = useAudioPlayerStatus(audioPlayer);
-  const correctAnswerPlayer = useAudioPlayer(CORRECT_ANSWER_CHIME);
-  const incorrectAnswerPlayer = useAudioPlayer(INCORRECT_ANSWER_CHIME);
+  const correctAnswerPlayer = useAudioPlayer(require('../../assets/sounds/correct-answer.wav'));
+  const incorrectAnswerPlayer = useAudioPlayer(require('../../assets/sounds/wrong-answer.wav'));
 
   useEffect(() => {
     void AudioModule.setAudioModeAsync({ playsInSilentMode: true });
@@ -409,8 +408,10 @@ export default function LessonScreen() {
       const feedback = await checkLessonAnswer(lessonId, currentQuestion.id, selectedAnswer);
       setAnswerFeedback(feedback);
       setIsAnswerChecked(true);
-      const feedbackPlayer = feedback.is_correct ? correctAnswerPlayer : incorrectAnswerPlayer;
-      void feedbackPlayer.seekTo(0).then(() => feedbackPlayer.play()).catch(() => feedbackPlayer.play());
+      const chime = feedback.is_correct ? correctAnswerPlayer : incorrectAnswerPlayer;
+      const otherChime = feedback.is_correct ? incorrectAnswerPlayer : correctAnswerPlayer;
+      if (otherChime.playing) otherChime.pause();
+      void chime.seekTo(0).then(() => chime.play()).catch(() => undefined);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể kiểm tra đáp án.';
       Alert.alert('Lỗi kiểm tra đáp án', msg);
