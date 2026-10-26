@@ -16,6 +16,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import Svg, { Path } from 'react-native-svg';
 import Colors from '@/constants/Colors';
 import FlagMarker from '@/components/map/FlagMarker';
@@ -33,6 +34,16 @@ const NODE_EDGE_INSET = 16;
 const CAR_SIZE = 80;
 const CAR_DRIVE_MS_PER_LESSON = 1500;
 const CAR_DRIVE_MAX_MS = 8000;
+const SEGMENT_DONE = '#11b9cf';
+
+const BRAND_SYMBOL = { ios: 'character.bubble.fill', android: 'translate', web: 'translate' } as const;
+const CHEVRON_SYMBOL = { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' } as const;
+
+// Stage titles read like "A1 Beginner Basics": the CEFR code becomes the badge, the next word the band.
+function parseLevel(stageTitle: string) {
+  const match = /^([A-C]\d)\s+(\S+)/.exec(stageTitle.trim());
+  return match ? { code: match[1], band: match[2] } : { code: '··', band: stageTitle };
+}
 
 interface LessonNode {
   key: string;
@@ -47,7 +58,7 @@ interface LessonNode {
 }
 
 export default function LearningPathScreen() {
-  const { user, logout, getCurrentUser } = useAuth();
+  const { user, getCurrentUser } = useAuth();
   const { theme } = useAppTheme();
   const colors = Colors[theme];
   const router = useRouter();
@@ -63,6 +74,7 @@ export default function LearningPathScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
+  const [unitExpanded, setUnitExpanded] = useState(false);
   const [selectedFlag, setSelectedFlag] = useState<{
     lesson: Lesson;
     stageIndex: number;
@@ -177,9 +189,7 @@ export default function LearningPathScreen() {
   const currentStageLessonIndex = currentStage && currentLesson
     ? currentStage.stage.lessons.findIndex((lesson) => lesson.id === currentLesson.id)
     : -1;
-  const stagePercentage = currentStage && currentStage.totalLessons > 0
-    ? Math.round((currentStage.completedLessons / currentStage.totalLessons) * 100)
-    : 0;
+  const unitLevel = currentStage ? parseLevel(currentStage.stage.title) : null;
 
   const lessonNodes: LessonNode[] = [];
   let mapHeight = 0;
@@ -343,15 +353,22 @@ export default function LearningPathScreen() {
       <View style={[styles.fixedTop, { backgroundColor: colors.background }]}>
         <View style={styles.journeyHeader}>
           <View style={styles.brandGroup}>
-            <Text style={[styles.brandTitle, { color: '#079ab1' }]}>Lingua</Text>
+            <View style={[styles.brandMark, { backgroundColor: theme === 'dark' ? '#12333B' : Colors.primarySoft }]}>
+              <SymbolView name={BRAND_SYMBOL} tintColor={colors.tint} size={19} />
+            </View>
+            <Text style={[styles.brandTitle, { color: colors.text }]}>lingua</Text>
           </View>
           <View style={styles.headerActions}>
-            <View style={[styles.xpChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={styles.xpChipText}>💎 {user?.xp ?? progressData?.total_xp ?? 0}</Text>
+            <View style={[styles.statChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={styles.statChipIcon}>🔥</Text>
+              <Text style={[styles.statChipText, { color: colors.text }]}>{user?.streak ?? 0}</Text>
             </View>
-            <Pressable onPress={() => void logout()} style={styles.avatarButton} accessibilityLabel="Đăng xuất">
-              <Text style={styles.avatarText}>{user?.email?.[0]?.toUpperCase() ?? '☺'}</Text>
-            </Pressable>
+            <View style={[styles.statChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={styles.statChipIcon}>💎</Text>
+              <Text style={[styles.statChipText, { color: colors.text }]}>
+                {(user?.xp ?? progressData?.total_xp ?? 0).toLocaleString()}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -372,20 +389,87 @@ export default function LearningPathScreen() {
         )}
 
         {!loading && progressData && currentStage && currentLesson && (
-          <View style={styles.lessonOverview}>
-            <View style={styles.overviewTopRow}>
-              <Text style={styles.overviewStageLabel}>STAGE {currentStageIndex + 1} {currentStage.stage.title}</Text>
-              <Text style={[styles.overviewCount, { color: colors.textMuted }]}>
-                BÀI {currentStageLessonIndex + 1} / {currentStage.totalLessons}
-              </Text>
+          <View style={[styles.unitCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setUnitExpanded((expanded) => !expanded)}
+              style={styles.unitCardHead}
+            >
+              <View style={styles.unitLevelBadge}>
+                <Text style={styles.unitLevelText}>{unitLevel?.code}</Text>
+              </View>
+              <View style={styles.unitCopy}>
+                <Text numberOfLines={1} style={[styles.unitTitle, { color: colors.text }]}>
+                  {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : currentLesson.title}
+                </Text>
+                <Text numberOfLines={1} style={[styles.unitMeta, { color: colors.textMuted }]}>
+                  {`${unitLevel?.band} · Bài ${currentStageLessonIndex + 1} / ${currentStage.totalLessons}`}
+                </Text>
+              </View>
+              <SymbolView
+                name={CHEVRON_SYMBOL}
+                tintColor={colors.textMuted}
+                size={18}
+                style={{ transform: [{ rotate: unitExpanded ? '180deg' : '0deg' }] }}
+              />
+            </Pressable>
+
+            <View style={styles.unitSegments}>
+              {currentStage.stage.lessons.map((lesson, index) => (
+                <View
+                  key={lesson.id}
+                  style={[
+                    styles.unitSegment,
+                    {
+                      backgroundColor: index <= currentStageLessonIndex
+                        ? SEGMENT_DONE
+                        : theme === 'dark' ? '#21262D' : '#DCE7EE',
+                    },
+                  ]}
+                />
+              ))}
             </View>
 
-            <Text numberOfLines={1} style={[styles.overviewSubtitle, { color: colors.textMuted }]}>
-              {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : `Đang học: ${currentLesson.title} (${currentLesson.topic})`}
-            </Text>
-            <View style={styles.overviewProgressTrack}>
-              <View style={[styles.overviewProgressFill, { width: `${stagePercentage}%` }]} />
-            </View>
+            {unitExpanded && (
+              <View style={[styles.unitList, { borderTopColor: colors.border }]}>
+                {currentStage.stage.lessons.map((lesson, index) => {
+                  const locked = lesson.state.status === 'locked';
+                  return (
+                    <Pressable
+                      key={lesson.id}
+                      accessibilityRole="button"
+                      disabled={locked}
+                      onPress={() => {
+                        setUnitExpanded(false);
+                        setSheetFlag({
+                          lesson,
+                          stageIndex: currentStageIndex,
+                          stageTitle: currentStage.stage.title,
+                        });
+                      }}
+                      style={styles.unitRow}
+                    >
+                      <Text style={styles.unitRowMark}>
+                        {lesson.state.status === 'completed' ? '✓' : locked ? '🔒' : index === currentStageLessonIndex ? '●' : '○'}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.unitRowTitle, { color: locked ? colors.textMuted : colors.text }]}
+                      >
+                        {lesson.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {!loading && progressData && (
+          <View style={styles.journeyLabelRow}>
+            <View style={styles.journeyLabelDot} />
+            <Text style={[styles.journeyLabel, { color: colors.textMuted }]}>YOUR JOURNEY</Text>
           </View>
         )}
 
@@ -558,53 +642,51 @@ const styles = StyleSheet.create({
   },
   journeyScroll: {
     paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 2,
     paddingBottom: 28,
   },
   journeyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   brandGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 9,
+  },
+  brandMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   brandTitle: {
-    color: '#17263b',
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '900',
+    letterSpacing: -0.4,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  xpChip: {
-    borderWidth: 1,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  xpChipText: {
-    color: '#078fa7',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  avatarButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#11b9cf',
+  statChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 15,
+  statChipIcon: {
+    fontSize: 13,
+  },
+  statChipText: {
+    fontSize: 13,
     fontWeight: '900',
   },
   journeyError: {
@@ -643,42 +725,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  lessonOverview: {
-    paddingTop: 2,
-    paddingBottom: 16,
+  unitCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
-  overviewTopRow: {
+  unitCardHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: 12,
   },
-  overviewStageLabel: {
-    color: '#079ab1',
-    fontSize: 13,
+  unitLevelBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#11b9cf',
+  },
+  unitLevelText: {
+    color: '#04252b',
+    fontSize: 15,
     fontWeight: '900',
   },
-  overviewCount: {
-    color: '#536170',
-    fontSize: 13,
-    fontWeight: '800',
+  unitCopy: {
+    flex: 1,
   },
-  overviewSubtitle: {
-    color: '#697785',
-    fontSize: 13,
-    marginTop: 4,
+  unitTitle: {
+    fontSize: 17,
+    fontWeight: '900',
   },
-  overviewProgressTrack: {
-    height: 6,
-    marginTop: 12,
+  unitMeta: {
+    marginTop: 3,
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  unitSegments: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 14,
+  },
+  unitSegment: {
+    flex: 1,
+    height: 8,
     borderRadius: 4,
-    backgroundColor: '#e5edf2',
-    overflow: 'hidden',
   },
-  overviewProgressFill: {
-    height: '100%',
+  unitList: {
+    marginTop: 12,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    gap: 2,
+  },
+  unitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+  },
+  unitRowMark: {
+    width: 18,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  unitRowTitle: {
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  journeyLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  journeyLabelDot: {
+    width: 7,
+    height: 7,
     borderRadius: 4,
     backgroundColor: '#11b9cf',
+  },
+  journeyLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.1,
   },
   stageMap: {
     position: 'relative',
