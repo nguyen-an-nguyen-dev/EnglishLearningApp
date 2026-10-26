@@ -2,6 +2,10 @@ import { Circle, G, Path, Rect, Svg } from 'react-native-svg';
 
 export type FlagStatus = 'locked' | 'unlocked' | 'available' | 'completed';
 
+// The marker is authored in a fixed 64x68 space; `size` scales it uniformly via the viewBox.
+export const FLAG_WIDTH = 64;
+const FLAG_HEIGHT = 68;
+
 type Prim =
   | { c: [number, number, number]; s?: number }
   | { r: [number, number, number, number, number?]; s?: number }
@@ -234,9 +238,10 @@ interface FlagMarkerProps {
   code: string;
   mirrored: boolean;
   status: FlagStatus;
+  size?: number;
 }
 
-export default function FlagMarker({ code, mirrored, status }: FlagMarkerProps) {
+export default function FlagMarker({ code, mirrored, status, size = FLAG_WIDTH }: FlagMarkerProps) {
   const { shape, emblem } = designFor(code);
   const isCompleted = status === 'completed';
   const isLocked = status === 'locked';
@@ -249,7 +254,7 @@ export default function FlagMarker({ code, mirrored, status }: FlagMarkerProps) 
   const discMarkColor = isLocked ? '#F7FAFD' : '#FFFFFF';
 
   return (
-    <Svg width={64} height={68} viewBox="0 0 64 68">
+    <Svg width={size} height={size * (FLAG_HEIGHT / FLAG_WIDTH)} viewBox={`0 0 ${FLAG_WIDTH} ${FLAG_HEIGHT}`}>
       <Rect x={mirrored ? 32 : 27} y={6} width={5} height={56} rx={2.5} fill="#42586B" />
       <Path
         d={banner.d}

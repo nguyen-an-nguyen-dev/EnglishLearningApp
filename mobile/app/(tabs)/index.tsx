@@ -24,14 +24,16 @@ import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
 
-const NODE_SIZE = 64;
-const NODE_ROW_HEIGHT = 128;
+const NODE_SIZE = 76;
+const NODE_ROW_HEIGHT = 142;
 const STAGE_LABEL_HEIGHT = 42;
 const ROAD_CURVE_STEPS = 12;
-const ROAD_SWING = 24;
+const ROAD_SWING = 26;
 const ROAD_TENSION = 4.2;
-const NODE_EDGE_INSET = 16;
-const CAR_SIZE = 80;
+const NODE_EDGE_INSET = 10;
+const ROAD_WIDTH = 88;
+const CAR_SIZE = 92;
+const CAR_WIDTH = 58;
 const CAR_DRIVE_MS_PER_LESSON = 1500;
 const CAR_DRIVE_MAX_MS = 8000;
 const SEGMENT_DONE = '#11b9cf';
@@ -329,10 +331,10 @@ export default function LearningPathScreen() {
   const carLeft = roadMotionPoints.length > 1
     ? carPosition.interpolate({
       inputRange: roadMotionIndices,
-      outputRange: roadMotionPoints.map((point) => point.x - 25),
+      outputRange: roadMotionPoints.map((point) => point.x - CAR_WIDTH / 2),
       extrapolate: 'clamp',
     })
-    : (roadMotionPoints[0]?.x ?? routeWidth / 2) - 25;
+    : (roadMotionPoints[0]?.x ?? routeWidth / 2) - CAR_WIDTH / 2;
   const carTop = roadMotionPoints.length > 1
     ? carPosition.interpolate({
       inputRange: roadMotionIndices,
@@ -505,7 +507,7 @@ export default function LearningPathScreen() {
                   d={roadPath}
                   fill="none"
                   stroke={theme === 'dark' ? '#30363D' : '#AAB7C4'}
-                  strokeWidth={76}
+                  strokeWidth={ROAD_WIDTH}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -513,7 +515,7 @@ export default function LearningPathScreen() {
                   d={roadPath}
                   fill="none"
                   stroke={theme === 'dark' ? '#161B22' : '#C7D1DC'}
-                  strokeWidth={72}
+                  strokeWidth={ROAD_WIDTH - 4}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -521,8 +523,8 @@ export default function LearningPathScreen() {
                   d={roadPath}
                   fill="none"
                   stroke={theme === 'dark' ? '#484F58' : '#ffffff'}
-                  strokeWidth={2}
-                  strokeDasharray="8 12"
+                  strokeWidth={3}
+                  strokeDasharray="9 13"
                 />
               </Svg>
             ) : null}
@@ -550,7 +552,7 @@ export default function LearningPathScreen() {
                       { top: node.nodeTopInRow, left: Math.max(4, Math.min(node.centerX - NODE_SIZE / 2, routeWidth - NODE_SIZE - 4)) },
                     ]}
                   >
-                    <FlagMarker code={node.lesson.code} mirrored={mirrored} status={status} />
+                    <FlagMarker code={node.lesson.code} mirrored={mirrored} status={status} size={NODE_SIZE} />
                     <Text
                       numberOfLines={1}
                       style={[
@@ -850,14 +852,14 @@ const styles = StyleSheet.create({
   },
   movingCar: {
     position: 'absolute',
-    width: 50,
+    width: CAR_WIDTH,
     height: CAR_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
   },
   carImage: {
-    width: 50,
+    width: CAR_WIDTH,
     height: CAR_SIZE,
     // The artwork points up, but the journey drives down the road.
     transform: [{ rotate: '180deg' }],

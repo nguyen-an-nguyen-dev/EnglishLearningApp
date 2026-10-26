@@ -123,6 +123,7 @@ export default function LessonScreen() {
   const [selectedWordIds, setSelectedWordIds] = useState<number[]>([]);
   const [wordTileOrder, setWordTileOrder] = useState<number[]>([]);
   const slotLayoutsRef = useRef<Array<TileLayout | undefined>>([]);
+  const autoPlayedQuestionIds = useRef(new Set<number>());
   const [isAnswerChecked, setIsAnswerChecked] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<CheckAnswerFeedback | null>(null);
   const [answersLog, setAnswersLog] = useState<SubmittedAnswer[]>([]);
@@ -188,7 +189,10 @@ export default function LessonScreen() {
   )?.answer_text ?? null;
   const totalQuestions = questions.length;
   const progressRatio = totalQuestions > 0 ? (currentIndex + 1) / totalQuestions : 0;
-  const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null, { downloadFirst: true });
+  // `downloadFirst` would keep one player alive across questions and swap its source asynchronously,
+  // so a freshly opened question could still play the previous clip. Resolving eagerly recreates the
+  // player per question, which keeps `isLoaded` and auto-play honest.
+  const audioPlayer = useAudioPlayer(currentQuestion?.audio_url ?? null);
   const audioStatus = useAudioPlayerStatus(audioPlayer);
   const correctAnswerPlayer = useAudioPlayer(require('../../assets/sounds/correct-answer.wav'));
   const incorrectAnswerPlayer = useAudioPlayer(require('../../assets/sounds/wrong-answer.wav'));
@@ -233,6 +237,20 @@ export default function LessonScreen() {
       audioPlayer.play();
     }
   }
+
+  // A listening question is meant to be heard, so the clip plays by itself the first time it appears.
+  useEffect(() => {
+    if (!currentQuestion?.audio_url || (!isListeningQuestion && !isListenChoiceQuestion)) return;
+    if (autoPlayedQuestionIds.current.has(currentQuestion.id) || !audioStatus.isLoaded) return;
+    autoPlayedQuestionIds.current.add(currentQuestion.id);
+    void playQuestionAudio();
+  }, [
+    audioStatus.isLoaded,
+    currentQuestion?.id,
+    currentQuestion?.audio_url,
+    isListeningQuestion,
+    isListenChoiceQuestion,
+  ]);
 
   function renderOptions() {
     if (!currentQuestion) return null;
@@ -470,6 +488,7 @@ export default function LessonScreen() {
 
   // Restarting replays the exact first-entry flow: fresh questions, fresh shuffle, no leftovers.
   function handleRestart() {
+    autoPlayedQuestionIds.current.clear();
     setResult(null);
     setCurrentIndex(0);
     setSelectedAnswer(null);
