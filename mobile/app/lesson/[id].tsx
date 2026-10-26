@@ -129,6 +129,7 @@ export default function LessonScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<CompleteLessonResult | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   function returnToLearningPath() {
     if (router.canGoBack()) {
@@ -170,7 +171,7 @@ export default function LessonScreen() {
     return () => {
       mounted = false;
     };
-  }, [lessonId]);
+  }, [lessonId, reloadToken]);
 
   useEffect(() => {
     if (!result?.stage_completed) return;
@@ -467,13 +468,19 @@ export default function LessonScreen() {
     );
   }
 
+  // Restarting replays the exact first-entry flow: fresh questions, fresh shuffle, no leftovers.
   function handleRestart() {
     setResult(null);
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setSelectedWordIds([]);
+    setWordTileOrder([]);
     setIsAnswerChecked(false);
+    setAnswerFeedback(null);
     setAnswersLog([]);
+    setChecking(false);
+    setSubmitting(false);
+    setReloadToken((token) => token + 1);
   }
 
   if (loading) {
