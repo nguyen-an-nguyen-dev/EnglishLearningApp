@@ -18,7 +18,7 @@ let token: string;
 let pool: typeof import('../src/db/pool').pool;
 let originalFetch: typeof fetch;
 let providerResponse: Response | Error | null = null;
-let persistentProviderResponse: Response | null = null;
+let persistentProviderResponse: (() => Response) | null = null;
 let providerCallCount = 0;
 let providerRequest: { model?: string; max_tokens?: number; response_format?: unknown; messages?: Array<{ content: string }> } | null = null;
 
@@ -39,7 +39,7 @@ before(async () => {
       providerRequest = typeof init?.body === 'string'
         ? JSON.parse(init.body) as typeof providerRequest
         : null;
-      if (persistentProviderResponse) return persistentProviderResponse;
+      if (persistentProviderResponse) return persistentProviderResponse();
       const response = providerResponse;
       providerResponse = null;
       if (response instanceof Error) throw response;
@@ -215,7 +215,7 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   });
   assert.equal(oversizedUpload.status, 413);
 
-  persistentProviderResponse = new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 });
+  persistentProviderResponse = () => new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 });
   const callsBefore = providerCallCount;
   const failedTranslation = await translate('This must not be stored', 'en', 'vi');
   assert.equal(failedTranslation.status, 503);
@@ -237,4 +237,64 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   );
   assert.ok(storedRows[0]);
   assert.equal(storedRows[0].original_text, 'A small text file.');
+});
+
+test('long TXT uploads are translated as parallel chunks and rejoined in order', async () => {
+  const line = 'x'.repeat(1000);
+  const document = `${line}\n${line}\n${line}\n${line}\n${line}`;
+  const upload = new FormData();
+  upload.append('sourceLanguage', 'en');
+  upload.append('targetLanguage', 'vi');
+  upload.append('file', new Blob([document], { type: 'text/plain' }), 'long.txt');
+
+  persistentProviderResponse = () => geminiResponse('DA');
+  const callsBefore = providerCallCount;
+  const response = await fetch(`${baseUrl}/api/translate/file`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: upload,
+  });
+  persistentProviderResponse = null;
+
+  assert.equal(response.status, 201);
+  assert.equal(providerCallCount - callsBefore, 5, 'each 2000-character chunk gets its own provider call');
+  const result = await response.json() as { data: { originalText: string; translatedText: string } };
+  assert.equal(result.data.originalText.length, document.length);
+  assert.equal(result.data.translatedText, ['DA', 'DA', 'DA', 'DA', 'DA'].join('\n'));
+});
+
+test('a picked .txt sent as JSON text is accepted, oversized or unnamed bodies are rejected', async () => {
+  const postFile = (body: unknown) => fetch(`${baseUrl}/api/translate/file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+
+  providerResponse = geminiResponse('Nội dung đã dịch.');
+  const accepted = await postFile({ text: 'Translated content.', fileName: 'notes.txt', sourceLanguage: 'en', targetLanguage: 'vi' });
+  assert.equal(accepted.status, 201);
+  const acceptedBody = await accepted.json() as { data: { fileName: string; translatedText: string } };
+  assert.equal(acceptedBody.data.fileName, 'notes.txt');
+  assert.equal(acceptedBody.data.translatedText, 'Nội dung đã dịch.');
+
+  assert.equal((await postFile({ text: 'x'.repeat(20 * 1024 + 1), fileName: 'big.txt', sourceLanguage: 'en', targetLanguage: 'vi' })).status, 413);
+  assert.equal((await postFile({ text: 'no extension here', fileName: 'notes.pdf', sourceLanguage: 'en', targetLanguage: 'vi' })).status, 422);
+  assert.equal((await postFile({ text: '   ', fileName: 'empty.txt', sourceLanguage: 'en', targetLanguage: 'vi' })).status, 422);
+});
+
+test('a long pasted text also splits into chunks instead of waiting on one slow request', async () => {
+  const text = `${'y'.repeat(4000)}\nz`;
+  const callsBefore = providerCallCount;
+  persistentProviderResponse = () => geminiResponse('CC');
+  const response = await fetch(`${baseUrl}/api/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ text, sourceLanguage: 'en', targetLanguage: 'vi' }),
+  });
+  persistentProviderResponse = null;
+
+  assert.equal(response.status, 201);
+  assert.equal(providerCallCount - callsBefore, 3, 'the 4000-character line is cut in two and the next line starts a third chunk');
+  const result = await response.json() as { data: { translatedText: string } };
+  assert.equal(result.data.translatedText, ['CC', 'CC', 'CC'].join('\n'));
 });

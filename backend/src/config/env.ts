@@ -21,7 +21,7 @@ export const env = {
   aiApiUrl: process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
   aiModel: process.env.AI_MODEL || 'gemini-flash-lite-latest',
   aiFallbackModel: process.env.AI_FALLBACK_MODEL || 'gemini-3.5-flash',
-  aiTimeoutMs: getPort(process.env.AI_TIMEOUT_MS, 30000),
+  aiTimeoutMs: getPort(process.env.AI_TIMEOUT_MS, 40000),
   supabaseUrl: (process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''),
   supabaseBucket: process.env.SUPABASE_BUCKET || '',
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || '',

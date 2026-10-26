@@ -6,6 +6,7 @@ import {
   MAX_TRANSLATION_CHARACTERS,
   MAX_TRANSLATION_FILE_BYTES,
   parseTranslationText,
+  splitTranslationChunks,
 } from './translations.validation';
 import type {
   LanguageCode,
@@ -190,6 +191,45 @@ async function requestProvider(
   return payload.choices[0].message.content.trim();
 }
 
+const PROVIDER_CONCURRENCY = 4;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function requestWithModelFallback(
+  prompt: string,
+  word: string | null,
+  maxTokens: number,
+): Promise<string> {
+  const models = [env.aiModel, env.aiFallbackModel].filter((model, index, all) => model && all.indexOf(model) === index);
+  let lastError = new HttpError(503, 'The translation service is temporarily unavailable.');
+  for (const model of models) {
+    try {
+      return await requestProvider(model, prompt, word, maxTokens, env.aiTimeoutMs);
+    } catch (error) {
+      if (!(error instanceof ProviderAttemptError)) throw error;
+      lastError = error.httpError;
+      if (!error.retryable) throw lastError;
+    }
+  }
+  throw lastError;
+}
+
 async function translateWithGemini(
   text: string,
   sourceLanguage: LanguageCode,
@@ -200,25 +240,18 @@ async function translateWithGemini(
     throw new HttpError(503, 'Dịch vụ dịch chưa được cấu hình. Hãy kiểm tra AI_API_KEY trong backend/.env.');
   }
 
-  const prompt = promptForTranslation(text, sourceLanguage, targetLanguage, word);
-  const maxTokens = Math.min(8192, Math.max(512, Math.ceil(text.length * 0.5) + 128));
-  const attemptTimeoutMs = Math.min(env.aiTimeoutMs, 15_000);
-  const models = [env.aiModel, env.aiFallbackModel].filter((model, index, all) => model && all.indexOf(model) === index);
+  const chunks = word ? [text] : splitTranslationChunks(text);
+  const contents = await mapWithConcurrency(chunks, PROVIDER_CONCURRENCY, (chunk) => requestWithModelFallback(
+    promptForTranslation(chunk, sourceLanguage, targetLanguage, word),
+    word,
+    Math.min(8192, Math.max(512, Math.ceil(chunk.length * 0.6) + 128)),
+  ));
 
-  let lastError = new HttpError(503, 'The translation service is temporarily unavailable.');
-  for (const model of models) {
-    try {
-      const content = await requestProvider(model, prompt, word, maxTokens, attemptTimeoutMs);
-      return word
-        ? parseProviderResult(content, word)
-        : { translation: content.slice(0, MAX_TRANSLATION_CHARACTERS * 4), wordDetails: null };
-    } catch (error) {
-      if (!(error instanceof ProviderAttemptError)) throw error;
-      lastError = error.httpError;
-      if (!error.retryable) throw lastError;
-    }
-  }
-  throw lastError;
+  if (word) return parseProviderResult(contents[0], word);
+  return {
+    translation: (chunks.length === 1 ? contents[0] : contents.join('\n')).slice(0, MAX_TRANSLATION_CHARACTERS * 4),
+    wordDetails: null,
+  };
 }
 
 export async function translateText(

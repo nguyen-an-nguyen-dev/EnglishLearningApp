@@ -16,8 +16,9 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import Colors from '@/constants/Colors';
+import FlagMarker from '@/components/map/FlagMarker';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
@@ -37,7 +38,6 @@ interface LessonNode {
   key: string;
   lesson: Lesson;
   stageIndex: number;
-  indexInStage: number;
   stageTitle: string;
   isFirstOfStage: boolean;
   rowHeight: number;
@@ -192,7 +192,6 @@ export default function LearningPathScreen() {
         key: `${stage.id}-${lesson.id}`,
         lesson,
         stageIndex,
-        indexInStage,
         stageTitle: stage.title,
         isFirstOfStage,
         rowHeight,
@@ -435,8 +434,6 @@ export default function LearningPathScreen() {
               const status = node.lesson.state.status;
               const isCompleted = status === 'completed';
               const isLocked = status === 'locked';
-              const bannerColor = isCompleted ? '#11b9cf' : isLocked ? '#AEBFD0' : '#f2b544';
-              const bannerShade = isCompleted ? '#0c8d9e' : isLocked ? '#8ba0b6' : '#cf9326';
               const mirrored = node.centerX > routeWidth / 2;
 
               return (
@@ -457,41 +454,7 @@ export default function LearningPathScreen() {
                       { top: node.nodeTopInRow, left: Math.max(4, Math.min(node.centerX - NODE_SIZE / 2, routeWidth - NODE_SIZE - 4)) },
                     ]}
                   >
-                    <Svg width={64} height={68} viewBox="0 0 64 68" style={styles.flagSvg}>
-                      {mirrored ? (
-                        <>
-                          <Rect x="32" y="6" width="5" height="56" rx="2.5" fill="#42586B" />
-                          <Circle cx="34.5" cy="62" r="6" fill="#42586B" />
-                          <Path
-                            d="M32 8 L3 8 L9.5 18.5 L3 29 L32 29 Z"
-                            fill={bannerColor}
-                            opacity={isLocked ? 0.85 : 1}
-                          />
-                          <Path d="M28 8 L32 8 L32 29 L28 29 Z" fill={bannerShade} />
-                        </>
-                      ) : (
-                        <>
-                          <Rect x="27" y="6" width="5" height="56" rx="2.5" fill="#42586B" />
-                          <Circle cx="29.5" cy="62" r="6" fill="#42586B" />
-                          <Path
-                            d="M32 8 L61 8 L54.5 18.5 L61 29 L32 29 Z"
-                            fill={bannerColor}
-                            opacity={isLocked ? 0.85 : 1}
-                          />
-                          <Path d="M32 8 L36 8 L36 29 L32 29 Z" fill={bannerShade} />
-                        </>
-                      )}
-                    </Svg>
-                    <Text
-                      style={[
-                        styles.flagGlyph,
-                        { left: mirrored ? 6 : 34 },
-                        isLocked ? { fontSize: 13 } : null,
-                      ]}
-                      pointerEvents="none"
-                    >
-                      {isCompleted ? '✓' : isLocked ? '🔒' : String(node.indexInStage + 1)}
-                    </Text>
+                    <FlagMarker code={node.lesson.code} mirrored={mirrored} status={status} />
                     <Text
                       numberOfLines={1}
                       style={[
@@ -733,18 +696,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2,
   },
-  flagSvg: {
-    marginTop: -2,
-  },
-  flagGlyph: {
-    position: 'absolute',
-    top: 10,
-    width: 26,
-    textAlign: 'center',
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
   nodeTitle: {
     marginTop: 7,
     width: 118,
@@ -763,6 +714,8 @@ const styles = StyleSheet.create({
   carImage: {
     width: 50,
     height: CAR_SIZE,
+    // The artwork points up, but the journey drives down the road.
+    transform: [{ rotate: '180deg' }],
   },
   completedDock: {
     paddingHorizontal: 18,

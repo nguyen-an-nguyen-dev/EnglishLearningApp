@@ -36,7 +36,7 @@ export const uploadTxtFile: RequestHandler = (request, response, next) => {
         multerError.code === 'LIMIT_FILE_SIZE' ? 413 : 422,
         multerError.code === 'LIMIT_FILE_SIZE'
           ? `File is too large. Maximum size is ${MAX_TRANSLATION_FILE_BYTES / 1024} KB.`
-          : 'Upload exactly one .txt file no larger than 100 KB.',
+          : `Upload exactly one .txt file no larger than ${MAX_TRANSLATION_FILE_BYTES / 1024} KB.`,
       ));
       return;
     }

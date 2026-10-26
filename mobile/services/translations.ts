@@ -1,3 +1,4 @@
+import { File as ExpoFile } from 'expo-file-system';
 import { API_BASE_URL, readToken } from './api';
 
 export type LanguageCode = 'en' | 'vi';
@@ -27,12 +28,40 @@ interface ApiError {
   errors?: string[];
 }
 
-async function authenticatedFetch(path: string, init: RequestInit): Promise<Response> {
+const DEFAULT_TIMEOUT_MS = 60_000;
+const FILE_TIMEOUT_MS = 150_000;
+
+function withTimeout(timeoutMs: number): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return { signal: controller.signal, done: () => clearTimeout(timer) };
+}
+
+async function describeConnectionFailure(url: string): Promise<Error> {
+  const unreachable = new Error(
+    `Không kết nối được backend tại ${API_BASE_URL}. Hãy kiểm tra backend đang chạy và điện thoại dùng cùng mạng Wi-Fi (EXPO_PUBLIC_API_URL trong mobile/.env).`,
+  );
+  const probe = withTimeout(4_000);
+  try {
+    const health = await fetch(`${API_BASE_URL}/health`, { signal: probe.signal });
+    return health.ok
+      ? new Error(`Backend ở ${API_BASE_URL} vẫn phản hồi, nhưng yêu cầu tới ${url} bị ngắt. Hãy thử lại sau ít phút.`)
+      : unreachable;
+  } catch {
+    return unreachable;
+  } finally {
+    probe.done();
+  }
+}
+
+async function authenticatedFetch(path: string, init: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
   const token = await readToken();
   const url = `${API_BASE_URL}${path}`;
+  const attempt = withTimeout(timeoutMs);
   try {
     return await fetch(url, {
       ...init,
+      signal: attempt.signal,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
@@ -40,7 +69,12 @@ async function authenticatedFetch(path: string, init: RequestInit): Promise<Resp
     });
   } catch (error) {
     console.warn(`[Translation] Request failed at ${url}:`, error);
-    throw new Error('Không kết nối được máy chủ. Hãy kiểm tra mạng hoặc trạng thái backend.');
+    if (attempt.signal.aborted) {
+      throw new Error(`Máy chủ mất hơn ${Math.round(timeoutMs / 1000)} giây để phản hồi. Hãy thử lại.`);
+    }
+    throw await describeConnectionFailure(url);
+  } finally {
+    attempt.done();
   }
 }
 
@@ -73,27 +107,29 @@ export async function translateText(
 }
 
 export async function translateTxtFile(
-  asset: { uri: string; name: string; mimeType?: string | null; file?: File | null },
+  asset: { uri: string; name: string; file?: File | null },
   sourceLanguage: LanguageCode,
   targetLanguage: LanguageCode,
 ): Promise<Translation> {
-  const form = new FormData();
-  form.append('sourceLanguage', sourceLanguage);
-  form.append('targetLanguage', targetLanguage);
-  if (asset.file) {
-    form.append('file', asset.file, asset.name);
-  } else {
-    const nativeForm = form as FormData & {
-      append(name: string, value: { uri: string; name: string; type: string }): void;
-    };
-    nativeForm.append('file', {
-      uri: asset.uri,
-      name: asset.name,
-      type: asset.mimeType || 'text/plain',
-    });
-  }
-  const response = await authenticatedFetch('/translate/file', { method: 'POST', body: form });
+  const text = await readPickedText(asset);
+  const response = await authenticatedFetch('/translate/file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, fileName: asset.name, sourceLanguage, targetLanguage }),
+  }, FILE_TIMEOUT_MS);
   return await parseResponse(response) as Translation;
+}
+
+// Expo's fetch cannot serialize React Native's `{ uri }` FormData parts ("Unsupported FormDataPart
+// implementation"), so the .txt is read locally and sent as JSON instead of multipart.
+async function readPickedText(asset: { uri: string; name: string; file?: File | null }): Promise<string> {
+  try {
+    if (asset.file) return await asset.file.text();
+    return await new ExpoFile(asset.uri).text();
+  } catch (error) {
+    console.warn(`[Translation] Could not read ${asset.uri}:`, error);
+    throw new Error(`Không đọc được tệp "${asset.name}". Hãy chọn lại tệp .txt.`);
+  }
 }
 
 export async function getTranslationHistory(): Promise<Translation[]> {

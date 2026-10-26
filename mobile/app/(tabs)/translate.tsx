@@ -23,7 +23,7 @@ import {
 
 type TranslateTab = 'text' | 'file' | 'history';
 
-const MAX_FILE_BYTES = 100 * 1024;
+const MAX_FILE_BYTES = 20 * 1024;
 
 function languageName(language: LanguageCode): string {
   return language === 'en' ? 'English' : 'Tiếng Việt';
@@ -116,7 +116,7 @@ export default function TranslateScreen() {
         throw new Error('Chỉ hỗ trợ tệp .txt.');
       }
       if (file.size !== undefined && file.size > MAX_FILE_BYTES) {
-        throw new Error('Tệp quá lớn. Giới hạn tối đa là 100 KB.');
+        throw new Error(`Tệp quá lớn. Giới hạn tối đa là ${MAX_FILE_BYTES / 1024} KB.`);
       }
       setSelectedFile(file);
       setResult(null);
@@ -261,7 +261,7 @@ export default function TranslateScreen() {
                 <Text style={[styles.filePickerTitle, { color: colors.text }]}>
                   {selectedFile?.name ?? 'Chọn tệp văn bản'}
                 </Text>
-                <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Chỉ hỗ trợ .txt · tối đa 100 KB</Text>
+                <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Chỉ hỗ trợ .txt · tối đa {MAX_FILE_BYTES / 1024} KB</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -271,6 +271,9 @@ export default function TranslateScreen() {
               >
                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Tải lên và dịch</Text>}
               </Pressable>
+              {selectedFile && !loading ? (
+                <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Tệp dài sẽ mất khoảng 30 giây đến 2 phút để dịch xong.</Text>
+              ) : null}
             </>
           )}
 
