@@ -559,7 +559,7 @@ INSERT INTO seed_questions (lesson_code, sort_order, question_text, correct_answ
 -- 5. NẠP DỮ LIỆU ĐẦY ĐỦ 30 BÀI (WORD ORDER)
 -- ============================================================================
 INSERT INTO seed_word_order_questions (lesson_code, sort_order, question_text, explanation, correct_answer, word_bank) VALUES
-  ('s1-greetings', 3, 'Sắp xếp các từ thành câu hỏi thăm sức khỏe:', 'Sáng nay bạn khỏe không?', 'How are you this morning?', '["How", "are", "you", "this", "morning?"]'),
+  ('s1-greetings', 3, 'Sắp xếp các từ thành câu hỏi thăm sức khỏe:', 'Sáng nay bạn khỏe không?', 'How are you?', '["How", "are", "you?"]'),
   ('s1-greetings', 4, 'Sắp xếp các từ thành câu chào gặp lại:', 'Rất vui được gặp lại bạn.', 'It is nice to see you again.', '["It", "is", "nice", "to", "see", "you", "again."]'),
   ('s1-introductions', 3, 'Sắp xếp các từ thành câu giới thiệu tên:', 'Tên tôi là Anna.', 'My name is Anna.', '["My", "name", "is", "Anna."]'),
   ('s1-introductions', 4, 'Sắp xếp các từ thành câu nói về quê quán:', 'Tôi đến từ Việt Nam.', 'I am from Vietnam.', '["I", "am", "from", "Vietnam."]'),

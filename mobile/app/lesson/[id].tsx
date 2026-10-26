@@ -680,9 +680,15 @@ export default function LessonScreen() {
             {answerFeedback.is_correct ? '✓  Xuất sắc!' : '✕  Không chính xác'}
           </Text>
           {answerFeedback.is_correct ? (
-            <Text style={[styles.feedbackMeaning, styles.feedbackTitleCorrect]}>
-              Nghĩa là: {answerFeedback.meaning_vi || currentQuestion.explanation || 'Chưa có bản dịch cho câu này.'}
-            </Text>
+            answerFeedback.meaning_vi || currentQuestion.explanation ? (
+              <Text style={[styles.feedbackMeaning, styles.feedbackTitleCorrect]}>
+                Nghĩa là: {answerFeedback.meaning_vi || currentQuestion.explanation}
+              </Text>
+            ) : (
+              <Text style={[styles.feedbackMeaning, styles.feedbackTitleCorrect]}>
+                Tốt lắm! Tiếng Anh của bạn đang tiến bộ đấy.
+              </Text>
+            )
           ) : (
             <Text style={[styles.feedbackMeaning, styles.feedbackTitleIncorrect]}>
               Đáp án: {answerFeedback.correct_answer}

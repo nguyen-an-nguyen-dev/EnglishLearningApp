@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Easing,
+  Image,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -28,7 +29,9 @@ const ROAD_CURVE_STEPS = 12;
 const ROAD_SWING = 24;
 const ROAD_TENSION = 4.2;
 const NODE_EDGE_INSET = 16;
-const CAR_SIZE = 62;
+const CAR_SIZE = 80;
+const CAR_DRIVE_MS_PER_LESSON = 1500;
+const CAR_DRIVE_MAX_MS = 8000;
 
 interface LessonNode {
   key: string;
@@ -48,17 +51,17 @@ export default function LearningPathScreen() {
   const { theme } = useAppTheme();
   const colors = Colors[theme];
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const carPosition = useRef(new Animated.Value(0)).current;
   const hasPositionedCar = useRef(false);
   const lastCarTarget = useRef<number | null>(null);
   const pathScrollRef = useRef<ScrollViewInstance | null>(null);
-  const scrollOffset = useRef(0);
 
   const [progressData, setProgressData] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const [selectedFlag, setSelectedFlag] = useState<{
     lesson: Lesson;
     stageIndex: number;
@@ -256,7 +259,18 @@ export default function LearningPathScreen() {
   const roadMotionIndices = roadMotionPoints.map((_, index) => index);
   const pathOffset = useRef(0);
   const lessonNodeTops = useRef<number[]>([]);
+  const lessonNodesRef = useRef<LessonNode[]>([]);
   lessonNodeTops.current = lessonNodes.map((node) => node.centerY - CAR_SIZE / 2);
+  lessonNodesRef.current = lessonNodes;
+
+  function centerMapOnLesson(lessonIndex: number, animated: boolean) {
+    const targetTop = lessonNodeTops.current[lessonIndex];
+    if (targetTop === undefined || scrollViewportHeight === 0) return;
+    pathScrollRef.current?.scrollTo({
+      y: Math.max(0, pathOffset.current + targetTop + CAR_SIZE / 2 - scrollViewportHeight / 2),
+      animated,
+    });
+  }
 
   useEffect(() => {
     if (totalLessons === 0 || currentLessonIndex < 0) return;
@@ -272,25 +286,24 @@ export default function LearningPathScreen() {
     const distance = Math.abs(currentLessonIndex - previousTarget);
     if (distance === 0) return;
 
-    const targetTop = lessonNodeTops.current[currentLessonIndex] ?? 0;
+    const arrivedNode = lessonNodesRef.current[currentLessonIndex];
     Animated.timing(carPosition, {
       toValue: targetPosition,
-      duration: Math.min(8000, distance * 900),
+      duration: Math.min(CAR_DRIVE_MAX_MS, distance * CAR_DRIVE_MS_PER_LESSON),
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (!finished) return;
-      const destinationY = pathOffset.current + targetTop;
-      const destinationScreenY = destinationY - scrollOffset.current;
-      if (destinationScreenY < 110 || destinationScreenY > height - 210) {
-        pathScrollRef.current?.scrollTo({
-          y: Math.max(0, destinationY - height * 0.38),
-          animated: true,
-        });
-      }
+      centerMapOnLesson(currentLessonIndex, true);
+      if (!arrivedNode || arrivedNode.lesson.state.status === 'completed' || selectedFlagRef.current) return;
+      setSheetFlag({
+        lesson: arrivedNode.lesson,
+        stageIndex: arrivedNode.stageIndex,
+        stageTitle: arrivedNode.stageTitle,
+      });
     });
     lastCarTarget.current = currentLessonIndex;
-  }, [currentLessonIndex, carPosition, height, totalLessons]);
+  }, [currentLessonIndex, carPosition, scrollViewportHeight, totalLessons]);
 
   const carLeft = roadMotionPoints.length > 1
     ? carPosition.interpolate({
@@ -370,8 +383,7 @@ export default function LearningPathScreen() {
         <ScrollView
           ref={pathScrollRef}
           style={styles.roadScroll}
-          onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
-          scrollEventThrottle={16}
+          onLayout={(event) => setScrollViewportHeight(event.nativeEvent.layout.height)}
           contentContainerStyle={[styles.journeyScroll, { backgroundColor: colors.background }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -498,20 +510,12 @@ export default function LearningPathScreen() {
                 pointerEvents="none"
                 style={[styles.movingCar, { left: carLeft, top: carTop }]}
               >
-                <Svg width={50} height={62} viewBox="0 0 50 62">
-                  <Path d="M13 8 Q14 3 20 2 L30 2 Q36 3 37 8 L43 20 L45 48 Q45 56 38 59 L12 59 Q5 56 5 48 L7 20 Z" fill="#0B7285" />
-                  <Path d="M14 10 Q15 6 20 5 L30 5 Q35 6 36 10 L39 18 L11 18 Z" fill="#8DE5F2" />
-                  <Path d="M11 22 L39 22 L40 37 L10 37 Z" fill="#D8F8FC" />
-                  <Path d="M10 41 L40 41 L39 49 Q38 53 33 54 L17 54 Q12 53 11 49 Z" fill="#57C7D8" />
-                  <Path d="M7 23 L11 23 L10 34 L6 34 Z M39 23 L43 23 L44 34 L40 34 Z" fill="#17212B" />
-                  <Path d="M6 43 L10 43 L11 52 L8 53 Q5 51 5 48 Z M40 43 L44 43 L45 48 Q45 51 42 53 L39 52 Z" fill="#17212B" />
-                  <Rect x="10" y="7" width="5" height="10" rx="2" fill="#17212B" />
-                  <Rect x="35" y="7" width="5" height="10" rx="2" fill="#17212B" />
-                  <Rect x="8" y="4" width="7" height="3" rx="1.5" fill="#FFF4B8" />
-                  <Rect x="35" y="4" width="7" height="3" rx="1.5" fill="#FFF4B8" />
-                  <Rect x="11" y="56" width="8" height="3" rx="1" fill="#FF6B6B" />
-                  <Rect x="31" y="56" width="8" height="3" rx="1" fill="#FF6B6B" />
-                </Svg>
+                <Image
+                  source={require('../../assets/images/route-car.png')}
+                  style={styles.carImage}
+                  resizeMode="contain"
+                  accessibilityLabel="Xe học của bạn"
+                />
               </Animated.View>
             )}
           </View>
@@ -755,6 +759,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
+  },
+  carImage: {
+    width: 50,
+    height: CAR_SIZE,
   },
   completedDock: {
     paddingHorizontal: 18,

@@ -49,9 +49,9 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandMark}><Text style={styles.brandLetter}>L</Text></View>
+       
         <Text style={styles.eyebrow}>LINGUA / ENGLISH</Text>
-        <Text style={[styles.title, { color: colors.text }]}>{isRegister ? 'Start speaking.' : 'English for life'}</Text>
+
 
 
         {isRegister && (
@@ -61,7 +61,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               autoComplete="name"
               autoCapitalize="words"
               onChangeText={setName}
-              placeholder="Your name"
+              placeholder="Tên của bạn"
               placeholderTextColor="#8ea2b8"
               style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
               value={name}
@@ -89,7 +89,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           <TextInput
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             onChangeText={setPassword}
-            placeholder={isRegister ? 'At least 6 characters' : 'Your password'}
+            placeholder={isRegister ? 'Ít nhất 6 ký tự' : 'Your password'}
             placeholderTextColor="#8ea2b8"
             secureTextEntry
             style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
@@ -108,16 +108,16 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         >
           {submitting
             ? <ActivityIndicator color="#ffffff" />
-            : <Text style={styles.submitText}>{isRegister ? 'Create account' : 'Sign in'}</Text>}
+            : <Text style={styles.submitText}>{isRegister ? 'Đăng ký' : 'Đăng nhập'}</Text>}
         </Pressable>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textMuted }]}>{isRegister ? 'Already learning with us?' : 'New to Lingua?'}</Text>
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>{isRegister ? 'Sẵn sàng học với chúng tôi ?' : 'Chưa có tài khoản ?'}</Text>
           <Pressable
             accessibilityRole="link"
             onPress={() => router.replace(isRegister ? '/login' : '/register')}
           >
-            <Text style={styles.footerLink}>{isRegister ? ' Sign in' : ' Create account'}</Text>
+            <Text style={styles.footerLink}>{isRegister ? ' Đăng Nhập' : 'Đăng ký'}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -130,8 +130,8 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 48, maxWidth: 520, width: '100%', alignSelf: 'center' },
   brandMark: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: Colors.primary, marginBottom: 24, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 4 },
   brandLetter: { color: '#ffffff', fontSize: 28, fontWeight: '800' },
-  eyebrow: { color: Colors.primaryDark, fontSize: 12, fontWeight: '700', marginBottom: 12, letterSpacing: 0.8 },
-  title: { color: '#0F172A', fontSize: 34, fontWeight: '800' },
+  eyebrow: { color: Colors.primaryDark, fontSize: 20, fontWeight: '700', marginBottom: 12, letterSpacing: 0.8 },
+  title: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
   subtitle: { color: '#64748B', fontSize: 16, lineHeight: 23, marginTop: 10, marginBottom: 32 },
   fieldGroup: { marginBottom: 18 },
   label: { color: '#1E293B', fontWeight: '700', fontSize: 14, marginBottom: 8 },
