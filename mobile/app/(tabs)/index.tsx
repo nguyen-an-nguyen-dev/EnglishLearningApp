@@ -55,6 +55,7 @@ export default function LearningPathScreen() {
   const carPosition = useRef(new Animated.Value(0)).current;
   const hasPositionedCar = useRef(false);
   const lastCarTarget = useRef<number | null>(null);
+  const hasCenteredMap = useRef(false);
   const pathScrollRef = useRef<ScrollViewInstance | null>(null);
 
   const [progressData, setProgressData] = useState<UserProgress | null>(null);
@@ -303,6 +304,17 @@ export default function LearningPathScreen() {
     });
     lastCarTarget.current = currentLessonIndex;
   }, [currentLessonIndex, carPosition, scrollViewportHeight, totalLessons]);
+
+  // Re-entering this tab (from another tab or a lesson) must always reveal the car, so the map
+  // scrolls back to it once the ScrollView has finished its focus layout pass.
+  useFocusEffect(useCallback(() => {
+    if (totalLessons === 0 || currentLessonIndex < 0) return;
+    const timer = setTimeout(() => {
+      centerMapOnLesson(currentLessonIndex, hasCenteredMap.current);
+      hasCenteredMap.current = true;
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [currentLessonIndex, scrollViewportHeight, totalLessons]));
 
   const carLeft = roadMotionPoints.length > 1
     ? carPosition.interpolate({
