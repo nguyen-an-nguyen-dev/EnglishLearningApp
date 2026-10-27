@@ -15,3 +15,14 @@ backend/tmp-audio/
 !**/.env.example
 
 npm-debug.log*
+
+# Agent skills, planning & temporary tooling
+.agents/
+skills-lock.json
+skills/
+*.skill
+update_node.js
+run_decor_patch.cjs
+mobile/components/map/RoadsideDecor.tsx
+DOC_MAP.md
+**/DOC_MAP.md

@@ -1,253 +1,614 @@
 import { useState } from 'react'
 import {
   BookOpenText,
-  CarProfile,
-  Check,
-  CheckCircle,
-  Compass,
-  FlagPennant,
   Flame,
   Headphones,
-  Heart,
   House,
   Lightning,
-  LockKey,
-  MapTrifold,
   Microphone,
   PencilLine,
-  Play,
+  SignOut,
   Sparkle,
-  TreeEvergreen,
   Trophy,
+  UserCircle,
+  Medal,
+  Play,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle,
+  Gear,
+  MapPin,
+  LockSimple,
+  Compass,
 } from '@phosphor-icons/react'
+import { useAuth } from './context/AuthContext'
+import { LandingPage } from './components/landing/LandingPage'
+import type { AuthUser } from './types/auth'
+import { MILESTONES } from './journey-data'
 
-type LessonStatus = 'done' | 'current' | 'locked'
+export type DashboardTab = 'study' | 'compete' | 'rankings' | 'profile'
 
-type Lesson = {
-  id: number
-  title: string
-  subtitle: string
-  skill: string
-  status: LessonStatus
-  left: string
-  top: string
+interface SidebarProps {
+  user: AuthUser | null
+  activeTab: DashboardTab
+  onSelectTab: (tab: DashboardTab) => void
+  onLogout: () => void
+  onViewLanding: () => void
 }
 
-const LESSONS: Lesson[] = [
-  { id: 1, title: 'Chào hỏi nhé', subtitle: 'Hello, how are you?', skill: 'Nghe & nói', status: 'done', left: '59%', top: '9.3%' },
-  { id: 2, title: 'Tên mình là…', subtitle: 'My name is An', skill: 'Nghe & nói', status: 'done', left: '70%', top: '20.1%' },
-  { id: 3, title: 'Bạn đến từ đâu?', subtitle: 'Where are you from?', skill: 'Đọc', status: 'done', left: '59%', top: '30.6%' },
-  { id: 4, title: 'Gặp gỡ lần đầu', subtitle: 'Nice to meet you', skill: 'Nghe · nói · viết', status: 'current', left: '47.5%', top: '41.5%' },
-  { id: 5, title: 'Giới thiệu bạn bè', subtitle: 'This is my friend', skill: 'Nói', status: 'locked', left: '59%', top: '52.4%' },
-  { id: 6, title: 'Một ngày của mình', subtitle: 'A day in my life', skill: 'Nghe & đọc', status: 'locked', left: '71%', top: '63.1%' },
-  { id: 7, title: 'Đi đâu cuối tuần?', subtitle: 'Where shall we go?', skill: 'Đọc', status: 'locked', left: '36%', top: '74.8%' },
-  { id: 8, title: 'Bưu thiếp đầu tiên', subtitle: 'Write a postcard', skill: 'Viết', status: 'locked', left: '66%', top: '87.2%' },
-]
+function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding }: SidebarProps) {
+  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
+  const displayName = user?.name || 'An Nguyễn'
+  const streakDays = user?.streak ?? 4
 
-const SKILLS = [
-  { id: 'listen', title: 'Listen', label: 'Nghe', Icon: Headphones, left: '9%', top: '16%', tone: 'coral' },
-  { id: 'speak', title: 'Speak', label: 'Nói', Icon: Microphone, left: '82%', top: '37%', tone: 'blue' },
-  { id: 'read', title: 'Read', label: 'Đọc', Icon: BookOpenText, left: '9%', top: '61%', tone: 'yellow' },
-  { id: 'write', title: 'Write', label: 'Viết', Icon: PencilLine, left: '82%', top: '79%', tone: 'lavender' },
-]
-
-const ROUTE = 'M 360 0 C 360 125 525 105 505 235 C 488 330 320 328 335 455 C 350 560 565 560 518 690 C 500 792 230 770 250 895 C 270 1005 470 965 478 1090 C 480 1140 420 1190 385 1220'
-
-function Sidebar() {
   return (
     <aside className="sidebar">
-      <a className="brand" href="#home" aria-label="EngLearn trang chủ">
-        <span className="brand-mark"><Compass size={24} weight="fill" /></span>
-        <span>eng<span className="brand-accent">learn</span></span>
-      </a>
+      <button className="brand-button" type="button" onClick={onViewLanding} aria-label="Engorace trang chủ">
+        <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
+        <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
+      </button>
 
-      <div className="sidebar-label">KHÔNG GIAN HỌC</div>
+      <div className="sidebar-label">ĐIỀU HƯỚNG</div>
       <nav className="sidebar-nav" aria-label="Điều hướng chính">
-        <a className="nav-item nav-item-active" href="#journey"><MapTrifold size={20} weight="fill" /> <span>Hành trình</span><span className="nav-dot" /></a>
-        <a className="nav-item" href="#skills"><BookOpenText size={20} /> <span>Luyện kỹ năng</span></a>
-        <a className="nav-item" href="#rank"><Trophy size={20} /> <span>Bảng xếp hạng</span></a>
+        <button
+          type="button"
+          className={`nav-item ${activeTab === 'study' ? 'nav-item-active' : ''}`}
+          onClick={() => onSelectTab('study')}
+        >
+          <BookOpenText size={20} weight={activeTab === 'study' ? 'fill' : 'regular'} />
+          <span>Học Tập</span>
+          {activeTab === 'study' && <span className="nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`nav-item ${activeTab === 'compete' ? 'nav-item-active' : ''}`}
+          onClick={() => onSelectTab('compete')}
+        >
+          <Lightning size={20} weight={activeTab === 'compete' ? 'fill' : 'regular'} />
+          <span>Thi Đua</span>
+          {activeTab === 'compete' && <span className="nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`nav-item ${activeTab === 'rankings' ? 'nav-item-active' : ''}`}
+          onClick={() => onSelectTab('rankings')}
+        >
+          <Trophy size={20} weight={activeTab === 'rankings' ? 'fill' : 'regular'} />
+          <span>Bảng Xếp Hạng</span>
+          {activeTab === 'rankings' && <span className="nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`nav-item ${activeTab === 'profile' ? 'nav-item-active' : ''}`}
+          onClick={() => onSelectTab('profile')}
+        >
+          <UserCircle size={20} weight={activeTab === 'profile' ? 'fill' : 'regular'} />
+          <span>Profile</span>
+          {activeTab === 'profile' && <span className="nav-dot" />}
+        </button>
+
+        <button className="nav-item nav-item-action" type="button" onClick={onViewLanding}>
+          <Sparkle size={20} />
+          <span>Trang giới thiệu</span>
+        </button>
       </nav>
 
       <div className="sidebar-spacer" />
+
       <div className="streak-card">
         <span className="streak-icon"><Flame size={19} weight="fill" /></span>
-        <div><strong>4 ngày liên tiếp</strong><small>Giữ nhịp học mỗi ngày nhé!</small></div>
-        <Sparkle className="streak-spark" size={16} weight="fill" />
+        <div>
+          <strong>{streakDays} ngày liên tiếp</strong>
+          <small>Giữ nhịp học mỗi ngày nhé!</small>
+        </div>
       </div>
-      <button className="profile-row" type="button">
-        <span className="avatar">A</span>
-        <span className="profile-copy"><strong>An Nguyễn</strong><small>Người khám phá</small></span>
-        <span className="profile-more" aria-hidden="true">•••</span>
-      </button>
+
+      <div className="profile-container">
+        <div className="profile-row" onClick={() => onSelectTab('profile')} role="button" tabIndex={0}>
+          <span className="avatar">{initial}</span>
+          <span className="profile-copy">
+            <strong>{displayName}</strong>
+            <small>{user?.email || 'Người khám phá'}</small>
+          </span>
+          <button
+            type="button"
+            className="logout-icon-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onLogout()
+            }}
+            title="Đăng xuất"
+            aria-label="Đăng xuất tài khoản"
+          >
+            <SignOut size={18} />
+          </button>
+        </div>
+      </div>
     </aside>
   )
 }
 
-function TopBar() {
+interface TopBarProps {
+  user: AuthUser | null
+  onViewLanding: () => void
+  onOpenProfile: () => void
+}
+
+function TopBar({ user, onViewLanding, onOpenProfile }: TopBarProps) {
+  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
+  const firstName = user?.name ? user.name.trim().split(' ').slice(-1)[0] : 'An'
+  const streak = user?.streak ?? 4
+  const xp = user?.xp ?? 240
+
   return (
     <header className="topbar">
-      <div className="mobile-brand"><span className="brand-mark"><Compass size={22} weight="fill" /></span><strong>eng<span className="brand-accent">learn</span></strong></div>
-      <div className="welcome-copy"><span>Mỗi ngày một bước tiến</span><strong>Chào buổi sáng, An <span aria-hidden="true">✦</span></strong></div>
+      <div className="mobile-brand" onClick={onViewLanding} role="button" tabIndex={0}>
+        <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
+        <strong className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></strong>
+      </div>
+      <div className="welcome-copy">
+        <span>Mỗi ngày một bước tiến</span>
+        <strong>Chào buổi sáng, {firstName} <span aria-hidden="true">✦</span></strong>
+      </div>
       <div className="topbar-stats">
-        <div className="stat-pill streak-pill"><Flame size={18} weight="fill" /><strong>4</strong><span>ngày</span></div>
-        <div className="stat-pill heart-pill"><Heart size={18} weight="fill" /><strong>5</strong></div>
-        <div className="stat-pill xp-pill"><Lightning size={18} weight="fill" /><strong>240 XP</strong></div>
-        <span className="top-avatar">A</span>
+        <div className="stat-pill streak-pill">
+          <Flame size={18} weight="fill" />
+          <strong>{streak}</strong>
+          <span>ngày</span>
+        </div>
+        <div className="stat-pill xp-pill">
+          <Lightning size={18} weight="fill" />
+          <strong>{xp} XP</strong>
+        </div>
+        <button
+          type="button"
+          className="top-avatar"
+          onClick={onOpenProfile}
+          title={user?.name || 'Hồ sơ cá nhân'}
+          aria-label="Xem hồ sơ cá nhân"
+        >
+          {initial}
+        </button>
       </div>
     </header>
   )
 }
 
-function RoadScene() {
+/* ------------------------------------------------------------- */
+/* TAB 1: HỌC TẬP (Study View - Middle Section Ready for Redesign)*/
+/* ------------------------------------------------------------- */
+function StudyView({ user }: { user: AuthUser | null }) {
+  const firstName = user?.name ? user.name.trim().split(' ').slice(-1)[0] : 'An'
+  const [selectedStop, setSelectedStop] = useState(MILESTONES.find((stop) => stop.status === 'current') ?? MILESTONES[0])
+  const completedStops = MILESTONES.filter((stop) => stop.status === 'done').length
+  const skillIcons = { listen: Headphones, speak: Microphone, read: BookOpenText, write: PencilLine, mixed: Sparkle }
+  const SelectedIcon = skillIcons[selectedStop.skillType]
+
   return (
-    <svg className="road-art" viewBox="0 0 720 1240" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M 0 730 C 140 690 185 785 318 733 S 530 718 720 765" className="river" />
-      <path d="M 0 755 C 145 715 190 810 320 758 S 530 743 720 790" className="river-ripple" />
-      <path d={ROUTE} className="road-shadow" />
-      <path d={ROUTE} className="road-edge" />
-      <path d={ROUTE} className="road-bed" />
-      <path d="M 335 455 C 350 560 565 560 538 660" className="bridge-deck" />
-      <path d="M 335 455 C 350 560 565 560 538 660" className="bridge-line" />
-      <path d={ROUTE} className="road-center" />
-      <path d="M 35 950 C 115 935 160 978 226 984" className="trail" />
-    </svg>
+    <div className="tab-view-container">
+      <section className="study-intro">
+        <div className="study-intro-copy">
+          <span className="page-eyebrow">NHẬT KÝ HÀNH TRÌNH</span>
+          <h1>Chào {firstName},<br /><span>mình đi tiếp nhé.</span></h1>
+          <p>Mỗi chặng là một tình huống tiếng Anh bạn có thể dùng ngay ngoài đời.</p>
+          <div className="study-quick-stats" aria-label="Tiến độ học tập">
+            <span><strong>{completedStops}/{MILESTONES.length}</strong> chặng đã hoàn thành</span>
+            <span className="study-stat-divider" />
+            <span><strong>{user?.streak ?? 4} ngày</strong> giữ nhịp</span>
+            <span className="study-stat-divider" />
+            <span><strong>{user?.xp ?? 240} XP</strong> tích lũy</span>
+          </div>
+        </div>
+        <div className="study-postcard" aria-hidden="true">
+          <div className="postcard-sun" />
+          <div className="postcard-hill postcard-hill-back" />
+          <div className="postcard-hill postcard-hill-front" />
+          <div className="postcard-route" />
+          <img src="/car.png" alt="" />
+          <span>ĐƯỜNG ĐANG MỞ</span>
+        </div>
+      </section>
+
+      <section className="journey-section" aria-labelledby="journey-title">
+        <div className="journey-section-heading">
+          <div>
+            <span className="section-kicker">BẢN ĐỒ CỦA BẠN</span>
+            <h2 id="journey-title">Từng chặng, từng bước tiến.</h2>
+          </div>
+          <span className="journey-progress-note">{completedStops} chặng đã hoàn thành</span>
+        </div>
+        <div className="journey-layout">
+          <div className="journey-map" aria-label="Bản đồ tám chặng học tiếng Anh">
+            <div className="map-sky-label map-sky-label-top"><MapPin size={15} weight="fill" /> BẮT ĐẦU TỪ ĐÂY</div>
+            <div className="map-landmark map-landmark-one">ĐỒI THÔNG</div>
+            <div className="map-landmark map-landmark-two">BỜ SÔNG</div>
+            <div className="journey-route" aria-hidden="true" />
+            {MILESTONES.map((stop) => {
+              const Icon = skillIcons[stop.skillType]
+              const isSelected = selectedStop.id === stop.id
+              const stopClass = 'journey-stop journey-stop-' + stop.status + (isSelected ? ' journey-stop-selected' : '')
+              return (
+                <button
+                  type="button"
+                  key={stop.id}
+                  className={stopClass}
+                  style={{ left: (stop.roadX / 720) * 100 + '%', top: (stop.roadY / 1240) * 100 + '%' }}
+                  onClick={() => setSelectedStop(stop)}
+                  aria-pressed={isSelected}
+                  aria-label={'Chặng ' + stop.id + ': ' + stop.title + (stop.status === 'locked' ? ', đang khóa' : '')}
+                >
+                  <span className="stop-marker">
+                    {stop.status === 'locked' ? <LockSimple size={17} weight="fill" /> : <Icon size={19} weight="fill" />}
+                  </span>
+                  <span className="stop-number">{String(stop.id).padStart(2, '0')}</span>
+                </button>
+              )
+            })}
+            <div className="map-sky-label map-sky-label-bottom">ĐÍCH ĐẾN TIẾP THEO <ArrowRight size={14} /></div>
+            <div className="map-legend"><span><i className="legend-done" /> Đã đi qua</span><span><i className="legend-current" /> Chặng hiện tại</span><span><i className="legend-locked" /> Sắp mở</span></div>
+          </div>
+
+          <aside className="stop-detail" aria-live="polite">
+            <div className="stop-detail-art">
+              <span className="stop-detail-index">CHẶNG {String(selectedStop.id).padStart(2, '0')}</span>
+              <span className="stop-detail-icon">{selectedStop.status === 'locked' ? <LockSimple size={28} weight="fill" /> : <SelectedIcon size={29} weight="fill" />}</span>
+              <span className="stop-detail-terrain">{selectedStop.terrainName}</span>
+            </div>
+            <div className="stop-detail-content">
+              <span className={'stop-status-label status-' + selectedStop.status}>
+                {selectedStop.status === 'done' ? 'ĐÃ HOÀN THÀNH' : selectedStop.status === 'current' ? 'CHẶNG ĐANG MỞ' : 'CHẶNG ĐANG KHÓA'}
+              </span>
+              <h3>{selectedStop.title}</h3>
+              <p className="stop-detail-english">{selectedStop.subtitle}</p>
+              <div className="stop-detail-rule" />
+              <div className="stop-detail-skill"><span>KỸ NĂNG</span><strong>{selectedStop.skill}</strong></div>
+              <div className="stop-learning-note" role="status">
+                <Compass size={16} weight="fill" />
+                <span>{selectedStop.status === 'locked' ? 'Hoàn thành chặng đang mở để khám phá đoạn đường này.' : 'Nội dung bài luyện tập của chặng này sẽ có tại đây.'}</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="skills-ribbon" aria-label="Bốn kỹ năng trong hành trình">
+        <div><Headphones size={19} weight="fill" /><span>Nghe</span></div>
+        <div><Microphone size={19} weight="fill" /><span>Nói</span></div>
+        <div><BookOpenText size={19} weight="fill" /><span>Đọc</span></div>
+        <div><PencilLine size={19} weight="fill" /><span>Viết</span></div>
+        <p>Học tiếng Anh qua tình huống thật, theo nhịp của riêng bạn.</p>
+      </section>
+    </div>
   )
 }
+/* TAB 2: THI ĐUA (Compete / Arena View)                         */
+/* ------------------------------------------------------------- */
+function CompeteView() {
+  const challenges = [
+    {
+      title: 'Thử Thách Phản Xạ 60 Giây',
+      category: 'Tốc độ phản xạ',
+      reward: '+30 XP',
+      players: '840 người đang chơi',
+      color: 'arena-orange',
+      icon: Lightning,
+    },
+    {
+      title: 'Đấu Trường 1v1 Trực Tuyến',
+      category: 'Đối kháng trực tiếp',
+      reward: '+50 XP',
+      players: '312 người đang chờ',
+      color: 'arena-blue',
+      icon: Trophy,
+    },
+    {
+      title: 'Giải Đua Tốc Độ Cuối Tuần',
+      category: 'Sự kiện giải đấu',
+      reward: '+100 XP',
+      players: 'Khởi tranh sau 2 ngày',
+      color: 'arena-purple',
+      icon: Medal,
+    },
+  ]
 
-function RoadMap({ selectedId, onSelect, driving }: { selectedId: number; onSelect: (lesson: Lesson) => void; driving: boolean }) {
   return (
-    <section className="map-card" id="journey" aria-labelledby="map-title">
-      <div className="map-heading">
+    <div className="tab-view-container">
+      <div className="page-heading">
         <div>
-          <span className="stage-chip"><span className="stage-chip-dot" /> STAGE 01 <span className="stage-chip-divider">/</span> CHẶNG ĐANG HỌC</span>
-          <h2 id="map-title">Thị trấn lời chào</h2>
-          <p>8 điểm dừng để bắt đầu nói tiếng Anh tự tin.</p>
+          <span className="page-eyebrow">ĐẤU TRƯỜNG THI ĐUA</span>
+          <h1>So tài & Thử thách phản xạ</h1>
+          <p>Tranh tài cùng cộng đồng học viên để kiểm tra phản xạ và bứt phá điểm số.</p>
         </div>
-        <div className="stage-completion"><span><strong>3</strong> / 8 bài</span><div className="stage-track"><i /></div></div>
       </div>
 
-      <div className="map-world">
-        <div className="biome biome-hills" aria-hidden="true" />
-        <div className="biome biome-meadow" aria-hidden="true" />
-        <div className="biome biome-river" aria-hidden="true" />
-        <div className="biome biome-grove" aria-hidden="true" />
-        <span className="map-sun" aria-hidden="true" />
-        <span className="landmark landmark-hill"><TreeEvergreen size={31} weight="fill" /><small>Đồi từ vựng</small></span>
-        <span className="landmark landmark-river"><span className="landmark-bridge" /><small>Cầu phát âm</small></span>
-        <span className="landmark landmark-grove"><TreeEvergreen size={30} weight="fill" /><small>Rừng câu chuyện</small></span>
-        <RoadScene />
-
-        <div className="route-start"><span><FlagPennant size={18} weight="fill" /></span><small>Xuất phát</small></div>
-
-        {SKILLS.map(({ id, title, label, Icon, left, top, tone }) => (
-          <div className={`skill-sign skill-sign-${tone}`} key={id} style={{ left, top }} title={`${title} • ${label}`}>
-            <span className="sign-board"><Icon size={20} weight="fill" /><span className="sign-english">{title}</span><span className="sign-vietnamese">{label}</span></span>
-            <span className="sign-post" />
-          </div>
-        ))}
-
-        {LESSONS.map((lesson) => {
-          const isSelected = selectedId === lesson.id
-          const isLocked = lesson.status === 'locked'
+      <div className="arena-grid">
+        {challenges.map((item, idx) => {
+          const Icon = item.icon
           return (
-            <div key={lesson.id} className={`lesson-stop lesson-stop-${lesson.status}${isSelected ? ' lesson-stop-selected' : ''}`} style={{ left: lesson.left, top: lesson.top }}>
-              <button
-                className="lesson-marker"
-                type="button"
-                onClick={() => !isLocked && onSelect(lesson)}
-                disabled={isLocked}
-                aria-label={`${isLocked ? 'Bài đang khóa' : 'Chọn bài'} ${lesson.id}: ${lesson.title}`}
-                aria-current={lesson.status === 'current' ? 'step' : undefined}
-                title={isLocked ? 'Hoàn thành bài trước để mở khóa' : lesson.title}
-              >
-                {lesson.status === 'done' && <Check size={21} weight="bold" />}
-                {lesson.status === 'current' && <span className={`vehicle${driving ? ' vehicle-driving' : ''}`}><span className="vehicle-glow" /><span className="vehicle-body"><CarProfile size={22} weight="fill" /></span></span>}
-                {lesson.status === 'locked' && <LockKey size={17} weight="fill" />}
+            <div key={idx} className={`arena-card ${item.color}`}>
+              <div className="arena-card-top">
+                <span className="arena-icon-box">
+                  <Icon size={26} weight="fill" />
+                </span>
+                <span className="arena-reward-tag">{item.reward}</span>
+              </div>
+              <h3>{item.title}</h3>
+              <small>{item.category}</small>
+              <div className="arena-status-row">
+                <span className="status-live-dot" />
+                <span>{item.players}</span>
+              </div>
+              <button type="button" className="arena-play-btn">
+                <Play size={16} weight="fill" />
+                <span>Bắt đầu ngay</span>
               </button>
-              <span className="stop-number">{String(lesson.id).padStart(2, '0')}</span>
-              {isSelected && <span className="current-tag">BẠN ĐANG Ở ĐÂY</span>}
             </div>
           )
         })}
-
-        <div className="route-finish"><span><FlagPennant size={16} weight="fill" /></span><small>Đích đến</small></div>
-        <div className="map-caption"><span className="caption-dot" /> Đường học của An <span className="caption-divider">·</span> 3 điểm đã qua</div>
       </div>
-    </section>
+    </div>
   )
 }
 
-function LessonPanel({ lesson, onContinue, driving }: { lesson: Lesson; onContinue: () => void; driving: boolean }) {
-  const activeLesson = lesson.status === 'current'
-  const completed = lesson.status === 'done'
+/* ------------------------------------------------------------- */
+/* TAB 3: BẢNG XẾP HẠNG (Leaderboard / Rankings View)            */
+/* ------------------------------------------------------------- */
+function RankingsView({ user }: { user: AuthUser | null }) {
+  const currentName = user?.name || 'An Nguyễn'
+
+  const leaderboard = [
+    { rank: 1, name: 'Minh Triết', streak: 42, xp: 1250, badge: '🥇 Vàng' },
+    { rank: 2, name: 'Thu Thảo', streak: 31, xp: 980, badge: '🥈 Bạc' },
+    { rank: 3, name: 'Hoàng Nam', streak: 28, xp: 840, badge: '🥉 Đồng' },
+    { rank: 4, name: currentName, streak: user?.streak ?? 4, xp: user?.xp ?? 240, isMe: true },
+    { rank: 5, name: 'Hải Đăng', streak: 12, xp: 210 },
+    { rank: 6, name: 'Bảo Ngọc', streak: 9, xp: 190 },
+    { rank: 7, name: 'Thanh Hằng', streak: 7, xp: 160 },
+  ]
+
   return (
-    <aside className="lesson-panel" id="skills">
-      <div className="panel-label"><span className="panel-label-icon"><Sparkle size={15} weight="fill" /></span> ĐIỂM DỪNG TIẾP THEO</div>
-      <div className="lesson-illustration">
-        <span className="illustration-sun" />
-        <span className="illustration-cloud illustration-cloud-one" />
-        <span className="illustration-cloud illustration-cloud-two" />
-        <span className="illustration-road" />
-        <span className="illustration-sign sign-one"><Headphones size={16} weight="fill" /></span>
-        <span className="illustration-sign sign-two"><BookOpenText size={15} weight="fill" /></span>
-        <span className="illustration-car"><CarProfile size={25} weight="fill" /></span>
-        <span className="illustration-flower flower-one" /><span className="illustration-flower flower-two" />
-        <span className="illustration-label">SẮP TỚI RỒI!</span>
+    <div className="tab-view-container">
+      <div className="page-heading">
+        <div>
+          <span className="page-eyebrow">BẢNG XẾP HẠNG TUẦN</span>
+          <h1>Giải Đấu Bạc • Bảng 12</h1>
+          <p>Top 10 học viên có điểm XP cao nhất sẽ thăng hạng vào Chủ Nhật tuần này.</p>
+        </div>
       </div>
 
-      <span className="lesson-kicker">BÀI {String(lesson.id).padStart(2, '0')} <span>•</span> {lesson.skill.toUpperCase()}</span>
-      <h3>{lesson.title}</h3>
-      <p className="lesson-subtitle">{lesson.subtitle}</p>
-      <div className="lesson-detail-row"><span className="detail-icon"><BookOpenText size={17} weight="fill" /></span><span>6 hoạt động nhỏ</span><span className="detail-dot">·</span><span>Khoảng 8 phút</span></div>
+      <div className="leaderboard-card">
+        <div className="leaderboard-table-header">
+          <span className="col-rank">Thứ hạng</span>
+          <span className="col-user">Học viên</span>
+          <span className="col-streak">Chuỗi ngày</span>
+          <span className="col-xp">Điểm XP</span>
+        </div>
 
-      <div className="lesson-progress-label"><span>Tiến độ chặng</span><strong>3 / 8</strong></div>
-      <div className="lesson-progress-track"><span /></div>
-      <div className="panel-checklist">
-        <span className="checklist-item checklist-done"><CheckCircle size={18} weight="fill" /> Từ vựng chào hỏi</span>
-        <span className="checklist-item checklist-done"><CheckCircle size={18} weight="fill" /> Làm quen câu đơn</span>
-        <span className={`checklist-item${activeLesson ? ' checklist-current' : ''}`}><span className="checklist-ring" /> Gặp gỡ lần đầu</span>
+        <div className="leaderboard-rows">
+          {leaderboard.map((item) => (
+            <div
+              key={item.rank}
+              className={`leaderboard-row ${item.isMe ? 'leaderboard-row-me' : ''}`}
+            >
+              <div className="col-rank">
+                {item.rank === 1 && <span className="rank-badge rank-1">1</span>}
+                {item.rank === 2 && <span className="rank-badge rank-2">2</span>}
+                {item.rank === 3 && <span className="rank-badge rank-3">3</span>}
+                {item.rank > 3 && <span className="rank-num">#{item.rank}</span>}
+              </div>
+              <div className="col-user">
+                <span className="table-avatar">{item.name[0]}</span>
+                <div>
+                  <strong>{item.name}</strong>
+                  {item.isMe && <span className="me-badge">Bạn</span>}
+                </div>
+              </div>
+              <div className="col-streak">
+                <Flame size={15} weight="fill" className="text-orange-500" />
+                <span>{item.streak} ngày</span>
+              </div>
+              <div className="col-xp">
+                <strong>{item.xp} XP</strong>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-
-      <button className={`continue-button${driving ? ' continue-button-active' : ''}`} type="button" onClick={onContinue}>
-        <span>{driving ? 'Đang trên đường!' : completed ? 'Ôn lại bài này' : 'Tiếp tục hành trình'}</span>
-        <span className="button-play"><Play size={15} weight="fill" /></span>
-      </button>
-      <div className="panel-footnote"><LockKey size={13} weight="fill" /> Hoàn thành bài này để mở chặng tiếp</div>
-    </aside>
+    </div>
   )
 }
 
-function App() {
-  const [selectedLesson, setSelectedLesson] = useState(LESSONS[3])
-  const [driving, setDriving] = useState(false)
+/* ------------------------------------------------------------- */
+/* TAB 4: PROFILE (User Profile & Account Settings View)         */
+/* ------------------------------------------------------------- */
+function ProfileView({ user, onLogout }: { user: AuthUser | null; onLogout: () => void }) {
+  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
+  const displayName = user?.name || 'An Nguyễn'
+  const email = user?.email || 'an.nguyen@example.com'
+  const streak = user?.streak ?? 4
+  const xp = user?.xp ?? 240
 
-  function handleContinue() {
-    setDriving(true)
-    window.setTimeout(() => setDriving(false), 2100)
+  return (
+    <div className="tab-view-container">
+      <div className="page-heading">
+        <div>
+          <span className="page-eyebrow">HỒ SƠ CÁ NHÂN</span>
+          <h1>Quản lý tài khoản & Tiến độ</h1>
+          <p>Xem tổng quan hành trình học tập và cài đặt cá nhân của bạn.</p>
+        </div>
+      </div>
+
+      <div className="profile-dashboard-grid">
+        {/* User Card */}
+        <div className="profile-main-card">
+          <div className="profile-hero-banner">
+            <span className="profile-large-avatar">{initial}</span>
+            <div className="profile-hero-info">
+              <h2>{displayName}</h2>
+              <p>{email}</p>
+              <span className="role-tag">
+                <ShieldCheck size={16} weight="fill" /> Học viên tích cực
+              </span>
+            </div>
+          </div>
+
+          <div className="profile-stats-grid">
+            <div className="p-stat-box">
+              <span className="p-stat-icon text-orange-500"><Flame size={24} weight="fill" /></span>
+              <strong>{streak} ngày</strong>
+              <small>Chuỗi ngày bền bỉ</small>
+            </div>
+            <div className="p-stat-box">
+              <span className="p-stat-icon text-cyan-600"><Lightning size={24} weight="fill" /></span>
+              <strong>{xp} XP</strong>
+              <small>Tổng điểm kinh nghiệm</small>
+            </div>
+            <div className="p-stat-box">
+              <span className="p-stat-icon text-emerald-600"><CheckCircle size={24} weight="fill" /></span>
+              <strong>12 bài</strong>
+              <small>Bài học hoàn thành</small>
+            </div>
+            <div className="p-stat-box">
+              <span className="p-stat-icon text-purple-600"><Medal size={24} weight="fill" /></span>
+              <strong>Hạng 4</strong>
+              <small>Giải đấu Bạc tuần này</small>
+            </div>
+          </div>
+        </div>
+
+        {/* Account Settings Card */}
+        <div className="profile-settings-card">
+          <h3>Tùy chọn tài khoản</h3>
+          <ul className="settings-list">
+            <li>
+              <button type="button" className="setting-btn">
+                <Gear size={18} />
+                <span>Cài đặt thông báo & Nhắc nhở</span>
+                <ArrowRight size={16} />
+              </button>
+            </li>
+            <li>
+              <button type="button" className="setting-btn">
+                <UserCircle size={18} />
+                <span>Chỉnh sửa thông tin cá nhân</span>
+                <ArrowRight size={16} />
+              </button>
+            </li>
+          </ul>
+
+          <div className="settings-divider" />
+
+          <button type="button" className="profile-logout-btn" onClick={onLogout}>
+            <SignOut size={18} />
+            <span>Đăng xuất khỏi tài khoản</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------- */
+/* MAIN APP COMPONENT                                            */
+/* ------------------------------------------------------------- */
+function App() {
+  const { user, isAuthenticated, logout } = useAuth()
+  const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
+  const [activeTab, setActiveTab] = useState<DashboardTab>('study')
+
+  // Screen selection
+  const currentView = (() => {
+    if (userNavigatedToLanding) {
+      return 'landing'
+    }
+    return isAuthenticated ? 'dashboard' : 'landing'
+  })()
+
+  function handleLogout() {
+    logout()
+    setUserNavigatedToLanding(true)
+  }
+
+  if (currentView === 'landing') {
+    return (
+      <LandingPage
+        onEnterDashboard={() => setUserNavigatedToLanding(false)}
+      />
+    )
   }
 
   return (
     <div className="app-shell" id="home">
-      <Sidebar />
+      <Sidebar
+        user={user}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onLogout={handleLogout}
+        onViewLanding={() => setUserNavigatedToLanding(true)}
+      />
       <div className="app-main">
-        <TopBar />
+        <TopBar
+          user={user}
+          onViewLanding={() => setUserNavigatedToLanding(true)}
+          onOpenProfile={() => setActiveTab('profile')}
+        />
         <main className="learning-page">
-          <div className="page-heading">
-            <div><span className="page-eyebrow">HÀNH TRÌNH CỦA BẠN</span><h1>Mỗi ngày, đi thêm một chút.</h1><p>Chọn một điểm dừng trên đường và bắt đầu học nhé.</p></div>
-            <div className="map-legend"><span className="legend-current"><i /> Bạn đang ở đây</span><span><i /> Bài đã hoàn thành</span></div>
-          </div>
-          <div className="learning-layout">
-            <RoadMap selectedId={selectedLesson.id} onSelect={setSelectedLesson} driving={driving} />
-            <LessonPanel lesson={selectedLesson} onContinue={handleContinue} driving={driving} />
-          </div>
-          <footer className="page-footer" id="rank"><span>Học một chút, xa thêm một đoạn.</span><span><Heart size={14} weight="fill" /> Chúc bạn học vui!</span></footer>
+          {activeTab === 'study' && <StudyView user={user} />}
+          {activeTab === 'compete' && <CompeteView />}
+          {activeTab === 'rankings' && <RankingsView user={user} />}
+          {activeTab === 'profile' && <ProfileView user={user} onLogout={handleLogout} />}
+
+          <footer className="page-footer">
+            <span>Engorace · Học một chút, xa thêm một đoạn.</span>
+            <span>Chúc bạn học vui mỗi ngày!</span>
+          </footer>
         </main>
       </div>
+
       <nav className="mobile-nav" aria-label="Điều hướng trên điện thoại">
-        <a className="mobile-nav-active" href="#journey"><MapTrifold size={21} weight="fill" /><span>Hành trình</span></a>
-        <a href="#skills"><BookOpenText size={21} /><span>Kỹ năng</span></a>
-        <a href="#rank"><Trophy size={21} /><span>Xếp hạng</span></a>
-        <a href="#home"><House size={21} /><span>Cá nhân</span></a>
+        <button
+          type="button"
+          className={activeTab === 'study' ? 'mobile-nav-active' : ''}
+          onClick={() => setActiveTab('study')}
+        >
+          <BookOpenText size={21} weight={activeTab === 'study' ? 'fill' : 'regular'} />
+          <span>Học Tập</span>
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'compete' ? 'mobile-nav-active' : ''}
+          onClick={() => setActiveTab('compete')}
+        >
+          <Lightning size={21} weight={activeTab === 'compete' ? 'fill' : 'regular'} />
+          <span>Thi Đua</span>
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'rankings' ? 'mobile-nav-active' : ''}
+          onClick={() => setActiveTab('rankings')}
+        >
+          <Trophy size={21} weight={activeTab === 'rankings' ? 'fill' : 'regular'} />
+          <span>Xếp Hạng</span>
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'profile' ? 'mobile-nav-active' : ''}
+          onClick={() => setActiveTab('profile')}
+        >
+          <UserCircle size={21} weight={activeTab === 'profile' ? 'fill' : 'regular'} />
+          <span>Profile</span>
+        </button>
+        <button
+          type="button"
+          className="mobile-nav-btn"
+          onClick={() => setUserNavigatedToLanding(true)}
+        >
+          <House size={21} />
+          <span>Trang chủ</span>
+        </button>
       </nav>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   ActivityIndicator,
@@ -13,16 +13,24 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type ScrollViewInstance,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import Svg, { Path } from 'react-native-svg';
 import Colors from '@/constants/Colors';
-import FlagMarker from '@/components/map/FlagMarker';
+import FlagMarker, { getFlagPalette, FLAG_WIDTH } from '@/components/map/FlagMarker';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
+
+
+
+
+
+
 
 const NODE_SIZE = 76;
 const NODE_ROW_HEIGHT = 142;
@@ -36,22 +44,41 @@ const CAR_SIZE = 92;
 const CAR_WIDTH = 58;
 const CAR_DRIVE_MS_PER_LESSON = 1500;
 const CAR_DRIVE_MAX_MS = 8000;
-const SEGMENT_DONE = '#11b9cf';
+const CARD_INK = '#102027';
 
 const BRAND_SYMBOL = { ios: 'character.bubble.fill', android: 'translate', web: 'translate' } as const;
-const CHEVRON_SYMBOL = { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' } as const;
 
-// Stage titles read like "A1 Beginner Basics": the CEFR code becomes the badge, the next word the band.
-function parseLevel(stageTitle: string) {
-  const match = /^([A-C]\d)\s+(\S+)/.exec(stageTitle.trim());
-  return match ? { code: match[1], band: match[2] } : { code: '··', band: stageTitle };
+function luminance(hex: string): number {
+  const channels = hex.slice(1).match(/../g)?.map((channel) => parseInt(channel, 16) / 255) ?? [0, 0, 0];
+  const [red, green, blue] = channels.map((channel) => (
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  ));
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function colorWithAlpha(hex: string, alpha: number): string {
+  const channels = hex.slice(1).match(/../g)?.map((channel) => parseInt(channel, 16)) ?? [0, 0, 0];
+  return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${alpha})`;
+}
+
+function readableInk(background: string): string {
+  const whiteContrast = 1.05 / (luminance(background) + 0.05);
+  const darkContrast = (luminance(background) + 0.05) / (luminance(CARD_INK) + 0.05);
+  return whiteContrast >= darkContrast ? '#FFFFFF' : CARD_INK;
+}
+
+function colorStopPair(colors: string[], fallback: string): string[] {
+  if (colors.length < 2) {
+    const color = colors[0] ?? fallback;
+    return [color, color];
+  }
+  return colors;
 }
 
 interface LessonNode {
   key: string;
   lesson: Lesson;
   stageIndex: number;
-  stageTitle: string;
   isFirstOfStage: boolean;
   rowHeight: number;
   nodeTopInRow: number;
@@ -69,18 +96,20 @@ export default function LearningPathScreen() {
   const hasPositionedCar = useRef(false);
   const lastCarTarget = useRef<number | null>(null);
   const hasCenteredMap = useRef(false);
+  const stageTrackingReadyAt = useRef(0);
   const pathScrollRef = useRef<ScrollViewInstance | null>(null);
+  const stageColor = useRef(new Animated.Value(0)).current;
+  const lastAnimatedStage = useRef<number | null>(null);
 
   const [progressData, setProgressData] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
-  const [unitExpanded, setUnitExpanded] = useState(false);
+  const [visibleStageIndex, setVisibleStageIndex] = useState<number | null>(null);
   const [selectedFlag, setSelectedFlag] = useState<{
     lesson: Lesson;
     stageIndex: number;
-    stageTitle: string;
   } | null>(null);
   const selectedFlagRef = useRef(selectedFlag);
   const sheetRef = useRef<never>(null);
@@ -92,7 +121,6 @@ export default function LearningPathScreen() {
   function setSheetFlag(value: {
     lesson: Lesson;
     stageIndex: number;
-    stageTitle: string;
   } | null) {
     selectedFlagRef.current = value;
     setSelectedFlag(value);
@@ -155,7 +183,7 @@ export default function LearningPathScreen() {
     setSheetFlag(
       current?.lesson.id === node.lesson.id
         ? null
-        : { lesson: node.lesson, stageIndex: node.stageIndex, stageTitle: node.stageTitle },
+        : { lesson: node.lesson, stageIndex: node.stageIndex },
     );
   }
 
@@ -188,16 +216,96 @@ export default function LearningPathScreen() {
     ? stageProgress.findIndex((item) => item.stage.lessons.some((lesson) => lesson.id === currentLesson.id))
     : -1;
   const currentStage = currentStageIndex >= 0 ? stageProgress[currentStageIndex] : null;
-  const currentStageLessonIndex = currentStage && currentLesson
-    ? currentStage.stage.lessons.findIndex((lesson) => lesson.id === currentLesson.id)
+  const bannerStageIndex = visibleStageIndex !== null && stageProgress[visibleStageIndex]
+    ? visibleStageIndex
+    : currentStageIndex;
+  const bannerStage = stageProgress[bannerStageIndex] ?? currentStage;
+  const firstIncompleteBannerLessonIndex = bannerStage
+    ? bannerStage.stage.lessons.findIndex((lesson) => lesson.state.status !== 'completed')
     : -1;
-  const unitLevel = currentStage ? parseLevel(currentStage.stage.title) : null;
+  const bannerLessonIndex = bannerStage
+    ? firstIncompleteBannerLessonIndex >= 0
+      ? firstIncompleteBannerLessonIndex
+      : bannerStage.stage.lessons.length - 1
+    : -1;
+  const bannerLesson = bannerLessonIndex >= 0 ? bannerStage?.stage.lessons[bannerLessonIndex] : null;
+  const stagePalette = getFlagPalette(bannerStage?.stage.lessons[0]?.code);
+  const stageInk = readableInk(stagePalette.main);
+  const stageTrack = colorWithAlpha(stageInk, 0.2);
+
+  const stagePalettes = useMemo(
+    () => (progressData?.stages ?? []).map((stage) => getFlagPalette(stage.lessons[0]?.code)),
+    [progressData],
+  );
+  const stageMainColors = useMemo(
+    () => colorStopPair(stagePalettes.map((palette) => palette.main), '#FF8A5B'),
+    [stagePalettes],
+  );
+  const stageShadeColors = useMemo(
+    () => colorStopPair(stagePalettes.map((palette) => palette.shade), '#D96C3F'),
+    [stagePalettes],
+  );
+  const stageInkColors = useMemo(
+    () => colorStopPair(stageMainColors.map(readableInk), CARD_INK),
+    [stageMainColors],
+  );
+  const stageTrackColors = useMemo(
+    () => colorStopPair(stageInkColors.map((ink) => colorWithAlpha(ink, 0.2)), colorWithAlpha(CARD_INK, 0.2)),
+    [stageInkColors],
+  );
+  const colorInputRange = useMemo(
+    () => stageMainColors.map((_, index) => index),
+    [stageMainColors],
+  );
+  const animatedCardBackground = useMemo(
+    () => stageColor.interpolate({ inputRange: colorInputRange, outputRange: stageMainColors, extrapolate: 'clamp' }),
+    [colorInputRange, stageColor, stageMainColors],
+  );
+  const animatedCardBorder = useMemo(
+    () => stageColor.interpolate({ inputRange: colorInputRange, outputRange: stageShadeColors, extrapolate: 'clamp' }),
+    [colorInputRange, stageColor, stageShadeColors],
+  );
+  const animatedInk = useMemo(
+    () => stageColor.interpolate({ inputRange: colorInputRange, outputRange: stageInkColors, extrapolate: 'clamp' }),
+    [colorInputRange, stageColor, stageInkColors],
+  );
+  const animatedTrack = useMemo(
+    () => stageColor.interpolate({ inputRange: colorInputRange, outputRange: stageTrackColors, extrapolate: 'clamp' }),
+    [colorInputRange, stageColor, stageTrackColors],
+  );
+
+  useLayoutEffect(() => {
+    if (bannerStageIndex < 0 || stagePalettes.length === 0) return;
+    if (lastAnimatedStage.current === null) {
+      stageColor.setValue(bannerStageIndex);
+      lastAnimatedStage.current = bannerStageIndex;
+      return;
+    }
+    if (lastAnimatedStage.current === bannerStageIndex) return;
+
+    lastAnimatedStage.current = bannerStageIndex;
+    stageColor.stopAnimation();
+    Animated.timing(stageColor, {
+      toValue: bannerStageIndex,
+      duration: 420,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [bannerStageIndex, stageColor, stagePalettes.length]);
+
+  const useAnimatedColors = lastAnimatedStage.current !== null;
+  const cardBackground = useAnimatedColors ? animatedCardBackground : stagePalette.main;
+  const cardBorder = useAnimatedColors ? animatedCardBorder : stagePalette.shade;
+  const cardInk = useAnimatedColors ? animatedInk : stageInk;
+  const cardTrack = useAnimatedColors ? animatedTrack : stageTrack;
 
   const lessonNodes: LessonNode[] = [];
+  const stageStartOffsets: number[] = [];
   let mapHeight = 0;
   (progressData?.stages ?? []).forEach((stage, stageIndex) => {
     stage.lessons.forEach((lesson, indexInStage) => {
       const isFirstOfStage = indexInStage === 0;
+      if (isFirstOfStage) stageStartOffsets[stageIndex] = mapHeight;
       const rowHeight = NODE_ROW_HEIGHT + (isFirstOfStage ? STAGE_LABEL_HEIGHT : 0);
       const nodeTopInRow = (isFirstOfStage ? STAGE_LABEL_HEIGHT : 0) + (NODE_ROW_HEIGHT - NODE_SIZE) / 2;
       const nodeIndex = lessonNodes.length;
@@ -205,7 +313,6 @@ export default function LearningPathScreen() {
         key: `${stage.id}-${lesson.id}`,
         lesson,
         stageIndex,
-        stageTitle: stage.title,
         isFirstOfStage,
         rowHeight,
         nodeTopInRow,
@@ -219,7 +326,10 @@ export default function LearningPathScreen() {
   });
 
   const roadWaypoints = lessonNodes.map((node, index) => ({
-    x: routeWidth / 2 + (index % 2 === 0 ? -ROAD_SWING : ROAD_SWING),
+    // Start the journey on the screen axis, then let the road breathe left and right.
+    x: index === 0
+      ? routeWidth / 2
+      : routeWidth / 2 + (index % 2 === 0 ? -ROAD_SWING : ROAD_SWING),
     y: node.centerY,
   }));
   const getRoadCurveControls = (index: number) => {
@@ -275,13 +385,36 @@ export default function LearningPathScreen() {
   lessonNodeTops.current = lessonNodes.map((node) => node.centerY - CAR_SIZE / 2);
   lessonNodesRef.current = lessonNodes;
 
-  function centerMapOnLesson(lessonIndex: number, animated: boolean) {
+  function centerMapOnLesson(lessonIndex: number, animated: boolean): boolean {
     const targetTop = lessonNodeTops.current[lessonIndex];
-    if (targetTop === undefined || scrollViewportHeight === 0) return;
-    pathScrollRef.current?.scrollTo({
-      y: Math.max(0, pathOffset.current + targetTop + CAR_SIZE / 2 - scrollViewportHeight / 2),
+    if (targetTop === undefined || scrollViewportHeight === 0 || !pathScrollRef.current) return false;
+    const maxScrollY = Math.max(0, mapHeight + 44 - scrollViewportHeight);
+    const targetY = Math.min(
+      maxScrollY,
+      Math.max(0, pathOffset.current + targetTop + CAR_SIZE / 2 - scrollViewportHeight / 2),
+    );
+    pathScrollRef.current.scrollTo({
+      y: targetY,
       animated,
     });
+    return true;
+  }
+
+  function handleMapScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    // Ignore the initial top-of-map event; the focus pass centers the current lesson first.
+    if (!hasCenteredMap.current) return;
+    // Keep the banner on the learner's current stage while the initial jump into place settles.
+    if (stageTrackingReadyAt.current > 0) {
+      if (Date.now() < stageTrackingReadyAt.current) return;
+      stageTrackingReadyAt.current = 0;
+    }
+    const scrollY = event.nativeEvent.contentOffset.y;
+    const probeY = scrollY + 24;
+    let nextStageIndex = 0;
+    stageStartOffsets.forEach((startY, index) => {
+      if (probeY >= startY) nextStageIndex = index;
+    });
+    setVisibleStageIndex((current) => (current === nextStageIndex ? current : nextStageIndex));
   }
 
   useEffect(() => {
@@ -311,7 +444,6 @@ export default function LearningPathScreen() {
       setSheetFlag({
         lesson: arrivedNode.lesson,
         stageIndex: arrivedNode.stageIndex,
-        stageTitle: arrivedNode.stageTitle,
       });
     });
     lastCarTarget.current = currentLessonIndex;
@@ -322,8 +454,11 @@ export default function LearningPathScreen() {
   useFocusEffect(useCallback(() => {
     if (totalLessons === 0 || currentLessonIndex < 0) return;
     const timer = setTimeout(() => {
-      centerMapOnLesson(currentLessonIndex, hasCenteredMap.current);
+      const wasCentered = hasCenteredMap.current;
+      const centered = centerMapOnLesson(currentLessonIndex, wasCentered);
+      if (!centered) return;
       hasCenteredMap.current = true;
+      if (!wasCentered) stageTrackingReadyAt.current = Date.now() + 320;
     }, 60);
     return () => clearTimeout(timer);
   }, [currentLessonIndex, scrollViewportHeight, totalLessons]));
@@ -355,10 +490,16 @@ export default function LearningPathScreen() {
       <View style={[styles.fixedTop, { backgroundColor: colors.background }]}>
         <View style={styles.journeyHeader}>
           <View style={styles.brandGroup}>
-            <View style={[styles.brandMark, { backgroundColor: theme === 'dark' ? '#12333B' : Colors.primarySoft }]}>
-              <SymbolView name={BRAND_SYMBOL} tintColor={colors.tint} size={19} />
-            </View>
-            <Text style={[styles.brandTitle, { color: colors.text }]}>lingua</Text>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={styles.brandLogoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.brandTitle}>
+              <Text style={{ color: '#00C7FF' }}>Eng</Text>
+              <Text style={{ color: '#7CCB86' }}>o</Text>
+              <Text style={{ color: '#F59E0B' }}>race</Text>
+            </Text>
           </View>
           <View style={styles.headerActions}>
             <View style={[styles.statChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -391,88 +532,52 @@ export default function LearningPathScreen() {
         )}
 
         {!loading && progressData && currentStage && currentLesson && (
-          <View style={[styles.unitCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setUnitExpanded((expanded) => !expanded)}
-              style={styles.unitCardHead}
-            >
-              <View style={styles.unitLevelBadge}>
-                <Text style={styles.unitLevelText}>{unitLevel?.code}</Text>
-              </View>
+          <Animated.View style={[styles.unitCard, { backgroundColor: cardBackground, borderColor: cardBorder }]}>
+            <View style={styles.unitCardHead}>
               <View style={styles.unitCopy}>
-                <Text numberOfLines={1} style={[styles.unitTitle, { color: colors.text }]}>
-                  {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : currentLesson.title}
-                </Text>
-                <Text numberOfLines={1} style={[styles.unitMeta, { color: colors.textMuted }]}>
-                  {`${unitLevel?.band} · Bài ${currentStageLessonIndex + 1} / ${currentStage.totalLessons}`}
-                </Text>
+                <Animated.Text numberOfLines={1} style={[styles.unitTitle, { color: cardInk }]}>
+                  {activeLessonIndex < 0 ? 'Đã hoàn thành lộ trình' : bannerLesson?.title}
+                </Animated.Text>
+                <Animated.Text numberOfLines={1} style={[styles.unitMeta, { color: cardInk }]}>
+                  {`Bài ${bannerLessonIndex + 1} / ${bannerStage?.totalLessons ?? 0}`}
+                </Animated.Text>
               </View>
-              <SymbolView
-                name={CHEVRON_SYMBOL}
-                tintColor={colors.textMuted}
-                size={18}
-                style={{ transform: [{ rotate: unitExpanded ? '180deg' : '0deg' }] }}
-              />
-            </Pressable>
-
-            <View style={styles.unitSegments}>
-              {currentStage.stage.lessons.map((lesson, index) => (
-                <View
-                  key={lesson.id}
-                  style={[
-                    styles.unitSegment,
-                    {
-                      backgroundColor: index <= currentStageLessonIndex
-                        ? SEGMENT_DONE
-                        : theme === 'dark' ? '#21262D' : '#DCE7EE',
-                    },
-                  ]}
-                />
-              ))}
             </View>
 
-            {unitExpanded && (
-              <View style={[styles.unitList, { borderTopColor: colors.border }]}>
-                {currentStage.stage.lessons.map((lesson, index) => {
-                  const locked = lesson.state.status === 'locked';
-                  return (
-                    <Pressable
-                      key={lesson.id}
-                      accessibilityRole="button"
-                      disabled={locked}
-                      onPress={() => {
-                        setUnitExpanded(false);
-                        setSheetFlag({
-                          lesson,
-                          stageIndex: currentStageIndex,
-                          stageTitle: currentStage.stage.title,
-                        });
-                      }}
-                      style={styles.unitRow}
+            <View style={styles.unitSegments}>
+              {bannerStage?.stage.lessons.map((lesson, index) => {
+                const isCompleted = index < bannerLessonIndex;
+                const isCurrent = index === bannerLessonIndex;
+                return (
+                  <View key={lesson.id} style={styles.unitPillWrapper}>
+                    <Animated.View
+                      style={[
+                        styles.unitPillTrack,
+                        { backgroundColor: cardTrack },
+                      ]}
                     >
-                      <Text style={styles.unitRowMark}>
-                        {lesson.state.status === 'completed' ? '✓' : locked ? '🔒' : index === currentStageLessonIndex ? '●' : '○'}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.unitRowTitle, { color: locked ? colors.textMuted : colors.text }]}
-                      >
-                        {lesson.title}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        )}
-
-        {!loading && progressData && (
-          <View style={styles.journeyLabelRow}>
-            <View style={styles.journeyLabelDot} />
-            <Text style={[styles.journeyLabel, { color: colors.textMuted }]}>YOUR JOURNEY</Text>
-          </View>
+                      {(isCompleted || isCurrent) && (
+                        <Animated.View
+                          style={[
+                            styles.unitPillFill,
+                            { backgroundColor: cardInk },
+                          ]}
+                        />
+                      )}
+                    </Animated.View>
+                    {isCurrent && (
+                      <Animated.View
+                        style={[
+                          styles.unitPillActiveDot,
+                          { backgroundColor: cardInk },
+                        ]}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </Animated.View>
         )}
 
       </View>
@@ -481,6 +586,11 @@ export default function LearningPathScreen() {
           ref={pathScrollRef}
           style={styles.roadScroll}
           onLayout={(event) => setScrollViewportHeight(event.nativeEvent.layout.height)}
+          onScroll={handleMapScroll}
+          onScrollBeginDrag={() => { stageTrackingReadyAt.current = 0; }}
+          scrollEventThrottle={16}
+          decelerationRate={0.994}
+          removeClippedSubviews={false}
           contentContainerStyle={[styles.journeyScroll, { backgroundColor: colors.background }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -538,9 +648,13 @@ export default function LearningPathScreen() {
                 <View key={node.key} style={[styles.nodeSlot, { height: node.rowHeight }]}>
                   {node.isFirstOfStage && (
                     <Text style={[styles.stageDivider, { color: colors.textMuted }]}>
-                      {`STAGE ${node.stageIndex + 1} · ${node.stageTitle.toUpperCase()}`}
+                      {`CHẶNG ${node.stageIndex + 1}`}
                     </Text>
                   )}
+                  
+
+                  
+
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Bài ${index + 1}, ${node.lesson.title}. ${
@@ -588,9 +702,12 @@ export default function LearningPathScreen() {
           onStartShouldSetResponder={() => true}
           style={[styles.lessonSheet, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}
         >
-          <Text style={[styles.sheetStage, { color: colors.textMuted }]}>
-            {`STAGE ${selectedFlag.stageIndex + 1} · ${selectedFlag.stageTitle.toUpperCase()}`}
-          </Text>
+          <View style={styles.sheetHeaderRow}>
+            <Text style={[styles.sheetStage, { color: colors.textMuted }]}>
+              {`CHẶNG ${selectedFlag.stageIndex + 1}`}
+            </Text>
+            
+          </View>
           <Text numberOfLines={2} style={[styles.sheetTitle, { color: colors.text }]}>
             {selectedFlag.lesson.title}
           </Text>
@@ -658,12 +775,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
-  brandMark: {
+  brandLogoImage: {
     width: 34,
     height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   brandTitle: {
     fontSize: 24,
@@ -728,6 +842,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   unitCard: {
+    marginTop: 10,
     borderRadius: 20,
     borderWidth: 1,
     paddingHorizontal: 14,
@@ -738,19 +853,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  unitLevelBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#11b9cf',
-  },
-  unitLevelText: {
-    color: '#04252b',
-    fontSize: 15,
-    fontWeight: '900',
   },
   unitCopy: {
     flex: 1,
@@ -766,54 +868,40 @@ const styles = StyleSheet.create({
   },
   unitSegments: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 14,
-  },
-  unitSegment: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-  },
-  unitList: {
-    marginTop: 12,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    gap: 2,
-  },
-  unitRow: {
-    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 7,
   },
-  unitRowMark: {
-    width: 18,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  unitRowTitle: {
+  unitPillWrapper: {
     flex: 1,
-    fontSize: 13.5,
-    fontWeight: '700',
-  },
-  journeyLabelRow: {
-    flexDirection: 'row',
+    height: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 7,
-    paddingTop: 14,
-    paddingBottom: 6,
+    position: 'relative',
   },
-  journeyLabelDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#11b9cf',
+  unitPillTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
   },
-  journeyLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.1,
+  unitPillFill: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 3,
+  },
+  unitPillActiveDot: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
   },
   stageMap: {
     position: 'relative',
@@ -886,6 +974,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.6,
+  },
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
   },
   sheetTitle: {
     fontSize: 19,

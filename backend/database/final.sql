@@ -321,7 +321,7 @@ INSERT INTO lessons (stage_id, code, title, topic, sort_order) VALUES
   (6, 's6-academic', 'Từ vựng học thuật cao cấp', 'Academic', 2),
   (6, 's6-grammar', 'Cấu trúc ngữ pháp phức tạp', 'Grammar', 3),
   (6, 's6-rhetoric', 'Nghệ thuật hùng biện & Văn phong', 'Rhetoric', 4),
-  (6, 's6-masterclass', 'Tổng hợp tinh hoa C2', 'Masterclass', 5);
+  (6, 's6-masterclass', 'Tổng hợp tinh hoa', 'Masterclass', 5);
 
 -- ============================================================================
 -- 3. KHỞI TẠO BẢNG TẠM CHO TOÀN BỘ 300 CÂU HỎI (STAGE 1 ĐẾN 6)

@@ -50,7 +50,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
        
-        <Text style={styles.eyebrow}>LINGUA / ENGLISH</Text>
+        <Text style={styles.eyebrow}>ENGORACE / ENGLISH</Text>
 
 
 

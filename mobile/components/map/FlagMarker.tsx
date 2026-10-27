@@ -142,6 +142,17 @@ const DISC_MARKS: Record<'completed' | 'current' | 'locked', Prim[]> = {
   ],
 };
 
+export interface FlagPalette {
+  main: string;
+  shade: string;
+}
+
+export function getFlagPalette(code: string | undefined): FlagPalette {
+  const stageKey = code?.split('-')[0] ?? 's1';
+  const p = PALETTES[stageKey] ?? PALETTES.s1;
+  return { main: p.main, shade: p.shade };
+}
+
 const PALETTES: Record<string, { main: string; shade: string }> = {
   s1: { main: '#FF8A5B', shade: '#D96C3F' },
   s2: { main: '#2FB6C9', shade: '#1E93A6' },

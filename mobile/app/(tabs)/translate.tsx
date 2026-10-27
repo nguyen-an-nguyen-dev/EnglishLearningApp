@@ -329,9 +329,9 @@ function TranslationResultView({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
-  title: { fontSize: 25, fontWeight: '900' },
-  subtitle: { fontSize: 13, marginTop: 4 },
+  header: { alignItems: 'center', paddingHorizontal: 18, paddingTop: 20, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  title: { fontSize: 25, fontWeight: '900', textAlign: 'center' },
+  subtitle: { fontSize: 13, marginTop: 4, textAlign: 'center' },
   tabs: { flexDirection: 'row', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#30363D' },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText: { fontSize: 12, fontWeight: '800' },
