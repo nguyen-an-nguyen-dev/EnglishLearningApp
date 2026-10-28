@@ -2,8 +2,8 @@ import type {
   BattleAnswerResult,
   BattleFinish,
   BattleQuestion,
+  BattleRoundEnd,
   BattleScore,
-  BattleStart,
 } from '@/services/battle';
 
 export interface BattleScreenProps {
@@ -18,11 +18,10 @@ export interface WaitingScreenProps extends BattleScreenProps {
 
 export interface WordBattleScreenProps extends BattleScreenProps {
   currentUserId: number;
-  game: BattleStart;
   question: BattleQuestion | null;
-  answerResult: BattleAnswerResult | null;
+  roundEnd: BattleRoundEnd | null;
+  wrongAnswer: BattleAnswerResult | null;
   scores: BattleScore[];
-  submitted: boolean;
   onSubmit: (answer: string) => void;
 }
 

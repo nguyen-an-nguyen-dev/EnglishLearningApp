@@ -4,7 +4,7 @@ import { Server, type Socket } from 'socket.io';
 import { env } from '../../config/env';
 import { getVerifiedJwtSecret } from '../auth/auth.service';
 import * as repository from './battle.repository';
-import type { BattleQuestion } from './battle.repository';
+import type { BattleWord } from './battle.repository';
 
 type ClientEvents = {
   'match:join': () => void;
@@ -17,7 +17,7 @@ type ServerEvents = {
   'game:start': (payload: GameStartPayload) => void;
   'game:question': (payload: GameQuestionPayload) => void;
   'game:answerResult': (payload: AnswerResultPayload) => void;
-  'game:nextQuestion': (payload: { round: number }) => void;
+  'game:roundEnd': (payload: RoundEndPayload) => void;
   'game:finish': (payload: GameFinishPayload) => void;
   'game:error': (payload: { code: string; message: string }) => void;
 };
@@ -27,7 +27,7 @@ type BattleSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, So
 
 export interface BattleRepository {
   getPlayerName(userId: number): Promise<string | undefined>;
-  getQuestions(): Promise<BattleQuestion[]>;
+  getWords(limit: number, levels: string[]): Promise<BattleWord[]>;
   createMatch(playerOneId: number, playerTwoId: number): Promise<number>;
   recordAnswer(matchId: number, userId: number, round: number, answer: string, isCorrect: boolean, responseTimeMs: number): Promise<void>;
   finishMatch(matchId: number, status: 'completed' | 'cancelled', winnerUserId: number | null): Promise<void>;
@@ -54,13 +54,14 @@ interface Submission {
 interface MatchState {
   id: number;
   players: [Player, Player];
-  questions: BattleQuestion[];
+  words: BattleWord[];
   round: number;
   startedAt: number;
   answers: Map<number, Submission>;
   scores: Map<number, number>;
   status: 'active' | 'completed' | 'cancelled';
   resolving: boolean;
+  timer: NodeJS.Timeout | null;
 }
 
 interface MatchFoundPayload {
@@ -72,22 +73,42 @@ interface GameStartPayload {
   matchId: number;
   players: Array<{ userId: number; name: string }>;
   totalRounds: number;
+  roundDurationMs: number;
 }
 
 interface GameQuestionPayload {
   matchId: number;
   round: number;
-  questionId: number;
-  prompt: string;
   totalRounds: number;
+  wordId: number;
+  translation: string;
+  partOfSpeech: string;
+  cefrLevel: string;
+  explanation: string;
+  example: string;
+  exampleVi: string;
+  letterCount: number;
+  letterHints: Array<{ position: number; letter: string }>;
+  imageUrl: string | null;
+  durationMs: number;
 }
 
 interface AnswerResultPayload {
   matchId: number;
   round: number;
-  roundWinnerUserId: number | null;
-  correct: boolean;
+  correct: false;
   responseTimeMs: number;
+}
+
+interface RoundEndPayload {
+  matchId: number;
+  round: number;
+  totalRounds: number;
+  wordId: number;
+  answer: string;
+  example: string;
+  winnerUserId: number | null;
+  timedOut: boolean;
   scores: Array<{ userId: number; name: string; score: number }>;
 }
 
@@ -100,7 +121,18 @@ interface GameFinishPayload {
   reason?: 'opponent_disconnected' | 'left' | 'server_error';
 }
 
-export const BATTLE_ROUNDS = 20;
+export const BATTLE_ROUNDS = 12;
+export const BATTLE_ROUND_MS = 30_000;
+export const BATTLE_REVEAL_MS = 4_500;
+// Most of a match should stay playable, so ~70% of the words come from the easier bands.
+export const BATTLE_EASY_SHARE = 0.7;
+export const BATTLE_EASY_LEVELS = ['A1', 'A2', 'B1'];
+export const BATTLE_HARD_LEVELS = ['B2', 'C1', 'C2'];
+
+export interface BattleTiming {
+  roundMs: number;
+  revealMs: number;
+}
 
 function normalizeAnswer(answer: string): string {
   return answer
@@ -111,13 +143,35 @@ function normalizeAnswer(answer: string): string {
     .replace(/\s+/g, ' ');
 }
 
-function shuffleQuestions(questions: BattleQuestion[]): BattleQuestion[] {
-  const shuffled = [...questions];
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// The example sentence would give the word away, so every inflected form of it is hidden
+// behind blanks of the same length while the round is still being guessed.
+function maskExample(example: string, word: string): string {
+  const pattern = new RegExp(`\\b${escapeForRegExp(word)}(?:s|es|d|ed|ing|ly|er|ers|est)?\\b`, 'gi');
+  return example.replace(pattern, (match) => '*'.repeat(match.length));
+}
+
+// Hints sit inside the answer tiles: always the first letter, the 5th one from 6 letters,
+// and the last one from 10 letters, so short words still need most of the spelling.
+function letterHints(word: string): Array<{ position: number; letter: string }> {
+  const positions = new Set<number>(word.length > 1 ? [0] : []);
+  if (word.length >= 6) positions.add(4);
+  if (word.length >= 10) positions.add(word.length - 1);
+  return [...positions]
+    .sort((a, b) => a - b)
+    .map((position) => ({ position, letter: word[position] }));
+}
+
+function shuffleWords(words: BattleWord[]): BattleWord[] {
+  const shuffled = [...words];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return shuffled.slice(0, BATTLE_ROUNDS);
+  return shuffled;
 }
 
 function isUserId(value: unknown): value is number {
@@ -127,6 +181,7 @@ function isUserId(value: unknown): value is number {
 export function attachBattleSocket(
   httpServer: HttpServer,
   battleRepository: BattleRepository = repository,
+  timing: BattleTiming = { roundMs: BATTLE_ROUND_MS, revealMs: BATTLE_REVEAL_MS },
 ): Server<ClientEvents, ServerEvents, Record<string, never>, SocketData> {
   const io = new Server<ClientEvents, ServerEvents, Record<string, never>, SocketData>(httpServer, {
     cors: {
@@ -189,6 +244,12 @@ export function attachBattleSocket(
     for (const player of players) activeUsers.delete(player.userId);
   }
 
+  function clearRoundTimer(match: MatchState): void {
+    if (!match.timer) return;
+    clearTimeout(match.timer);
+    match.timer = null;
+  }
+
   async function persistMatchEnd(
     matchId: number,
     status: 'completed' | 'cancelled',
@@ -204,6 +265,7 @@ export function attachBattleSocket(
   ): Promise<void> {
     if (match.status !== 'active') return;
     match.status = 'cancelled';
+    clearRoundTimer(match);
     matches.delete(match.id);
     releasePlayers(match.players);
     for (const player of match.players) matchesBySocket.delete(player.socket.id);
@@ -218,7 +280,7 @@ export function attachBattleSocket(
       status: 'cancelled',
       winnerUserId: null,
       scores: scoresFor(match),
-      totalRounds: match.questions.length,
+      totalRounds: match.words.length,
       reason,
     };
     for (const player of match.players) {
@@ -257,13 +319,22 @@ export function attachBattleSocket(
   }
 
   function questionPayload(match: MatchState): GameQuestionPayload {
-    const question = match.questions[match.round - 1];
+    const word = match.words[match.round - 1];
     return {
       matchId: match.id,
       round: match.round,
-      questionId: question.id,
-      prompt: question.prompt,
-      totalRounds: match.questions.length,
+      totalRounds: match.words.length,
+      wordId: word.id,
+      translation: word.translation,
+      partOfSpeech: word.partOfSpeech,
+      cefrLevel: word.cefrLevel,
+      explanation: word.explanation,
+      example: maskExample(word.exampleEn, word.word),
+      exampleVi: word.exampleVi,
+      letterCount: word.word.length,
+      letterHints: letterHints(word.word),
+      imageUrl: word.imageUrl,
+      durationMs: timing.roundMs,
     };
   }
 
@@ -273,11 +344,25 @@ export function attachBattleSocket(
     match.resolving = false;
     match.startedAt = Date.now();
     const payload = questionPayload(match);
+    match.timer = setTimeout(() => {
+      match.timer = null;
+      expireRound(match);
+    }, timing.roundMs);
     for (const player of match.players) player.socket.emit('game:question', payload);
   }
 
-  async function resolveRound(match: MatchState, roundWinnerUserId: number): Promise<void> {
+  // Nobody guessed in time: the round closes with no winner and the word is revealed anyway.
+  function expireRound(match: MatchState): void {
+    if (match.status !== 'active' || match.resolving) return;
+    match.resolving = true;
+    void resolveRound(match, null);
+  }
+
+  async function resolveRound(match: MatchState, roundWinnerUserId: number | null): Promise<void> {
     if (match.status !== 'active' || !match.resolving) return;
+    clearRoundTimer(match);
+    const timedOut = roundWinnerUserId === null;
+    const word = match.words[match.round - 1];
     for (const player of match.players) {
       if (!match.answers.has(player.userId)) {
         match.answers.set(player.userId, {
@@ -309,22 +394,34 @@ export function attachBattleSocket(
     }
     if (match.status !== 'active') return;
 
-    match.scores.set(roundWinnerUserId, (match.scores.get(roundWinnerUserId) ?? 0) + 1);
-
-    for (const player of match.players) {
-      const answer = match.answers.get(player.userId);
-      if (!answer) throw new Error('A Word Battle result is missing.');
-      player.socket.emit('game:answerResult', {
-        matchId: match.id,
-        round: match.round,
-        roundWinnerUserId,
-        correct: answer.correct,
-        responseTimeMs: answer.responseTimeMs,
-        scores: scoresFor(match),
-      });
+    if (roundWinnerUserId !== null) {
+      match.scores.set(roundWinnerUserId, (match.scores.get(roundWinnerUserId) ?? 0) + 1);
     }
 
-    if (match.round >= match.questions.length) {
+    const roundEndPayload: RoundEndPayload = {
+      matchId: match.id,
+      round: match.round,
+      totalRounds: match.words.length,
+      wordId: word.id,
+      answer: word.word,
+      example: word.exampleEn,
+      winnerUserId: roundWinnerUserId,
+      timedOut,
+      scores: scoresFor(match),
+    };
+    for (const player of match.players) player.socket.emit('game:roundEnd', roundEndPayload);
+
+    match.timer = setTimeout(() => {
+      match.timer = null;
+      void advanceRound(match);
+    }, timing.revealMs);
+  }
+
+  async function advanceRound(match: MatchState): Promise<void> {
+    if (match.status !== 'active') return;
+    clearRoundTimer(match);
+
+    if (match.round >= match.words.length) {
       const [playerOne, playerTwo] = match.players;
       const playerOneScore = match.scores.get(playerOne.userId) ?? 0;
       const playerTwoScore = match.scores.get(playerTwo.userId) ?? 0;
@@ -346,27 +443,28 @@ export function attachBattleSocket(
         status: 'completed',
         winnerUserId,
         scores: scoresFor(match),
-        totalRounds: match.questions.length,
+        totalRounds: match.words.length,
       };
       for (const player of match.players) player.socket.emit('game:finish', finishPayload);
       return;
     }
 
     match.round += 1;
-    for (const player of match.players) player.socket.emit('game:nextQuestion', { round: match.round });
     beginRound(match);
   }
 
   async function createMatch(pair: PendingPair): Promise<void> {
-    const questions = await battleRepository.getQuestions();
-    if (questions.length < BATTLE_ROUNDS) {
-      throw new Error(`Word Battle requires ${BATTLE_ROUNDS} questions; found ${questions.length}.`);
+    const easyCount = Math.round(BATTLE_ROUNDS * BATTLE_EASY_SHARE);
+    const [easyWords, hardWords] = await Promise.all([
+      battleRepository.getWords(easyCount, BATTLE_EASY_LEVELS),
+      battleRepository.getWords(BATTLE_ROUNDS - easyCount, BATTLE_HARD_LEVELS),
+    ]);
+    const words = shuffleWords([...easyWords, ...hardWords]);
+    if (words.length < BATTLE_ROUNDS) {
+      throw new Error(`Word Battle needs ${BATTLE_ROUNDS} words (${easyCount} easy, ${BATTLE_ROUNDS - easyCount} hard); found ${words.length}.`);
     }
-    if (questions.some((question) =>
-      question.prompt.trim().split(/\s+/).length !== 1 ||
-      question.answer.trim().split(/\s+/).length !== 1
-    )) {
-      throw new Error('Every Word Battle prompt and answer must be a single vocabulary word.');
+    if (words.some((word) => word.word.trim().split(/\s+/).length !== 1)) {
+      throw new Error('Every Word Battle target must be a single vocabulary word.');
     }
     if (pair.cancelled) return;
     const matchId = await battleRepository.createMatch(pair.players[0].userId, pair.players[1].userId);
@@ -378,13 +476,14 @@ export function attachBattleSocket(
     const match: MatchState = {
       id: matchId,
       players: pair.players,
-      questions: shuffleQuestions(questions),
+      words,
       round: 1,
       startedAt: Date.now(),
       answers: new Map(),
       scores: new Map(pair.players.map((player) => [player.userId, 0])),
       status: 'active',
       resolving: false,
+      timer: null,
     };
     matches.set(matchId, match);
     for (const player of pair.players) {
@@ -403,7 +502,8 @@ export function attachBattleSocket(
       player.socket.emit('game:start', {
         matchId,
         players: pair.players.map(({ userId, name }) => ({ userId, name })),
-        totalRounds: match.questions.length,
+        totalRounds: match.words.length,
+        roundDurationMs: timing.roundMs,
       });
     }
     beginRound(match);
@@ -509,16 +609,13 @@ export function attachBattleSocket(
         return;
       }
       if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-        emitError(battleSocket, 'INVALID_ANSWER', 'Submit a round, question ID, and answer.');
+        emitError(battleSocket, 'INVALID_ANSWER', 'Submit a round, word ID, and answer.');
         return;
       }
-      const data = payload as { round?: unknown; questionId?: unknown; answer?: unknown };
-      const question = match.questions[match.round - 1];
-      if (
-        data.round !== match.round ||
-        data.questionId !== question.id
-      ) {
-        emitError(battleSocket, 'STALE_QUESTION', 'That question is no longer active.');
+      const data = payload as { round?: unknown; wordId?: unknown; answer?: unknown };
+      const word = match.words[match.round - 1];
+      if (data.round !== match.round || data.wordId !== word.id) {
+        emitError(battleSocket, 'STALE_QUESTION', 'That word is no longer active.');
         return;
       }
       if (typeof data.answer !== 'string' || !data.answer.trim() || data.answer.trim().length > 500) {
@@ -528,7 +625,7 @@ export function attachBattleSocket(
       if (match.resolving) return;
 
       const answer = data.answer.trim();
-      const correct = normalizeAnswer(answer) === normalizeAnswer(question.answer);
+      const correct = normalizeAnswer(answer) === normalizeAnswer(word.word);
       match.answers.set(battleSocket.data.userId, {
         answer,
         correct,
@@ -542,10 +639,8 @@ export function attachBattleSocket(
       battleSocket.emit('game:answerResult', {
         matchId: match.id,
         round: match.round,
-        roundWinnerUserId: null,
         correct: false,
         responseTimeMs: match.answers.get(battleSocket.data.userId)!.responseTimeMs,
-        scores: scoresFor(match),
       });
     });
     battleSocket.on('disconnect', () => {

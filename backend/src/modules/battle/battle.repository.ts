@@ -1,16 +1,28 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../../db/pool';
 
-export interface BattleQuestion {
+export interface BattleWord {
   id: number;
-  prompt: string;
-  answer: string;
+  word: string;
+  translation: string;
+  partOfSpeech: string;
+  cefrLevel: string;
+  explanation: string;
+  exampleEn: string;
+  exampleVi: string;
+  imageUrl: string | null;
 }
 
-interface BattleQuestionRow extends RowDataPacket {
+interface BattleWordRow extends RowDataPacket {
   id: number;
-  prompt_vi: string;
-  answer_en: string;
+  word_en: string;
+  translation_vi: string;
+  part_of_speech: string;
+  cefr_level: string;
+  explanation_vi: string;
+  example_en: string;
+  example_vi: string;
+  image_url: string | null;
 }
 
 interface PlayerRow extends RowDataPacket {
@@ -25,11 +37,31 @@ export async function getPlayerName(userId: number): Promise<string | undefined>
   return rows[0]?.display_name;
 }
 
-export async function getQuestions(): Promise<BattleQuestion[]> {
-  const [rows] = await pool.execute<BattleQuestionRow[]>(
-    'SELECT id, prompt_vi, answer_en FROM battle_questions ORDER BY RAND() LIMIT 20',
+// ORDER BY RAND() makes every match draw its own random set, so two matches never share an order.
+// `limit` is interpolated because mysql2 prepared statements reject a bound LIMIT placeholder.
+export async function getWords(limit: number, levels: string[]): Promise<BattleWord[]> {
+  const count = Math.max(1, Math.trunc(limit));
+  const placeholders = levels.map(() => '?').join(', ');
+  const [rows] = await pool.execute<BattleWordRow[]>(
+    `SELECT id, word_en, translation_vi, part_of_speech, cefr_level,
+            explanation_vi, example_en, example_vi, image_url
+       FROM battle_words
+      WHERE cefr_level IN (${placeholders})
+      ORDER BY RAND()
+      LIMIT ${count}`,
+    levels,
   );
-  return rows.map((row) => ({ id: row.id, prompt: row.prompt_vi, answer: row.answer_en }));
+  return rows.map((row) => ({
+    id: row.id,
+    word: row.word_en,
+    translation: row.translation_vi,
+    partOfSpeech: row.part_of_speech,
+    cefrLevel: row.cefr_level,
+    explanation: row.explanation_vi,
+    exampleEn: row.example_en,
+    exampleVi: row.example_vi,
+    imageUrl: row.image_url,
+  }));
 }
 
 export async function createMatch(playerOneId: number, playerTwoId: number): Promise<number> {

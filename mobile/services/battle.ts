@@ -15,23 +15,43 @@ export interface BattleScore {
 export interface BattleQuestion {
   matchId: number;
   round: number;
-  questionId: number;
-  prompt: string;
   totalRounds: number;
+  wordId: number;
+  translation: string;
+  partOfSpeech: string;
+  cefrLevel: string;
+  explanation: string;
+  example: string;
+  exampleVi: string;
+  letterCount: number;
+  letterHints: Array<{ position: number; letter: string }>;
+  imageUrl: string | null;
+  durationMs: number;
 }
 
 export interface BattleStart {
   matchId: number;
   players: BattleOpponent[];
   totalRounds: number;
+  roundDurationMs: number;
 }
 
 export interface BattleAnswerResult {
   matchId: number;
   round: number;
-  roundWinnerUserId: number | null;
-  correct: boolean;
+  correct: false;
   responseTimeMs: number;
+}
+
+export interface BattleRoundEnd {
+  matchId: number;
+  round: number;
+  totalRounds: number;
+  wordId: number;
+  answer: string;
+  example: string;
+  winnerUserId: number | null;
+  timedOut: boolean;
   scores: BattleScore[];
 }
 
@@ -47,7 +67,7 @@ export interface BattleFinish {
 interface ClientToServerEvents {
   'match:join': () => void;
   'match:leave': () => void;
-  'game:answer': (payload: { round: number; questionId: number; answer: string }) => void;
+  'game:answer': (payload: { round: number; wordId: number; answer: string }) => void;
 }
 
 interface ServerToClientEvents {
@@ -55,7 +75,7 @@ interface ServerToClientEvents {
   'game:start': (payload: BattleStart) => void;
   'game:question': (payload: BattleQuestion) => void;
   'game:answerResult': (payload: BattleAnswerResult) => void;
-  'game:nextQuestion': (payload: { round: number }) => void;
+  'game:roundEnd': (payload: BattleRoundEnd) => void;
   'game:finish': (payload: BattleFinish) => void;
   'game:error': (payload: { code: string; message: string }) => void;
 }

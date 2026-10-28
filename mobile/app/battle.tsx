@@ -11,6 +11,7 @@ import {
   type BattleFinish,
   type BattleOpponent,
   type BattleQuestion,
+  type BattleRoundEnd,
   type BattleScore,
   type BattleStart,
 } from '@/services/battle';
@@ -28,10 +29,10 @@ export default function BattleRoute() {
   const [opponent, setOpponent] = useState<BattleOpponent | null>(null);
   const [game, setGame] = useState<BattleStart | null>(null);
   const [question, setQuestion] = useState<BattleQuestion | null>(null);
-  const [answerResult, setAnswerResult] = useState<BattleAnswerResult | null>(null);
+  const [roundEnd, setRoundEnd] = useState<BattleRoundEnd | null>(null);
+  const [wrongAnswer, setWrongAnswer] = useState<BattleAnswerResult | null>(null);
   const [scores, setScores] = useState<BattleScore[]>([]);
   const [finish, setFinish] = useState<BattleFinish | null>(null);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   screenRef.current = screen;
   gameRef.current = game;
@@ -52,11 +53,11 @@ export default function BattleRoute() {
     setGame(null);
     gameRef.current = null;
     setQuestion(null);
-    setAnswerResult(null);
+    setRoundEnd(null);
+    setWrongAnswer(null);
     setScores([]);
     scoresRef.current = [];
     setFinish(null);
-    setSubmitted(false);
     setError(null);
   };
 
@@ -89,18 +90,16 @@ export default function BattleRoute() {
     });
     socket.on('game:question', (nextQuestion) => {
       setQuestion(nextQuestion);
-      setAnswerResult(null);
-      setSubmitted(false);
+      setRoundEnd(null);
+      setWrongAnswer(null);
       setError(null);
     });
-    socket.on('game:nextQuestion', () => {
-      setQuestion(null);
-      setAnswerResult(null);
-      setSubmitted(false);
-    });
     socket.on('game:answerResult', (result) => {
-      setAnswerResult(result);
-      if (!result.correct) setSubmitted(false);
+      setWrongAnswer(result);
+    });
+    socket.on('game:roundEnd', (result) => {
+      setRoundEnd(result);
+      setWrongAnswer(null);
       scoresRef.current = result.scores;
       setScores(result.scores);
     });
@@ -109,11 +108,11 @@ export default function BattleRoute() {
       scoresRef.current = result.scores;
       setScores(result.scores);
       setQuestion(null);
+      setRoundEnd(null);
       setScreen('result');
     });
     socket.on('game:error', (gameError) => {
       setError(gameError.message);
-      if (gameError.code === 'INVALID_ANSWER') setSubmitted(false);
       if (gameError.code === 'MATCH_CREATION_FAILED' || gameError.code === 'USER_NOT_FOUND') {
         setScreen('find');
         socket.disconnect();
@@ -140,11 +139,10 @@ export default function BattleRoute() {
   };
 
   const submitAnswer = (answer: string) => {
-    if (!question || !socketRef.current?.connected || submitted) return;
-    setSubmitted(true);
+    if (!question || roundEnd || !socketRef.current?.connected) return;
     socketRef.current.emit('game:answer', {
       round: question.round,
-      questionId: question.questionId,
+      wordId: question.wordId,
       answer,
     });
   };
@@ -162,15 +160,14 @@ export default function BattleRoute() {
   if (screen === 'game' && game) {
     return (
       <WordBattleScreen
-        answerResult={answerResult}
         currentUserId={user?.id ?? 0}
         error={error}
-        game={game}
         onBack={reset}
         onSubmit={submitAnswer}
         question={question}
+        roundEnd={roundEnd}
         scores={scores}
-        submitted={submitted}
+        wrongAnswer={wrongAnswer}
       />
     );
   }

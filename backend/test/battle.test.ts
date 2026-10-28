@@ -5,12 +5,19 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
-import type { BattleQuestion } from '../src/modules/battle/battle.repository';
-import type { BattleRepository } from '../src/modules/battle/battle.socket';
+import type { BattleWord } from '../src/modules/battle/battle.repository';
+import { BATTLE_ROUNDS, type BattleRepository } from '../src/modules/battle/battle.socket';
 
-const answerByQuestionId = [
-  'cat', 'dog', 'apple', 'book', 'water', 'house', 'school', 'friend', 'happy', 'fast',
-  'beautiful', 'eat', 'drink', 'run', 'read', 'write', 'big', 'small', 'cold', 'hot',
+// Shorten the real 30s round / 4.5s reveal so the whole match stays a fast test.
+const TEST_ROUND_MS = 1_500;
+const TEST_REVEAL_MS = 150;
+
+// Eight easy and four hard words, matching the 70/30 split the socket asks the repository for.
+// 'environment' and 'beautiful' are long enough to exercise every hint position.
+const vocabulary: Array<[string, string, string]> = [
+  ['cat', 'mèo', 'A1'], ['dog', 'chó', 'A1'], ['apple', 'táo', 'A2'], ['book', 'sách', 'A2'],
+  ['water', 'nước', 'B1'], ['house', 'nhà', 'B1'], ['school', 'trường', 'A1'], ['friend', 'bạn', 'A2'],
+  ['run', 'chạy', 'B2'], ['happy', 'vui', 'B2'], ['environment', 'môi trường', 'C1'], ['beautiful', 'đẹp', 'C2'],
 ];
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -33,18 +40,20 @@ class MemoryBattleRepository implements BattleRepository {
     return `Player ${userId}`;
   }
 
-  async getQuestions(): Promise<BattleQuestion[]> {
-    const vocabulary = [
-      ['mèo', 'cat'], ['chó', 'dog'], ['táo', 'apple'], ['sách', 'book'], ['nước', 'water'],
-      ['nhà', 'house'], ['trường', 'school'], ['bạn', 'friend'], ['vui', 'happy'], ['nhanh', 'fast'],
-      ['đẹp', 'beautiful'], ['ăn', 'eat'], ['uống', 'drink'], ['chạy', 'run'], ['đọc', 'read'],
-      ['viết', 'write'], ['lớn', 'big'], ['nhỏ', 'small'], ['lạnh', 'cold'], ['nóng', 'hot'],
-    ];
-    return vocabulary.map(([prompt, answer], index) => ({
-      id: index + 1,
-      prompt,
-      answer,
-    }));
+  // Mirrors the real repository: each CEFR band pool is drawn separately.
+  async getWords(limit: number, levels: string[]): Promise<BattleWord[]> {
+    return vocabulary
+      .map(([word, translation, cefrLevel], index) => ({ word, translation, cefrLevel, id: index + 1 }))
+      .filter((entry) => levels.includes(entry.cefrLevel))
+      .slice(0, limit)
+      .map((entry) => ({
+        ...entry,
+        partOfSpeech: 'noun',
+        explanation: 'Lời giải thích bằng tiếng Việt.',
+        exampleEn: `My ${entry.word} is here.`,
+        exampleVi: `${entry.translation} của tôi ở đây.`,
+        imageUrl: entry.id === 1 ? 'https://example.test/cat.png' : null,
+      }));
   }
 
   async createMatch(): Promise<number> {
@@ -71,6 +80,34 @@ let httpServer: HttpServer;
 let repository: MemoryBattleRepository;
 let serverUrl: string;
 let closeIo: (() => Promise<void>) | undefined;
+
+interface Question {
+  matchId: number;
+  round: number;
+  totalRounds: number;
+  wordId: number;
+  translation: string;
+  partOfSpeech: string;
+  cefrLevel: string;
+  explanation: string;
+  example: string;
+  exampleVi: string;
+  letterCount: number;
+  letterHints: Array<{ position: number; letter: string }>;
+  imageUrl: string | null;
+  durationMs: number;
+}
+
+interface RoundEnd {
+  matchId: number;
+  round: number;
+  wordId: number;
+  answer: string;
+  example: string;
+  winnerUserId: number | null;
+  timedOut: boolean;
+  scores: Array<{ userId: number; name: string; score: number }>;
+}
 
 function tokenFor(userId: number): string {
   return jwt.sign({}, process.env.JWT_SECRET!, { subject: String(userId), expiresIn: '1h' });
@@ -103,23 +140,34 @@ function waitForEvent<T>(socket: ClientSocket, event: string, timeoutMs = 3_000)
 function joinMatch(first: ClientSocket, second: ClientSocket) {
   const firstFound = waitForEvent<{ matchId: number }>(first, 'match:found');
   const secondFound = waitForEvent<{ matchId: number }>(second, 'match:found');
-  const firstStart = waitForEvent<{ matchId: number; totalRounds: number }>(first, 'game:start');
-  const firstQuestion = waitForEvent<{ round: number; questionId: number; prompt: string }>(first, 'game:question');
-  const secondQuestion = waitForEvent<{ round: number; questionId: number; prompt: string }>(second, 'game:question');
+  const firstStart = waitForEvent<{ totalRounds: number; roundDurationMs: number }>(first, 'game:start');
+  const firstQuestion = waitForEvent<Question>(first, 'game:question');
+  const secondQuestion = waitForEvent<Question>(second, 'game:question');
   first.emit('match:join');
   second.emit('match:join');
   return Promise.all([firstFound, secondFound, firstStart, firstQuestion, secondQuestion]);
 }
 
-async function submitAnswer(socket: ClientSocket, question: { round: number; questionId: number }, answer: string, extras = {}) {
-  socket.emit('game:answer', { ...question, answer, ...extras });
+function submitAnswer(socket: ClientSocket, question: { round: number; wordId: number }, answer: string, extras = {}) {
+  socket.emit('game:answer', { round: question.round, wordId: question.wordId, answer, ...extras });
+}
+
+function wordFor(question: Question): string {
+  return vocabulary[question.wordId - 1][0];
+}
+
+function expectedHints(word: string): Array<{ position: number; letter: string }> {
+  const positions: number[] = word.length > 1 ? [0] : [];
+  if (word.length >= 6) positions.push(4);
+  if (word.length >= 10) positions.push(word.length - 1);
+  return positions.map((position) => ({ position, letter: word[position] }));
 }
 
 before(async () => {
   const { attachBattleSocket } = await import('../src/modules/battle/battle.socket.js');
   repository = new MemoryBattleRepository();
   httpServer = createServer();
-  const io = attachBattleSocket(httpServer, repository);
+  const io = attachBattleSocket(httpServer, repository, { roundMs: TEST_ROUND_MS, revealMs: TEST_REVEAL_MS });
   closeIo = () => new Promise((resolve) => io.close(() => resolve()));
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const address = httpServer.address();
@@ -149,107 +197,108 @@ test('Socket.IO requires a valid JWT before accepting a client', async () => {
   invalidTokenClient.disconnect();
 });
 
-test('first correct answer advances both players immediately without a clock or opponent response', async () => {
+test('a round only reveals hints, never the answer, and the first correct guess wins it', async () => {
   const first = await connectClient(101);
   const second = await connectClient(102);
   try {
     const [, , game, firstQuestion, secondQuestion] = await joinMatch(first, second);
-    assert.equal(game.totalRounds, 20);
-    assert.equal(firstQuestion.questionId, secondQuestion.questionId);
-    assert.equal(firstQuestion.prompt, secondQuestion.prompt);
-    assert.equal(firstQuestion.prompt.trim().split(/\s+/).length, 1);
+    assert.equal(game.totalRounds, BATTLE_ROUNDS);
+    assert.equal(game.roundDurationMs, TEST_ROUND_MS);
+    assert.deepEqual(firstQuestion, secondQuestion);
+    assert.equal(firstQuestion.round, 1);
+    assert.equal(firstQuestion.totalRounds, BATTLE_ROUNDS);
+    assert.equal(firstQuestion.durationMs, TEST_ROUND_MS);
+    assert.equal(firstQuestion.letterCount, wordFor(firstQuestion).length);
+    assert.equal(firstQuestion.translation, vocabulary[firstQuestion.wordId - 1][1]);
+    assert.equal(firstQuestion.partOfSpeech, 'noun');
+    assert.equal(firstQuestion.cefrLevel, vocabulary[firstQuestion.wordId - 1][2]);
+    assert.deepEqual(firstQuestion.letterHints, expectedHints(wordFor(firstQuestion)));
 
-    let gotUnexpectedAnswerResult = false;
-    let gotUnexpectedNextQuestion = false;
-    first.on('game:answerResult', () => { gotUnexpectedAnswerResult = true; });
-    first.on('game:question', () => { gotUnexpectedNextQuestion = true; });
-    second.on('game:question', () => { gotUnexpectedNextQuestion = true; });
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    assert.equal(gotUnexpectedAnswerResult, false);
-    assert.equal(gotUnexpectedNextQuestion, false);
-    first.off('game:answerResult');
-    first.off('game:question');
-    second.off('game:question');
+    const hints = `${firstQuestion.translation} ${firstQuestion.example} ${firstQuestion.exampleVi} ${firstQuestion.explanation}`;
+    assert.ok(!hints.includes(wordFor(firstQuestion)));
+    assert.match(firstQuestion.example, /\*{3}/);
+
+    const prematureRoundEnd = waitForEvent<RoundEnd>(first, 'game:roundEnd', 400).catch(() => null);
+    assert.equal(await prematureRoundEnd, null);
 
     const malformed = waitForEvent<{ code: string }>(first, 'game:error');
     await submitAnswer(first, firstQuestion, '', { correct: true, score: 99_999, winner: 102 });
     assert.equal((await malformed).code, 'INVALID_ANSWER');
 
-    const wrongAttempt = waitForEvent<{ correct: boolean; roundWinnerUserId: number | null }>(first, 'game:answerResult');
-    await submitAnswer(first, firstQuestion, 'wrong', { correct: true, score: 99_999, winner: 102 });
+    const wrongAttempt = waitForEvent<{ correct: boolean; round: number }>(first, 'game:answerResult');
+    await submitAnswer(first, firstQuestion, 'definitely-not-the-word', { correct: true, score: 99_999, winner: 102 });
     const wrongResult = await wrongAttempt;
     assert.equal(wrongResult.correct, false);
-    assert.equal(wrongResult.roundWinnerUserId, null);
+    assert.equal(wrongResult.round, 1);
 
-    const firstResult = waitForEvent<{ round: number; correct: boolean; roundWinnerUserId: number | null; responseTimeMs: number }>(first, 'game:answerResult');
-    const secondResult = waitForEvent<{ round: number; correct: boolean; roundWinnerUserId: number | null }>(second, 'game:answerResult');
-    const roundTwo = Promise.all([
-      waitForEvent<{ round: number; questionId: number; prompt: string }>(first, 'game:question'),
-      waitForEvent<{ round: number; questionId: number; prompt: string }>(second, 'game:question'),
-      waitForEvent<{ round: number }>(first, 'game:nextQuestion'),
-      waitForEvent<{ round: number }>(second, 'game:nextQuestion'),
+    const stale = waitForEvent<{ code: string }>(second, 'game:error');
+    second.emit('game:answer', { round: 99, wordId: firstQuestion.wordId, answer: wordFor(firstQuestion) });
+    assert.equal((await stale).code, 'STALE_QUESTION');
+
+    const winnerReveal = waitForEvent<RoundEnd>(first, 'game:roundEnd');
+    const otherReveal = waitForEvent<RoundEnd>(second, 'game:roundEnd');
+    const nextRound = Promise.all([
+      waitForEvent<Question>(first, 'game:question'),
+      waitForEvent<Question>(second, 'game:question'),
     ]);
-    await submitAnswer(first, firstQuestion, answerByQuestionId[firstQuestion.questionId - 1], { correct: false, score: 99_999, winner: 102 });
-    const [firstRoundResult, secondRoundResult] = await Promise.all([firstResult, secondResult]);
-    assert.equal(firstRoundResult.correct, true);
-    assert.equal(secondRoundResult.correct, false);
-    assert.equal(firstRoundResult.roundWinnerUserId, 101);
-    assert.ok(firstRoundResult.responseTimeMs >= 300);
-    assert.ok(firstRoundResult.responseTimeMs < 1_000);
+    await submitAnswer(first, firstQuestion, wordFor(firstQuestion), { correct: false, score: 99_999, winner: 102 });
+    const [winnerResult, otherResult] = await Promise.all([winnerReveal, otherReveal]);
+    assert.equal(winnerResult.answer, wordFor(firstQuestion));
+    assert.equal(winnerResult.example, `My ${wordFor(firstQuestion)} is here.`);
+    assert.equal(winnerResult.winnerUserId, 101);
+    assert.equal(winnerResult.timedOut, false);
+    assert.deepEqual(winnerResult.scores, [
+      { userId: 101, name: 'Player 101', score: 1 },
+      { userId: 102, name: 'Player 102', score: 0 },
+    ]);
+    assert.equal(otherResult.winnerUserId, 101);
 
-    let [currentFirst, currentSecond] = await roundTwo.then((events) => {
-      assert.equal(events[0].round, 2);
-      assert.deepEqual(events[0], events[1]);
-      assert.equal(events[2].round, 2);
-      assert.equal(events[3].round, 2);
-      return [events[0], events[1]];
-    });
-    for (let round = 2; round <= 20; round++) {
-      const firstRound = waitForEvent<{ round: number; roundWinnerUserId: number | null }>(first, 'game:answerResult');
-      const secondRound = waitForEvent<{ round: number }>(second, 'game:answerResult');
-      const finishFirst = round === 20
-        ? waitForEvent<{ status: string; winnerUserId: number | null; totalRounds: number; scores: Array<{ userId: number; score: number }> }>(first, 'game:finish')
-        : null;
-      const finishSecond = round === 20
-        ? waitForEvent<{ status: string }>(second, 'game:finish')
-        : null;
-      const nextRoundEvents = round < 20 ? Promise.all([
-        waitForEvent<{ round: number; questionId: number; prompt: string }>(first, 'game:question'),
-        waitForEvent<{ round: number; questionId: number; prompt: string }>(second, 'game:question'),
-        waitForEvent<{ round: number }>(first, 'game:nextQuestion'),
-        waitForEvent<{ round: number }>(second, 'game:nextQuestion'),
-      ]) : null;
-      await submitAnswer(first, currentFirst, answerByQuestionId[currentFirst.questionId - 1]);
-      const [winnerResult, otherResult] = await Promise.all([firstRound, secondRound]);
-      assert.equal(winnerResult.round, round);
-      assert.equal(winnerResult.roundWinnerUserId, 101);
-      assert.equal(otherResult.round, round);
+    const [nextFirst, nextSecond] = await nextRound;
+    assert.equal(nextFirst.round, 2);
+    assert.deepEqual(nextFirst, nextSecond);
+    assert.notEqual(nextFirst.wordId, firstQuestion.wordId);
 
-      if (round < 20) {
-        const nextEvents = await nextRoundEvents!;
-        assert.equal(nextEvents[0].round, round + 1);
-        assert.equal(nextEvents[0].prompt.trim().split(/\s+/).length, 1);
-        assert.deepEqual(nextEvents[0], nextEvents[1]);
-        assert.equal(nextEvents[2].round, round + 1);
-        assert.equal(nextEvents[3].round, round + 1);
-        currentFirst = nextEvents[0];
-        currentSecond = nextEvents[1];
+    const seen: Question[] = [firstQuestion, nextFirst];
+    let current = nextFirst;
+    for (let round = 2; round <= BATTLE_ROUNDS; round++) {
+      const reveal = waitForEvent<RoundEnd>(first, 'game:roundEnd');
+      const finish = round === BATTLE_ROUNDS
+        ? waitForEvent<{ status: string; winnerUserId: number | null; totalRounds: number; scores: Array<{ userId: number; name: string; score: number }> }>(first, 'game:finish')
+        : null;
+      const next = round < BATTLE_ROUNDS ? waitForEvent<Question>(first, 'game:question') : null;
+      await submitAnswer(first, current, wordFor(current));
+      const result = await reveal;
+      assert.equal(result.round, round);
+      assert.equal(result.winnerUserId, 101);
+
+      if (next) {
+        current = await next;
+        seen.push(current);
+        assert.equal(current.round, round + 1);
       } else {
-        const [firstFinish, secondFinish] = await Promise.all([finishFirst!, finishSecond!]);
-        assert.equal(firstFinish.status, 'completed');
-        assert.equal(firstFinish.totalRounds, 20);
-        assert.equal(firstFinish.winnerUserId, 101);
-        assert.deepEqual(firstFinish.scores, [
-          { userId: 101, name: 'Player 101', score: 20 },
-          { userId: 102, name: 'Player 102', score: 0 },
-        ]);
-        assert.equal(secondFinish.status, 'completed');
+        const finalResult = await finish!;
+        assert.equal(finalResult.status, 'completed');
+        assert.equal(finalResult.totalRounds, BATTLE_ROUNDS);
+        assert.equal(finalResult.winnerUserId, 101);
+        assert.equal(finalResult.scores[0].score, BATTLE_ROUNDS);
+        assert.equal(finalResult.scores[1].score, 0);
       }
     }
 
+    assert.equal(seen.length, BATTLE_ROUNDS);
+    assert.deepEqual(seen.map((question) => question.round), Array.from({ length: BATTLE_ROUNDS }, (_, index) => index + 1));
+    for (const question of seen) {
+      assert.deepEqual(question.letterHints, expectedHints(wordFor(question)));
+      assert.equal(question.letterCount, wordFor(question).length);
+    }
+    // 70% of the match comes from the easier bands, the rest from B2-C2.
+    const easyLevels = ['A1', 'A2', 'B1'];
+    assert.equal(seen.filter((question) => easyLevels.includes(question.cefrLevel)).length, Math.round(BATTLE_ROUNDS * 0.7));
+    assert.equal(seen.filter((question) => !easyLevels.includes(question.cefrLevel)).length, BATTLE_ROUNDS - Math.round(BATTLE_ROUNDS * 0.7));
+    assert.equal(seen.filter((question) => question.imageUrl !== null).length, 1);
+
     const storedAnswers = repository.answers.filter((entry) => entry.matchId === game.matchId);
-    assert.equal(storedAnswers.length, 40);
-    assert.ok(storedAnswers.filter((entry) => entry.userId === 101).every((entry) => entry.isCorrect));
+    assert.equal(storedAnswers.length, BATTLE_ROUNDS * 2);
     assert.ok(storedAnswers.every((entry) => entry.responseTimeMs >= 0));
     assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'completed', winnerUserId: 101 });
   } finally {
@@ -258,37 +307,53 @@ test('first correct answer advances both players immediately without a clock or 
   }
 });
 
-test('a correct answer advances the unanswered opponent and match:leave releases both', async () => {
+test('an unanswered round times out, reveals the word and scores nobody', async () => {
   const first = await connectClient(201);
   const second = await connectClient(202);
   try {
-    const [, , game, firstQuestion, secondQuestion] = await joinMatch(first, second);
-    const firstResult = waitForEvent<{ correct: boolean; roundWinnerUserId: number | null }>(first, 'game:answerResult');
-    const secondResult = waitForEvent<{ correct: boolean }>(second, 'game:answerResult');
-    const nextFirst = waitForEvent<{ round: number }>(first, 'game:nextQuestion');
-    const nextSecond = waitForEvent<{ round: number }>(second, 'game:nextQuestion');
-    const opponentNextQuestion = waitForEvent<{ round: number; prompt: string }>(second, 'game:question');
-    await submitAnswer(first, firstQuestion, answerByQuestionId[firstQuestion.questionId - 1]);
-    const [result, missed] = await Promise.all([firstResult, secondResult]);
-    const [firstNext, secondNext] = await Promise.all([nextFirst, nextSecond]);
-    const nextQuestion = await opponentNextQuestion;
-    assert.equal(result.correct, true);
-    assert.equal(result.roundWinnerUserId, 201);
-    assert.equal(missed.correct, false);
-    assert.deepEqual(firstNext, { round: 2 });
-    assert.deepEqual(secondNext, { round: 2 });
-    assert.equal(nextQuestion.round, 2);
-    assert.notEqual(nextQuestion.prompt, firstQuestion.prompt);
-    const missedAnswer = repository.answers.find((entry) => entry.matchId === game.matchId && entry.userId === 202 && entry.round === 1);
+    const [, , game, question] = await joinMatch(first, second);
+    const timedOut = waitForEvent<RoundEnd>(first, 'game:roundEnd', TEST_ROUND_MS + 1_500);
+    const nextRound = waitForEvent<Question>(second, 'game:question', TEST_ROUND_MS + 1_500);
+    const result = await timedOut;
+    assert.equal(result.round, 1);
+    assert.equal(result.winnerUserId, null);
+    assert.equal(result.timedOut, true);
+    assert.equal(result.answer, wordFor(question));
+    assert.deepEqual(result.scores, [
+      { userId: 201, name: 'Player 201', score: 0 },
+      { userId: 202, name: 'Player 202', score: 0 },
+    ]);
+
+    const next = await nextRound;
+    assert.equal(next.round, 2);
+    const missedAnswer = repository.answers.find(
+      (entry) => entry.matchId === game.matchId && entry.userId === 201 && entry.round === 1,
+    );
     assert.ok(missedAnswer);
     assert.equal(missedAnswer.answer, '');
+    assert.equal(missedAnswer.isCorrect, false);
+  } finally {
+    first.disconnect();
+    second.disconnect();
+  }
+});
 
-    const left = waitForEvent<{ status: string; reason?: string }>(second, 'game:finish');
+test('match:leave during a round cancels the match and clears the round timer', async () => {
+  const first = await connectClient(301);
+  const second = await connectClient(302);
+  try {
+    const [, , game] = await joinMatch(first, second);
+    let unexpectedQuestion = false;
+    second.on('game:question', () => { unexpectedQuestion = true; });
+    const left = waitForEvent<{ status: string; reason?: string; totalRounds: number }>(second, 'game:finish');
     first.emit('match:leave');
     const resultAfterLeave = await left;
     assert.equal(resultAfterLeave.status, 'cancelled');
     assert.equal(resultAfterLeave.reason, 'left');
+    assert.equal(resultAfterLeave.totalRounds, BATTLE_ROUNDS);
     assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'cancelled', winnerUserId: null });
+    await new Promise((resolve) => setTimeout(resolve, TEST_ROUND_MS + 400));
+    assert.equal(unexpectedQuestion, false);
   } finally {
     first.disconnect();
     second.disconnect();
@@ -296,8 +361,8 @@ test('a correct answer advances the unanswered opponent and match:leave releases
 });
 
 test('opponent disconnect cancels an active match instead of leaving it stuck', async () => {
-  const first = await connectClient(301);
-  const second = await connectClient(302);
+  const first = await connectClient(401);
+  const second = await connectClient(402);
   try {
     const [, , game] = await joinMatch(first, second);
     const finish = waitForEvent<{ status: string; reason?: string; matchId: number }>(first, 'game:finish');
