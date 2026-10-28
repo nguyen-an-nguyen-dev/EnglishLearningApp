@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -10,18 +10,16 @@ import {
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { useFocusEffect } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { useAppTheme } from '@/contexts/theme-context';
 import {
-  getTranslationHistory,
   translateText,
   translateTxtFile,
   type LanguageCode,
   type Translation,
 } from '@/services/translations';
 
-type TranslateTab = 'text' | 'file' | 'history';
+type TranslateTab = 'text' | 'file';
 
 const MAX_FILE_BYTES = 20 * 1024;
 
@@ -53,28 +51,11 @@ export default function TranslateScreen() {
   const [input, setInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [result, setResult] = useState<Translation | null>(null);
-  const [history, setHistory] = useState<Translation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const targetLanguage: LanguageCode = sourceLanguage === 'en' ? 'vi' : 'en';
   const cardStyle = { backgroundColor: colors.cardBackground, borderColor: colors.border };
-
-  const loadHistory = useCallback(async () => {
-    try {
-      setHistoryLoading(true);
-      setHistory(await getTranslationHistory());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Không thể tải lịch sử dịch.');
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    void loadHistory();
-  }, [loadHistory]));
 
   function switchTab(nextTab: TranslateTab) {
     setTab(nextTab);
@@ -94,7 +75,6 @@ export default function TranslateScreen() {
       setLoading(true);
       setError(null);
       setResult(await translateText(input, sourceLanguage, targetLanguage));
-      await loadHistory();
     } catch (translateError) {
       setError(translateError instanceof Error ? translateError.message : 'Đã xảy ra lỗi khi dịch.');
     } finally {
@@ -131,7 +111,6 @@ export default function TranslateScreen() {
       setLoading(true);
       setError(null);
       setResult(await translateTxtFile(selectedFile, sourceLanguage, targetLanguage));
-      await loadHistory();
     } catch (translateError) {
       setError(translateError instanceof Error ? translateError.message : 'Không thể dịch tệp.');
     } finally {
@@ -150,7 +129,6 @@ export default function TranslateScreen() {
         {([
           ['text', 'Văn bản'],
           ['file', 'Tệp .txt'],
-          ['history', 'Lịch sử'],
         ] as const).map(([id, label]) => (
           <Pressable
             key={id}
@@ -164,128 +142,84 @@ export default function TranslateScreen() {
         ))}
       </View>
 
-      {tab === 'history' ? (
-        <ScrollView contentContainerStyle={styles.historyList}>
-          {error ? (
-            <View style={[styles.errorCard, { backgroundColor: dark ? '#351C1C' : '#FFF1F0' }]}>
-              <Text style={[styles.errorText, { color: dark ? '#FF9A93' : '#A52E3C' }]}>{error}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void loadHistory()} style={styles.retryButton}>
-                <Text style={[styles.retryText, { color: colors.tint }]}>Thử lại</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {historyLoading ? (
-            <ActivityIndicator color={colors.tint} style={styles.loading} />
-          ) : history.length ? history.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => {
-                setResult(item);
-                setSourceLanguage(item.sourceLanguage);
-                setTab('text');
+      <ScrollView
+        contentContainerStyle={styles.formContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.languageBar, cardStyle]}>
+          <Text style={[styles.language, { color: colors.text }]}>{languageName(sourceLanguage)}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Đổi chiều dịch"
+            onPress={toggleDirection}
+            style={[styles.swapButton, { backgroundColor: dark ? '#18333C' : '#E6F9FF' }]}
+          >
+            <Text style={[styles.swapIcon, { color: colors.tint }]}>⇄</Text>
+          </Pressable>
+          <Text style={[styles.language, { color: colors.text }]}>{languageName(targetLanguage)}</Text>
+        </View>
+
+        {tab === 'text' ? (
+          <>
+            <TextInput
+              accessibilityLabel="Văn bản cần dịch"
+              multiline
+              onChangeText={(text) => {
+                setInput(text);
+                setResult(null);
               }}
-              style={[styles.historyCard, cardStyle]}
-            >
-              <View style={styles.historyCardHeader}>
-                <Text style={[styles.historyDirection, { color: colors.tint }]}>
-                  {languageName(item.sourceLanguage)} → {languageName(item.targetLanguage)}
-                </Text>
-                <Text style={[styles.historyDate, { color: colors.textMuted }]}>
-                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
-                </Text>
-              </View>
-              {item.fileName ? <Text style={[styles.fileName, { color: colors.textMuted }]}>📄 {item.fileName}</Text> : null}
-              <Text numberOfLines={2} style={[styles.historyOriginal, { color: colors.text }]}>{item.originalText}</Text>
-              <Text numberOfLines={2} style={[styles.historyTranslated, { color: colors.textMuted }]}>{item.translatedText}</Text>
-            </Pressable>
-          )) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🗂️</Text>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>Chưa có lịch sử dịch</Text>
-              <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>Bản dịch của bạn sẽ xuất hiện ở đây.</Text>
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.formContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.languageBar, cardStyle]}>
-            <Text style={[styles.language, { color: colors.text }]}>{languageName(sourceLanguage)}</Text>
+              placeholder={sourceLanguage === 'en' ? 'Nhập tiếng Anh cần dịch...' : 'Nhập tiếng Việt cần dịch...'}
+              placeholderTextColor={colors.textMuted}
+              style={[styles.textInput, cardStyle, { color: colors.text }]}
+              textAlignVertical="top"
+              value={input}
+            />
+            <Text style={[styles.characterCount, { color: colors.textMuted }]}>{input.length.toLocaleString()} / 10.000</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Đổi chiều dịch"
-              onPress={toggleDirection}
-              style={[styles.swapButton, { backgroundColor: dark ? '#18333C' : '#E6F9FF' }]}
+              disabled={!input.trim() || loading}
+              onPress={() => void submitText()}
+              style={[styles.primaryButton, { backgroundColor: colors.tint, opacity: !input.trim() || loading ? 0.55 : 1 }]}
             >
-              <Text style={[styles.swapIcon, { color: colors.tint }]}>⇄</Text>
+              {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Dịch văn bản</Text>}
             </Pressable>
-            <Text style={[styles.language, { color: colors.text }]}>{languageName(targetLanguage)}</Text>
+          </>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void chooseFile()}
+              style={[styles.filePicker, cardStyle]}
+            >
+              <Text style={styles.filePickerIcon}>📄</Text>
+              <Text style={[styles.filePickerTitle, { color: colors.text }]}>
+                {selectedFile?.name ?? 'Chọn tệp văn bản'}
+              </Text>
+              <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Chỉ hỗ trợ .txt · tối đa {MAX_FILE_BYTES / 1024} KB</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!selectedFile || loading}
+              onPress={() => void submitFile()}
+              style={[styles.primaryButton, { backgroundColor: colors.tint, opacity: !selectedFile || loading ? 0.55 : 1 }]}
+            >
+              {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Tải lên và dịch</Text>}
+            </Pressable>
+            {selectedFile && !loading ? (
+              <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Tệp dài sẽ mất khoảng 30 giây đến 2 phút để dịch xong.</Text>
+            ) : null}
+          </>
+        )}
+
+        {error ? (
+          <View style={[styles.errorCard, { backgroundColor: dark ? '#351C1C' : '#FFF1F0' }]}>
+            <Text style={[styles.errorText, { color: dark ? '#FF9A93' : '#A52E3C' }]}>{error}</Text>
           </View>
+        ) : null}
 
-          {tab === 'text' ? (
-            <>
-              <TextInput
-                accessibilityLabel="Văn bản cần dịch"
-                multiline
-                onChangeText={(text) => {
-                  setInput(text);
-                  setResult(null);
-                }}
-                placeholder={sourceLanguage === 'en' ? 'Nhập tiếng Anh cần dịch...' : 'Nhập tiếng Việt cần dịch...'}
-                placeholderTextColor={colors.textMuted}
-                style={[styles.textInput, cardStyle, { color: colors.text }]}
-                textAlignVertical="top"
-                value={input}
-              />
-              <Text style={[styles.characterCount, { color: colors.textMuted }]}>{input.length.toLocaleString()} / 10.000</Text>
-              <Pressable
-                accessibilityRole="button"
-                disabled={!input.trim() || loading}
-                onPress={() => void submitText()}
-                style={[styles.primaryButton, { backgroundColor: colors.tint, opacity: !input.trim() || loading ? 0.55 : 1 }]}
-              >
-                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Dịch văn bản</Text>}
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void chooseFile()}
-                style={[styles.filePicker, cardStyle]}
-              >
-                <Text style={styles.filePickerIcon}>📄</Text>
-                <Text style={[styles.filePickerTitle, { color: colors.text }]}>
-                  {selectedFile?.name ?? 'Chọn tệp văn bản'}
-                </Text>
-                <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Chỉ hỗ trợ .txt · tối đa {MAX_FILE_BYTES / 1024} KB</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={!selectedFile || loading}
-                onPress={() => void submitFile()}
-                style={[styles.primaryButton, { backgroundColor: colors.tint, opacity: !selectedFile || loading ? 0.55 : 1 }]}
-              >
-                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Tải lên và dịch</Text>}
-              </Pressable>
-              {selectedFile && !loading ? (
-                <Text style={[styles.filePickerHint, { color: colors.textMuted }]}>Tệp dài sẽ mất khoảng 30 giây đến 2 phút để dịch xong.</Text>
-              ) : null}
-            </>
-          )}
-
-          {error ? (
-            <View style={[styles.errorCard, { backgroundColor: dark ? '#351C1C' : '#FFF1F0' }]}>
-              <Text style={[styles.errorText, { color: dark ? '#FF9A93' : '#A52E3C' }]}>{error}</Text>
-            </View>
-          ) : null}
-
-          {result ? <TranslationResultView result={result} dark={dark} colors={colors} /> : null}
-        </ScrollView>
-      )}
+        {result ? <TranslationResultView result={result} dark={dark} colors={colors} /> : null}
+      </ScrollView>
     </View>
   );
 }
@@ -350,8 +284,6 @@ const styles = StyleSheet.create({
   filePickerHint: { fontSize: 12, marginTop: 6 },
   errorCard: { padding: 12, borderRadius: 10, marginTop: 14 },
   errorText: { fontSize: 13, lineHeight: 19 },
-  retryButton: { alignSelf: 'flex-start', marginTop: 7 },
-  retryText: { fontSize: 12, fontWeight: '800' },
   resultContainer: { gap: 12, marginTop: 20 },
   resultCard: { padding: 15, borderWidth: 1, borderRadius: 14 },
   translatedCard: { borderWidth: 1 },
@@ -365,16 +297,4 @@ const styles = StyleSheet.create({
   partOfSpeech: { fontSize: 11, fontWeight: '800', marginTop: 4 },
   wordMeaning: { fontSize: 14, fontWeight: '700', marginTop: 10 },
   wordExample: { fontSize: 13, lineHeight: 19, marginTop: 7, fontStyle: 'italic' },
-  historyList: { padding: 16, gap: 11, flexGrow: 1 },
-  historyCard: { padding: 13, borderWidth: 1, borderRadius: 13, gap: 6 },
-  historyCardHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  historyDirection: { flex: 1, fontSize: 11, fontWeight: '900' },
-  historyDate: { fontSize: 10 },
-  historyOriginal: { fontSize: 13, fontWeight: '700' },
-  historyTranslated: { fontSize: 12, lineHeight: 17 },
-  emptyState: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontSize: 16, fontWeight: '800' },
-  emptyCopy: { fontSize: 13, textAlign: 'center', marginTop: 5 },
-  loading: { marginTop: 40 },
 });
