@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import Colors from '@/constants/Colors';
+import { AppDialogProvider } from '@/contexts/app-dialog-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AppThemeProvider, useAppTheme } from '@/contexts/theme-context';
 
@@ -44,9 +45,11 @@ export default function RootLayout() {
 
   return (
     <AppThemeProvider>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
+      <AppDialogProvider>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </AppDialogProvider>
     </AppThemeProvider>
   );
 }

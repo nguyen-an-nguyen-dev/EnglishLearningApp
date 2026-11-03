@@ -1,10 +1,11 @@
-import { Circle, G, Path, Rect, Svg } from 'react-native-svg';
+import { Circle, Defs, Ellipse, G, LinearGradient, Path, Rect, Stop, Svg } from 'react-native-svg';
+import { getStageThemeForCode } from './stageThemes';
 
 export type FlagStatus = 'locked' | 'unlocked' | 'available' | 'completed';
 
 // The marker is authored in a fixed 64x68 space; `size` scales it uniformly via the viewBox.
-export const FLAG_WIDTH = 64;
-const FLAG_HEIGHT = 68;
+export const FLAG_WIDTH = 76;
+const FLAG_HEIGHT = 82;
 
 type Prim =
   | { c: [number, number, number]; s?: number }
@@ -13,18 +14,7 @@ type Prim =
 
 // Banner silhouettes in local space: x = 0..29 outward from the pole, y = 0..22 down.
 // `emblem` is the fitted placement box for the emblem (which is drawn around its own 0,0).
-const SHAPES: Record<string, { d: string; emblem: { x: number; y: number; s: number } }> = {
-  rect: { d: 'M0 0 L29 0 L29 22 L0 22 Z', emblem: { x: 11.9, y: 9.6, s: 1 } },
-  fork: { d: 'M0 0 L29 0 L21 11 L29 22 L0 22 Z', emblem: { x: 10, y: 9.6, s: 0.98 } },
-  pennant: { d: 'M0 0 L29 11 L0 22 Z', emblem: { x: 7.1, y: 9.6, s: 0.58 } },
-  wave: { d: 'M0 0 L29 0 L29 15 Q22 21 15 16 Q7 11 0 17 Z', emblem: { x: 12.4, y: 6.7, s: 0.68 } },
-  arch: { d: 'M0 0 L23 0 Q29 0 29 6 L29 16 Q29 22 23 22 L0 22 Z', emblem: { x: 11.6, y: 9.6, s: 1 } },
-  chevron: { d: 'M0 0 L29 0 L29 14 L14.5 22 L0 14 Z', emblem: { x: 11.9, y: 7.7, s: 1 } },
-  notch: { d: 'M0 0 L29 0 L29 15 L22 22 L0 22 Z', emblem: { x: 11.4, y: 9.3, s: 1 } },
-  scallop: { d: 'M0 0 L29 0 L29 14 Q24 22 19 15 Q14 22 9 15 Q4 22 0 14 Z', emblem: { x: 11.9, y: 7.2, s: 0.88 } },
-};
-
-// Emblems are drawn around (0,0) on the banner, in cream.
+// Emblems are drawn around (0,0) in the center of each lesson medallion.
 const EMBLEMS: Record<string, Prim[]> = {
   greet: [
     { r: [-8, -6.5, 11.5, 8.5, 3] }, { p: 'M-5.5 2 L-5.5 5.8 L-1.8 2 Z' },
@@ -148,22 +138,11 @@ export interface FlagPalette {
 }
 
 export function getFlagPalette(code: string | undefined): FlagPalette {
-  const stageKey = code?.split('-')[0] ?? 's1';
-  const p = PALETTES[stageKey] ?? PALETTES.s1;
-  return { main: p.main, shade: p.shade };
+  const stageTheme = getStageThemeForCode(code);
+  return { main: stageTheme.accent, shade: stageTheme.shade };
 }
 
-const PALETTES: Record<string, { main: string; shade: string }> = {
-  s1: { main: '#FF8A5B', shade: '#D96C3F' },
-  s2: { main: '#2FB6C9', shade: '#1E93A6' },
-  s3: { main: '#6C7CE8', shade: '#4E5CC4' },
-  s4: { main: '#9B5FB0', shade: '#7A4690' },
-  s5: { main: '#E0679A', shade: '#B8497A' },
-  s6: { main: '#C9A227', shade: '#A5811A' },
-  locked: { main: '#C6D3E0', shade: '#A9B8C7' },
-};
-
-// One deliberate design per lesson so no two flags repeat.
+// Each lesson keeps a recognizable topic glyph and a distinct badge silhouette.
 const FLAG_BY_LESSON: Record<string, { shape: string; emblem: string }> = {
   's1-greetings': { shape: 'rect', emblem: 'greet' },
   's1-introductions': { shape: 'arch', emblem: 'person' },
@@ -199,6 +178,17 @@ const FLAG_BY_LESSON: Record<string, { shape: string; emblem: string }> = {
 
 const SHAPE_CYCLE = ['rect', 'fork', 'pennant', 'wave', 'arch', 'chevron', 'notch', 'scallop'];
 const EMBLEM_CYCLE = Object.keys(EMBLEMS);
+
+const BADGE_SHAPES: Record<string, string> = {
+  rect: 'M38 5 C54 5 66 17 66 34 C66 51 54 65 38 68 C22 65 10 51 10 34 C10 17 22 5 38 5 Z',
+  fork: 'M38 5 C51 5 62 13 66 26 L61 36 L66 46 C61 60 51 66 38 68 C25 66 15 60 10 46 L15 36 L10 26 C14 13 25 5 38 5 Z',
+  pennant: 'M38 5 C53 8 64 19 66 35 C63 51 53 63 38 68 C23 63 13 51 10 35 C12 19 23 8 38 5 Z',
+  wave: 'M38 5 C52 5 65 16 66 31 C66 47 55 63 38 68 C21 63 10 47 10 31 C11 16 24 5 38 5 Z',
+  arch: 'M38 5 C54 5 66 15 66 31 L66 44 C66 58 54 67 38 68 C22 67 10 58 10 44 L10 31 C10 15 22 5 38 5 Z',
+  chevron: 'M38 5 C52 5 64 16 66 31 L62 48 L38 68 L14 48 L10 31 C12 16 24 5 38 5 Z',
+  notch: 'M38 5 C54 5 66 17 66 34 L62 49 L38 68 L14 49 L10 34 C10 17 22 5 38 5 Z',
+  scallop: 'M38 5 C51 5 61 14 66 26 C61 31 61 39 66 44 C61 58 51 66 38 68 C25 66 15 58 10 44 C15 39 15 31 10 26 C15 14 25 5 38 5 Z',
+};
 
 function designFor(code: string) {
   const known = FLAG_BY_LESSON[code];
@@ -250,49 +240,48 @@ interface FlagMarkerProps {
   mirrored: boolean;
   status: FlagStatus;
   size?: number;
+  theme: 'light' | 'dark';
 }
 
-export default function FlagMarker({ code, mirrored, status, size = FLAG_WIDTH }: FlagMarkerProps) {
+export default function FlagMarker({ code, mirrored, status, size = FLAG_WIDTH, theme }: FlagMarkerProps) {
   const { shape, emblem } = designFor(code);
   const isCompleted = status === 'completed';
   const isLocked = status === 'locked';
-  const palette = isLocked ? PALETTES.locked : (PALETTES[code.split('-')[0]] ?? PALETTES.s1);
-  const banner = SHAPES[shape] ?? SHAPES.rect;
-  const direction = mirrored ? -1 : 1;
-  const discX = mirrored ? 34.5 : 29.5;
+  const stageTheme = getStageThemeForCode(code);
+  const palette = isLocked
+    ? theme === 'dark'
+      ? { main: '#58656F', shade: '#3D4852' }
+      : { main: '#B9C6CE', shade: '#8999A4' }
+    : { main: stageTheme.accent, shade: stageTheme.shade };
+  const badgePath = BADGE_SHAPES[shape] ?? BADGE_SHAPES.rect;
+  const gradientId = `lesson-${code.replace(/[^a-zA-Z0-9]/g, '-')}-fill`;
   const discState: keyof typeof DISC_MARKS = isCompleted ? 'completed' : isLocked ? 'locked' : 'current';
-  const discFill = isCompleted ? '#11b9cf' : isLocked ? '#9FB2C4' : '#f2b544';
-  const discMarkColor = isLocked ? '#F7FAFD' : '#FFFFFF';
+  const discFill = isCompleted ? '#F2BE54' : isLocked ? (theme === 'dark' ? '#3A4650' : '#71818D') : stageTheme.shade;
+  const discMarkColor = isLocked ? '#F1F4F5' : '#FFFFFF';
 
   return (
     <Svg width={size} height={size * (FLAG_HEIGHT / FLAG_WIDTH)} viewBox={`0 0 ${FLAG_WIDTH} ${FLAG_HEIGHT}`}>
-      <Rect x={mirrored ? 32 : 27} y={6} width={5} height={56} rx={2.5} fill="#42586B" />
-      <Path
-        d={banner.d}
-        transform={`translate(32 8) scale(${direction} 1)`}
-        fill={palette.shade}
-        stroke={palette.shade}
-        strokeWidth={2.4}
-        strokeLinejoin="round"
-      />
-      <Path
-        d={banner.d}
-        transform={`translate(${32 + direction * 2.6} 9.4) scale(${direction} 1)`}
-        fill={palette.main}
-        stroke={palette.main}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        opacity={isLocked ? 0.82 : 1}
-      />
-      <G
-        transform={`translate(${32 + direction * (2.6 + banner.emblem.x)} ${9.4 + banner.emblem.y}) scale(${banner.emblem.s} ${banner.emblem.s})`}
-      >
+      <Defs>
+        <LinearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <Stop offset="0" stopColor={palette.main} />
+          <Stop offset="1" stopColor={palette.shade} />
+        </LinearGradient>
+      </Defs>
+      <Ellipse cx="38" cy="74" rx="22" ry="5" fill="#263A3D" opacity={theme === 'dark' ? 0.3 : 0.15} />
+      <Path d={badgePath} fill={palette.shade} stroke="#FFFFFF" strokeOpacity={theme === 'dark' ? 0.12 : 0.65} strokeWidth="2" />
+      <G transform="translate(38 36.5) scale(0.9) translate(-38 -36.5)">
+        <Path d={badgePath} fill={`url(#${gradientId})`} stroke="#FFFFFF" strokeOpacity={isLocked ? 0.12 : 0.5} strokeWidth="1.5" />
+      </G>
+      <Path d="M22 18 Q28 11 37 10" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" opacity={isLocked ? 0.2 : 0.5} />
+      <Circle cx={mirrored ? 18 : 58} cy="19" r="2" fill="#FFFFFF" opacity={isLocked ? 0.22 : 0.84} />
+      <G transform="translate(38 35) scale(0.9)">
         {(EMBLEMS[emblem] ?? EMBLEMS.greet).map((prim, index) => (
-          <Glyph key={index} prim={prim} color={isLocked ? '#EFF4F9' : '#FFF9EE'} />
+          <Glyph key={index} prim={prim} color={isLocked ? '#E6ECEF' : '#FFFDF4'} />
         ))}
       </G>
-      <Circle cx={discX} cy={60.5} r={7.2} fill={discFill} />
-      <G transform={`translate(${discX} 60.5)`}>
+      <Circle cx="57" cy="59" r="10.5" fill="#FFFFFF" opacity={theme === 'dark' ? 0.16 : 0.85} />
+      <Circle cx="57" cy="59" r="8.5" fill={discFill} />
+      <G transform="translate(57 59) scale(0.92)">
         {DISC_MARKS[discState].map((prim, index) => (
           <Glyph key={index} prim={prim} color={discMarkColor} />
         ))}

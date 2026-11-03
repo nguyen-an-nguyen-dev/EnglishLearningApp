@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { AudioModule, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   PanResponder,
   Pressable,
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
+import { useAppDialog } from '@/contexts/app-dialog-context';
 import { findDropTarget, reorderWordIds, TileLayout } from '@/utils/wordOrder';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
@@ -108,6 +108,7 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const lessonId = Number(id);
   const router = useRouter();
+  const { showAppDialog } = useAppDialog();
   const { getCurrentUser } = useAuth();
   const { theme } = useAppTheme();
   const colors = Colors[theme];
@@ -433,7 +434,7 @@ export default function LessonScreen() {
       void chime.seekTo(0).then(() => chime.play()).catch(() => undefined);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể kiểm tra đáp án.';
-      Alert.alert('Lỗi kiểm tra đáp án', msg);
+      showAppDialog({ title: 'Chưa thể kiểm tra đáp án', message: msg });
     } finally {
       setChecking(false);
     }
@@ -464,7 +465,7 @@ export default function LessonScreen() {
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Lỗi khi nộp bài học.';
-        Alert.alert('Lỗi nộp bài', msg);
+        showAppDialog({ title: 'Chưa thể nộp bài', message: msg });
       } finally {
         setSubmitting(false);
       }
@@ -476,14 +477,14 @@ export default function LessonScreen() {
       router.back();
       return;
     }
-    Alert.alert(
-      'Thoát bài học?',
-      'Bạn có chắc chắn muốn rời khỏi bài học này? Tiến độ làm bài hiện tại sẽ không được lưu.',
-      [
+    showAppDialog({
+      title: 'Rời khỏi bài học?',
+      message: 'Tiến độ làm bài hiện tại sẽ không được lưu. Bạn có muốn thoát không?',
+      buttons: [
         { text: 'Ở lại', style: 'cancel' },
         { text: 'Thoát', style: 'destructive', onPress: () => router.back() },
       ],
-    );
+    });
   }
 
   // Restarting replays the exact first-entry flow: fresh questions, fresh shuffle, no leftovers.

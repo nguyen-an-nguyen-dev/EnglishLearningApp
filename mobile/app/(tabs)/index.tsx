@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   Animated,
   ActivityIndicator,
-  Alert,
   Easing,
   Image,
   Pressable,
@@ -19,9 +18,12 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import Colors from '@/constants/Colors';
-import FlagMarker, { getFlagPalette, FLAG_WIDTH } from '@/components/map/FlagMarker';
+import CheckpointMarker, { getCheckpointPalette } from '@/components/map/CheckpointMarker';
+import StageScenery from '@/components/map/StageScenery';
+import { getStageWorldTheme, mixHex, TRACK_CURB_COOL, TRACK_CURB_HOT, TRACK_LINE } from '@/components/map/stageThemes';
+import { useAppDialog } from '@/contexts/app-dialog-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
@@ -32,16 +34,17 @@ import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/le
 
 
 
-const NODE_SIZE = 76;
 const NODE_ROW_HEIGHT = 142;
-const STAGE_LABEL_HEIGHT = 42;
+const STAGE_LABEL_HEIGHT = 54;
 const ROAD_CURVE_STEPS = 12;
 const ROAD_SWING = 26;
 const ROAD_TENSION = 4.2;
 const NODE_EDGE_INSET = 10;
-const ROAD_WIDTH = 88;
-const CAR_SIZE = 92;
-const CAR_WIDTH = 58;
+const ROAD_WIDTH_MAX = 76;
+const NODE_SIZE_MAX = 76;
+const ROAD_CURB_DASH = 22;
+const ROAD_LANE_DASH = '18 26';
+const CAR_SIZE_MAX = 92;
 const CAR_DRIVE_MS_PER_LESSON = 1500;
 const CAR_DRIVE_MAX_MS = 8000;
 const CARD_INK = '#102027';
@@ -88,6 +91,7 @@ interface LessonNode {
 
 export default function LearningPathScreen() {
   const { user, getCurrentUser } = useAuth();
+  const { showAppDialog } = useAppDialog();
   const { theme } = useAppTheme();
   const colors = Colors[theme];
   const router = useRouter();
@@ -171,11 +175,11 @@ export default function LearningPathScreen() {
 
   function handleFlagPress(node: LessonNode) {
     if (node.lesson.state.status === 'locked') {
-      Alert.alert(
-        'Bài học bị khóa',
-        'Hoàn thành bài học trước đó để mở khóa bài học này.',
-        [{ text: 'Đã hiểu', style: 'default' }],
-      );
+      showAppDialog({
+        title: 'Bài học đang khóa',
+        message: 'Hoàn thành bài học trước đó để mở khóa chặng tiếp theo nhé.',
+        buttons: [{ text: 'Đã hiểu' }],
+      });
       return;
     }
 
@@ -203,6 +207,24 @@ export default function LearningPathScreen() {
   const currentLessonIndex = activeLessonIndex >= 0 ? activeLessonIndex : allLessons.length - 1;
   const currentLesson = allLessons[currentLessonIndex];
   const routeWidth = Math.max(width - 36, 200);
+  // Track, checkpoints and car scale together so the road never crowds the markers on small phones.
+  const roadWidth = Math.max(58, Math.min(ROAD_WIDTH_MAX, Math.round(routeWidth * 0.22)));
+  const nodeSize = Math.max(64, Math.min(NODE_SIZE_MAX, Math.round(routeWidth * 0.21)));
+  const carSize = Math.round(nodeSize * 1.2);
+  const carWidth = Math.round(carSize * 0.63);
+  const nodeTitleWidth = Math.round(Math.min(110, routeWidth * 0.34));
+  const selectedFlagPalette = getCheckpointPalette(selectedFlag?.lesson.code);
+  const sheetSurface = theme === 'dark'
+    ? colors.cardBackground
+    : mixHex(selectedFlagPalette.main, '#FFFFFF', 0.92);
+  const sheetAccentInk = theme === 'dark' ? selectedFlagPalette.main : selectedFlagPalette.shade;
+  const surfaceLift = (color: string) => ({
+    shadowColor: color,
+    shadowOpacity: theme === 'dark' ? 0.5 : 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
+  });
 
   const stageProgress = (progressData?.stages ?? []).map((stage) => {
     const completedLessons = stage.lessons.filter((lesson) => lesson.state.status === 'completed').length;
@@ -229,12 +251,12 @@ export default function LearningPathScreen() {
       : bannerStage.stage.lessons.length - 1
     : -1;
   const bannerLesson = bannerLessonIndex >= 0 ? bannerStage?.stage.lessons[bannerLessonIndex] : null;
-  const stagePalette = getFlagPalette(bannerStage?.stage.lessons[0]?.code);
+  const stagePalette = getCheckpointPalette(bannerStage?.stage.lessons[0]?.code);
   const stageInk = readableInk(stagePalette.main);
   const stageTrack = colorWithAlpha(stageInk, 0.2);
 
   const stagePalettes = useMemo(
-    () => (progressData?.stages ?? []).map((stage) => getFlagPalette(stage.lessons[0]?.code)),
+    () => (progressData?.stages ?? []).map((stage) => getCheckpointPalette(stage.lessons[0]?.code)),
     [progressData],
   );
   const stageMainColors = useMemo(
@@ -307,7 +329,7 @@ export default function LearningPathScreen() {
       const isFirstOfStage = indexInStage === 0;
       if (isFirstOfStage) stageStartOffsets[stageIndex] = mapHeight;
       const rowHeight = NODE_ROW_HEIGHT + (isFirstOfStage ? STAGE_LABEL_HEIGHT : 0);
-      const nodeTopInRow = (isFirstOfStage ? STAGE_LABEL_HEIGHT : 0) + (NODE_ROW_HEIGHT - NODE_SIZE) / 2;
+      const nodeTopInRow = (isFirstOfStage ? STAGE_LABEL_HEIGHT : 0) + (NODE_ROW_HEIGHT - nodeSize) / 2;
       const nodeIndex = lessonNodes.length;
       lessonNodes.push({
         key: `${stage.id}-${lesson.id}`,
@@ -316,14 +338,31 @@ export default function LearningPathScreen() {
         isFirstOfStage,
         rowHeight,
         nodeTopInRow,
-        centerY: mapHeight + nodeTopInRow + NODE_SIZE / 2,
+        centerY: mapHeight + nodeTopInRow + nodeSize / 2,
+        // The road swings toward the even-index side, so checkpoints take the free side.
         centerX: nodeIndex % 2 === 0
-          ? NODE_EDGE_INSET + NODE_SIZE / 2
-          : routeWidth - NODE_EDGE_INSET - NODE_SIZE / 2,
+          ? routeWidth - NODE_EDGE_INSET - nodeSize / 2
+          : NODE_EDGE_INSET + nodeSize / 2,
       });
       mapHeight += rowHeight;
     });
   });
+  const roadStageStops = stageProgress
+    .map((_, stageIndex) => {
+      const start = stageStartOffsets[stageIndex];
+      return start === undefined
+        ? null
+        : {
+          key: `stage-road-${stageIndex}`,
+          offset: mapHeight > 0 ? (start / mapHeight) * 100 : 0,
+          world: getStageWorldTheme(stageIndex),
+        };
+    })
+    .filter((stop): stop is { key: string; offset: number; world: ReturnType<typeof getStageWorldTheme> } => stop !== null);
+  const lastRoadStop = roadStageStops[roadStageStops.length - 1];
+  if (lastRoadStop) {
+    roadStageStops.push({ ...lastRoadStop, key: 'stage-road-end', offset: 100 });
+  }
 
   const roadWaypoints = lessonNodes.map((node, index) => ({
     // Start the journey on the screen axis, then let the road breathe left and right.
@@ -382,7 +421,7 @@ export default function LearningPathScreen() {
   const pathOffset = useRef(0);
   const lessonNodeTops = useRef<number[]>([]);
   const lessonNodesRef = useRef<LessonNode[]>([]);
-  lessonNodeTops.current = lessonNodes.map((node) => node.centerY - CAR_SIZE / 2);
+  lessonNodeTops.current = lessonNodes.map((node) => node.centerY - carSize / 2);
   lessonNodesRef.current = lessonNodes;
 
   function centerMapOnLesson(lessonIndex: number, animated: boolean): boolean {
@@ -391,7 +430,7 @@ export default function LearningPathScreen() {
     const maxScrollY = Math.max(0, mapHeight + 44 - scrollViewportHeight);
     const targetY = Math.min(
       maxScrollY,
-      Math.max(0, pathOffset.current + targetTop + CAR_SIZE / 2 - scrollViewportHeight / 2),
+      Math.max(0, pathOffset.current + targetTop + carSize / 2 - scrollViewportHeight / 2),
     );
     pathScrollRef.current.scrollTo({
       y: targetY,
@@ -466,17 +505,17 @@ export default function LearningPathScreen() {
   const carLeft = roadMotionPoints.length > 1
     ? carPosition.interpolate({
       inputRange: roadMotionIndices,
-      outputRange: roadMotionPoints.map((point) => point.x - CAR_WIDTH / 2),
+      outputRange: roadMotionPoints.map((point) => point.x - carWidth / 2),
       extrapolate: 'clamp',
     })
-    : (roadMotionPoints[0]?.x ?? routeWidth / 2) - CAR_WIDTH / 2;
+    : (roadMotionPoints[0]?.x ?? routeWidth / 2) - carWidth / 2;
   const carTop = roadMotionPoints.length > 1
     ? carPosition.interpolate({
       inputRange: roadMotionIndices,
-      outputRange: roadMotionPoints.map((point) => point.y - CAR_SIZE / 2),
+      outputRange: roadMotionPoints.map((point) => point.y - carSize / 2),
       extrapolate: 'clamp',
     })
-    : (roadMotionPoints[0]?.y ?? 0) - CAR_SIZE / 2;
+    : (roadMotionPoints[0]?.y ?? 0) - carSize / 2;
 
   return (
     <SafeAreaView
@@ -606,6 +645,21 @@ export default function LearningPathScreen() {
             style={[styles.stageMap, { minHeight: mapHeight }]}
             onLayout={(event) => { pathOffset.current = event.nativeEvent.layout.y; }}
           >
+            {roadPath ? stageProgress.map(({ stage }, stageIndex) => {
+              const stageLessons = lessonNodes.filter((node) => node.stageIndex === stageIndex);
+              if (stageLessons.length === 0) return null;
+              const stageHeight = stageLessons.reduce((total, node) => total + node.rowHeight, 0);
+              return (
+                <StageScenery
+                  height={stageHeight}
+                  key={stage.id}
+                  screenWidth={width}
+                  stageIndex={stageIndex}
+                  theme={theme}
+                  top={stageStartOffsets[stageIndex] ?? 0}
+                />
+              );
+            }) : null}
             {roadPath ? (
               <Svg
                 height={Math.max(mapHeight, 1)}
@@ -613,28 +667,127 @@ export default function LearningPathScreen() {
                 viewBox={`0 0 ${routeWidth} ${Math.max(mapHeight, 1)}`}
                 style={[styles.curvedRoad, styles.nonInteractive]}
               >
+                <Defs>
+                  <LinearGradient
+                    id="learning-road-fill"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2={Math.max(mapHeight, 1)}
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    {roadStageStops.map((stop) => (
+                      <Stop
+                        key={stop.key}
+                        offset={`${stop.offset}%`}
+                        stopColor={theme === 'dark' ? mixHex(stop.world.asphalt, stop.world.nightSky, 0.35) : stop.world.asphalt}
+                      />
+                    ))}
+                  </LinearGradient>
+                  <LinearGradient
+                    id="learning-road-rim"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2={Math.max(mapHeight, 1)}
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    {roadStageStops.map((stop) => (
+                      <Stop
+                        key={stop.key}
+                        offset={`${stop.offset}%`}
+                        stopColor={theme === 'dark' ? mixHex(stop.world.asphaltEdge, stop.world.nightSky, 0.3) : stop.world.asphaltEdge}
+                      />
+                    ))}
+                  </LinearGradient>
+                  <LinearGradient
+                    id="learning-road-shoulder"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2={Math.max(mapHeight, 1)}
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    {roadStageStops.map((stop) => (
+                      <Stop
+                        key={stop.key}
+                        offset={`${stop.offset}%`}
+                        stopColor={theme === 'dark' ? mixHex(stop.world.shoulder, stop.world.nightHorizon, 0.55) : stop.world.shoulder}
+                      />
+                    ))}
+                  </LinearGradient>
+                </Defs>
+
+                <G transform="translate(3 9)">
+                  <Path
+                    d={roadPath}
+                    fill="none"
+                    stroke={theme === 'dark' ? '#05100F' : '#1E3436'}
+                    strokeOpacity={theme === 'dark' ? 0.4 : 0.16}
+                    strokeWidth={roadWidth + 22}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </G>
                 <Path
                   d={roadPath}
                   fill="none"
-                  stroke={theme === 'dark' ? '#30363D' : '#AAB7C4'}
-                  strokeWidth={ROAD_WIDTH}
+                  stroke="url(#learning-road-shoulder)"
+                  strokeOpacity={theme === 'dark' ? 0.42 : 0.62}
+                  strokeWidth={roadWidth + 20}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <Path
                   d={roadPath}
                   fill="none"
-                  stroke={theme === 'dark' ? '#161B22' : '#C7D1DC'}
-                  strokeWidth={ROAD_WIDTH - 4}
+                  stroke={TRACK_CURB_HOT}
+                  strokeWidth={roadWidth + 12}
+                  strokeDasharray={`${ROAD_CURB_DASH} ${ROAD_CURB_DASH}`}
+                  strokeLinecap="butt"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke={TRACK_CURB_COOL}
+                  strokeWidth={roadWidth + 12}
+                  strokeDasharray={`${ROAD_CURB_DASH} ${ROAD_CURB_DASH}`}
+                  strokeDashoffset={ROAD_CURB_DASH}
+                  strokeLinecap="butt"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeOpacity={theme === 'dark' ? 0.72 : 0.95}
+                  strokeWidth={roadWidth + 2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <Path
                   d={roadPath}
                   fill="none"
-                  stroke={theme === 'dark' ? '#484F58' : '#ffffff'}
+                  stroke="url(#learning-road-rim)"
+                  strokeWidth={roadWidth - 3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke="url(#learning-road-fill)"
+                  strokeWidth={roadWidth - 11}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d={roadPath}
+                  fill="none"
+                  stroke={TRACK_LINE}
+                  strokeOpacity={theme === 'dark' ? 0.5 : 0.8}
                   strokeWidth={3}
-                  strokeDasharray="9 13"
+                  strokeDasharray={ROAD_LANE_DASH}
+                  strokeLinecap="round"
                 />
               </Svg>
             ) : null}
@@ -647,9 +800,41 @@ export default function LearningPathScreen() {
               return (
                 <View key={node.key} style={[styles.nodeSlot, { height: node.rowHeight }]}>
                   {node.isFirstOfStage && (
-                    <Text style={[styles.stageDivider, { color: colors.textMuted }]}>
-                      {`CHẶNG ${node.stageIndex + 1}`}
-                    </Text>
+                    <View style={styles.stageHeading}>
+                      <View
+                        style={[
+                          styles.stageHeadingPill,
+                          {
+                            backgroundColor: theme === 'dark' ? 'rgba(12, 22, 28, 0.78)' : 'rgba(255, 255, 255, 0.82)',
+                            borderColor: colorWithAlpha(getStageWorldTheme(node.stageIndex).shade, 0.22),
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.stageIndexChip,
+                            { backgroundColor: colorWithAlpha(getStageWorldTheme(node.stageIndex).accent, theme === 'dark' ? 0.24 : 0.16) },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.stageIndexText,
+                              { color: theme === 'dark' ? getStageWorldTheme(node.stageIndex).accent : getStageWorldTheme(node.stageIndex).shade },
+                            ]}
+                          >
+                            {String(node.stageIndex + 1).padStart(2, '0')}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={[styles.stageEyebrow, { color: colors.textMuted }]}>
+                            {`CHẶNG ${node.stageIndex + 1}`}
+                          </Text>
+                          <Text style={[styles.stageName, { color: colors.text }]}>
+                            {getStageWorldTheme(node.stageIndex).name}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
                   )}
                   
 
@@ -661,17 +846,25 @@ export default function LearningPathScreen() {
                       isCompleted ? 'Đã hoàn thành' : isLocked ? 'Bị khóa' : 'Nhấn để học'
                     }`}
                     onPress={() => handleFlagPress(node)}
-                    style={[
+                    android_ripple={{ color: colorWithAlpha(getStageWorldTheme(node.stageIndex).accent, 0.18), borderless: true }}
+                    style={({ pressed }) => [
                       styles.lessonNode,
-                      { top: node.nodeTopInRow, left: Math.max(4, Math.min(node.centerX - NODE_SIZE / 2, routeWidth - NODE_SIZE - 4)) },
+                      pressed && styles.lessonNodePressed,
+                      { top: node.nodeTopInRow, width: nodeSize, left: Math.max(4, Math.min(node.centerX - nodeSize / 2, routeWidth - nodeSize - 4)) },
                     ]}
                   >
-                    <FlagMarker code={node.lesson.code} mirrored={mirrored} status={status} size={NODE_SIZE} />
+                    <CheckpointMarker
+                      code={node.lesson.code}
+                      mirrored={mirrored}
+                      status={status}
+                      size={nodeSize}
+                      theme={theme}
+                    />
                     <Text
                       numberOfLines={1}
                       style={[
                         styles.nodeTitle,
-                        { color: isLocked ? colors.textMuted : colors.text },
+                        { width: nodeTitleWidth, color: isLocked ? colors.textMuted : colors.text },
                       ]}
                     >
                       {node.lesson.title}
@@ -683,11 +876,14 @@ export default function LearningPathScreen() {
             {roadMotionPoints.length > 0 && (
               <Animated.View
                 pointerEvents="none"
-                style={[styles.movingCar, { left: carLeft, top: carTop }]}
+                style={[styles.movingCar, { left: carLeft, top: carTop, width: carWidth, height: carSize }]}
               >
+                <View
+                  style={[styles.carShadow, { width: carWidth - 8, backgroundColor: theme === 'dark' ? '#040C0C' : '#1E3436' }]}
+                />
                 <Image
                   source={require('../../assets/images/route-car.png')}
-                  style={styles.carImage}
+                  style={[styles.carImage, { width: carWidth, height: carSize }]}
                   resizeMode="contain"
                   accessibilityLabel="Xe học của bạn"
                 />
@@ -700,29 +896,79 @@ export default function LearningPathScreen() {
         <View
           ref={sheetRef}
           onStartShouldSetResponder={() => true}
-          style={[styles.lessonSheet, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}
+          style={[
+            styles.lessonSheet,
+            {
+              backgroundColor: sheetSurface,
+              borderTopColor: colorWithAlpha(selectedFlagPalette.shade, 0.26),
+              shadowColor: theme === 'dark' ? '#000000' : selectedFlagPalette.shade,
+              shadowOpacity: theme === 'dark' ? 0.55 : 0.16,
+              shadowRadius: 24,
+              shadowOffset: { width: 0, height: -8 },
+              elevation: 14,
+            },
+          ]}
         >
+          <Svg style={styles.sheetAccentBar} preserveAspectRatio="none" viewBox="0 0 100 6">
+            <Defs>
+              <LinearGradient id="lesson-sheet-accent" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={selectedFlagPalette.main} />
+                <Stop offset="1" stopColor={selectedFlagPalette.shade} />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100" height="6" fill="url(#lesson-sheet-accent)" />
+          </Svg>
           <View style={styles.sheetHeaderRow}>
-            <Text style={[styles.sheetStage, { color: colors.textMuted }]}>
-              {`CHẶNG ${selectedFlag.stageIndex + 1}`}
-            </Text>
-            
+            <View
+              style={[
+                styles.sheetStageChip,
+                {
+                  backgroundColor: colorWithAlpha(selectedFlagPalette.main, theme === 'dark' ? 0.18 : 0.12),
+                  borderColor: colorWithAlpha(selectedFlagPalette.main, 0.3),
+                },
+              ]}
+            >
+              <Text style={[styles.sheetStage, { color: sheetAccentInk }]}>
+                {`CHẶNG ${selectedFlag.stageIndex + 1}`}
+              </Text>
+              <Text style={[styles.sheetStageName, { color: sheetAccentInk }]}>
+                {getStageWorldTheme(selectedFlag.stageIndex).name}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.sheetStateChip,
+                {
+                  backgroundColor: colorWithAlpha(selectedFlagPalette.main, theme === 'dark' ? 0.16 : 0.1),
+                  borderColor: colorWithAlpha(selectedFlagPalette.main, 0.24),
+                },
+              ]}
+            >
+              <Text style={[styles.sheetStateText, { color: sheetAccentInk }]}>
+                {selectedFlag.lesson.state.status === 'completed'
+                  ? `Điểm ${selectedFlag.lesson.state.score ?? 0}`
+                  : 'Sẵn sàng'}
+              </Text>
+            </View>
           </View>
           <Text numberOfLines={2} style={[styles.sheetTitle, { color: colors.text }]}>
             {selectedFlag.lesson.title}
           </Text>
           <Text style={[styles.sheetMeta, { color: colors.textMuted }]}>
-            {`Chủ đề: ${selectedFlag.lesson.topic} · ${selectedFlag.lesson.total_questions} câu hỏi${
-              selectedFlag.lesson.state.status === 'completed' && selectedFlag.lesson.state.score !== null
-                ? ` · Điểm: ${selectedFlag.lesson.state.score}`
-                : ''
-            }`}
+            {`Chủ đề: ${selectedFlag.lesson.topic} · ${selectedFlag.lesson.total_questions} câu hỏi`}
           </Text>
           <View style={styles.sheetActions}>
             <Pressable
               accessibilityRole="button"
               onPress={startSelectedLesson}
-              style={styles.sheetStartButton}
+              style={[
+                styles.sheetStartButton,
+                {
+                  backgroundColor: selectedFlagPalette.shade,
+                  borderBottomColor: mixHex(selectedFlagPalette.shade, '#05080B', 0.35),
+                },
+                surfaceLift(selectedFlagPalette.shade),
+              ]}
             >
               <Text style={styles.sheetStartText}>
                 {selectedFlag.lesson.state.status === 'completed' ? 'Làm lại' : 'Bắt đầu'}
@@ -731,9 +977,15 @@ export default function LearningPathScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={dismissSheet}
-              style={[styles.sheetCloseButton, { backgroundColor: colors.background }]}
+              style={[
+                styles.sheetCloseButton,
+                {
+                  backgroundColor: colorWithAlpha(colors.textMuted, theme === 'dark' ? 0.1 : 0.07),
+                  borderColor: colorWithAlpha(colors.textMuted, 0.3),
+                },
+              ]}
             >
-              <Text style={[styles.sheetCloseText, { color: colors.textMuted }]}>Đóng</Text>
+              <Text style={[styles.sheetCloseText, { color: sheetAccentInk }]}>Đóng</Text>
             </Pressable>
           </View>
         </View>
@@ -918,37 +1170,73 @@ const styles = StyleSheet.create({
   nodeSlot: {
     position: 'relative',
   },
-  stageDivider: {
-    textAlign: 'center',
+  stageHeading: {
+    height: STAGE_LABEL_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  stageHeadingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 6,
+    paddingRight: 14,
+    paddingVertical: 5,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  stageIndexChip: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+  },
+  stageIndexText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  stageEyebrow: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+  },
+  stageName: {
+    marginTop: 2,
     fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 0.6,
-    paddingTop: 12,
+    letterSpacing: 0.45,
   },
   lessonNode: {
     position: 'absolute',
-    width: NODE_SIZE,
     alignItems: 'center',
     zIndex: 2,
   },
+  lessonNodePressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.96 }],
+  },
   nodeTitle: {
     marginTop: 7,
-    width: 118,
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '800',
   },
   movingCar: {
     position: 'absolute',
-    width: CAR_WIDTH,
-    height: CAR_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
   },
+  carShadow: {
+    position: 'absolute',
+    bottom: 9,
+    height: 17,
+    borderRadius: 9,
+    opacity: 0.24,
+  },
   carImage: {
-    width: CAR_WIDTH,
-    height: CAR_SIZE,
     // The artwork points up, but the journey drives down the road.
     transform: [{ rotate: '180deg' }],
   },
@@ -964,16 +1252,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   lessonSheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     borderTopWidth: 1,
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 18,
-    gap: 4,
+    paddingTop: 20,
+    paddingBottom: 22,
+    gap: 5,
+    overflow: 'hidden',
   },
-  sheetStage: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.6,
+  sheetAccentBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: 5,
   },
   sheetHeaderRow: {
     flexDirection: 'row',
@@ -981,38 +1274,69 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 2,
   },
-  sheetTitle: {
-    fontSize: 19,
+  sheetStageChip: {
+    flexDirection: 'column',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 1,
+  },
+  sheetStage: {
+    fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  sheetStageName: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  sheetStateChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 13,
+    borderWidth: 1,
+  },
+  sheetStateText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.2,
   },
   sheetMeta: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   sheetActions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 10,
+    marginTop: 14,
   },
   sheetStartButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: Colors.primaryDark,
+    borderRadius: 14,
+    borderBottomWidth: 4,
   },
   sheetStartText: {
-    color: '#fff',
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 15.5,
     fontWeight: '900',
+    letterSpacing: 0.2,
   },
   sheetCloseButton: {
-    minWidth: 84,
-    minHeight: 48,
+    minWidth: 88,
+    minHeight: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
     paddingHorizontal: 16,
   },
   sheetCloseText: {
