@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { EnvelopeSimple, LockKey, Eye, EyeSlash, CircleNotch } from '@phosphor-icons/react';
+import { EnvelopeSimple, LockKey, Eye, EyeSlash, CircleNotch, Lightning } from '@phosphor-icons/react';
 import { useAuth } from '../../context/AuthContext';
 import { validateLogin } from '../../utils/validation';
 
@@ -18,6 +18,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const DEMO_ACCOUNT = { email: 'test@test.com', password: '123456' };
+
+  const handleDemoLogin = async () => {
+    setErrorMessage(null);
+    setEmail(DEMO_ACCOUNT.email);
+    setPassword(DEMO_ACCOUNT.password);
+    setIsSubmitting(true);
+    try {
+      await login(DEMO_ACCOUNT);
+      onSuccess?.();
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,11 +63,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   return (
     <div className="auth-card-body">
-      <div className="auth-header">
-          <h2 className="auth-title">Chào mừng bạn trở lại.</h2>
-          <p className="auth-subtitle">Đăng nhập để tiếp tục lộ trình học của bạn.</p>
-      </div>
-
       {errorMessage && (
         <div className="auth-alert-error" role="alert">
           <span>{errorMessage}</span>
@@ -123,6 +135,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           ) : (
             'Đăng nhập'
           )}
+        </button>
+
+        <button
+          type="button"
+          className="auth-demo-btn"
+          onClick={handleDemoLogin}
+          disabled={isSubmitting}
+          title={`${DEMO_ACCOUNT.email} · ${DEMO_ACCOUNT.password}`}
+        >
+          <Lightning size={15} weight="fill" />
+          <span>Vào nhanh bằng tài khoản demo</span>
         </button>
 
       </form>

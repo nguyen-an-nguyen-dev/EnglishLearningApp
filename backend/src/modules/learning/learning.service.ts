@@ -57,14 +57,28 @@ export async function getStages(): Promise<Stage[]> {
     code: r.code,
     title: r.title,
     description: r.description,
+    theme_key: r.theme_key,
+    accent_color: r.accent_color,
     sort_order: r.sort_order,
+    lesson_count: Number(r.lesson_count),
+    question_count: Number(r.question_count),
   }));
 }
 
 export async function getStageById(stageId: number): Promise<Stage> {
   const row = await repo.getStageById(stageId);
   if (!row) throw new HttpError(404, 'Stage not found.');
-  return { id: row.id, code: row.code, title: row.title, description: row.description, sort_order: row.sort_order };
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    description: row.description,
+    theme_key: row.theme_key,
+    accent_color: row.accent_color,
+    sort_order: row.sort_order,
+    lesson_count: Number(row.lesson_count),
+    question_count: Number(row.question_count),
+  };
 }
 
 // ─── Lessons ──────────────────────────────────────────────────────────────────
@@ -267,7 +281,11 @@ export async function getUserProgress(userId: number): Promise<UserProgressRespo
       code: stage.code,
       title: stage.title,
       description: stage.description,
+      theme_key: stage.theme_key,
+      accent_color: stage.accent_color,
       sort_order: stage.sort_order,
+      lesson_count: Number(stage.lesson_count),
+      question_count: Number(stage.question_count),
       lessons,
     });
   }

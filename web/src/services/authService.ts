@@ -66,6 +66,47 @@ export const authStorage = {
   },
 };
 
+export interface ProviderConfig {
+  google: boolean;
+  facebook: boolean;
+  googleClientId: string;
+  facebookAppId: string;
+}
+
+const NO_PROVIDERS: ProviderConfig = { google: false, facebook: false, googleClientId: '', facebookAppId: '' };
+
+export async function getProvidersApi(): Promise<ProviderConfig> {
+  try {
+    const response = await fetch('/api/auth/providers');
+    if (!response.ok) return NO_PROVIDERS;
+    const body = (await response.json()) as ApiResponse<ProviderConfig>;
+    return body.success && body.data ? body.data : NO_PROVIDERS;
+  } catch {
+    return NO_PROVIDERS;
+  }
+}
+
+async function socialLogin(path: string, payload: Record<string, string>, fallback: string): Promise<LoginResponseData> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body = (await response.json().catch(() => ({}))) as ApiResponse<LoginResponseData>;
+  if (!response.ok || !body.success || !body.data) {
+    throw new Error(body.error || body.message || fallback);
+  }
+  return body.data;
+}
+
+export function loginWithGoogleApi(credential: string): Promise<LoginResponseData> {
+  return socialLogin('/api/auth/google', { credential }, 'Đăng nhập Google thất bại.');
+}
+
+export function loginWithFacebookApi(accessToken: string): Promise<LoginResponseData> {
+  return socialLogin('/api/auth/facebook', { accessToken }, 'Đăng nhập Facebook thất bại.');
+}
+
 export async function loginApi(payload: LoginPayload): Promise<LoginResponseData> {
   try {
     const response = await fetch('/api/auth/login', {
@@ -163,6 +204,43 @@ export async function registerApi(payload: RegisterPayload): Promise<RegisterRes
       xp: 50,
     },
   };
+}
+
+export async function changePasswordApi(
+  token: string,
+  payload: { currentPassword: string; newPassword: string },
+): Promise<void> {
+  const response = await fetch('/api/auth/password', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = (await response.json().catch(() => ({}))) as ApiResponse<{ message: string }>;
+  if (!response.ok || !body.success) {
+    throw new Error(body.error || body.message || 'Không đổi được mật khẩu.');
+  }
+}
+
+export async function updateProfileApi(
+  token: string,
+  payload: { name: string; email: string },
+): Promise<AuthUser> {
+  const response = await fetch('/api/auth/profile', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = (await response.json().catch(() => ({}))) as ApiResponse<{ user: AuthUser }>;
+  if (!response.ok || !body.success || !body.data?.user) {
+    throw new Error(body.error || body.message || 'Không lưu được thông tin.');
+  }
+  return body.data.user;
 }
 
 export async function getCurrentUserApi(token: string): Promise<AuthUser> {

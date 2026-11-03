@@ -6,6 +6,9 @@ export const authRouter = Router();
 
 authRouter.post('/register', authController.register);
 authRouter.post('/login', authController.login);
+authRouter.post('/google', authController.google);
+authRouter.post('/facebook', authController.facebook);
+authRouter.get('/providers', authController.providers);
 authRouter.get('/me', authenticate, authController.me);
 authRouter.patch('/profile', authenticate, authController.updateProfile);
 authRouter.patch('/password', authenticate, authController.changePassword);

@@ -58,11 +58,6 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
   return (
     <div className="auth-card-body">
-      <div className="auth-header">
-          <h2 className="auth-title">Tạo tài khoản Engorace.</h2>
-          <p className="auth-subtitle">Mở lộ trình học và bắt đầu với bài đầu tiên.</p>
-      </div>
-
       {errorMessage && (
         <div className="auth-alert-error" role="alert">
           <span>{errorMessage}</span>

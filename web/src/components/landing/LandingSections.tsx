@@ -1,23 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { ThemeToggle } from '../ThemeToggle'
 import {
   ArrowCounterClockwise,
   ArrowRight,
+  ArrowUp,
   BookOpenText,
-  CaretDown,
-  ChatCircleDots,
   CheckCircle,
   Clock,
-  EnvelopeSimple,
   Eye,
   EyeSlash,
   Fire,
   Headphones,
   List,
-  Microphone,
   Sparkle,
   SpeakerHigh,
   Sword,
-  Trophy,
   X,
   XCircle,
   YoutubeLogo,
@@ -73,9 +71,10 @@ export function LandingHeader({
             <a key={item.href} href={item.href} onClick={onCloseMenu}>{item.label}</a>
           ))}
           <div className="lp-mobile-nav-actions">
+            <ThemeToggle />
             {isAuthenticated ? (
               <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
-                Bắt đầu <ArrowRight size={17} weight="bold" />
+                Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
               </button>
             ) : (
               <>
@@ -89,9 +88,10 @@ export function LandingHeader({
         </nav>
 
         <div className="lp-header-actions">
+          <ThemeToggle />
           {isAuthenticated ? (
             <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
-              Bắt đầu <ArrowRight size={17} weight="bold" />
+              Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
             </button>
           ) : (
             <>
@@ -127,10 +127,10 @@ function LessonPreview() {
     <article className="lp-lesson-preview" aria-label="Bản xem trước một bài tập tiếng Anh">
       <div className="lp-preview-topline">
         <span className="lp-preview-course"><BookOpenText size={17} weight="duotone" /> English Foundations</span>
-        <span className="lp-preview-label">Bài tập mẫu 3D</span>
+        <span className="lp-preview-label">Bài mẫu</span>
       </div>
       <div className="lp-preview-question">
-        <p className="lp-preview-context">Chào hỏi hằng ngày</p>
+        <p className="lp-preview-context">Chào hỏi hằng ngày · Bài 01</p>
         <h2>Chọn câu chào phù hợp với buổi sáng.</h2>
       </div>
       <div className="lp-answer-list" role="group" aria-label="Chọn một câu trả lời">
@@ -178,191 +178,164 @@ function LessonPreview() {
 
 export function HeroSection({ onStart }: HeroSectionProps) {
   return (
-    <section className="lp-hero" aria-labelledby="lp-hero-title" data-section="hero">
+    <section id="hero" className="lp-hero" aria-labelledby="lp-hero-title">
       <div className="lp-hero-grid">
         <div className="lp-hero-copy" data-reveal>
-          <p className="lp-eyebrow">Tiếng Anh cho những điều bạn muốn làm</p>
-          <h1 id="lp-hero-title">Học mọi nơi,<br /><span>chơi mọi lúc</span></h1>
-          <p className="lp-hero-description">Luyện tiếng Anh qua tình huống đời thường, từng bài ngắn có ngữ cảnh và cách dùng rõ ràng.</p>
+          <p className="lp-eyebrow"><span className="lp-eyebrow-mark" aria-hidden="true" />Tiếng Anh cho những điều bạn muốn làm</p>
+          <h1 id="lp-hero-title">Học mọi nơi,<br /><em>chơi mọi lúc.</em></h1>
+          <p className="lp-hero-description">Luyện tiếng Anh qua tình huống đời thường. Từng bài ngắn, có ngữ cảnh, có cách dùng rõ ràng.</p>
           <div className="lp-hero-actions">
             <button className="lp-button lp-button-primary lp-button-large" type="button" onClick={onStart}>
               Bắt đầu học <ArrowRight size={19} weight="bold" />
             </button>
-            <a className="lp-text-link" href="#modes">Khám phá hình thức học <ArrowRight size={16} weight="regular" /></a>
+            <a className="lp-text-link" href="#curriculum">Xem lộ trình <ArrowRight size={16} weight="regular" /></a>
           </div>
+          <dl className="lp-hero-facts" aria-label="Thông tin nhanh về Engorace">
+            <div><dt>06</dt><dd>chặng học</dd></div>
+            <div><dt>02</dt><dd>hình thức</dd></div>
+            <div><dt>0đ</dt><dd>để bắt đầu</dd></div>
+          </dl>
         </div>
 
         <div className="lp-hero-art" data-reveal>
-          <div className="lp-hero-orbit lp-hero-orbit-back" aria-hidden="true" />
-          <div className="lp-hero-orbit lp-hero-orbit-front" aria-hidden="true" />
-          <div className="lp-floating-note lp-floating-note-top" aria-hidden="true">
-            <span className="lp-note-icon"><Headphones size={19} weight="duotone" /></span>
-            <span>Nghe để nhớ</span>
+          <div className="lp-hero-art-panel">
+            <span className="lp-hero-sun" aria-hidden="true" />
+            <span className="lp-hero-horizon" aria-hidden="true" />
+            <LessonPreview />
           </div>
-          <div className="lp-floating-note lp-floating-note-bottom" aria-hidden="true">
-            <span className="lp-note-icon lp-note-icon-deep"><Microphone size={18} weight="duotone" /></span>
-            <span>Nói thành lời</span>
+          <div className="lp-hero-proof">
+            <span className="lp-proof-letter">A1</span>
+            <p><strong>Bắt đầu từ con số 0</strong><span>Mỗi bài 5–7 phút, dùng được ngay.</span></p>
           </div>
-          <div className="lp-preview-floor" aria-hidden="true" />
-          <LessonPreview />
-          <p className="lp-hero-caption">Một bài mẫu. Một câu có thể dùng ngay.</p>
         </div>
       </div>
-      <a className="lp-hero-edge-link" href="#curriculum" aria-label="Xem lộ trình học">
-        <span>Khám phá lộ trình</span><span className="lp-edge-line" aria-hidden="true" />
-      </a>
     </section>
   )
 }
 
-const curriculumStages = [
-  {
-    number: '01',
-    title: 'English Foundations',
-    subtitle: 'Nền tảng khởi đầu',
-    description: 'Bắt đầu với những câu giao tiếp nền tảng, tạo phản xạ câu ngắn chuẩn mực.',
-    topics: ['Chào hỏi', 'Giới thiệu', 'Gia đình'],
-    level: 'Chặng 1',
-  },
-  {
-    number: '02',
-    title: 'Everyday English',
-    subtitle: 'Tình huống thường ngày',
-    description: 'Dùng tiếng Anh tự nhiên trong mọi hoạt động đời sống quen thuộc.',
-    topics: ['Ăn uống', 'Mua sắm', 'Di chuyển'],
-    level: 'Chặng 2',
-  },
-  {
-    number: '03',
-    title: 'English in Action',
-    subtitle: 'Mở rộng thực tế',
-    description: 'Luyện cách diễn đạt đa dạng ở trường, khi đi du lịch xa và trong giao lưu.',
-    topics: ['Du lịch', 'Sở thích', 'Phỏng vấn'],
-    level: 'Chặng 3',
-  },
-  {
-    number: '04',
-    title: 'English at Work',
-    subtitle: 'Môi trường làm việc',
-    description: 'Xây dựng sự đĩnh đạc và chuyên nghiệp khi trao đổi công việc hằng ngày.',
-    topics: ['Điện thoại', 'Họp hành', 'Gửi email'],
-    level: 'Chặng 4',
-  },
-  {
-    number: '05',
-    title: 'Confident Communication',
-    subtitle: 'Làm chủ hội thoại',
-    description: 'Diễn đạt suy nghĩ sâu sắc, kể câu chuyện rành mạch và tự tin đối đáp.',
-    topics: ['Quan điểm', 'Câu chuyện', 'Kế hoạch'],
-    level: 'Chặng 5',
-  },
-]
+interface PublicStage {
+  id: number
+  code: string
+  title: string
+  description: string | null
+  theme_key: string
+  accent_color: string
+  sort_order: number
+  lesson_count: number
+  question_count: number
+}
 
 export function CurriculumSection() {
   const [activeStage, setActiveStage] = useState(0)
-  const [revealedCount, setRevealedCount] = useState(1)
-  const sectionRef = useRef<HTMLElement>(null)
+  const [stages, setStages] = useState<PublicStage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
-    const el = sectionRef.current
-    if (!el || !('IntersectionObserver' in window)) return
-
-    let intervalId: number | null = null
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            let current = 1
-            setRevealedCount(1)
-            setActiveStage(0)
-
-            if (intervalId) clearInterval(intervalId)
-            intervalId = window.setInterval(() => {
-              current += 1
-              if (current <= 5) {
-                setRevealedCount(current)
-                setActiveStage(current - 1)
-              } else {
-                if (intervalId) clearInterval(intervalId)
-              }
-            }, 550)
-          }
-        })
-      },
-      { threshold: 0.15 }
-    )
-
-    observer.observe(el)
+    let cancelled = false
+    fetch('/api/stages')
+      .then((response) => response.json())
+      .then((body: { success?: boolean; data?: { stages?: PublicStage[] } }) => {
+        if (cancelled) return
+        if (!body.success || !body.data?.stages) throw new Error('Không tải được lộ trình.')
+        setStages(body.data.stages)
+        setError(null)
+      })
+      .catch(() => {
+        if (!cancelled) setError('Không tải được lộ trình.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
-      observer.disconnect()
-      if (intervalId) clearInterval(intervalId)
+      cancelled = true
     }
-  }, [])
+  }, [reloadKey])
+
+  const active = Math.min(activeStage, Math.max(0, stages.length - 1))
+  const stageCards = stages.map((stage) => ({
+    number: String(stage.sort_order).padStart(2, '0'),
+    title: stage.title,
+    subtitle: `${stage.lesson_count} bài học`,
+    description: stage.description ?? '',
+    topics: [`${stage.question_count} câu hỏi`, stage.title.split(' ')[0]],
+    level: `Chặng ${stage.sort_order}`,
+  }))
+
+  function retry() {
+    setLoading(true)
+    setError(null)
+    setReloadKey((key) => key + 1)
+  }
 
   return (
-    <section id="curriculum" ref={sectionRef} className="lp-curriculum" aria-labelledby="curriculum-title" data-reveal>
+    <section id="curriculum" className="lp-curriculum" aria-labelledby="curriculum-title">
       <div className="lp-curriculum-intro">
         <div className="lp-section-heading">
-          <p className="lp-eyebrow">Lộ trình học liên hoàn</p>
+          <p className="lp-eyebrow"><span className="lp-eyebrow-mark" aria-hidden="true" />Lộ trình học liên hoàn</p>
           <h2 id="curriculum-title">Từ câu đầu tiên đến những cuộc trò chuyện tự tin.</h2>
         </div>
         <p className="lp-curriculum-note">
-          Các chặng học đi qua chủ đề đời thường, học tập và công việc. Mỗi chặng là một bước đệm vững chắc mở ra thêm một cách dùng tiếng Anh trong thực tế.
+          Các chặng đi qua chủ đề đời thường, học tập và công việc. Mỗi chặng là một bước đệm vững chắc mở ra thêm một cách dùng tiếng Anh trong thực tế.
         </p>
       </div>
 
-      <div className="lp-stage-pathway" role="region" aria-label="Lộ trình 5 chặng liên kết 3D">
-        <div className="lp-stage-track-rail" aria-hidden="true">
-          <div className="lp-rail-line-base" />
-          <div
-            className="lp-rail-line-glow"
-            style={{ width: `${Math.min(100, Math.max(12, ((revealedCount - 1) / 4) * 100))}%` }}
-          />
-        </div>
+      {loading && (
+        <p className="lp-curriculum-note" role="status">Đang tải lộ trình…</p>
+      )}
 
-        <ol className="lp-stage-track" aria-label="Các chặng trong chương trình học">
-          {curriculumStages.map((stage, index) => {
-            const isRevealed = index < revealedCount
-            const isActive = index === activeStage
-            return (
+      {!loading && error && (
+        <p className="lp-curriculum-note">
+          {error}{' '}
+          <button type="button" className="lp-text-link" onClick={retry}>Thử lại</button>
+        </p>
+      )}
+
+      {!loading && !error && stageCards.length > 0 && (
+        <div className="lp-stage-pathway" role="region" aria-label="Lộ trình 6 chặng">
+          <div className="lp-stage-track-rail" aria-hidden="true">
+            <div className="lp-rail-line-base" />
+            <div
+              className="lp-rail-line-glow"
+              style={{ width: `${((active + 1) / stageCards.length) * 100}%` }}
+            />
+          </div>
+
+          <ol className="lp-stage-track">
+            {stageCards.map((stage, index) => (
               <li
-                className={`lp-stage-item lp-stage-item-${index + 1} ${isRevealed ? 'is-revealed' : 'is-pending'} ${isActive ? 'is-active' : ''}`}
                 key={stage.title}
-                onClick={() => {
-                  setActiveStage(index)
-                  if (index >= revealedCount) setRevealedCount(index + 1)
-                }}
+                className={`lp-stage-item${index === active ? ' is-active' : ''}`}
               >
-                <div className="lp-stage-node-container">
-                  <span className="lp-stage-node" aria-hidden="true">
-                    <span>{stage.number}</span>
-                  </span>
-                  <span className="lp-stage-node-ring" aria-hidden="true" />
-                </div>
-
-                <div className="lp-stage-card-3d">
+                <span className="lp-stage-node" aria-hidden="true"><span>{stage.number}</span></span>
+                <button
+                  type="button"
+                  className="lp-stage-card"
+                  onClick={() => setActiveStage(index)}
+                  aria-pressed={index === active}
+                >
                   <span className="lp-stage-level">{stage.level}</span>
-                  <h3>{stage.title}</h3>
-                  <p className="lp-stage-subtitle">{stage.subtitle}</p>
-                  <p className="lp-stage-desc">{stage.description}</p>
-                  <div className="lp-stage-topics-wrap">
+                  <span className="lp-stage-card-title">{stage.title}</span>
+                  <span className="lp-stage-subtitle">{stage.subtitle}</span>
+                  <span className="lp-stage-desc">{stage.description}</span>
+                  <span className="lp-stage-topics-wrap">
                     {stage.topics.map((item) => (
                       <span key={item} className="lp-stage-chip">{item}</span>
                     ))}
-                  </div>
-                </div>
+                  </span>
+                </button>
               </li>
-            )
-          })}
-        </ol>
-      </div>
+            ))}
+          </ol>
+        </div>
+      )}
     </section>
   )
 }
 
 /* =========================================================================
-   FRAME 3: HỌC QUA ĐA DẠNG HÌNH THỨC, YOUTUBE & GAME 1V1 (PREMIUM AGENCY TABS)
+   HỌC QUA VIDEO, PHỤ ĐỀ TƯƠNG TÁC & ĐẤU TRƯỜNG TỪ VỰNG
    ========================================================================= */
 
 interface SubtitleToken {
@@ -421,10 +394,15 @@ const duelQuestions: DuelQuestion[] = [
   },
 ]
 
-export function LearningModesSection({ onStartDuel }: { onStartDuel?: () => void }) {
-  const [currentSlide, setCurrentSlide] = useState<number>(0)
-  const [isPaused, setIsPaused] = useState<boolean>(false)
-  const sliderRef = useRef<HTMLDivElement>(null)
+export function LearningModesSection({
+  onStartDuel,
+  onRequireAuth,
+}: {
+  onStartDuel?: () => void
+  onRequireAuth?: () => void
+}) {
+  const { isAuthenticated } = useAuth()
+  const [activeMode, setActiveMode] = useState(0)
 
   const [selectedWord, setSelectedWord] = useState<SubtitleToken | null>(videoSubtitleTokens[0])
   const [savedWords, setSavedWords] = useState<string[]>([])
@@ -441,169 +419,144 @@ export function LearningModesSection({ onStartDuel }: { onStartDuel?: () => void
     setIsMaskedMode((prev) => !prev)
   }
 
-  // 1v1 Word Duel States
   const [duelRound, setDuelRound] = useState<number>(0)
-  const [playerHp, setPlayerHp] = useState<number>(100)
-  const [botHp, setBotHp] = useState<number>(100)
   const [playerScore, setPlayerScore] = useState<number>(0)
   const [streak, setStreak] = useState<number>(0)
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
-  const [answerResult, setAnswerResult] = useState<'correct' | 'incorrect' | null>(null)
+  const [playerPick, setPlayerPick] = useState<string | null>(null)
+  const [botPick, setBotPick] = useState<string | null>(null)
+  const [roundWinner, setRoundWinner] = useState<'player' | 'bot' | null>(null)
+  const [loseReason, setLoseReason] = useState<'bot' | 'wrong' | 'timeout' | null>(null)
   const [gameFinished, setGameFinished] = useState<boolean>(false)
   const [timeLeft, setTimeLeft] = useState<number>(10)
-  const timerRef = useRef<number | null>(null)
+  const [correctCount, setCorrectCount] = useState<number>(0)
+  const [bestStreak, setBestStreak] = useState<number>(0)
+  const [lastGain, setLastGain] = useState<number>(0)
+  // The opponent is simulated: it locks the correct answer after a random delay.
+  const [botDelay, setBotDelay] = useState<number>(() => 3600 + Math.random() * 4000)
+  const pendingAdvanceRef = useRef<number | null>(null)
+  const botTimerRef = useRef<number | null>(null)
 
-  // Dragging support
-  const isDraggingRef = useRef(false)
-  const startXRef = useRef(0)
-  const scrollLeftRef = useRef(0)
-
-  function scrollToSlide(index: number) {
-    if (!sliderRef.current) return
-    const slides = sliderRef.current.querySelectorAll<HTMLElement>('.lp-modes-slide')
-    if (slides[index]) {
-      slides[index].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
-    } else {
-      const slideWidth = sliderRef.current.clientWidth
-      sliderRef.current.scrollTo({
-        left: index * (slideWidth + 24),
-        behavior: 'smooth',
-      })
-    }
-    setCurrentSlide(index)
-  }
-
-  function handleSliderScroll() {
-    if (!sliderRef.current) return
-    const { scrollLeft, clientWidth } = sliderRef.current
-    if (clientWidth > 0) {
-      const index = Math.round(scrollLeft / (clientWidth + 20))
-      if (index !== currentSlide && (index === 0 || index === 1)) {
-        setCurrentSlide(index)
-      }
-    }
-  }
-
-  // Auto-slide every 5 seconds (pause when user hovers or is in a live duel)
-  useEffect(() => {
-    if (isPaused) return
-
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => {
-        const next = prev === 0 ? 1 : 0
-        if (sliderRef.current) {
-          const slideWidth = sliderRef.current.clientWidth
-          sliderRef.current.scrollTo({
-            left: next * slideWidth,
-            behavior: 'smooth',
-          })
-        }
-        return next
-      })
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [isPaused])
-
-  function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if (!sliderRef.current) return
-    const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('iframe') || target.closest('input')) return
-    isDraggingRef.current = true
-    startXRef.current = e.pageX - sliderRef.current.offsetLeft
-    scrollLeftRef.current = sliderRef.current.scrollLeft
-  }
-
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
-    if (!isDraggingRef.current || !sliderRef.current) return
-    e.preventDefault()
-    const x = e.pageX - sliderRef.current.offsetLeft
-    const walk = (x - startXRef.current) * 1.3
-    sliderRef.current.scrollLeft = scrollLeftRef.current - walk
-  }
-
-  function handleMouseUpOrLeave() {
-    isDraggingRef.current = false
-  }
-
-  // Timer effect for 1v1 duel
-  useEffect(() => {
-    if (currentSlide !== 1 || gameFinished || answerResult !== null) return
-
-    timerRef.current = window.setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!)
-          handleTimeout()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [currentSlide, duelRound, gameFinished, answerResult])
-
-  function handleTimeout() {
-    setAnswerResult('incorrect')
-    setPlayerHp((prev) => Math.max(0, prev - 25))
-    setStreak(0)
-    setTimeout(() => {
-      advanceDuel()
-    }, 1500)
-  }
-
-  function handleSelectAnswer(option: string) {
-    if (answerResult !== null || gameFinished) return
-    if (timerRef.current) clearInterval(timerRef.current)
-
-    setSelectedAnswer(option)
-    const currentQ = duelQuestions[duelRound]
-
-    if (option === currentQ.correct) {
-      setAnswerResult('correct')
-      const bonus = streak > 0 ? streak * 50 : 0
-      setPlayerScore((prev) => prev + 150 + bonus)
-      setBotHp((prev) => Math.max(0, prev - 35))
-      setStreak((prev) => prev + 1)
-    } else {
-      setAnswerResult('incorrect')
-      setPlayerHp((prev) => Math.max(0, prev - 20))
-      setStreak(0)
-    }
-
-    setTimeout(() => {
-      advanceDuel()
-    }, 1600)
-  }
-
-  function advanceDuel() {
-    setSelectedAnswer(null)
-    setAnswerResult(null)
+  const advanceDuel = useCallback(() => {
+    setPlayerPick(null)
+    setBotPick(null)
+    setRoundWinner(null)
+    setLoseReason(null)
     setTimeLeft(10)
+    setBotDelay(3600 + Math.random() * 4000)
 
     if (duelRound < duelQuestions.length - 1) {
       setDuelRound((prev) => prev + 1)
     } else {
       setGameFinished(true)
     }
+  }, [duelRound])
+
+  const scheduleAdvance = useCallback((delay: number) => {
+    if (pendingAdvanceRef.current !== null) window.clearTimeout(pendingAdvanceRef.current)
+    pendingAdvanceRef.current = window.setTimeout(() => {
+      pendingAdvanceRef.current = null
+      advanceDuel()
+    }, delay)
+  }, [advanceDuel])
+
+  // Round clock
+  useEffect(() => {
+    if (activeMode !== 1 || gameFinished || roundWinner !== null) return
+
+    let remaining = 10
+    const intervalId = window.setInterval(() => {
+      remaining = Math.max(0, remaining - 1)
+      setTimeLeft(remaining)
+
+      if (remaining === 0) {
+        window.clearInterval(intervalId)
+        setRoundWinner('bot')
+        setBotPick(duelQuestions[duelRound].correct)
+        setLoseReason('timeout')
+        setStreak(0)
+        setLastGain(0)
+        scheduleAdvance(1800)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [activeMode, duelRound, gameFinished, roundWinner, scheduleAdvance])
+
+  // Opponent timer — fires at a random moment, then the bot answers correctly
+  useEffect(() => {
+    if (activeMode !== 1 || gameFinished || roundWinner !== null) return
+
+    botTimerRef.current = window.setTimeout(() => {
+      botTimerRef.current = null
+      setRoundWinner('bot')
+      setBotPick(duelQuestions[duelRound].correct)
+      setLoseReason('bot')
+      setStreak(0)
+      setLastGain(0)
+      scheduleAdvance(1800)
+    }, botDelay)
+
+    return () => {
+      if (botTimerRef.current !== null) {
+        window.clearTimeout(botTimerRef.current)
+        botTimerRef.current = null
+      }
+    }
+  }, [activeMode, duelRound, gameFinished, roundWinner, botDelay, scheduleAdvance])
+
+  useEffect(() => () => {
+    if (pendingAdvanceRef.current !== null) window.clearTimeout(pendingAdvanceRef.current)
+    if (botTimerRef.current !== null) window.clearTimeout(botTimerRef.current)
+  }, [])
+
+  function handleSelectAnswer(option: string) {
+    if (roundWinner !== null || gameFinished) return
+
+    const currentQ = duelQuestions[duelRound]
+    setPlayerPick(option)
+
+    if (option === currentQ.correct) {
+      const bonus = streak > 0 ? streak * 50 : 0
+      const nextStreak = streak + 1
+      const gain = 150 + bonus
+      setRoundWinner('player')
+      setPlayerScore((prev) => prev + gain)
+      setLastGain(gain)
+      setStreak(nextStreak)
+      setBestStreak((prev) => Math.max(prev, nextStreak))
+      setCorrectCount((prev) => prev + 1)
+    } else {
+      setRoundWinner('bot')
+      setBotPick(currentQ.correct)
+      setLoseReason('wrong')
+      setLastGain(0)
+      setStreak(0)
+    }
+
+    scheduleAdvance(1800)
   }
 
   function resetDuel() {
     setDuelRound(0)
-    setPlayerHp(100)
-    setBotHp(100)
     setPlayerScore(0)
     setStreak(0)
-    setSelectedAnswer(null)
-    setAnswerResult(null)
+    setCorrectCount(0)
+    setBestStreak(0)
+    setLastGain(0)
+    setPlayerPick(null)
+    setBotPick(null)
+    setRoundWinner(null)
+    setLoseReason(null)
     setGameFinished(false)
     setTimeLeft(10)
+    setBotDelay(3600 + Math.random() * 4000)
   }
 
   function toggleSaveWord(word: string) {
+    if (!isAuthenticated) {
+      onRequireAuth?.()
+      return
+    }
     setSavedWords((prev) =>
       prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
     )
@@ -623,595 +576,390 @@ export function LearningModesSection({ onStartDuel }: { onStartDuel?: () => void
   const currentQuestion = duelQuestions[duelRound]
 
   return (
-    <section id="modes" className="lp-modes lp-frame-inner" aria-labelledby="modes-title" data-reveal>
-      <div className="lp-modes-lead">
+    <section id="modes" className="lp-modes" aria-labelledby="modes-title">
+      <div className="lp-modes-head">
         <div className="lp-section-heading">
-          <p className="lp-eyebrow">Hình thức học</p>
+          <p className="lp-eyebrow"><span className="lp-eyebrow-mark" aria-hidden="true" />Hình thức học</p>
           <h2 id="modes-title">Học qua ngữ cảnh. Chơi để phản xạ.</h2>
         </div>
       </div>
 
-      {/* Horizontal Swipeable & Auto-sliding Viewport (Auto 5s) */}
-      <div
-        className="lp-modes-slider-viewport"
-        ref={sliderRef}
-        onScroll={handleSliderScroll}
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowRight') scrollToSlide(1)
-          if (e.key === 'ArrowLeft') scrollToSlide(0)
-        }}
-        aria-label="Khung slide hình thức học. Tự động chuyển mỗi 5s hoặc vuốt để lướt."
-      >
-        <div className="lp-modes-slider-track">
-          {/* SLIDE 1: YOUTUBE & SMART SUBTITLES */}
-          <div className="lp-modes-slide">
-            <div className="lp-modes-shell">
-              <div className="lp-modes-core">
-                <div className="lp-video-arena">
-                  <div className="lp-video-showcase">
-                    <div className="lp-video-frame">
-                      <div className="lp-yt-player-wrap">
-                        <iframe
-                          className="lp-yt-iframe"
-                          src="https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=1&rel=0&modestbranding=1"
-                          title="English Conversation Video Clip"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
+      <div className="lp-mode-tabs" role="tablist" aria-label="Chọn hình thức học">
+        <button
+          type="button"
+          role="tab"
+          id="mode-tab-video"
+          aria-selected={activeMode === 0}
+          aria-controls="mode-panel-video"
+          className={`lp-mode-tab${activeMode === 0 ? ' is-active' : ''}`}
+          onClick={() => setActiveMode(0)}
+        >
+          <YoutubeLogo size={18} weight="duotone" />
+          <span>Học qua video</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="mode-tab-duel"
+          aria-selected={activeMode === 1}
+          aria-controls="mode-panel-duel"
+          className={`lp-mode-tab${activeMode === 1 ? ' is-active' : ''}`}
+          onClick={() => setActiveMode(1)}
+        >
+          <Sword size={18} weight="duotone" />
+          <span>Đấu trường từ vựng</span>
+        </button>
+      </div>
 
-                      {/* Subtitle Strip */}
-                      <div className="lp-subtitle-engine">
-                        <div className="lp-subtitle-header">
-                          <span className="lp-exercise-tag">
-                            <Sparkle size={13} weight="fill" /> Phụ đề tương tác
-                          </span>
-                          <button
-                            type="button"
-                            className="lp-mask-toggle-btn"
-                            onClick={toggleMaskMode}
-                            aria-label={isMaskedMode ? 'Hiện toàn bộ chữ' : 'Ẩn từ (***) để luyện nghe'}
-                          >
-                            {isMaskedMode ? <Eye size={13} weight="bold" /> : <EyeSlash size={13} weight="bold" />}
-                            <span>{isMaskedMode ? 'Hiện đầy đủ' : 'Ẩn từ luyện nghe (***)'}</span>
-                          </button>
-                        </div>
+      <div className="lp-mode-panel">
+        <div
+          className="lp-modes-slide"
+          id="mode-panel-video"
+          role="tabpanel"
+          aria-labelledby="mode-tab-video"
+          hidden={activeMode !== 0}
+        >
+          <div className="lp-panel-head">
+            <div>
+              <span className="lp-panel-kicker">Bài 03 · Chào hỏi tự nhiên</span>
+              <h3>Nghe câu thật. Chạm vào từ để hiểu.</h3>
+            </div>
+            <span className="lp-panel-note"><Headphones size={15} /> Shadowing theo từng cụm</span>
+          </div>
 
-                        <div className="lp-subtitle-phrase" role="region" aria-label="Dòng phụ đề tương tác">
-                          {videoSubtitleTokens.map((token) => {
-                            const isSelected = selectedWord?.word === token.word
-                            const isSaved = savedWords.includes(token.word)
-                            const isRevealed = !isMaskedMode || revealedWords.includes(token.word)
+          <div className="lp-video-body">
+            <div className="lp-video-top">
+              <div className="lp-yt-player-wrap">
+                <iframe
+                  className="lp-yt-iframe"
+                  src="https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=1&rel=0&modestbranding=1"
+                  title="English Conversation Video Clip"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
 
-                            return (
-                              <button
-                                key={token.word}
-                                type="button"
-                                className={`lp-sub-word${isSelected ? ' is-active' : ''}${isSaved ? ' is-saved' : ''}${!isRevealed ? ' is-masked' : ''}`}
-                                onClick={() => handleTokenClick(token)}
-                                title={!isRevealed ? 'Bấm để mở chữ & nghe phát âm' : `Nghe phát âm: ${token.word}`}
-                              >
-                                {isRevealed ? token.word : '***'}
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <p className="lp-subtitle-vi">
-                          “Thực ra mà nói thật lòng, tôi không hề biết cảm giác này lại tự nhiên đến thế!”
-                        </p>
-                      </div>
+              <aside className="lp-word-column">
+                <div className="lp-word-head">
+                  <span className="lp-panel-kicker">Tra cứu tức thì</span>
+                  {selectedWord && (
+                    <button
+                      type="button"
+                      className={`lp-bookmark-btn${savedWords.includes(selectedWord.word) ? ' is-saved' : ''}`}
+                      onClick={() => toggleSaveWord(selectedWord.word)}
+                    >
+                      <Sparkle size={14} weight="fill" />
+                      <span>{savedWords.includes(selectedWord.word) ? 'Đã lưu' : 'Lưu từ'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {selectedWord && (
+                  <div className="lp-word-body">
+                    <div className="lp-word-title-row">
+                      <span className="lp-word-entry">{selectedWord.word}</span>
+                      <span className="lp-word-ipa">{selectedWord.ipa}</span>
+                      <button
+                        type="button"
+                        className="lp-speak-mini-btn"
+                        onClick={() => playSpokenWord(selectedWord.word)}
+                        aria-label={`Nghe phát âm từ ${selectedWord.word}`}
+                      >
+                        <SpeakerHigh size={17} weight="duotone" />
+                      </button>
                     </div>
+                    <p className="lp-meaning-label">Nghĩa tiếng Việt</p>
+                    <p className="lp-meaning-text">{selectedWord.meaning}</p>
+                    <p className="lp-word-tip">{selectedWord.detail}</p>
+                  </div>
+                )}
 
-                    {/* Word Inspector Sidebar */}
-                    <div className="lp-word-inspector">
-                      <div className="lp-inspector-head">
-                        <span className="lp-exercise-tag">Tra cứu tức thì</span>
-                        {selectedWord && (
-                          <button
-                            type="button"
-                            className={`lp-bookmark-btn${savedWords.includes(selectedWord.word) ? ' is-saved' : ''}`}
-                            onClick={() => toggleSaveWord(selectedWord.word)}
-                          >
-                            <Sparkle size={14} weight="fill" />
-                            <span>{savedWords.includes(selectedWord.word) ? 'Đã lưu' : 'Lưu từ'}</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {selectedWord && (
-                        <div className="lp-inspector-card">
-                          <div className="lp-inspector-main">
-                            <span className="lp-word-entry">{selectedWord.word}</span>
-                            <span className="lp-word-ipa">{selectedWord.ipa}</span>
-                            <button
-                              type="button"
-                              className="lp-speak-mini-btn"
-                              onClick={() => playSpokenWord(selectedWord.word)}
-                              aria-label={`Nghe phát âm từ ${selectedWord.word}`}
-                            >
-                              <SpeakerHigh size={17} weight="duotone" />
-                            </button>
-                          </div>
-                          <div className="lp-word-meaning-box">
-                            <span className="lp-meaning-label">Nghĩa tiếng Việt:</span>
-                            <p className="lp-meaning-text">{selectedWord.meaning}</p>
-                          </div>
-                          <p className="lp-word-tip">{selectedWord.detail}</p>
-                        </div>
-                      )}
-
-                      <div className="lp-video-features-list">
-                        <div className="lp-v-feature-item">
-                          <Headphones size={18} weight="duotone" className="lp-vf-icon" />
-                          <div>
-                            <strong>Shadowing ngắt câu</strong>
-                            <span>Nghe và lặp lại theo ngữ điệu bản xứ</span>
-                          </div>
-                        </div>
-                        <div className="lp-v-feature-item">
-                          <BookOpenText size={18} weight="duotone" className="lp-vf-icon" />
-                          <div>
-                            <strong>Sổ từ vựng ngữ cảnh</strong>
-                            <span>Lưu từ kèm video gốc để ghi nhớ sâu</span>
-                          </div>
-                        </div>
-                      </div>
+                <div className="lp-video-features-list">
+                  <div className="lp-v-feature-item">
+                    <Headphones size={18} weight="duotone" className="lp-vf-icon" />
+                    <div>
+                      <strong>Shadowing ngắt câu</strong>
+                      <span>Nghe và lặp lại theo ngữ điệu bản xứ</span>
+                    </div>
+                  </div>
+                  <div className="lp-v-feature-item">
+                    <BookOpenText size={18} weight="duotone" className="lp-vf-icon" />
+                    <div>
+                      <strong>Sổ từ vựng ngữ cảnh</strong>
+                      <span>Lưu từ kèm video gốc để ghi nhớ sâu</span>
                     </div>
                   </div>
                 </div>
+              </aside>
+            </div>
+
+            <div className="lp-subtitle-block">
+              <div className="lp-subtitle-header">
+                <span className="lp-exercise-tag">
+                  <Sparkle size={13} weight="fill" /> Phụ đề tương tác
+                </span>
+                <button
+                  type="button"
+                  className="lp-mask-toggle-btn"
+                  onClick={toggleMaskMode}
+                  aria-label={isMaskedMode ? 'Hiện toàn bộ chữ' : 'Ẩn từ để luyện nghe'}
+                >
+                  {isMaskedMode ? <Eye size={13} weight="bold" /> : <EyeSlash size={13} weight="bold" />}
+                  <span>{isMaskedMode ? 'Hiện đầy đủ' : 'Ẩn từ luyện nghe'}</span>
+                </button>
               </div>
+
+              <div className="lp-subtitle-phrase" role="region" aria-label="Dòng phụ đề tương tác">
+                {videoSubtitleTokens.map((token) => {
+                  const isSelected = selectedWord?.word === token.word
+                  const isSaved = savedWords.includes(token.word)
+                  const isRevealed = !isMaskedMode || revealedWords.includes(token.word)
+
+                  return (
+                    <button
+                      key={token.word}
+                      type="button"
+                      className={`lp-sub-word${isSelected ? ' is-active' : ''}${isSaved ? ' is-saved' : ''}${!isRevealed ? ' is-masked' : ''}`}
+                      onClick={() => handleTokenClick(token)}
+                      title={!isRevealed ? 'Bấm để mở chữ & nghe phát âm' : `Nghe phát âm: ${token.word}`}
+                    >
+                      {isRevealed ? token.word : '•••'}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <p className="lp-subtitle-vi">“Thực ra mà nói thật lòng, tôi không hề biết cảm giác này lại tự nhiên đến thế!”</p>
             </div>
           </div>
+        </div>
 
-          {/* SLIDE 2: LIVE 1V1 WORD DUEL ARENA */}
-          <div className="lp-modes-slide">
-            <div className="lp-modes-shell">
-              <div className="lp-modes-core">
-                <div className="lp-duel-arena">
-                  {!gameFinished ? (
-                    <>
-                      {/* Premium Duel Scoreboard with Real Avatars */}
-                      <div className="lp-duel-scoreboard">
-                        {/* Player (Left) */}
-                        <div className="lp-fighter lp-fighter-player">
-                          <div className="lp-fighter-avatar lp-avatar-ring-blue">
-                            <img
-                              src="/avatars/player.jpg"
-                              alt="Bạn (Học viên)"
-                              className="lp-fighter-avatar-img"
-                            />
-                          </div>
-                          <div className="lp-fighter-info">
-                            <div className="lp-fighter-name-row">
-                              <strong>Bạn (Học viên)</strong>
-                              <span className="lp-fighter-score">{playerScore} LP</span>
-                            </div>
-                            <div className="lp-hp-bar-track">
-                              <div className="lp-hp-fill lp-hp-player" style={{ width: `${playerHp}%` }} />
-                            </div>
-                            <span className="lp-hp-text">{playerHp} / 100 HP</span>
-                          </div>
-                        </div>
+        <div
+          className="lp-modes-slide"
+          id="mode-panel-duel"
+          role="tabpanel"
+          aria-labelledby="mode-tab-duel"
+          hidden={activeMode !== 1}
+        >
+          <div className="lp-panel-head">
+            <div>
+              <span className="lp-panel-kicker">Đấu trường từ vựng</span>
+              <h3>Đọc nghĩa. Chọn từ đúng trước khi hết giờ.</h3>
+            </div>
+            <span className="lp-panel-note"><Clock size={15} /> 10 giây mỗi câu</span>
+          </div>
 
-                        {/* Middle VS Badge & Timer */}
-                        <div className="lp-vs-center">
-                          <div className="lp-vs-emblem">
-                            <Sword size={15} weight="fill" />
-                            <span>VS</span>
-                          </div>
-                          <div className="lp-round-timer">
-                            <Clock size={13} weight="bold" />
-                            <span className={`lp-timer-num${timeLeft <= 3 ? ' is-urgent' : ''}`}>{timeLeft}s</span>
-                          </div>
-                          <div className="lp-timer-bar">
-                            <div className="lp-timer-bar-fill" style={{ width: `${(timeLeft / 10) * 100}%` }} />
-                          </div>
-                        </div>
+          <div className={`lp-arena${gameFinished ? ' is-finished' : ''}`}>
+            {!gameFinished ? (
+              <>
+                <aside className="lp-arena-rail" aria-label="Diễn biến trận đấu">
+                  <div className="lp-arena-side">
+                    <span className="lp-arena-who">Bạn</span>
+                    <span className="lp-arena-points">{correctCount}</span>
+                    <span className="lp-arena-points-label">vòng thắng</span>
+                    {streak > 1 && (
+                      <span className="lp-arena-streak">
+                        <Fire size={12} weight="fill" /> Chuỗi {streak}
+                      </span>
+                    )}
+                  </div>
 
-                        {/* Bot Challenger (Right) */}
-                        <div className="lp-fighter lp-fighter-bot">
-                          <div className="lp-fighter-info lp-text-right">
-                            <div className="lp-fighter-name-row lp-row-reverse">
-                              <strong>Alex (AI Tutor 🇺🇸)</strong>
-                              <span className="lp-fighter-bot-score">Master</span>
-                            </div>
-                            <div className="lp-hp-bar-track">
-                              <div className="lp-hp-fill lp-hp-bot" style={{ width: `${botHp}%` }} />
-                            </div>
-                            <span className="lp-hp-text">{botHp} / 100 HP</span>
-                          </div>
-                          <div className="lp-fighter-avatar lp-avatar-ring-cyan">
-                            <img
-                              src="/avatars/bot.jpg"
-                              alt="Alex (AI Bot)"
-                              className="lp-fighter-avatar-img"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                  <div className="lp-arena-clock">
+                    <span className={`lp-arena-clock-num${timeLeft <= 3 ? ' is-urgent' : ''}`}>
+                      {String(timeLeft).padStart(2, '0')}
+                    </span>
+                    <span className="lp-arena-clock-label">giây còn lại</span>
+                  </div>
 
-                      {/* Duel Prompt Card */}
-                      <div className="lp-duel-card">
-                        <div className="lp-duel-card-meta">
-                          <span className="lp-stage-chip">Vòng {duelRound + 1} / {duelQuestions.length}</span>
-                          {streak > 1 && (
-                            <span className="lp-streak-pill">
-                              <Fire size={14} weight="fill" /> Streak x{streak}!
-                            </span>
-                          )}
-                        </div>
-                        <p className="lp-duel-prompt-vi">{currentQuestion.prompt}</p>
-                        <p className="lp-duel-clue-en">“{currentQuestion.clue}”</p>
+                  <div className="lp-arena-side">
+                    <span className="lp-arena-who">Alex, gia sư AI</span>
+                    <span className="lp-arena-points">
+                      {(roundWinner !== null ? duelRound + 1 : duelRound) - correctCount}
+                    </span>
+                    <span className="lp-arena-points-label">vòng thắng</span>
+                  </div>
+                </aside>
 
-                        <div className="lp-duel-options-grid" role="group" aria-label="Chọn từ chính xác">
-                          {currentQuestion.options.map((option) => {
-                            const isSelected = selectedAnswer === option
-                            const isCorrectOption = option === currentQuestion.correct
-                            let btnClass = ''
-
-                            if (answerResult) {
-                              if (isCorrectOption) btnClass = ' is-correct'
-                              else if (isSelected) btnClass = ' is-incorrect'
-                            } else if (isSelected) {
-                              btnClass = ' is-selected'
-                            }
-
-                            return (
-                              <button
-                                key={option}
-                                type="button"
-                                className={`lp-duel-option-btn${btnClass}`}
-                                disabled={answerResult !== null}
-                                onClick={() => handleSelectAnswer(option)}
-                              >
-                                <span className="lp-option-label">{option}</span>
-                                {answerResult && isCorrectOption && <CheckCircle size={18} weight="fill" className="lp-opt-icon" />}
-                                {answerResult && isSelected && !isCorrectOption && <XCircle size={18} weight="fill" className="lp-opt-icon" />}
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        <div className="lp-duel-feedback" aria-live="polite">
-                          {answerResult === 'correct' && (
-                            <span className="lp-feedback-correct">
-                              <CheckCircle size={16} weight="fill" /> Chính xác! +150 LP. Đối thủ bị trừ -35 HP!
-                            </span>
-                          )}
-                          {answerResult === 'incorrect' && (
-                            <span className="lp-feedback-incorrect">
-                              <X size={16} weight="bold" /> Chưa đúng! Đáp án: “{currentQuestion.correct}” ({currentQuestion.translation}).
-                            </span>
-                          )}
-                          {!answerResult && (
-                            <span className="lp-feedback-hint">
-                              Chọn nhanh từ tiếng Anh đúng trước khi hết 10 giây.
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    /* VICTORY SCREEN */
-                    <div className="lp-duel-victory">
-                      <div className="lp-victory-badge">
-                        <Trophy size={42} weight="duotone" />
-                      </div>
-                      <h3>
-                        {playerScore >= 300 ? 'Chiến thắng vang dội! 🎉' : 'Hoàn thành ván đấu! 🤝'}
-                      </h3>
-                      <p className="lp-victory-sub">
-                        Bạn đã xuất sắc ghi được <strong>{playerScore} LP</strong> rèn luyện phản xạ đoán từ tức thì trong áp lực đối kháng.
-                      </p>
-
-                      <div className="lp-victory-stats">
-                        <div className="lp-v-stat">
-                          <span className="lp-stat-val">{playerScore} LP</span>
-                          <span className="lp-stat-lbl">Điểm thưởng</span>
-                        </div>
-                        <div className="lp-v-stat">
-                          <span className="lp-stat-val">3 / 3</span>
-                          <span className="lp-stat-lbl">Vòng hoàn thành</span>
-                        </div>
-                        <div className="lp-v-stat">
-                          <span className="lp-stat-val">🔥 x{Math.max(1, streak)}</span>
-                          <span className="lp-stat-lbl">Chuỗi thắng</span>
-                        </div>
-                      </div>
-
-                      <div className="lp-victory-actions">
-                        <button type="button" className="lp-button lp-button-primary" onClick={resetDuel}>
-                          <ArrowCounterClockwise size={16} weight="bold" /> Đấu ván khác
-                        </button>
-                        {onStartDuel && (
-                          <button type="button" className="lp-button lp-button-nested" onClick={onStartDuel}>
-                            <span>Vào Đấu trường từ vựng</span>
-                            <span className="lp-button-icon-disc"><ArrowRight size={14} weight="bold" /></span>
-                          </button>
-                        )}
-                      </div>
+                <div className="lp-arena-stage">
+                  <div className="lp-arena-meta">
+                    <div
+                      className="lp-arena-rounds"
+                      role="img"
+                      aria-label={`Vòng ${duelRound + 1} trên ${duelQuestions.length}`}
+                    >
+                      {duelQuestions.map((question, index) => (
+                        <span
+                          key={question.correct}
+                          className={`lp-arena-round${index < duelRound ? ' is-done' : ''}${index === duelRound ? ' is-current' : ''}`}
+                        />
+                      ))}
                     </div>
+
+                    <span className={`lp-arena-bot-state${roundWinner !== null ? ' is-done' : ''}`}>
+                      {roundWinner === null ? (
+                        <>
+                          Alex đang chọn
+                          <span className="lp-arena-dots" aria-hidden="true"><i /><i /><i /></span>
+                        </>
+                      ) : roundWinner === 'bot' ? (
+                        'Alex đã chốt'
+                      ) : (
+                        'Bạn nhanh hơn'
+                      )}
+                    </span>
+                  </div>
+
+                  <p className="lp-arena-prompt">{currentQuestion.prompt}</p>
+                  <p className="lp-arena-clue">{currentQuestion.clue}</p>
+
+                  <div className="lp-arena-options" role="group" aria-label="Chọn từ chính xác">
+                    {currentQuestion.options.map((option, index) => {
+                      const isCorrectOption = option === currentQuestion.correct
+                      const isPlayerPick = playerPick === option
+                      const isBotPick = botPick === option
+
+                      let stateClass = ''
+                      if (roundWinner === 'player') {
+                        stateClass = isCorrectOption ? ' is-correct' : ' is-dimmed'
+                      } else if (roundWinner === 'bot') {
+                        if (isBotPick) stateClass = ' is-bot'
+                        else if (isPlayerPick) stateClass = ' is-incorrect'
+                        else stateClass = ' is-dimmed'
+                      }
+
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`lp-arena-option${stateClass}`}
+                          disabled={roundWinner !== null}
+                          onClick={() => handleSelectAnswer(option)}
+                        >
+                          <span className="lp-arena-key">{String.fromCharCode(65 + index)}</span>
+                          <span className="lp-arena-word">{option}</span>
+                          <span className="lp-arena-mark" aria-hidden="true">
+                            {roundWinner === 'player' && isCorrectOption && <CheckCircle size={18} weight="fill" />}
+                            {roundWinner === 'bot' && isBotPick && <span className="lp-arena-bot-tag">Alex</span>}
+                            {roundWinner === 'bot' && isPlayerPick && !isBotPick && <XCircle size={18} weight="fill" />}
+                            {roundWinner === null && <ArrowRight size={16} weight="regular" />}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="lp-arena-foot" aria-live="polite">
+                    {roundWinner === 'player' && (
+                      <span className="lp-arena-foot-ok">
+                        <CheckCircle size={15} weight="fill" /> Nhanh hơn Alex. Ghi thêm {lastGain} XP.
+                      </span>
+                    )}
+                    {roundWinner === 'bot' && loseReason === 'wrong' && (
+                      <span className="lp-arena-foot-no">
+                        <XCircle size={15} weight="fill" /> Sai rồi. Đáp án là {currentQuestion.correct} ({currentQuestion.translation}).
+                      </span>
+                    )}
+                    {roundWinner === 'bot' && loseReason === 'bot' && (
+                      <span className="lp-arena-foot-no">
+                        <Sword size={15} weight="fill" /> Alex chốt trước. Đáp án là {currentQuestion.correct} ({currentQuestion.translation}).
+                      </span>
+                    )}
+                    {roundWinner === 'bot' && loseReason === 'timeout' && (
+                      <span className="lp-arena-foot-no">
+                        <Clock size={15} weight="fill" /> Hết giờ. Alex giành vòng này.
+                      </span>
+                    )}
+                    {roundWinner === null && (
+                      <span className="lp-arena-foot-hint">Chọn nhanh hơn Alex để giữ vòng.</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="lp-arena-report">
+                <span className="lp-arena-report-label">Kết quả ván đấu</span>
+
+                <div className="lp-arena-report-top">
+                  <div className="lp-arena-report-line">
+                    <div className="lp-arena-report-side">
+                      <span>Bạn</span>
+                      <strong>{correctCount}</strong>
+                    </div>
+                    <span className="lp-arena-report-dash">-</span>
+                    <div className="lp-arena-report-side">
+                      <span>Alex</span>
+                      <strong>{duelQuestions.length - correctCount}</strong>
+                    </div>
+                  </div>
+
+                  <div className="lp-arena-report-notes">
+                    <p className="lp-arena-report-verdict">
+                      {correctCount === duelQuestions.length
+                        ? 'Thắng trắng, không sai câu nào.'
+                        : correctCount * 2 > duelQuestions.length
+                          ? 'Bạn thắng sát nút.'
+                          : 'Bạn thua ván này.'}
+                    </p>
+
+                    <p className="lp-arena-report-copy">
+                      Bạn ghi <strong>{playerScore} XP</strong> sau {duelQuestions.length} vòng
+                      {bestStreak > 1 ? (
+                        <>, chuỗi dài nhất là <strong>{bestStreak}</strong> câu đúng liên tiếp.</>
+                      ) : (
+                        <>.</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="lp-arena-report-actions">
+                  <button type="button" className="lp-button lp-button-primary" onClick={resetDuel}>
+                    <ArrowCounterClockwise size={16} weight="bold" /> Đấu ván khác
+                  </button>
+                  {onStartDuel && (
+                    <button type="button" className="lp-button lp-button-nested" onClick={onStartDuel}>
+                      <span>Vào Đấu trường từ vựng</span>
+                      <span className="lp-button-icon-disc"><ArrowRight size={14} weight="bold" /></span>
+                    </button>
                   )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {/* Auto-Slide Progress Indicators (5s timer visual) */}
-      <div className="lp-slider-auto-indicators" role="tablist" aria-label="Trạng thái tự lướt slide">
-        <button
-          type="button"
-          className={`lp-auto-indicator-tab${currentSlide === 0 ? ' is-active' : ''}`}
-          onClick={() => scrollToSlide(0)}
-          role="tab"
-          aria-selected={currentSlide === 0}
-        >
-          <div className="lp-auto-ind-meta">
-            <YoutubeLogo size={16} weight="duotone" />
-            <span className="lp-auto-ind-num">01</span>
-            <span className="lp-auto-ind-label">Học qua Video YouTube</span>
-          </div>
-          <span className="lp-auto-ind-bar">
-            <span className={`lp-auto-ind-fill${currentSlide === 0 && !isPaused ? ' is-running' : ''}`} />
-          </span>
-        </button>
-
-        <button
-          type="button"
-          className={`lp-auto-indicator-tab${currentSlide === 1 ? ' is-active' : ''}`}
-          onClick={() => scrollToSlide(1)}
-          role="tab"
-          aria-selected={currentSlide === 1}
-        >
-          <div className="lp-auto-ind-meta">
-            <Sword size={16} weight="duotone" />
-            <span className="lp-auto-ind-num">02</span>
-            <span className="lp-auto-ind-label">Đấu trường từ vựng</span>
-          </div>
-          <span className="lp-auto-ind-bar">
-            <span className={`lp-auto-ind-fill${currentSlide === 1 && !isPaused ? ' is-running' : ''}`} />
-          </span>
-        </button>
       </div>
     </section>
   )
 }
 
 /* =========================================================================
-   FRAME 4: CÂU HỎI THƯỜNG GẶP (FAQ SECTION)
+   FINAL CTA & FOOTER
    ========================================================================= */
 
-interface FaqItem {
-  id: string
-  category: 'all' | 'curriculum' | 'game' | 'pricing'
-  question: string
-  answer: string
-}
-
-const faqList: FaqItem[] = [
-  {
-    id: 'faq-1',
-    category: 'curriculum',
-    question: 'Tôi mất gốc tiếng Anh hoặc người mới bắt đầu có theo kịp không?',
-    answer:
-      'Hoàn toàn phù hợp! Lộ trình của Engorace bắt đầu từ Chặng 1 "English Foundations" dành riêng cho người mới, tập trung vào các câu chào hỏi, giới thiệu và sinh hoạt quen thuộc. Mỗi câu đều có phát âm chậm của người bản xứ và giải nghĩa song ngữ rõ ràng, không bắt bạn phải học vẹt bảng công thức ngữ pháp khô khan.',
-  },
-  {
-    id: 'faq-2',
-    category: 'game',
-    question: 'Học qua Video YouTube và Đấu trường từ vựng giúp ghi nhớ từ như thế nào?',
-    answer:
-      'Khoa học chứng minh não bộ nhớ sâu nhất khi liên kết đồng thời giữa hình ảnh, âm thanh đời thực (Video YouTube) và phản xạ có áp lực thời gian tích cực (Đấu trường từ vựng). Khi tham gia đấu trường, bạn không chỉ "nhìn" từ mà phải "truy xuất" từ vựng trong 10 giây, kích hoạt cơ chế Spaced Retrieval giúp từ vựng đi thẳng vào trí nhớ dài hạn.',
-  },
-  {
-    id: 'faq-3',
-    category: 'game',
-    question: 'Chế độ Đấu trường từ vựng có thể thách đấu cùng bạn bè thật không?',
-    answer:
-      'Chắc chắn rồi! Bạn có thể tạo phòng thi đấu riêng với Mã Phòng (Room Code) để rủ bạn bè, đồng nghiệp so tài, hoặc bấm "Ghép ngẫu nhiên" để đấu đối kháng cùng hàng chục ngàn người học khác trên khắp cả nước. Hệ thống xếp hạng tự động cân bằng trình độ để trận đấu luôn công bằng và kịch tính.',
-  },
-  {
-    id: 'faq-4',
-    category: 'pricing',
-    question: 'Ứng dụng Engorace có miễn phí không? Tôi có cần nhập thẻ thanh toán không?',
-    answer:
-      'Engorace hoàn toàn không yêu cầu thẻ tín dụng khi đăng ký. Bạn có thể mở tài khoản miễn phí để học toàn bộ bài học Chặng 1, xem các video tình huống mẫu và tham gia các lượt đấu từ vựng mỗi ngày mà không tốn bất kỳ chi phí nào.',
-  },
-  {
-    id: 'faq-5',
-    category: 'curriculum',
-    question: 'Mỗi ngày tôi nên dành bao nhiêu thời gian để đạt kết quả tốt nhất?',
-    answer:
-      'Chỉ cần 15 đến 20 phút mỗi ngày. Các bài học và ván game được đóng gói theo mô hình Micro-learning ngắn gọn (5-7 phút mỗi phiên). Sự kiên trì và đều đặn mỗi ngày quan trọng hơn rất nhiều so với việc dồn học 3 tiếng vào cuối tuần.',
-  },
-]
-
-export function FaqSection() {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'curriculum' | 'game' | 'pricing'>('all')
-  const [openIds, setOpenIds] = useState<string[]>(['faq-1', 'faq-2'])
-
-  const filteredFaqs = faqList.filter(
-    (item) => activeCategory === 'all' || item.category === activeCategory
-  )
-
-  function toggleFaq(id: string) {
-    setOpenIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    )
-  }
-
-  return (
-    <section id="faq" className="lp-faq lp-frame-inner" aria-labelledby="faq-title" data-reveal>
-      <div className="lp-faq-lead">
-        <div className="lp-section-heading">
-          <p className="lp-eyebrow">Giải đáp thắc mắc</p>
-          <h2 id="faq-title">Câu hỏi thường gặp</h2>
-        </div>
-        <p className="lp-faq-desc">
-          Mọi thông tin bạn cần biết về lộ trình học, video ngữ cảnh, Đấu trường từ vựng và chính sách trải nghiệm miễn phí.
-        </p>
-      </div>
-
-      {/* Filter Category Pills */}
-      <div className="lp-faq-filter-dock" role="tablist" aria-label="Lọc chủ đề câu hỏi">
-        <button
-          type="button"
-          className={`lp-faq-filter-pill${activeCategory === 'all' ? ' is-active' : ''}`}
-          onClick={() => setActiveCategory('all')}
-        >
-          Tất cả câu hỏi
-        </button>
-        <button
-          type="button"
-          className={`lp-faq-filter-pill${activeCategory === 'curriculum' ? ' is-active' : ''}`}
-          onClick={() => setActiveCategory('curriculum')}
-        >
-          Lộ trình & Phương pháp
-        </button>
-        <button
-          type="button"
-          className={`lp-faq-filter-pill${activeCategory === 'game' ? ' is-active' : ''}`}
-          onClick={() => setActiveCategory('game')}
-        >
-          Video & Đấu từ vựng
-        </button>
-        <button
-          type="button"
-          className={`lp-faq-filter-pill${activeCategory === 'pricing' ? ' is-active' : ''}`}
-          onClick={() => setActiveCategory('pricing')}
-        >
-          Chi phí & Bắt đầu
-        </button>
-      </div>
-
-      {/* Accordion Layout Grid */}
-      <div className="lp-faq-layout-grid">
-        <div className="lp-faq-accordion-list" role="region" aria-label="Danh sách câu hỏi thường gặp">
-          {filteredFaqs.map((faq) => {
-            const isOpen = openIds.includes(faq.id)
-            return (
-              <div
-                key={faq.id}
-                className={`lp-faq-accordion-item${isOpen ? ' is-open' : ''}`}
-              >
-                <button
-                  type="button"
-                  className="lp-faq-question-btn"
-                  onClick={() => toggleFaq(faq.id)}
-                  aria-expanded={isOpen}
-                  aria-controls={`faq-answer-${faq.id}`}
-                >
-                  <span className="lp-faq-question-text">{faq.question}</span>
-                  <span className="lp-faq-icon-disc" aria-hidden="true">
-                    <CaretDown size={16} weight="bold" />
-                  </span>
-                </button>
-                <div
-                  id={`faq-answer-${faq.id}`}
-                  className="lp-faq-answer-panel"
-                  hidden={!isOpen}
-                >
-                  <p>{faq.answer}</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Side Support Card */}
-        <aside className="lp-faq-support-aside">
-          <div className="lp-support-card">
-            <div className="lp-support-icon">
-              <ChatCircleDots size={26} weight="duotone" />
-            </div>
-            <h3>Cần tư vấn thêm?</h3>
-            <p>
-              Đội ngũ trợ giảng của Engorace luôn trực tuyến hỗ trợ bạn 24/7 để tư vấn lộ trình học phù hợp nhất.
-            </p>
-            <div className="lp-support-response-time">
-              <span className="lp-live-dot" /> Phản hồi &lt; 5 phút
-            </div>
-            <a
-              href="mailto:support@engorace.app?subject=Tư vấn lộ trình Engorace"
-              className="lp-button lp-button-primary lp-button-w-full"
-            >
-              <EnvelopeSimple size={16} weight="bold" /> Nhắn tin cho trợ giảng
-            </a>
-          </div>
-        </aside>
-      </div>
-    </section>
-  )
-}
-
-/* =========================================================================
-   FRAME 5: FINAL CTA & FOOTER (KHÔI PHỤC THIẾT KẾ GỐC ĐẲNG CẤP)
-   ========================================================================= */
-
-interface LandingFooterProps {
-  onLogin: () => void
-  onRegister: () => void
-}
-
-export function LandingFooter({ onLogin, onRegister }: LandingFooterProps) {
+export function LandingFooter() {
   return (
     <footer className="lp-footer">
-      <div className="lp-footer-main">
-        <a className="lp-wordmark" href="#top" aria-label="Engorace, về đầu trang">
-          <div className="lp-brand-logo-wrap" aria-hidden="true">
-            <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
-          </div>
-          <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
-        </a>
-        <p>Học tiếng Anh qua câu nói có thể dùng trong cuộc sống mỗi ngày.</p>
-        <div className="lp-footer-actions">
-          <button type="button" onClick={onLogin}>Đăng nhập</button>
-          <button type="button" onClick={onRegister}>Bắt đầu học <ArrowRight size={15} /></button>
+      <div className="lp-footer-row">
+        <div className="lp-footer-brand">
+          <a className="lp-wordmark" href="#top" aria-label="Engorace, về đầu trang">
+            <div className="lp-brand-logo-wrap" aria-hidden="true">
+              <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
+            </div>
+            <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
+          </a>
+          <span className="lp-footer-copy">© {new Date().getFullYear()} Engorace</span>
         </div>
-      </div>
-      <div className="lp-footer-bottom">
-        <span>© {new Date().getFullYear()} Engorace</span>
-        <nav aria-label="Liên kết đến các phần trên trang">
+
+        <nav className="lp-footer-nav" aria-label="Liên kết chân trang">
           <a href="#curriculum">Lộ trình</a>
           <a href="#modes">Hình thức học</a>
         </nav>
-        <a href="#top" className="lp-back-top">Về đầu trang <ArrowRight size={14} className="lp-back-top-icon" aria-hidden="true" /></a>
+
+        <a href="#top" className="lp-back-top" aria-label="Về đầu trang" title="Về đầu trang">
+          <ArrowUp size={18} weight="bold" aria-hidden="true" />
+        </a>
       </div>
     </footer>
   )
 }
 
-/* Backward-compatible wrappers */
-export function LearningMethodSection() {
-  return <LearningModesSection />
-}
-
-export function PracticeSection() {
-  return <FaqSection />
-}
-
-export function VocabularySection() {
-  return null
-}
-
-export function ListeningSection() {
-  return null
-}
-
-export function SpeakingSection() {
-  return null
-}
-
-export function BenefitsSection() {
-  return null
-}

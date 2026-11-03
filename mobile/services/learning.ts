@@ -5,6 +5,10 @@ export interface Stage {
   code: string;
   title: string;
   description: string | null;
+  theme_key?: string;
+  accent_color?: string;
+  lesson_count?: number;
+  question_count?: number;
   sort_order: number;
 }
 

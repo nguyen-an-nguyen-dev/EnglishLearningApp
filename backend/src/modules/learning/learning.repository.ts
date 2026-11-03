@@ -14,14 +14,22 @@ import type {
 
 export async function getAllStages(): Promise<StageRow[]> {
   const [rows] = await pool.execute<StageRow[]>(
-    'SELECT id, code, title, description, sort_order FROM stages ORDER BY sort_order ASC',
+    `SELECT s.id, s.code, s.title, s.description, s.theme_key, s.accent_color, s.sort_order,
+            (SELECT COUNT(*) FROM lessons l WHERE l.stage_id = s.id) AS lesson_count,
+            (SELECT COUNT(*) FROM questions q JOIN lessons l ON l.id = q.lesson_id WHERE l.stage_id = s.id) AS question_count
+     FROM stages s
+     ORDER BY s.sort_order ASC`,
   );
   return rows;
 }
 
 export async function getStageById(stageId: number): Promise<StageRow | undefined> {
   const [rows] = await pool.execute<StageRow[]>(
-    'SELECT id, code, title, description, sort_order FROM stages WHERE id = ? LIMIT 1',
+    `SELECT s.id, s.code, s.title, s.description, s.theme_key, s.accent_color, s.sort_order,
+            (SELECT COUNT(*) FROM lessons l WHERE l.stage_id = s.id) AS lesson_count,
+            (SELECT COUNT(*) FROM questions q JOIN lessons l ON l.id = q.lesson_id WHERE l.stage_id = s.id) AS question_count
+     FROM stages s
+     WHERE s.id = ? LIMIT 1`,
     [stageId],
   );
   return rows[0];

@@ -1,30 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import {
   BookOpenText,
+  CalendarBlank,
+  CheckCircle,
+  Crown,
+  Flag,
   Flame,
-  Headphones,
-  House,
+  Gear,
   Lightning,
-  Microphone,
-  PencilLine,
-  SignOut,
-  Sparkle,
-  Trophy,
-  UserCircle,
   Medal,
   Play,
-  ArrowRight,
   ShieldCheck,
-  CheckCircle,
-  Gear,
-  MapPin,
-  LockSimple,
-  Compass,
+  SignOut,
+  Sword,
+  Trophy,
+  UserCircle,
+  UsersThree,
 } from '@phosphor-icons/react'
 import { useAuth } from './context/AuthContext'
 import { LandingPage } from './components/landing/LandingPage'
 import type { AuthUser } from './types/auth'
-import { MILESTONES } from './journey-data'
+import { useI18n } from './i18n'
+import { formatCompact } from './utils/format'
+import { AccountActions } from './components/AccountActions'
+import { SettingsPanel } from './components/SettingsPanel'
+import { RouteMapCard } from './components/roadmap/RouteMapCard'
+import { LessonPlayer } from './components/lesson/LessonPlayer'
+import { useLearning } from './context/LearningContext'
+import {
+  ROADMAP_LAYOUT,
+  STAGE_VISUALS,
+  findCurrentLesson,
+  findCurrentStageIndex,
+  flattenLessons,
+  roadmapHeight,
+  stageTop,
+} from './roadmap'
 
 export type DashboardTab = 'study' | 'compete' | 'rankings' | 'profile'
 
@@ -34,77 +46,50 @@ interface SidebarProps {
   onSelectTab: (tab: DashboardTab) => void
   onLogout: () => void
   onViewLanding: () => void
+  onOpenSettings: (anchor: HTMLElement) => void
 }
 
-function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding }: SidebarProps) {
+function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpenSettings }: SidebarProps) {
+  const { t } = useI18n()
   const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const displayName = user?.name || 'An Nguyễn'
-  const streakDays = user?.streak ?? 4
+
+  const tabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
+    { id: 'study', label: t.navStudy, icon: BookOpenText },
+    { id: 'compete', label: t.navCompete, icon: Lightning },
+    { id: 'rankings', label: t.navRankings, icon: Trophy },
+    { id: 'profile', label: t.navProfile, icon: UserCircle },
+  ]
 
   return (
     <aside className="sidebar">
-      <button className="brand-button" type="button" onClick={onViewLanding} aria-label="Engorace trang chủ">
-        <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
+      <div className="brand-block">
+        <button className="brand-logo-btn" type="button" onClick={onViewLanding} aria-label={t.brandHome}>
+          <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
+        </button>
         <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
-      </button>
+      </div>
 
-      <div className="sidebar-label">ĐIỀU HƯỚNG</div>
-      <nav className="sidebar-nav" aria-label="Điều hướng chính">
-        <button
-          type="button"
-          className={`nav-item ${activeTab === 'study' ? 'nav-item-active' : ''}`}
-          onClick={() => onSelectTab('study')}
-        >
-          <BookOpenText size={20} weight={activeTab === 'study' ? 'fill' : 'regular'} />
-          <span>Học Tập</span>
-          {activeTab === 'study' && <span className="nav-dot" />}
-        </button>
-
-        <button
-          type="button"
-          className={`nav-item ${activeTab === 'compete' ? 'nav-item-active' : ''}`}
-          onClick={() => onSelectTab('compete')}
-        >
-          <Lightning size={20} weight={activeTab === 'compete' ? 'fill' : 'regular'} />
-          <span>Thi Đua</span>
-          {activeTab === 'compete' && <span className="nav-dot" />}
-        </button>
-
-        <button
-          type="button"
-          className={`nav-item ${activeTab === 'rankings' ? 'nav-item-active' : ''}`}
-          onClick={() => onSelectTab('rankings')}
-        >
-          <Trophy size={20} weight={activeTab === 'rankings' ? 'fill' : 'regular'} />
-          <span>Bảng Xếp Hạng</span>
-          {activeTab === 'rankings' && <span className="nav-dot" />}
-        </button>
-
-        <button
-          type="button"
-          className={`nav-item ${activeTab === 'profile' ? 'nav-item-active' : ''}`}
-          onClick={() => onSelectTab('profile')}
-        >
-          <UserCircle size={20} weight={activeTab === 'profile' ? 'fill' : 'regular'} />
-          <span>Profile</span>
-          {activeTab === 'profile' && <span className="nav-dot" />}
-        </button>
-
-        <button className="nav-item nav-item-action" type="button" onClick={onViewLanding}>
-          <Sparkle size={20} />
-          <span>Trang giới thiệu</span>
-        </button>
+      <nav className="sidebar-nav" aria-label={t.navAria}>
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          const active = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`nav-item ${active ? 'nav-item-active' : ''}`}
+              onClick={() => onSelectTab(tab.id)}
+            >
+              <Icon size={22} weight={active ? 'fill' : 'bold'} />
+              <span>{tab.label}</span>
+              {active && <span className="nav-dot" />}
+            </button>
+          )
+        })}
       </nav>
 
       <div className="sidebar-spacer" />
-
-      <div className="streak-card">
-        <span className="streak-icon"><Flame size={19} weight="fill" /></span>
-        <div>
-          <strong>{streakDays} ngày liên tiếp</strong>
-          <small>Giữ nhịp học mỗi ngày nhé!</small>
-        </div>
-      </div>
 
       <div className="profile-container">
         <div className="profile-row" onClick={() => onSelectTab('profile')} role="button" tabIndex={0}>
@@ -113,305 +98,456 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding }: Side
             <strong>{displayName}</strong>
             <small>{user?.email || 'Người khám phá'}</small>
           </span>
-          <button
-            type="button"
-            className="logout-icon-btn"
-            onClick={(e) => {
-              e.stopPropagation()
-              onLogout()
-            }}
-            title="Đăng xuất"
-            aria-label="Đăng xuất tài khoản"
-          >
-            <SignOut size={18} />
-          </button>
+          <span className="profile-actions">
+            <button
+              type="button"
+              className="profile-icon-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenSettings(e.currentTarget)
+              }}
+              aria-haspopup="dialog"
+              title={t.settings}
+              aria-label={t.settings}
+            >
+              <Gear size={18} />
+            </button>
+            <button
+              type="button"
+              className="logout-icon-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onLogout()
+              }}
+              title={t.signOut}
+              aria-label={t.signOutAria}
+            >
+              <SignOut size={18} />
+            </button>
+          </span>
         </div>
       </div>
     </aside>
   )
 }
 
-interface TopBarProps {
-  user: AuthUser | null
-  onViewLanding: () => void
-  onOpenProfile: () => void
-}
+/* ------------------------------------------------------------- */
+/* TAB 1: HỌC TẬP                                                */
+/* ------------------------------------------------------------- */
+function StudyView({ user, onOpenLesson }: { user: AuthUser | null; onOpenLesson: (lessonId: number, lessonTitle: string) => void }) {
+  const { t, lang } = useI18n()
+  const { stages, loading, error, refresh } = useLearning()
+  const firstName = user?.name ? user.name.trim().split(/\s+/)[0] : 'An'
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const lessons = useMemo(() => flattenLessons(stages), [stages])
+  const currentLesson = useMemo(() => findCurrentLesson(stages), [stages])
+  const currentLessonStageIndex = currentLesson?.stageIndex
+  const currentLessonIndex = currentLesson?.lessonIndex
+  const selectedLesson = lessons.find((lesson) => lesson.id === selectedId) ?? currentLesson ?? lessons[0]
+  const completedLessons = lessons.filter((lesson) => lesson.status === 'done').length
+  const total = lessons.length
+  const activeStageIndex = useMemo(() => findCurrentStageIndex(stages), [stages])
+  const [visibleStageIndex, setVisibleStageIndex] = useState(0)
+  const mapScrollRef = useRef<HTMLDivElement | null>(null)
+  const didAutoScroll = useRef(false)
 
-function TopBar({ user, onViewLanding, onOpenProfile }: TopBarProps) {
-  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
-  const firstName = user?.name ? user.name.trim().split(' ').slice(-1)[0] : 'An'
-  const streak = user?.streak ?? 4
-  const xp = user?.xp ?? 240
+  useEffect(() => {
+    if (didAutoScroll.current || stages.length === 0) return
+    const container = mapScrollRef.current
+    if (!container || container.scrollHeight <= container.clientHeight + 8) return
+    const ratio = stageTop(activeStageIndex) / roadmapHeight(stages.length)
+    container.scrollTop = ratio * container.scrollHeight
+    didAutoScroll.current = true
+  }, [stages, activeStageIndex])
+
+  useEffect(() => {
+    if (!didAutoScroll.current || currentLessonStageIndex === undefined || currentLessonIndex === undefined) return
+    const container = mapScrollRef.current
+    if (!container || container.scrollHeight <= container.clientHeight + 8) return
+    const ratio = (
+      stageTop(currentLessonStageIndex)
+      + ROADMAP_LAYOUT.stageTopPad
+      + currentLessonIndex * ROADMAP_LAYOUT.lessonGap
+    ) / roadmapHeight(stages.length)
+    container.scrollTo({
+      top: Math.max(0, ratio * container.scrollHeight - container.clientHeight / 2),
+      behavior: 'smooth',
+    })
+  }, [currentLessonStageIndex, currentLessonIndex, stages.length])
+
+  useEffect(() => {
+    const scrollContainer = mapScrollRef.current
+    if (!scrollContainer || stages.length === 0) return
+    const container = scrollContainer
+
+    function syncVisibleStage() {
+      const map = container.querySelector<SVGElement>('.roadmap-map')
+      const scrollable = container.scrollHeight > container.clientHeight + 8
+      if (!scrollable || !map) {
+        setVisibleStageIndex(activeStageIndex)
+        return
+      }
+
+      const stageHeightPx = map.getBoundingClientRect().height / stages.length
+      if (stageHeightPx <= 0) return
+      const index = Math.floor((container.scrollTop + container.clientHeight / 2) / stageHeightPx)
+      setVisibleStageIndex(Math.min(stages.length - 1, Math.max(0, index)))
+    }
+
+    syncVisibleStage()
+    container.addEventListener('scroll', syncVisibleStage, { passive: true })
+    window.addEventListener('resize', syncVisibleStage)
+    return () => {
+      container.removeEventListener('scroll', syncVisibleStage)
+      window.removeEventListener('resize', syncVisibleStage)
+    }
+  }, [stages.length, activeStageIndex])
+
+  useEffect(() => {
+    if (selectedId === null) {
+      setCardAnchor(null)
+      return
+    }
+    const container = mapScrollRef.current
+    const map = container?.closest<HTMLElement>('.study-map')
+    if (!container || !map) return
+    const mapEl = map
+
+    function positionCard() {
+      const marker = container?.querySelector<SVGGElement>(`.roadmap-marker[data-lesson-id="${selectedId}"]`)
+      if (!marker) {
+        setCardAnchor(null)
+        return
+      }
+      const markerRect = marker.getBoundingClientRect()
+      const mapRect = mapEl.getBoundingClientRect()
+      const cardWidth = Math.min(310, Math.max(220, mapRect.width - 48))
+      const markerCenter = markerRect.left + markerRect.width / 2 - mapRect.left
+      const x = Math.min(
+        mapRect.width - cardWidth / 2 - 12,
+        Math.max(cardWidth / 2 + 12, markerCenter),
+      )
+      const markerTop = markerRect.top - mapRect.top
+      const above = markerTop > 230
+      const y = above ? markerTop - 12 : markerRect.bottom - mapRect.top + 12
+      setCardAnchor({ x, y, above })
+    }
+
+    positionCard()
+    container.addEventListener('scroll', positionCard, { passive: true })
+    window.addEventListener('resize', positionCard)
+    return () => {
+      container.removeEventListener('scroll', positionCard)
+      window.removeEventListener('resize', positionCard)
+    }
+  }, [selectedId])
+
+  const visibleStage = stages[visibleStageIndex] ?? stages[activeStageIndex] ?? stages[0]
+  const visibleVisual = visibleStage ? STAGE_VISUALS[visibleStage.theme] : undefined
+  const cardStyle = visibleVisual && visibleStage
+    ? ({
+        '--stage-card-bg': visibleVisual.bg,
+        '--stage-card-ink': visibleVisual.ink,
+        '--stage-soft': visibleVisual.soft,
+        '--stage-accent': visibleStage.accent,
+      } as CSSProperties)
+    : undefined
+
+  const ctaLabel =
+    selectedLesson?.status === 'locked'
+      ? t.stopLocked
+      : selectedLesson?.status === 'done'
+        ? t.stopReview
+        : t.stopContinue
 
   return (
-    <header className="topbar">
-      <div className="mobile-brand" onClick={onViewLanding} role="button" tabIndex={0}>
-        <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
-        <strong className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></strong>
-      </div>
-      <div className="welcome-copy">
-        <span>Mỗi ngày một bước tiến</span>
-        <strong>Chào buổi sáng, {firstName} <span aria-hidden="true">✦</span></strong>
-      </div>
-      <div className="topbar-stats">
-        <div className="stat-pill streak-pill">
-          <Flame size={18} weight="fill" />
-          <strong>{streak}</strong>
-          <span>ngày</span>
-        </div>
-        <div className="stat-pill xp-pill">
-          <Lightning size={18} weight="fill" />
-          <strong>{xp} XP</strong>
-        </div>
-        <button
-          type="button"
-          className="top-avatar"
-          onClick={onOpenProfile}
-          title={user?.name || 'Hồ sơ cá nhân'}
-          aria-label="Xem hồ sơ cá nhân"
-        >
-          {initial}
-        </button>
-      </div>
-    </header>
-  )
-}
+    <div className="tab-view-container trail-page study-screen">
+      <section className="study-map" aria-label={t.mapAria} style={cardStyle}>
+        <header className="trail-intro study-map-greeting">
+          <span className="trail-eyebrow">{t.studyEyebrow}</span>
+          <h1>{t.studyHi(firstName)}<br /><em>{t.studyTail}</em></h1>
+          <p className="trail-meta">
+            <span>
+              <strong>{loading ? '…' : t.studyDoneCount(completedLessons, total)}</strong>{' '}
+              {t.studyDoneLabel}
+              {stages.length > 0 && (
+                <>
+                  {' · '}
+                  <strong>
+                    {lang === 'en' ? 'Stage' : 'Chặng'} {visibleStageIndex + 1}/{stages.length}
+                  </strong>
+                </>
+              )}
+            </span>
+          </p>
+        </header>
 
-/* ------------------------------------------------------------- */
-/* TAB 1: HỌC TẬP (Study View - Middle Section Ready for Redesign)*/
-/* ------------------------------------------------------------- */
-function StudyView({ user }: { user: AuthUser | null }) {
-  const firstName = user?.name ? user.name.trim().split(' ').slice(-1)[0] : 'An'
-  const [selectedStop, setSelectedStop] = useState(MILESTONES.find((stop) => stop.status === 'current') ?? MILESTONES[0])
-  const completedStops = MILESTONES.filter((stop) => stop.status === 'done').length
-  const skillIcons = { listen: Headphones, speak: Microphone, read: BookOpenText, write: PencilLine, mixed: Sparkle }
-  const SelectedIcon = skillIcons[selectedStop.skillType]
-
-  return (
-    <div className="tab-view-container">
-      <section className="study-intro">
-        <div className="study-intro-copy">
-          <span className="page-eyebrow">NHẬT KÝ HÀNH TRÌNH</span>
-          <h1>Chào {firstName},<br /><span>mình đi tiếp nhé.</span></h1>
-          <p>Mỗi chặng là một tình huống tiếng Anh bạn có thể dùng ngay ngoài đời.</p>
-          <div className="study-quick-stats" aria-label="Tiến độ học tập">
-            <span><strong>{completedStops}/{MILESTONES.length}</strong> chặng đã hoàn thành</span>
-            <span className="study-stat-divider" />
-            <span><strong>{user?.streak ?? 4} ngày</strong> giữ nhịp</span>
-            <span className="study-stat-divider" />
-            <span><strong>{user?.xp ?? 240} XP</strong> tích lũy</span>
+        {stages.length > 0 && selectedLesson && (
+          <div className="roadmap-scroll" ref={mapScrollRef}>
+            <RouteMapCard
+              stages={stages}
+              selectedLessonId={selectedLesson.id}
+              onSelect={(lesson) => setSelectedId(lesson.id)}
+              lang={lang}
+              fullBleed
+              markerLabel={(lesson) => {
+                const stageNumber = String(lesson.stageIndex + 1).padStart(2, '0')
+                const stageLessonCount = stages[lesson.stageIndex]?.totalCount ?? 0
+                const prefix = `${t.stage(stageNumber)} · ${lang === 'en' ? 'lesson' : 'bài'} ${lesson.lessonIndex + 1}/${stageLessonCount}`
+                return `${prefix}: ${lesson.title}${lesson.status === 'locked' ? ` (${t.statusLocked})` : ''}`
+              }}
+            />
           </div>
-        </div>
-        <div className="study-postcard" aria-hidden="true">
-          <div className="postcard-sun" />
-          <div className="postcard-hill postcard-hill-back" />
-          <div className="postcard-hill postcard-hill-front" />
-          <div className="postcard-route" />
-          <img src="/car.png" alt="" />
-          <span>ĐƯỜNG ĐANG MỞ</span>
-        </div>
-      </section>
+        )}
 
-      <section className="journey-section" aria-labelledby="journey-title">
-        <div className="journey-section-heading">
-          <div>
-            <span className="section-kicker">BẢN ĐỒ CỦA BẠN</span>
-            <h2 id="journey-title">Từng chặng, từng bước tiến.</h2>
-          </div>
-          <span className="journey-progress-note">{completedStops} chặng đã hoàn thành</span>
-        </div>
-        <div className="journey-layout">
-          <div className="journey-map" aria-label="Bản đồ tám chặng học tiếng Anh">
-            <div className="map-sky-label map-sky-label-top"><MapPin size={15} weight="fill" /> BẮT ĐẦU TỪ ĐÂY</div>
-            <div className="map-landmark map-landmark-one">ĐỒI THÔNG</div>
-            <div className="map-landmark map-landmark-two">BỜ SÔNG</div>
-            <div className="journey-route" aria-hidden="true" />
-            {MILESTONES.map((stop) => {
-              const Icon = skillIcons[stop.skillType]
-              const isSelected = selectedStop.id === stop.id
-              const stopClass = 'journey-stop journey-stop-' + stop.status + (isSelected ? ' journey-stop-selected' : '')
-              return (
-                <button
-                  type="button"
-                  key={stop.id}
-                  className={stopClass}
-                  style={{ left: (stop.roadX / 720) * 100 + '%', top: (stop.roadY / 1240) * 100 + '%' }}
-                  onClick={() => setSelectedStop(stop)}
-                  aria-pressed={isSelected}
-                  aria-label={'Chặng ' + stop.id + ': ' + stop.title + (stop.status === 'locked' ? ', đang khóa' : '')}
-                >
-                  <span className="stop-marker">
-                    {stop.status === 'locked' ? <LockSimple size={17} weight="fill" /> : <Icon size={19} weight="fill" />}
-                  </span>
-                  <span className="stop-number">{String(stop.id).padStart(2, '0')}</span>
-                </button>
-              )
-            })}
-            <div className="map-sky-label map-sky-label-bottom">ĐÍCH ĐẾN TIẾP THEO <ArrowRight size={14} /></div>
-            <div className="map-legend"><span><i className="legend-done" /> Đã đi qua</span><span><i className="legend-current" /> Chặng hiện tại</span><span><i className="legend-locked" /> Sắp mở</span></div>
-          </div>
-
-          <aside className="stop-detail" aria-live="polite">
-            <div className="stop-detail-art">
-              <span className="stop-detail-index">CHẶNG {String(selectedStop.id).padStart(2, '0')}</span>
-              <span className="stop-detail-icon">{selectedStop.status === 'locked' ? <LockSimple size={28} weight="fill" /> : <SelectedIcon size={29} weight="fill" />}</span>
-              <span className="stop-detail-terrain">{selectedStop.terrainName}</span>
+        {loading && stages.length === 0 && (
+          <div className="roadmap-scroll" ref={mapScrollRef}>
+            <div className="roadmap-state">
+              <span className="roadmap-spinner" aria-hidden="true" />
+              <p>{t.roadmapLoading}</p>
             </div>
-            <div className="stop-detail-content">
-              <span className={'stop-status-label status-' + selectedStop.status}>
-                {selectedStop.status === 'done' ? 'ĐÃ HOÀN THÀNH' : selectedStop.status === 'current' ? 'CHẶNG ĐANG MỞ' : 'CHẶNG ĐANG KHÓA'}
+          </div>
+        )}
+
+        {!loading && stages.length === 0 && (
+          <div className="roadmap-scroll">
+            <div className="roadmap-state">
+              <p>{error ?? t.roadmapEmpty}</p>
+              <button type="button" className="roadmap-retry" onClick={refresh}>{t.retry}</button>
+            </div>
+          </div>
+        )}
+
+        {selectedLesson && selectedId !== null && cardAnchor && (
+          <article
+            className={`roadmap-stop-card roadmap-stop-card-${selectedLesson.status}${cardAnchor.above ? ' is-above' : ''}`}
+            style={{
+              '--card-x': `${cardAnchor.x}px`,
+              '--card-y': `${cardAnchor.y}px`,
+            } as CSSProperties}
+            aria-live="polite"
+          >
+            <div className="roadmap-stop-copy">
+              <span className="roadmap-stop-index">
+                {lang === 'en' ? 'Lesson details' : 'Chi tiết bài học'}
               </span>
-              <h3>{selectedStop.title}</h3>
-              <p className="stop-detail-english">{selectedStop.subtitle}</p>
-              <div className="stop-detail-rule" />
-              <div className="stop-detail-skill"><span>KỸ NĂNG</span><strong>{selectedStop.skill}</strong></div>
-              <div className="stop-learning-note" role="status">
-                <Compass size={16} weight="fill" />
-                <span>{selectedStop.status === 'locked' ? 'Hoàn thành chặng đang mở để khám phá đoạn đường này.' : 'Nội dung bài luyện tập của chặng này sẽ có tại đây.'}</span>
-              </div>
+              <h2>{selectedLesson.title}</h2>
             </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="skills-ribbon" aria-label="Bốn kỹ năng trong hành trình">
-        <div><Headphones size={19} weight="fill" /><span>Nghe</span></div>
-        <div><Microphone size={19} weight="fill" /><span>Nói</span></div>
-        <div><BookOpenText size={19} weight="fill" /><span>Đọc</span></div>
-        <div><PencilLine size={19} weight="fill" /><span>Viết</span></div>
-        <p>Học tiếng Anh qua tình huống thật, theo nhịp của riêng bạn.</p>
+            <div className="roadmap-stop-footer">
+              <dl className="roadmap-stop-details">
+                <div>
+                  <dt>{lang === 'en' ? 'Questions' : 'Số câu hỏi'}</dt>
+                  <dd>{selectedLesson.totalQuestions}</dd>
+                </div>
+              </dl>
+              <button
+                type="button"
+                className="roadmap-stop-action"
+                disabled={selectedLesson.status === 'locked'}
+                onClick={() => onOpenLesson(selectedLesson.id, selectedLesson.title)}
+              >
+                {ctaLabel}
+              </button>
+            </div>
+          </article>
+        )}
       </section>
     </div>
   )
 }
-/* TAB 2: THI ĐUA (Compete / Arena View)                         */
+
+/* ------------------------------------------------------------- */
+/* TAB 2: THI ĐUA                                                */
 /* ------------------------------------------------------------- */
 function CompeteView() {
-  const challenges = [
+  const { t } = useI18n()
+
+  const supportingChallenges = [
     {
-      title: 'Thử Thách Phản Xạ 60 Giây',
-      category: 'Tốc độ phản xạ',
+      title: t.challengeSpeedTitle,
+      category: t.challengeSpeedCategory,
       reward: '+30 XP',
-      players: '840 người đang chơi',
-      color: 'arena-orange',
+      players: t.challengeSpeedPlayers,
       icon: Lightning,
     },
     {
-      title: 'Đấu Trường 1v1 Trực Tuyến',
-      category: 'Đối kháng trực tiếp',
+      title: t.challengeDuelTitle,
+      category: t.challengeDuelCategory,
       reward: '+50 XP',
-      players: '312 người đang chờ',
-      color: 'arena-blue',
-      icon: Trophy,
-    },
-    {
-      title: 'Giải Đua Tốc Độ Cuối Tuần',
-      category: 'Sự kiện giải đấu',
-      reward: '+100 XP',
-      players: 'Khởi tranh sau 2 ngày',
-      color: 'arena-purple',
-      icon: Medal,
+      players: t.challengeDuelPlayers,
+      icon: Sword,
     },
   ]
 
   return (
     <div className="tab-view-container">
-      <div className="page-heading">
+      <div className="page-heading page-heading-row">
         <div>
-          <span className="page-eyebrow">ĐẤU TRƯỜNG THI ĐUA</span>
-          <h1>So tài & Thử thách phản xạ</h1>
-          <p>Tranh tài cùng cộng đồng học viên để kiểm tra phản xạ và bứt phá điểm số.</p>
+          <span className="page-eyebrow">{t.competeEyebrow}</span>
+          <h1>{t.competeTitle}</h1>
+          <p>{t.competeDesc}</p>
         </div>
+        <span className="page-note"><CalendarBlank size={15} /> {t.seasonNote(2)}</span>
       </div>
 
-      <div className="arena-grid">
-        {challenges.map((item, idx) => {
-          const Icon = item.icon
-          return (
-            <div key={idx} className={`arena-card ${item.color}`}>
-              <div className="arena-card-top">
-                <span className="arena-icon-box">
-                  <Icon size={26} weight="fill" />
-                </span>
-                <span className="arena-reward-tag">{item.reward}</span>
-              </div>
-              <h3>{item.title}</h3>
-              <small>{item.category}</small>
-              <div className="arena-status-row">
-                <span className="status-live-dot" />
-                <span>{item.players}</span>
-              </div>
-              <button type="button" className="arena-play-btn">
-                <Play size={16} weight="fill" />
-                <span>Bắt đầu ngay</span>
-              </button>
+      <div className="compete-layout">
+        <section className="featured-challenge" aria-labelledby="featured-challenge-title">
+          <div className="featured-challenge-top">
+            <span className="featured-label"><Flag size={14} weight="fill" /> {t.featuredLabel}</span>
+            <span className="featured-reward">+100 XP</span>
+          </div>
+          <div className="featured-challenge-body">
+            <span className="featured-icon"><Trophy size={30} weight="fill" /></span>
+            <h2 id="featured-challenge-title">{t.featuredTitle}</h2>
+            <p>{t.featuredDesc}</p>
+            <div className="featured-meta">
+              <span><UsersThree size={16} /> {t.featuredPlayers}</span>
+              <span><CalendarBlank size={16} /> {t.featuredStarts(2)}</span>
             </div>
-          )
-        })}
+            <button type="button" className="featured-action">
+              <Play size={16} weight="fill" />
+              <span>{t.featuredJoin}</span>
+            </button>
+          </div>
+        </section>
+
+        <div className="challenge-side">
+          {supportingChallenges.map((item) => {
+            const Icon = item.icon
+            return (
+              <article className="challenge-row" key={item.title}>
+                <span className="challenge-row-icon"><Icon size={22} weight="fill" /></span>
+                <div className="challenge-row-copy">
+                  <span className="challenge-row-category">{item.category}</span>
+                  <h3>{item.title}</h3>
+                  <span className="challenge-row-players">{item.players}</span>
+                </div>
+                <div className="challenge-row-aside">
+                  <span className="challenge-row-reward">{item.reward}</span>
+                  <button type="button" className="challenge-row-action" aria-label={t.startAria(item.title)}>
+                    <Play size={15} weight="fill" />
+                  </button>
+                </div>
+              </article>
+            )
+          })}
+
+          <aside className="season-card">
+            <div className="season-card-head">
+              <span>{t.seasonCardTitle}</span>
+              <strong>04</strong>
+            </div>
+            <div className="season-progress" aria-label={t.seasonProgressAria(68)}>
+              <span style={{ width: '68%' }} />
+            </div>
+            <p>{t.seasonCardBody}</p>
+          </aside>
+        </div>
       </div>
     </div>
   )
 }
 
 /* ------------------------------------------------------------- */
-/* TAB 3: BẢNG XẾP HẠNG (Leaderboard / Rankings View)            */
+/* TAB 3: BẢNG XẾP HẠNG                                          */
 /* ------------------------------------------------------------- */
 function RankingsView({ user }: { user: AuthUser | null }) {
+  const { t } = useI18n()
   const currentName = user?.name || 'An Nguyễn'
 
   const leaderboard = [
-    { rank: 1, name: 'Minh Triết', streak: 42, xp: 1250, badge: '🥇 Vàng' },
-    { rank: 2, name: 'Thu Thảo', streak: 31, xp: 980, badge: '🥈 Bạc' },
-    { rank: 3, name: 'Hoàng Nam', streak: 28, xp: 840, badge: '🥉 Đồng' },
+    { rank: 1, name: 'Minh Triết', streak: 42, xp: 1250 },
+    { rank: 2, name: 'Thu Thảo', streak: 31, xp: 980 },
+    { rank: 3, name: 'Hoàng Nam', streak: 28, xp: 840 },
     { rank: 4, name: currentName, streak: user?.streak ?? 4, xp: user?.xp ?? 240, isMe: true },
     { rank: 5, name: 'Hải Đăng', streak: 12, xp: 210 },
     { rank: 6, name: 'Bảo Ngọc', streak: 9, xp: 190 },
     { rank: 7, name: 'Thanh Hằng', streak: 7, xp: 160 },
   ]
 
+  const podium = [leaderboard[1], leaderboard[0], leaderboard[2]]
+  const rest = leaderboard.slice(3)
+
   return (
     <div className="tab-view-container">
-      <div className="page-heading">
+      <div className="page-heading page-heading-row">
         <div>
-          <span className="page-eyebrow">BẢNG XẾP HẠNG TUẦN</span>
-          <h1>Giải Đấu Bạc • Bảng 12</h1>
-          <p>Top 10 học viên có điểm XP cao nhất sẽ thăng hạng vào Chủ Nhật tuần này.</p>
+          <span className="page-eyebrow">{t.rankEyebrow}</span>
+          <h1>{t.rankTitle}</h1>
+          <p>{t.rankDesc}</p>
         </div>
+        <span className="page-note"><CalendarBlank size={15} /> {t.rankUpdated}</span>
+      </div>
+
+      <div className="ranking-layout">
+        <section className="ranking-podium-card" aria-label={t.podiumAria}>
+          <div className="ranking-podium-head">
+            <div>
+              <span className="section-kicker">{t.topThree}</span>
+              <h2>{t.leaders}</h2>
+            </div>
+            <span className="ranking-podium-caption">{t.podiumCaption}</span>
+          </div>
+          <div className="podium">
+            {podium.map((item) => (
+              <article className={`podium-place podium-place-${item.rank}`} key={item.rank}>
+                <span className="podium-crown" aria-hidden="true">
+                  {item.rank === 1 ? <Crown size={22} weight="fill" /> : <Medal size={20} weight="fill" />}
+                </span>
+                <span className="podium-avatar">{item.name[0]}</span>
+                <span className="podium-name">{item.name}</span>
+                <span className="podium-xp" title={`${item.xp} XP`}>{formatCompact(item.xp)} XP</span>
+                <span className="podium-streak"><Flame size={13} weight="fill" /> {t.days(item.streak)}</span>
+                <span className="podium-step">{item.rank}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside className="ranking-season-card">
+          <span className="section-kicker">{t.seasonKicker}</span>
+          <h2>{t.seasonLeft}</h2>
+          <p>{t.seasonBody}</p>
+          <div className="ranking-season-row"><span>{t.yourPosition}</span><strong>#4</strong></div>
+          <div className="ranking-season-row"><span>{t.gapTop3}</span><strong>600 XP</strong></div>
+          <div className="ranking-season-row"><span>{t.promotion}</span><strong>Top 10</strong></div>
+          <div className="season-progress" aria-label={t.seasonProgressAria(58)}>
+            <span style={{ width: '58%' }} />
+          </div>
+        </aside>
       </div>
 
       <div className="leaderboard-card">
         <div className="leaderboard-table-header">
-          <span className="col-rank">Thứ hạng</span>
-          <span className="col-user">Học viên</span>
-          <span className="col-streak">Chuỗi ngày</span>
-          <span className="col-xp">Điểm XP</span>
+          <span className="col-rank">{t.tableRank}</span>
+          <span className="col-user">{t.tableUser}</span>
+          <span className="col-streak">{t.tableStreak}</span>
+          <span className="col-xp">{t.tableXp}</span>
         </div>
 
         <div className="leaderboard-rows">
-          {leaderboard.map((item) => (
+          {rest.map((item) => (
             <div
               key={item.rank}
               className={`leaderboard-row ${item.isMe ? 'leaderboard-row-me' : ''}`}
             >
               <div className="col-rank">
-                {item.rank === 1 && <span className="rank-badge rank-1">1</span>}
-                {item.rank === 2 && <span className="rank-badge rank-2">2</span>}
-                {item.rank === 3 && <span className="rank-badge rank-3">3</span>}
-                {item.rank > 3 && <span className="rank-num">#{item.rank}</span>}
+                <span className="rank-num">#{item.rank}</span>
               </div>
               <div className="col-user">
                 <span className="table-avatar">{item.name[0]}</span>
                 <div>
                   <strong>{item.name}</strong>
-                  {item.isMe && <span className="me-badge">Bạn</span>}
+                  {item.isMe && <span className="me-badge">{t.you}</span>}
                 </div>
               </div>
               <div className="col-streak">
-                <Flame size={15} weight="fill" className="text-orange-500" />
-                <span>{item.streak} ngày</span>
+                <Flame size={15} weight="fill" />
+                <span>{t.days(item.streak)}</span>
               </div>
-              <div className="col-xp">
-                <strong>{item.xp} XP</strong>
+              <div className="col-xp" title={`${item.xp} XP`}>
+                <strong>{formatCompact(item.xp)} XP</strong>
               </div>
             </div>
           ))}
@@ -422,27 +558,42 @@ function RankingsView({ user }: { user: AuthUser | null }) {
 }
 
 /* ------------------------------------------------------------- */
-/* TAB 4: PROFILE (User Profile & Account Settings View)         */
+/* TAB 4: PROFILE                                                */
 /* ------------------------------------------------------------- */
 function ProfileView({ user, onLogout }: { user: AuthUser | null; onLogout: () => void }) {
+  const { t } = useI18n()
+  const { stages, loading } = useLearning()
   const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const displayName = user?.name || 'An Nguyễn'
   const email = user?.email || 'an.nguyen@example.com'
   const streak = user?.streak ?? 4
   const xp = user?.xp ?? 240
+  const lessons = useMemo(() => flattenLessons(stages), [stages])
+  const completedStops = lessons.filter((lesson) => lesson.status === 'done').length
+  const progressPercent = Math.round((completedStops / Math.max(1, lessons.length)) * 100)
+  const currentStage = stages.find((stage) => stage.lessons.some((lesson) => lesson.status === 'current'))
+    ?? stages.find((stage) => stage.completedCount < stage.totalCount)
+    ?? stages[0]
+  const currentStageNumber = currentStage?.sortOrder ?? 1
+  const stageStatus = (index: number): 'done' | 'current' | 'locked' => {
+    const stage = stages[index]
+    if (!stage) return 'locked'
+    if (stage.totalCount > 0 && stage.completedCount === stage.totalCount) return 'done'
+    if (stage.lessons.some((lesson) => lesson.status === 'current')) return 'current'
+    return 'locked'
+  }
 
   return (
     <div className="tab-view-container">
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow">HỒ SƠ CÁ NHÂN</span>
-          <h1>Quản lý tài khoản & Tiến độ</h1>
-          <p>Xem tổng quan hành trình học tập và cài đặt cá nhân của bạn.</p>
+          <span className="page-eyebrow">{t.profileEyebrow}</span>
+          <h1>{t.profileTitle}</h1>
+          <p>{t.profileDesc}</p>
         </div>
       </div>
 
       <div className="profile-dashboard-grid">
-        {/* User Card */}
         <div className="profile-main-card">
           <div className="profile-hero-banner">
             <span className="profile-large-avatar">{initial}</span>
@@ -450,60 +601,81 @@ function ProfileView({ user, onLogout }: { user: AuthUser | null; onLogout: () =
               <h2>{displayName}</h2>
               <p>{email}</p>
               <span className="role-tag">
-                <ShieldCheck size={16} weight="fill" /> Học viên tích cực
+                <ShieldCheck size={16} weight="fill" /> {t.activeLearner}
               </span>
             </div>
+            <span className="profile-rank">{t.rankTag}</span>
           </div>
 
           <div className="profile-stats-grid">
             <div className="p-stat-box">
-              <span className="p-stat-icon text-orange-500"><Flame size={24} weight="fill" /></span>
-              <strong>{streak} ngày</strong>
-              <small>Chuỗi ngày bền bỉ</small>
+              <span className="p-stat-icon"><Flame size={22} weight="fill" /></span>
+              <strong>{t.days(streak)}</strong>
+              <small>{t.statStreakLabel}</small>
             </div>
             <div className="p-stat-box">
-              <span className="p-stat-icon text-cyan-600"><Lightning size={24} weight="fill" /></span>
-              <strong>{xp} XP</strong>
-              <small>Tổng điểm kinh nghiệm</small>
+              <span className="p-stat-icon"><Lightning size={22} weight="fill" /></span>
+              <strong title={`${xp} XP`}>{formatCompact(xp)} XP</strong>
+              <small>{t.statXpLabel}</small>
             </div>
             <div className="p-stat-box">
-              <span className="p-stat-icon text-emerald-600"><CheckCircle size={24} weight="fill" /></span>
-              <strong>12 bài</strong>
-              <small>Bài học hoàn thành</small>
+              <span className="p-stat-icon"><CheckCircle size={22} weight="fill" /></span>
+              <strong>{loading ? '…' : t.studyDoneCount(completedStops, lessons.length)}</strong>
+              <small>{t.statLessonsLabel}</small>
             </div>
-            <div className="p-stat-box">
-              <span className="p-stat-icon text-purple-600"><Medal size={24} weight="fill" /></span>
-              <strong>Hạng 4</strong>
-              <small>Giải đấu Bạc tuần này</small>
+          </div>
+
+          <section className="profile-progress-section" aria-labelledby="profile-progress-title">
+            <div className="profile-progress-head">
+              <div>
+                <span className="section-kicker">{t.pathKicker}</span>
+                <h3 id="profile-progress-title">{t.pathTitle(currentStageNumber)}</h3>
+              </div>
+              <span>{progressPercent}%</span>
             </div>
+            <div className="profile-progress-track" role="img" aria-label={t.pathAria(progressPercent)}>
+              {stages.map((stage, index) => (
+                <span
+                  key={stage.id}
+                  className={`profile-progress-step profile-progress-step-${stageStatus(index)}`}
+                />
+              ))}
+            </div>
+            <div className="profile-milestones">
+              {(currentStage?.lessons ?? []).map((lesson) => (
+                <div className={`profile-milestone profile-milestone-${lesson.status}`} key={lesson.id}>
+                  <span className="profile-milestone-num">{String(lesson.lessonIndex + 1).padStart(2, '0')}</span>
+                  <span className="profile-milestone-title">{lesson.title}</span>
+                  <span className="profile-milestone-status">
+                    {lesson.status === 'done' ? t.statusDone : lesson.status === 'current' ? t.statusCurrent : t.statusLocked}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="profile-badges">
+            <span className="profile-badge"><Flag size={15} weight="fill" /> {t.badgeStart}</span>
+            <span className="profile-badge"><Flame size={15} weight="fill" /> {t.badgeStreak}</span>
+            <span className="profile-badge is-muted"><Sword size={15} weight="fill" /> {t.badgeSprint}</span>
           </div>
         </div>
 
-        {/* Account Settings Card */}
         <div className="profile-settings-card">
-          <h3>Tùy chọn tài khoản</h3>
-          <ul className="settings-list">
-            <li>
-              <button type="button" className="setting-btn">
-                <Gear size={18} />
-                <span>Cài đặt thông báo & Nhắc nhở</span>
-                <ArrowRight size={16} />
-              </button>
-            </li>
-            <li>
-              <button type="button" className="setting-btn">
-                <UserCircle size={18} />
-                <span>Chỉnh sửa thông tin cá nhân</span>
-                <ArrowRight size={16} />
-              </button>
-            </li>
-          </ul>
+          <h3>{t.accountOptions}</h3>
+
+          <AccountActions user={user} />
 
           <div className="settings-divider" />
 
+          <div className="profile-side-note">
+            <strong>{t.tipTitle}</strong>
+            <p>{t.tipBody(streak)}</p>
+          </div>
+
           <button type="button" className="profile-logout-btn" onClick={onLogout}>
             <SignOut size={18} />
-            <span>Đăng xuất khỏi tài khoản</span>
+            <span>{t.logoutLong}</span>
           </button>
         </div>
       </div>
@@ -515,11 +687,14 @@ function ProfileView({ user, onLogout }: { user: AuthUser | null; onLogout: () =
 /* MAIN APP COMPONENT                                            */
 /* ------------------------------------------------------------- */
 function App() {
+  const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
+  const { refresh } = useLearning()
   const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>('study')
+  const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
+  const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
 
-  // Screen selection
   const currentView = (() => {
     if (userNavigatedToLanding) {
       return 'landing'
@@ -540,6 +715,13 @@ function App() {
     )
   }
 
+  const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
+    { id: 'study', label: t.navStudy, icon: BookOpenText },
+    { id: 'compete', label: t.navCompete, icon: Lightning },
+    { id: 'rankings', label: t.navRankingsShort, icon: Trophy },
+    { id: 'profile', label: t.navProfile, icon: UserCircle },
+  ]
+
   return (
     <div className="app-shell" id="home">
       <Sidebar
@@ -548,68 +730,74 @@ function App() {
         onSelectTab={setActiveTab}
         onLogout={handleLogout}
         onViewLanding={() => setUserNavigatedToLanding(true)}
+        onOpenSettings={(anchor) => setSettingsAnchor((prev) => (prev === anchor ? null : anchor))}
       />
       <div className="app-main">
-        <TopBar
-          user={user}
-          onViewLanding={() => setUserNavigatedToLanding(true)}
-          onOpenProfile={() => setActiveTab('profile')}
-        />
-        <main className="learning-page">
-          {activeTab === 'study' && <StudyView user={user} />}
+        <main className={`learning-page${activeTab === 'study' ? ' learning-page-map' : ''}`}>
+          <div className="mobile-brand-row">
+            <div className="brand-block">
+              <img src="/logo.png" alt="" className="brand-logo-img" />
+              <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
+            </div>
+            <button
+              type="button"
+              className="mobile-settings-btn"
+              onClick={(e) => setSettingsAnchor((prev) => (prev === e.currentTarget ? null : e.currentTarget))}
+              aria-label={t.settings}
+              title={t.settings}
+            >
+              <Gear size={20} />
+            </button>
+          </div>
+
+          {activeTab === 'study' && (
+            <StudyView
+              user={user}
+              onOpenLesson={(lessonId, lessonTitle) => setActiveLesson({ id: lessonId, title: lessonTitle })}
+            />
+          )}
           {activeTab === 'compete' && <CompeteView />}
           {activeTab === 'rankings' && <RankingsView user={user} />}
           {activeTab === 'profile' && <ProfileView user={user} onLogout={handleLogout} />}
 
           <footer className="page-footer">
-            <span>Engorace · Học một chút, xa thêm một đoạn.</span>
-            <span>Chúc bạn học vui mỗi ngày!</span>
+            <span>{t.footerLeft}</span>
+            <span>{t.footerRight}</span>
           </footer>
         </main>
       </div>
 
-      <nav className="mobile-nav" aria-label="Điều hướng trên điện thoại">
-        <button
-          type="button"
-          className={activeTab === 'study' ? 'mobile-nav-active' : ''}
-          onClick={() => setActiveTab('study')}
-        >
-          <BookOpenText size={21} weight={activeTab === 'study' ? 'fill' : 'regular'} />
-          <span>Học Tập</span>
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'compete' ? 'mobile-nav-active' : ''}
-          onClick={() => setActiveTab('compete')}
-        >
-          <Lightning size={21} weight={activeTab === 'compete' ? 'fill' : 'regular'} />
-          <span>Thi Đua</span>
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'rankings' ? 'mobile-nav-active' : ''}
-          onClick={() => setActiveTab('rankings')}
-        >
-          <Trophy size={21} weight={activeTab === 'rankings' ? 'fill' : 'regular'} />
-          <span>Xếp Hạng</span>
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'profile' ? 'mobile-nav-active' : ''}
-          onClick={() => setActiveTab('profile')}
-        >
-          <UserCircle size={21} weight={activeTab === 'profile' ? 'fill' : 'regular'} />
-          <span>Profile</span>
-        </button>
-        <button
-          type="button"
-          className="mobile-nav-btn"
-          onClick={() => setUserNavigatedToLanding(true)}
-        >
-          <House size={21} />
-          <span>Trang chủ</span>
-        </button>
+      <nav className="mobile-nav" aria-label={t.mobileNavAria}>
+        {mobileTabs.map((tab) => {
+          const Icon = tab.icon
+          const active = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={active ? 'mobile-nav-active' : ''}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon size={22} weight={active ? 'fill' : 'bold'} />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
       </nav>
+
+      <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
+
+      {activeLesson && (
+        <LessonPlayer
+          lessonId={activeLesson.id}
+          lessonTitle={activeLesson.title}
+          onClose={() => setActiveLesson(null)}
+          onCompleted={() => {
+            setActiveLesson(null)
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

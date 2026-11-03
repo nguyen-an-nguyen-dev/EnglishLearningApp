@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Engorace · 4 hướng thiết kế lộ trình</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --brand-100: #EDF9FF;
+    --brand-200: #BAEDFD;
+    --brand-300: #86DFFA;
+    --brand-400: #4DD3FA;
+    --brand-500: #00C7FF;
+    --brand-600: #00ABDC;
+    --brand-700: #008CBC;
+    --brand-800: #00719B;
+    --ink: #0F172A;
+    --ink-soft: #334155;
+    --muted: #6E7F95;
+    --paper: #FFFFFF;
+    --line: #EDF2F7;
+    --line-strong: #DFE7EF;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 40px 32px 80px;
+    background: #EEF4F8;
+    color: var(--ink);
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-head { max-width: 1120px; margin: 0 auto 34px; }
+  .page-head span {
+    color: var(--brand-700);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .page-head h1 { margin: 10px 0 8px; font-size: 34px; font-weight: 800; letter-spacing: -0.045em; }
+  .page-head p { margin: 0; max-width: 640px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+  .variant { max-width: 1120px; margin: 0 auto 56px; }
+
+  .variant-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .variant-tag {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .variant-head h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.03em; }
+  .variant-head p { margin: 0; color: var(--muted); font-size: 13px; }
+
+  .frame {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #DCE7F0;
+    border-radius: 20px;
+    background: var(--paper);
+    box-shadow: 0 24px 60px -34px rgb(15 23 42 / 32%);
+  }
+
+  .ic { width: 18px; height: 18px; display: block; }
+  .ic-sm { width: 15px; height: 15px; display: block; }
+
+  /* ============================================================
+     A — Bản đồ hành trình
+     ============================================================ */
+  .a-frame { height: 780px; }
+
+  .a-band { position: absolute; left: 0; right: 0; }
+  .a-band-1 { top: 0; height: 280px; background: linear-gradient(180deg, #E9F7EE 0%, #F1FAF4 100%); }
+  .a-band-2 { top: 280px; height: 250px; background: linear-gradient(180deg, #F1FAF4 0%, #E7F7FE 24%, #EAF9FF 100%); }
+  .a-band-3 { top: 530px; height: 250px; background: linear-gradient(180deg, #EAF9FF 0%, #FCF5E9 24%, #FDF9F0 100%); }
+
+  .a-scenery { position: absolute; inset: 0; pointer-events: none; }
+
+  .a-sign {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px 7px 8px;
+    border-radius: 9px;
+    background: rgb(255 255 255 / 90%);
+    box-shadow: 0 2px 10px -4px rgb(15 23 42 / 20%);
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .a-sign i {
+    display: grid;
+    width: 21px;
+    height: 21px;
+    place-items: center;
+    border-radius: 6px;
+    background: var(--brand-500);
+    color: #06313F;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .a-road { position: absolute; inset: 0; }
+
+  .a-stop { position: absolute; transform: translate(-50%, -50%); text-align: center; }
+  .a-node {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    place-items: center;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: var(--brand-500);
+    color: #fff;
+    box-shadow: 0 4px 14px -4px rgb(0 199 255 / 70%);
+  }
+  .a-stop.is-locked .a-node {
+    border: 3px dashed #C6D6E3;
+    background: #F5F9FC;
+    color: #A9BCCB;
+    box-shadow: none;
+  }
+  .a-stop.is-current .a-node {
+    width: 54px;
+    height: 54px;
+    background: var(--paper);
+    color: var(--brand-700);
+    box-shadow: 0 0 0 9px rgb(0 199 255 / 16%), 0 8px 22px -8px rgb(0 199 255 / 80%);
+  }
+  .a-label {
+    display: inline-block;
+    margin-top: 9px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 1px 4px -1px rgb(15 23 42 / 12%);
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .a-stop.is-locked .a-label { color: #93A6B6; box-shadow: none; }
+  .a-stop.is-current .a-label { color: var(--brand-800); font-weight: 800; }
+
+  .a-car {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -88%);
+    filter: drop-shadow(0 8px 12px rgb(15 23 42 / 24%));
+    animation: bob 2.8s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translate(-50%, -88%); }
+    50% { transform: translate(-50%, -94%); }
+  }
+
+  /* ============================================================
+     B — Đường ngang
+     ============================================================ */
+  .b-frame { height: 360px; background: linear-gradient(180deg, #F2FBFF 0%, #F6FCF8 46%, #FDF9F1 100%); }
+
+  .b-hills { position: absolute; inset: 0; }
+
+  .b-road {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 216px;
+    height: 56px;
+    background: #E3ECF4;
+    border-top: 3px solid #D6E4EF;
+    border-bottom: 3px solid #D6E4EF;
+  }
+  .b-road::after {
+    content: '';
+    position: absolute;
+    top: 26px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: repeating-linear-gradient(90deg, #fff 0 26px, transparent 26px 48px);
+  }
+  .b-road-done {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 53%;
+    background: linear-gradient(90deg, rgb(0 199 255 / 28%), rgb(0 199 255 / 55%));
+  }
+
+  .b-stop { position: absolute; top: 244px; transform: translate(-50%, -50%); }
+  .b-pin {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: var(--brand-500);
+    box-shadow: 0 3px 10px -3px rgb(0 199 255 / 70%);
+  }
+  .b-stop.is-locked .b-pin { border: 3px dashed #C6D6E3; background: #F5F9FC; }
+  .b-stop.is-current .b-pin { background: var(--paper); box-shadow: 0 0 0 7px rgb(0 199 255 / 20%); }
+  .b-stop small {
+    position: absolute;
+    top: 42px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .b-stop.is-locked small { color: #93A6B6; }
+
+  .b-car {
+    position: absolute;
+    top: 174px;
+    left: calc(53% - 46px);
+    width: 66px;
+    height: 66px;
+    transform: translateX(-50%);
+    filter: drop-shadow(0 10px 14px rgb(15 23 42 / 26%));
+  }
+
+  /* ============================================================
+     C — Chương bưu thiếp
+     ============================================================ */
+  .c-frame { padding: 22px; background: #F4F8FB; }
+
+  .c-chapter {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 16px;
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 10px 30px -24px rgb(15 23 42 / 45%);
+  }
+  .c-chapter:last-child { margin-bottom: 0; }
+
+  .c-art { position: relative; height: 92px; }
+  .c-chapter:nth-child(1) .c-art { background: linear-gradient(120deg, #DFF3E4, #F0FAF3); }
+  .c-chapter:nth-child(2) .c-art { background: linear-gradient(120deg, #DBF2FC, #EDFAFF); }
+  .c-chapter:nth-child(3) .c-art { background: linear-gradient(120deg, #FBEBD0, #FDF8EE); }
+
+  .c-art h3 {
+    position: absolute;
+    left: 22px;
+    bottom: 14px;
+    margin: 0;
+    color: var(--ink);
+    font-size: 15.5px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .c-art h3 em {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--brand-700);
+    font-size: 10.5px;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+  }
+  .c-progress {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 88%);
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .c-stops {
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    padding: 18px 22px 20px;
+  }
+  .c-stop { position: relative; padding-top: 32px; text-align: center; }
+  .c-stop::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #E4EDF4;
+  }
+  .c-stop:first-child::before { left: 50%; }
+  .c-stop:last-child::before { right: 50%; }
+  .c-stop.is-done::before { background: var(--brand-300); }
+
+  .c-dot {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    transform: translateX(-50%);
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: #E4EDF4;
+  }
+  .c-stop.is-done .c-dot { background: var(--brand-500); }
+  .c-stop.is-current .c-dot {
+    width: 28px;
+    height: 28px;
+    top: 3px;
+    background: var(--paper);
+    box-shadow: 0 0 0 6px rgb(0 199 255 / 18%);
+  }
+  .c-stop strong { display: block; color: var(--ink); font-size: 12.5px; font-weight: 700; }
+  .c-stop small { color: var(--muted); font-size: 11px; }
+
+  .c-car {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    transform: translate(-50%, -62%);
+    filter: drop-shadow(0 6px 10px rgb(15 23 42 / 22%));
+  }
+
+  /* ============================================================
+     D — Tuyến tối giản
+     ============================================================ */
+  .d-frame { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 600px; }
+
+  .d-rail { position: relative; padding: 24px 0; background: linear-gradient(180deg, #F8FCFF, #FCFEFF); }
+  .d-line { position: absolute; top: 62px; height: 456px; left: 130px; width: 4px; border-radius: 4px; background: #E3EDF5; }
+  .d-line-done { position: absolute; top: 62px; left: 130px; width: 4px; height: 228px; border-radius: 4px; background: var(--brand-500); }
+
+  .d-stop { position: relative; height: 76px; }
+  .d-node {
+    position: absolute;
+    left: 112px;
+    top: 18px;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: var(--brand-500);
+    color: #fff;
+    box-shadow: 0 3px 10px -3px rgb(0 199 255 / 65%);
+  }
+  .d-stop.is-locked .d-node { border: 3px dashed #CBD9E4; background: #F3F8FB; color: #A9BCCB; box-shadow: none; }
+  .d-stop.is-current .d-node { background: var(--paper); color: var(--brand-700); box-shadow: 0 0 0 7px rgb(0 199 255 / 16%); }
+  .d-copy { position: absolute; left: 172px; top: 26px; }
+  .d-copy b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 700; }
+  .d-copy span { color: var(--muted); font-size: 11.5px; }
+  .d-stop.is-locked .d-copy b { color: #93A6B6; }
+
+  .d-car {
+    position: absolute;
+    left: 102px;
+    width: 60px;
+    height: 60px;
+    transform: translateY(-50%);
+    filter: drop-shadow(0 8px 12px rgb(15 23 42 / 24%));
+  }
+
+  .d-side { position: relative; overflow: hidden; background: linear-gradient(165deg, #F4FCFF 0%, #FBFDFF 54%, #FDFAF2 100%); }
+  .d-scene { position: absolute; inset: 0; }
+  .d-badge {
+    position: absolute;
+    left: 34px;
+    bottom: 30px;
+    padding: 15px 20px;
+    border-radius: 14px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 18px 44px -28px rgb(15 23 42 / 50%);
+  }
+  .d-badge em {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--brand-700);
+    font-size: 10.5px;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+  }
+  .d-badge b { display: block; color: var(--ink); font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+  .d-badge span { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <span>Engorace · lộ trình</span>
+  <h1>4 hướng thiết kế trang Học tập</h1>
+  <p>Cùng một dữ liệu: 8 bài chia theo vùng đất, một tuyến đường nối các mốc, chiếc xe đỗ ở bài đang học. Khác nhau ở cách kể.</p>
+</div>
+
+<!-- ============================ A ============================ -->
+<section class="variant">
+  <div class="variant-head">
+    <span class="variant-tag">A</span>
+    <div>
+      <h2>Bản đồ hành trình</h2>
+      <p>Đường uốn lượn, mỗi chặng là một vùng đất riêng, nền chuyển màu mềm ở ranh giới.</p>
+    </div>
+  </div>
+
+  <div class="frame a-frame">
+    <div class="a-band a-band-1"></div>
+    <div class="a-band a-band-2"></div>
+    <div class="a-band a-band-3"></div>
+
+    <svg class="a-scenery" viewBox="0 0 1120 780" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 214 Q 120 134 250 208 T 520 204 T 760 214 L 760 280 L 0 280 Z" fill="#DDF1E3" opacity=".7"/>
+      <path d="M0 252 Q 160 198 320 252 T 660 248 T 900 258 L 900 280 L 0 280 Z" fill="#CDEAD6" opacity=".8"/>
+      <g fill="#A3D6B4">
+        <path d="M120 250 l15 -32 l15 32 z"/><rect x="132" y="248" width="6" height="12" rx="2"/>
+        <path d="M905 246 l14 -30 l14 30 z"/><rect x="916" y="244" width="6" height="12" rx="2"/>
+        <path d="M1012 252 l15 -32 l15 32 z"/><rect x="1024" y="250" width="6" height="12" rx="2"/>
+      </g>
+
+      <path d="M0 468 Q 140 424 300 466 T 640 460 T 980 468 L 980 530 L 0 530 Z" fill="#CBEAF6" opacity=".6"/>
+      <g stroke="#8FD3EA" stroke-width="3" stroke-linecap="round" opacity=".7" fill="none">
+        <path d="M60 506 q 16 -8 32 0 t 32 0"/>
+        <path d="M212 522 q 16 -8 32 0 t 32 0"/>
+        <path d="M880 512 q 16 -8 32 0 t 32 0"/>
+        <path d="M1012 496 q 16 -8 32 0 t 32 0"/>
+      </g>
+
+      <g fill="#F3DFC0" opacity=".75">
+        <rect x="60" y="620" width="46" height="86" rx="5"/>
+        <rect x="118" y="646" width="34" height="60" rx="4"/>
+        <rect x="900" y="628" width="42" height="78" rx="5"/>
+        <rect x="954" y="652" width="30" height="54" rx="4"/>
+      </g>
+      <circle cx="1012" cy="600" r="30" fill="#FBE6BE" opacity=".85"/>
+    </svg>
+
+    <svg class="a-road" viewBox="0 0 1120 780" aria-hidden="true" style="filter: drop-shadow(0 6px 10px rgb(15 23 42 / 8%));">
+      <path id="aFull" d="M60 150 C 130 150, 200 150, 200 150
+               C 299 150, 321 250, 420 250
+               C 528 250, 552 160, 660 160
+               C 750 160, 770 400, 860 400
+               C 761 400, 739 480, 640 480
+               C 532 480, 508 420, 400 420
+               C 319 420, 301 660, 220 660
+               C 310 660, 330 760, 420 760
+               C 546 760, 574 700, 700 700 L 1060 700"
+            fill="none" stroke="#DCE8F1" stroke-width="24" stroke-linecap="round" opacity=".98"/>
+      <path d="M60 150 C 130 150, 200 150, 200 150
+               C 299 150, 321 250, 420 250
+               C 528 250, 552 160, 660 160
+               C 750 160, 770 400, 860 400"
+            fill="none" stroke="url(#aTravel)" stroke-width="24" stroke-linecap="round"/>
+      <use href="#aFull" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-dasharray="15 17" opacity=".95"/>
+      <defs>
+        <linearGradient id="aTravel" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#4DD3FA"/>
+          <stop offset="1" stop-color="#00C7FF"/>
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <div class="a-sign" style="left: 60px; top: 32px;"><i>01</i> Đồi thông</div>
+    <div class="a-sign" style="left: 60px; top: 310px;"><i>02</i> Bờ sông</div>
+    <div class="a-sign" style="left: 60px; top: 560px;"><i>03</i> Phố biển</div>
+
+    <div class="a-stop" style="left: 200px; top: 150px;">
+      <span class="a-node"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <span class="a-label">Chào hỏi</span>
+    </div>
+    <div class="a-stop" style="left: 420px; top: 250px;">
+      <span class="a-node"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <span class="a-label">Tên mình là…</span>
+    </div>
+    <div class="a-stop" style="left: 660px; top: 160px;">
+      <span class="a-node"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <span class="a-label">Bạn từ đâu?</span>
+    </div>
+    <div class="a-stop is-current" style="left: 860px; top: 400px;">
+      <span class="a-node"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      <span class="a-label">Gặp gỡ lần đầu</span>
+    </div>
+    <div class="a-stop is-locked" style="left: 640px; top: 480px;">
+      <span class="a-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      <span class="a-label">Giới thiệu bạn bè</span>
+    </div>
+    <div class="a-stop is-locked" style="left: 400px; top: 420px;">
+      <span class="a-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      <span class="a-label">Một ngày của mình</span>
+    </div>
+    <div class="a-stop is-locked" style="left: 220px; top: 660px;">
+      <span class="a-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      <span class="a-label">Cuối tuần</span>
+    </div>
+    <div class="a-stop is-locked" style="left: 420px; top: 760px;">
+      <span class="a-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      <span class="a-label">Bưu thiếp</span>
+    </div>
+
+    <img class="a-car" src="/logo.png" alt="" style="left: 860px; top: 400px;" />
+  </div>
+</section>
+
+<!-- ============================ B ============================ -->
+<section class="variant">
+  <div class="variant-head">
+    <span class="variant-tag">B</span>
+    <div>
+      <h2>Đường ngang</h2>
+      <p>Một dải đường chạy ngang, cảnh đổi dần từ trái sang phải, xe tiến về phía trước.</p>
+    </div>
+  </div>
+
+  <div class="frame b-frame">
+    <svg class="b-hills" viewBox="0 0 1120 360" preserveAspectRatio="none" aria-hidden="true">
+      <circle cx="960" cy="56" r="34" fill="#FBE6BE" opacity=".8"/>
+      <g fill="#FFFFFF" opacity=".9">
+        <ellipse cx="210" cy="66" rx="54" ry="20"/>
+        <ellipse cx="246" cy="56" rx="38" ry="24"/>
+        <ellipse cx="640" cy="48" rx="46" ry="17"/>
+        <ellipse cx="672" cy="40" rx="30" ry="20"/>
+      </g>
+      <path d="M0 190 Q 90 120 190 190 T 400 186 T 600 194 T 800 188 T 1000 194 L 1120 190 L 1120 230 L 0 230 Z" fill="#CFEBD9" opacity=".7"/>
+      <path d="M0 208 Q 120 158 250 210 T 520 204 T 780 212 T 1040 206 L 1120 208 L 1120 240 L 0 240 Z" fill="#C0E4D1" opacity=".6"/>
+      <g fill="#A6D7BC">
+        <path d="M150 214 l13 -28 l13 28 z"/>
+        <path d="M1002 216 l12 -26 l12 26 z"/>
+      </g>
+      <g stroke="#93D6EC" stroke-width="3" stroke-linecap="round" fill="none" opacity=".75">
+        <path d="M540 182 q 14 -7 28 0 t 28 0"/>
+        <path d="M700 174 q 14 -7 28 0 t 28 0"/>
+      </g>
+      <g fill="#F3DFC0" opacity=".8">
+        <rect x="856" y="140" width="34" height="72" rx="4"/>
+        <rect x="898" y="158" width="26" height="54" rx="3"/>
+      </g>
+    </svg>
+
+    <div class="b-road"><div class="b-road-done"></div></div>
+
+    <div class="b-stop" style="left: 90px;">
+      <span class="b-pin"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <small>Chào hỏi</small>
+    </div>
+    <div class="b-stop" style="left: 250px;">
+      <span class="b-pin"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <small>Tên mình là…</small>
+    </div>
+    <div class="b-stop" style="left: 410px;">
+      <span class="b-pin"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <small>Bạn từ đâu?</small>
+    </div>
+    <div class="b-stop is-current" style="left: 580px;">
+      <span class="b-pin"><svg class="ic-sm" viewBox="0 0 24 24" fill="currentColor" style="color:var(--brand-700)"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      <small>Gặp gỡ lần đầu</small>
+    </div>
+    <div class="b-stop is-locked" style="left: 730px;">
+      <span class="b-pin"></span>
+      <small>Giới thiệu</small>
+    </div>
+    <div class="b-stop is-locked" style="left: 870px;">
+      <span class="b-pin"></span>
+      <small>Một ngày</small>
+    </div>
+    <div class="b-stop is-locked" style="left: 1010px;">
+      <span class="b-pin"></span>
+      <small>Cuối tuần</small>
+    </div>
+
+    <img class="b-car" src="/logo.png" alt="" />
+  </div>
+</section>
+
+<!-- ============================ C ============================ -->
+<section class="variant">
+  <div class="variant-head">
+    <span class="variant-tag">C</span>
+    <div>
+      <h2>Chương bưu thiếp</h2>
+      <p>Mỗi chặng là một tấm bưu thiếp có cảnh riêng; đường nối tiếp từ chương này sang chương sau.</p>
+    </div>
+  </div>
+
+  <div class="frame c-frame">
+    <article class="c-chapter">
+      <div class="c-art">
+        <svg viewBox="0 0 1060 92" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+          <path d="M0 72 Q 120 34 240 70 T 480 66 T 720 72 T 960 68 L 1060 70 L 1060 92 L 0 92 Z" fill="#CDEAD8" opacity=".8"/>
+          <path d="M300 70 l12 -26 l12 26 z" fill="#9FD3B1"/>
+          <path d="M760 68 l10 -22 l10 22 z" fill="#9FD3B1"/>
+        </svg>
+        <h3><em>CHẶNG 01</em>Đồi thông</h3>
+        <span class="c-progress">2/3 bài</span>
+      </div>
+      <div class="c-stops">
+        <div class="c-stop is-done"><span class="c-dot"></span><strong>Chào hỏi</strong><small>Đã xong</small></div>
+        <div class="c-stop is-done"><span class="c-dot"></span><strong>Tên mình là…</strong><small>Đã xong</small></div>
+        <div class="c-stop is-current"><span class="c-dot"></span><strong>Bạn từ đâu?</strong><small>Học tiếp</small></div>
+        <img class="c-car" src="/logo.png" alt="" style="left: 83.3%; top: 35px;" />
+      </div>
+    </article>
+
+    <article class="c-chapter">
+      <div class="c-art">
+        <svg viewBox="0 0 1060 92" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+          <path d="M0 70 Q 140 44 280 68 T 560 66 T 840 70 T 1060 68 L 1060 92 L 0 92 Z" fill="#BFE3F4" opacity=".8"/>
+          <g stroke="#8FD3EA" stroke-width="3" stroke-linecap="round" fill="none">
+            <path d="M120 82 q 14 -7 28 0 t 28 0"/>
+            <path d="M700 80 q 14 -7 28 0 t 28 0"/>
+          </g>
+        </svg>
+        <h3><em>CHẶNG 02</em>Bờ sông</h3>
+        <span class="c-progress">0/3 bài</span>
+      </div>
+      <div class="c-stops">
+        <div class="c-stop"><span class="c-dot"></span><strong>Gặp gỡ lần đầu</strong><small>Mở khoá</small></div>
+        <div class="c-stop"><span class="c-dot"></span><strong>Giới thiệu bạn bè</strong><small>Mở khoá</small></div>
+        <div class="c-stop"><span class="c-dot"></span><strong>Một ngày của mình</strong><small>Mở khoá</small></div>
+      </div>
+    </article>
+
+    <article class="c-chapter">
+      <div class="c-art">
+        <svg viewBox="0 0 1060 92" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+          <path d="M0 72 Q 150 50 300 70 T 620 68 T 900 72 L 1060 70 L 1060 92 L 0 92 Z" fill="#F3DFC0" opacity=".85"/>
+          <circle cx="960" cy="32" r="18" fill="#FBE6BE"/>
+        </svg>
+        <h3><em>CHẶNG 03</em>Phố biển</h3>
+        <span class="c-progress">0/2 bài</span>
+      </div>
+      <div class="c-stops">
+        <div class="c-stop"><span class="c-dot"></span><strong>Cuối tuần</strong><small>Đang khoá</small></div>
+        <div class="c-stop"><span class="c-dot"></span><strong>Bưu thiếp đầu tiên</strong><small>Đang khoá</small></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ============================ D ============================ -->
+<section class="variant">
+  <div class="variant-head">
+    <span class="variant-tag">D</span>
+    <div>
+      <h2>Tuyến tối giản</h2>
+      <p>Cột dọc sạch, chữ to rõ, xe đỗ ngay trên đường; cảnh chỉ là nền mờ phía sau.</p>
+    </div>
+  </div>
+
+  <div class="frame d-frame">
+    <div class="d-rail">
+      <div class="d-line"></div>
+      <div class="d-line-done"></div>
+
+      <div class="d-stop">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span class="d-copy"><b>Chào hỏi</b><span>Đã xong · 40 XP</span></span>
+      </div>
+      <div class="d-stop">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span class="d-copy"><b>Tên mình là…</b><span>Đã xong · 40 XP</span></span>
+      </div>
+      <div class="d-stop">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span class="d-copy"><b>Bạn từ đâu?</b><span>Đã xong · 40 XP</span></span>
+      </div>
+      <div class="d-stop is-current">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+        <span class="d-copy"><b>Gặp gỡ lần đầu</b><span>Đang học · 5 phút</span></span>
+      </div>
+      <div class="d-stop is-locked">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+        <span class="d-copy"><b>Giới thiệu bạn bè</b><span>Mở sau bài trước</span></span>
+      </div>
+      <div class="d-stop is-locked">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+        <span class="d-copy"><b>Một ngày của mình</b><span>Đang khoá</span></span>
+      </div>
+      <div class="d-stop is-locked">
+        <span class="d-node"><svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+        <span class="d-copy"><b>Cuối tuần</b><span>Đang khoá</span></span>
+      </div>
+
+      <img class="d-car" src="/logo.png" alt="" style="top: 290px;" />
+    </div>
+
+    <div class="d-side">
+      <svg class="d-scene" viewBox="0 0 760 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <circle cx="590" cy="150" r="128" fill="#DDF6FF" opacity=".75"/>
+        <text x="120" y="290" font-family="Be Vietnam Pro, sans-serif" font-size="220" font-weight="800" fill="#E6F4FA" opacity=".85">02</text>
+        <path d="M0 400 Q 150 320 320 392 T 640 384 L 760 390 L 760 700 L 0 700 Z" fill="#E9F7EE" opacity=".95"/>
+        <path d="M0 486 Q 190 428 400 486 T 760 478 L 760 700 L 0 700 Z" fill="#DDF0E4" opacity=".95"/>
+        <g fill="#B9DFC8">
+          <path d="M120 470 l14 -30 l14 30 z"/>
+          <path d="M560 462 l12 -26 l12 26 z"/>
+        </g>
+        <g stroke="#8FD3EA" stroke-width="4" stroke-linecap="round" fill="none" opacity=".8">
+          <path d="M470 588 q 18 -9 36 0 t 36 0"/>
+          <path d="M590 618 q 18 -9 36 0 t 36 0"/>
+        </g>
+      </svg>
+      <div class="d-badge">
+        <em>CHẶNG 02</em>
+        <b>Gặp gỡ lần đầu</b>
+        <span>Bờ sông · 5 phút · 40 XP</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

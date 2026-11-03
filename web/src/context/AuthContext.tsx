@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from 'react';
 import type {
   AuthUser,
   LoginPayload,
@@ -9,6 +9,10 @@ import {
   loginApi,
   registerApi,
   getCurrentUserApi,
+  loginWithGoogleApi,
+  loginWithFacebookApi,
+  changePasswordApi,
+  updateProfileApi,
   authStorage,
 } from '../services/authService';
 
@@ -68,6 +72,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithProvider = async (provider: 'google' | 'facebook', token: string) => {
+    setIsLoading(true);
+    try {
+      const { token: receivedToken, user: receivedUser } =
+        provider === 'google'
+          ? await loginWithGoogleApi(token)
+          : await loginWithFacebookApi(token);
+      setToken(receivedToken);
+      setUser(receivedUser);
+      authStorage.setToken(receivedToken);
+      authStorage.setUser(receivedUser);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (credentials: RegisterPayload) => {
     setIsLoading(true);
     try {
@@ -86,6 +106,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (payload: { currentPassword: string; newPassword: string }) => {
+    if (!token) throw new Error('Bạn cần đăng nhập lại.');
+    await changePasswordApi(token, payload);
+  };
+
+  const updateProfile = async (payload: { name: string; email: string }) => {
+    if (!token) throw new Error('Bạn cần đăng nhập lại.');
+    const updated = await updateProfileApi(token, payload);
+    setUser(updated);
+    authStorage.setUser(updated);
+  };
+
+  const refreshUser = useCallback(async () => {
+    const savedToken = authStorage.getToken();
+    if (!savedToken) return;
+    try {
+      const freshUser = await getCurrentUserApi(savedToken);
+      setUser(freshUser);
+      authStorage.setUser(freshUser);
+    } catch {
+      // Silent refresh is best-effort; the next login or reload will retry.
+    }
+  }, []);
+
   const logout = () => {
     authStorage.clear();
     setToken(null);
@@ -99,10 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: Boolean(token && user),
       isLoading,
       login,
+      loginWithProvider,
       register,
+      changePassword,
+      updateProfile,
+      refreshUser,
       logout,
     }),
-    [user, token, isLoading],
+    [user, token, isLoading, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
