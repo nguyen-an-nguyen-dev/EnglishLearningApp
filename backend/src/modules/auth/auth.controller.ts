@@ -20,6 +20,32 @@ export const login: RequestHandler = async (request, response, next) => {
   }
 };
 
+export const google: RequestHandler = async (request, response, next) => {
+  try {
+    const data = await authService.loginWithProvider('google', request.body?.credential);
+    response.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const facebook: RequestHandler = async (request, response, next) => {
+  try {
+    const data = await authService.loginWithProvider('facebook', request.body?.accessToken);
+    response.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const providers: RequestHandler = async (_request, response, next) => {
+  try {
+    response.json({ success: true, data: await authService.listProviders() });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const me: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');

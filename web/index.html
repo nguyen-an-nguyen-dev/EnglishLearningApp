@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#FAFAFC" />
+    <meta name="theme-color" content="#F8FAFC" />
     <meta name="description" content="Luyện tiếng Anh qua tình huống đời thường, từng bài ngắn có ngữ cảnh và cách dùng rõ ràng." />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="vi_VN" />
@@ -19,6 +19,14 @@
     <title>Engorace | Học mọi nơi, chơi mọi lúc</title>
   </head>
   <body>
+    <script>
+      try {
+        var stored = localStorage.getItem('engorace_theme')
+        var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

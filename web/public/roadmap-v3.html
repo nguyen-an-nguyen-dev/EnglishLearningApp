@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Engorace · lộ trình (bản theo ảnh mẫu)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&display=swap');
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 36px 28px 64px;
+    background: #EDF2F6;
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #0F172A;
+    display: grid;
+    justify-items: center;
+  }
+
+  .head { width: 820px; margin-bottom: 22px; }
+  .head span { color: #008CBC; font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; }
+  .head h1 { margin: 9px 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.04em; }
+  .head p { margin: 0; max-width: 640px; color: #6E7F95; font-size: 14px; line-height: 1.6; }
+
+  .frame {
+    position: relative;
+    width: 820px;
+    height: 820px;
+    overflow: hidden;
+    border-radius: 18px;
+    box-shadow: 0 26px 60px -34px rgb(15 23 42 / 30%);
+  }
+
+  .scene, .road { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .stage {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 8px;
+    border-radius: 8px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 1px 4px -1px rgb(15 23 42 / 16%);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .stage i { font-style: normal; color: #93A6B6; }
+  .stage b { color: #0F172A; }
+
+  .stop { position: absolute; width: 44px; height: 44px; margin-left: -20px; margin-top: -20px; }
+  .badge { display: block; width: 44px; height: 44px; filter: drop-shadow(0 3px 5px rgb(15 23 42 / 22%)); }
+
+  .car-badge {
+    position: absolute;
+    display: grid;
+    width: 50px;
+    height: 50px;
+    margin-left: -25px;
+    margin-top: -25px;
+    place-items: center;
+    border: 3px solid #F2B544;
+    border-radius: 13px;
+    background: linear-gradient(180deg, #FFE08C 0%, #FFD46A 58%, #F5C24E 100%);
+    box-shadow: 0 10px 18px -6px rgb(140 90 10 / 55%), inset 0 1px 0 rgb(255 255 255 / 65%);
+  }
+  .car-badge img { width: 38px; height: 38px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <span>Engorace · lộ trình</span>
+  <h1>Bản đồ lộ trình</h1>
+  <p>Dựng theo ảnh mẫu: đường dọc uốn nhẹ, mốc là vòng số nằm sát mép đường, xe đỗ trên đường, nền chia ba vùng đất.</p>
+</div>
+
+<div class="frame">
+  <svg class="scene" viewBox="0 0 820 820" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="ridge" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0F172A" stop-opacity=".07"/>
+        <stop offset="1" stop-color="#0F172A" stop-opacity="0"/>
+      </linearGradient>
+
+      <!-- bụi cây: bóng đổ + lớp tối + thân + highlight -->
+      <g id="tree">
+        <ellipse cx="4" cy="20" rx="19" ry="6" fill="#2C5F3E" opacity=".16"/>
+        <ellipse cx="2" cy="18" rx="12" ry="4" fill="#2C5F3E" opacity=".12"/>
+        <circle cx="0" cy="2" r="16" fill="#639F74"/>
+        <circle cx="-11" cy="7" r="12" fill="#639F74"/>
+        <circle cx="11" cy="7" r="12" fill="#639F74"/>
+        <circle cx="0" cy="0" r="15" fill="#73B585"/>
+        <circle cx="-9" cy="5" r="11" fill="#73B585"/>
+        <circle cx="9" cy="5" r="11" fill="#73B585"/>
+        <circle cx="-5" cy="-5" r="7.5" fill="#88C79A"/>
+      </g>
+
+      <!-- nhà: bóng đổ, tường, bóng chân tường, mái, highlight mái, cửa -->
+      <g id="house">
+        <ellipse cx="6" cy="20" rx="17" ry="4.8" fill="#7A5A2A" opacity=".18"/>
+        <ellipse cx="3" cy="18" rx="10" ry="3" fill="#7A5A2A" opacity=".12"/>
+        <rect x="-14" y="4" width="28" height="13" rx="2.5" fill="currentColor"/>
+        <rect x="-14" y="4" width="28" height="13" rx="2.5" fill="#0F172A" opacity=".24"/>
+        <path d="M-15 -14 L15 -14 L18.5 5 L-18.5 5 Z" fill="currentColor"/>
+        <path d="M-15 -14 L15 -14 L18.5 5 L-18.5 5 Z" fill="#FFFFFF" opacity=".14"/>
+        <path d="M-15 -14 L15 -14 L15.9 -10.4 L-15.9 -10.4 Z" fill="#FFFFFF" opacity=".34"/>
+        <rect x="-4" y="6.5" width="8" height="7" rx="1.3" fill="#FFFFFF" opacity=".93"/>
+      </g>
+
+      <!-- thuyền: bóng trên mặt nước, thân, lườn tối, buồm, cột -->
+      <g id="boat">
+        <ellipse cx="2" cy="12" rx="22" ry="6" fill="#4E7E93" opacity=".22"/>
+        <path d="M-19 0 q 19 11 38 0 l -6 9 q -13 6 -26 0 Z" fill="#EFDFC4"/>
+        <path d="M-19 0 q 19 11 38 0 l -2 3 q -17 8 -34 0 Z" fill="#D3BE9B"/>
+        <path d="M1 0 l 0 -17 l 13 11 Z" fill="#FCF3E0"/>
+        <path d="M1 -17 l 0 17" stroke="#C2A87F" stroke-width="1.8" stroke-linecap="round"/>
+      </g>
+    </defs>
+
+    <!-- ba vùng đất + gờ nổi giữa các vùng -->
+    <rect width="820" height="320" fill="#F0F8F0"/>
+    <rect y="320" width="820" height="240" fill="#F1F8FB"/>
+    <rect y="560" width="820" height="260" fill="#FFF8EB"/>
+    <rect y="320" width="820" height="20" fill="url(#ridge)"/>
+    <rect y="560" width="820" height="20" fill="url(#ridge)"/>
+
+    <!-- rừng -->
+    <use href="#tree" x="108" y="118"/><use href="#tree" x="158" y="150"/>
+    <use href="#tree" x="300" y="76"/><use href="#tree" x="342" y="112"/>
+    <use href="#tree" x="556" y="66"/><use href="#tree" x="598" y="100"/>
+    <use href="#tree" x="700" y="140"/><use href="#tree" x="742" y="108"/>
+    <use href="#tree" x="266" y="228"/><use href="#tree" x="604" y="236"/>
+    <use href="#tree" x="64" y="236"/>
+    <use href="#tree" x="196" y="86"/><use href="#tree" x="238" y="112"/>
+    <use href="#tree" x="640" y="150"/><use href="#tree" x="676" y="120"/>
+    <use href="#tree" x="486" y="196"/><use href="#tree" x="120" y="286"/>
+    <use href="#tree" x="700" y="252"/><use href="#tree" x="760" y="228"/>
+
+    <!-- sông: bờ trên tối, mặt nước, gợn sáng -->
+    <path d="M-30 408 C 120 388, 250 428, 400 408 S 620 376, 760 400 S 840 416, 860 410"
+          fill="none" stroke="#8FC4DC" stroke-width="94" stroke-linecap="round" opacity=".55"/>
+    <path d="M-30 408 C 120 388, 250 428, 400 408 S 620 376, 760 400 S 840 416, 860 410"
+          fill="none" stroke="#B7DDF1" stroke-width="86" stroke-linecap="round"/>
+    <path d="M-30 404 C 120 384, 250 424, 400 404 S 620 372, 760 396 S 840 412, 860 406"
+          fill="none" stroke="#DDEFF7" stroke-width="12" stroke-linecap="round" opacity=".85"/>
+
+    <use href="#boat" x="140" y="392"/>
+    <use href="#boat" x="616" y="386"/>
+    <g fill="#FFFFFF" opacity=".55">
+      <ellipse cx="352" cy="424" rx="12" ry="4"/>
+      <ellipse cx="742" cy="416" rx="11" ry="4"/>
+    </g>
+
+    <!-- phố -->
+    <g color="#A8D8C8"><use href="#house" x="92" y="648"/><use href="#house" x="150" y="668"/></g>
+    <g color="#F3B8B8"><use href="#house" x="212" y="640"/><use href="#house" x="268" y="664"/></g>
+    <g color="#F5C9A8"><use href="#house" x="66" y="694"/></g>
+    <g color="#F5DFA0"><use href="#house" x="126" y="712"/></g>
+    <g color="#A9C4D8"><use href="#house" x="608" y="602"/><use href="#house" x="664" y="622"/></g>
+
+    <!-- cồn cát -->
+    <path d="M690 820 C 720 716, 782 686, 820 682 L 820 820 Z" fill="#F9E2A7"/>
+    <path d="M690 820 C 720 716, 782 686, 820 682 L 820 820 Z" fill="url(#ridge)" opacity=".5"/>
+    <path d="M714 820 C 742 736, 790 700, 820 694" fill="none" stroke="#EFD08C" stroke-width="3" opacity=".9"/>
+    <g fill="#EFD08C" opacity=".55">
+      <circle cx="768" cy="758" r="4"/><circle cx="794" cy="782" r="3"/><circle cx="748" cy="790" r="3"/>
+    </g>
+  </svg>
+
+  <svg class="road" viewBox="0 0 820 820" aria-hidden="true">
+    <defs>
+      <filter id="roadShadow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="940" height="940">
+        <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#0F172A" flood-opacity="0.26"/>
+      </filter>
+      <path id="track" fill="none" d="M390 -30 C 390 30, 390 60, 390 90
+        C 390 128, 430 137, 430 175
+        C 430 213, 390 222, 390 260
+        C 390 310, 430 321, 430 370
+        C 430 404, 390 411, 390 445
+        C 390 479, 430 486, 430 520
+        C 430 570, 390 581, 390 630
+        C 390 673, 430 682, 430 725
+        C 430 770, 430 800, 430 850"/>
+      <path id="done" fill="none" d="M390 -30 C 390 30, 390 60, 390 90
+        C 390 128, 430 137, 430 175
+        C 430 213, 390 222, 390 260
+        C 390 310, 430 321, 430 370"/>
+    </defs>
+    <g filter="url(#roadShadow)">
+    <use href="#track" stroke="#B7C2CE" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+    <use href="#track" stroke="#C7D1DC" stroke-width="102" stroke-linecap="round" stroke-linejoin="round"/>
+    <use href="#done" stroke="#1CB6E8" stroke-width="110" stroke-linecap="round" stroke-linejoin="round"/>
+    <use href="#done" stroke="#5FD8FF" stroke-width="102" stroke-linecap="round" stroke-linejoin="round"/>
+    <use href="#track" stroke="#FFFFFF" stroke-width="5" stroke-dasharray="18 22" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </svg>
+
+  <div class="stage" style="left: 22px; top: 18px;"><i>01</i><b>Đồi thông</b></div>
+  <div class="stage" style="left: 22px; top: 328px;"><i>02</i><b>Bờ sông</b></div>
+  <div class="stage" style="left: 22px; top: 568px;"><i>03</i><b>Phố biển</b></div>
+
+  <div class="stop" style="left: 332px; top: 90px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#00ABDC" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#00ABDC">01</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <path d="M29.4 33 l2.6 2.7 l4.6 -5.2" fill="none" stroke="#00ABDC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 488px; top: 175px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#00ABDC" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#00ABDC">02</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <path d="M29.4 33 l2.6 2.7 l4.6 -5.2" fill="none" stroke="#00ABDC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 332px; top: 260px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#00ABDC" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#00ABDC">03</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <path d="M29.4 33 l2.6 2.7 l4.6 -5.2" fill="none" stroke="#00ABDC" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 488px; top: 370px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#F2B544" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#D99A2B">04</text>
+    </svg>
+  </div>
+  <div class="car-badge" style="left: 430px; top: 370px;">
+    <img src="/logo.png" alt="" />
+  </div>
+
+  <div class="stop" style="left: 332px; top: 445px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#94A3B2" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#94A3B2">05</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <rect x="29.4" y="31.6" width="7.4" height="5.4" rx="1.5" fill="#94A3B2"/>
+      <path d="M31 31.6 v-1.8 a2.1 2.1 0 0 1 4.2 0 v1.8" fill="none" stroke="#94A3B2" stroke-width="1.6"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 488px; top: 520px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#94A3B2" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#94A3B2">06</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <rect x="29.4" y="31.6" width="7.4" height="5.4" rx="1.5" fill="#94A3B2"/>
+      <path d="M31 31.6 v-1.8 a2.1 2.1 0 0 1 4.2 0 v1.8" fill="none" stroke="#94A3B2" stroke-width="1.6"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 332px; top: 630px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#94A3B2" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#94A3B2">07</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <rect x="29.4" y="31.6" width="7.4" height="5.4" rx="1.5" fill="#94A3B2"/>
+      <path d="M31 31.6 v-1.8 a2.1 2.1 0 0 1 4.2 0 v1.8" fill="none" stroke="#94A3B2" stroke-width="1.6"/>
+    </svg>
+  </div>
+
+  <div class="stop" style="left: 488px; top: 725px;">
+    <svg class="badge" viewBox="0 0 44 44">
+      <circle cx="20" cy="20" r="17" fill="#FFFFFF" stroke="#94A3B2" stroke-width="3"/>
+      <text x="20" y="25" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="13" font-weight="800" fill="#94A3B2">08</text>
+      <circle cx="33" cy="33" r="8.5" fill="#FFFFFF"/>
+      <rect x="29.4" y="31.6" width="7.4" height="5.4" rx="1.5" fill="#94A3B2"/>
+      <path d="M31 31.6 v-1.8 a2.1 2.1 0 0 1 4.2 0 v1.8" fill="none" stroke="#94A3B2" stroke-width="1.6"/>
+    </svg>
+  </div>
+</div>
+
+</body>
+</html>

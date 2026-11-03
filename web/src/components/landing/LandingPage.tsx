@@ -14,19 +14,11 @@ interface LandingPageProps {
   onEnterDashboard: () => void
 }
 
-const frameSections = [
-  { id: 'hero', label: 'Khởi đầu' },
-  { id: 'curriculum', label: 'Lộ trình' },
-  { id: 'modes', label: 'Hình thức học' },
-  { id: 'footer', label: 'Bắt đầu' },
-]
-
 export function LandingPage({ onEnterDashboard }: LandingPageProps) {
   const { isAuthenticated } = useAuth()
   const [authMode, setAuthMode] = useState<AuthMode>('register')
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [activeFrame, setActiveFrame] = useState('hero')
 
   function openAuth(mode: AuthMode) {
     setMenuOpen(false)
@@ -52,27 +44,8 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     return () => window.removeEventListener('keydown', handleMenuKeyDown)
   }, [menuOpen])
 
-  // Track active frame using IntersectionObserver
-  useEffect(() => {
-    const frameElements = document.querySelectorAll<HTMLElement>('.lp-frame-section')
-    if (!frameElements.length || !('IntersectionObserver' in window)) return
-
-    const frameObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.target.id) {
-            setActiveFrame(entry.target.id)
-          }
-        })
-      },
-      { threshold: 0.35 }
-    )
-
-    frameElements.forEach((el) => frameObserver.observe(el))
-    return () => frameObserver.disconnect()
-  }, [])
-
-  // Bi-directional fade-in / reveal logic
+  // Reveal-on-scroll: reveal once, then stay visible.
+  // Two-way reveal made sections vanish when scrolling back up, which read as jank.
   useEffect(() => {
     const page = document.querySelector('.landing-page-wrapper')
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -86,18 +59,15 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('lp-is-visible')
-            entry.target.classList.remove('lp-is-hidden')
-          } else {
-            entry.target.classList.remove('lp-is-visible')
-            entry.target.classList.add('lp-is-hidden')
-          }
+          if (!entry.isIntersecting) return
+          entry.target.classList.add('lp-is-visible')
+          entry.target.classList.remove('lp-is-hidden')
+          observer.unobserve(entry.target)
         })
       },
       {
         threshold: 0.12,
-        rootMargin: '0px 0px -20px 0px',
+        rootMargin: '0px 0px -40px 0px',
       }
     )
 
@@ -108,12 +78,13 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     }
   }, [])
 
-  function scrollToFrame(frameId: string) {
-    const target = document.getElementById(frameId)
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash) return
+    const target = document.querySelector<HTMLElement>(hash)
+    if (!target) return
+    requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
+  }, [])
 
   return (
     <div className="landing-page-wrapper" id="top">
@@ -128,40 +99,20 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
         onContinue={onEnterDashboard}
       />
 
-      {/* Floating 3D Frame Dot Navigator */}
-      <nav className="lp-frame-nav" aria-label="Điều hướng các khung màn hình">
-        {frameSections.map((frame) => (
-          <button
-            key={frame.id}
-            type="button"
-            className={`lp-frame-dot${activeFrame === frame.id ? ' is-active' : ''}`}
-            onClick={() => scrollToFrame(frame.id)}
-            aria-label={`Chuyển đến khung ${frame.label}`}
-          >
-            <span className="lp-frame-dot-inner" />
-            <span className="lp-frame-dot-tooltip">{frame.label}</span>
-          </button>
-        ))}
-      </nav>
-
       <main id="main-content" className="lp-main">
-        {/* Frame 1: Hero */}
-        <div className="lp-frame-section lp-frame-hero" id="hero">
+        <div className="lp-band lp-band-hero">
           <HeroSection onStart={() => openAuth('register')} />
         </div>
 
-        {/* Frame 2: Curriculum (Lộ trình 5 chặng) */}
-        <div className="lp-frame-section lp-frame-curriculum" id="curriculum">
+        <div className="lp-band lp-band-curriculum">
           <CurriculumSection />
         </div>
 
-        {/* Frame 3: Learning Modes (Học qua Video YouTube, ngữ cảnh & Đấu trường từ vựng) */}
-        <div className="lp-frame-section lp-frame-modes" id="modes">
-          <LearningModesSection onStartDuel={() => openAuth('register')} />
+        <div className="lp-band lp-band-modes">
+          <LearningModesSection onStartDuel={() => openAuth('register')} onRequireAuth={() => openAuth('register')} />
         </div>
 
-        {/* Frame 5: Final CTA & Footer */}
-        <div className="lp-frame-section lp-frame-conclusion" id="footer">
+        <div className="lp-band lp-band-conclusion" id="footer">
           <div className="lp-conclusion-content">
             <section className="lp-final-cta" aria-labelledby="final-cta-title" data-reveal>
               <div className="lp-final-cta-copy">
@@ -169,12 +120,12 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
                 <h2 id="final-cta-title">Bắt đầu từ một câu đơn giản.</h2>
                 <p>Tạo tài khoản để mở lộ trình học và tiếp tục luyện theo nhịp của riêng bạn.</p>
               </div>
-              <button className="lp-button lp-button-light" type="button" onClick={() => openAuth('register')}>
+              <button className="lp-button lp-button-sun lp-button-large" type="button" onClick={() => openAuth('register')}>
                 Bắt đầu học <ArrowRight size={18} weight="bold" />
               </button>
-              <span className="lp-final-cta-mark" aria-hidden="true">E</span>
+              <span className="lp-final-cta-mark" aria-hidden="true">A1</span>
             </section>
-            <LandingFooter onLogin={() => openAuth('login')} onRegister={() => openAuth('register')} />
+            <LandingFooter />
           </div>
         </div>
       </main>

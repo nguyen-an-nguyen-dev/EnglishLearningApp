@@ -35,6 +35,8 @@ CREATE TABLE stages (
   code VARCHAR(50) NOT NULL,
   title VARCHAR(120) NOT NULL,
   description VARCHAR(500) NULL,
+  theme_key VARCHAR(40) NOT NULL DEFAULT 'forest',
+  accent_color CHAR(7) NOT NULL DEFAULT '#00ABDC',
   sort_order TINYINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -287,13 +289,13 @@ INSERT INTO badges (code, name, description, icon) VALUES
   ('xp_100', '100 XP', 'Earn 100 XP.', 'bolt'),
   ('xp_500', '500 XP', 'Earn 500 XP.', 'military_tech');
 
-INSERT INTO stages (code, title, description, sort_order) VALUES
-  ('stage-1', 'A1 Beginner Basics', 'Xây dựng nền tảng từ vựng và câu giao tiếp căn bản hàng ngày.', 1),
-  ('stage-2', 'A2 Elementary Communication', 'Giao tiếp trong các tình huống quen thuộc và mua sắm, đi lại.', 2),
-  ('stage-3', 'B1 Intermediate Skills', 'Tự tin xử lý tình huống khi du lịch, học tập và phỏng vấn.', 3),
-  ('stage-4', 'B2 Upper-Intermediate Business', 'Làm chủ tiếng Anh công sở, cuộc họp, email và đàm phán.', 4),
-  ('stage-5', 'C1 Advanced Fluency', 'Bày tỏ quan điểm sâu sắc, kể chuyện và diễn đạt ý tưởng phức tạp.', 5),
-  ('stage-6', 'C2 Mastery & Proficiency', 'Thành thạo như người bản xứ, làm chủ thành ngữ và văn phong học thuật.', 6);
+INSERT INTO stages (code, title, description, theme_key, accent_color, sort_order) VALUES
+  ('stage-1', 'A1 Beginner Basics', 'Xây dựng nền tảng từ vựng và câu giao tiếp căn bản hàng ngày.', 'forest', '#3E9B5F', 1),
+  ('stage-2', 'A2 Elementary Communication', 'Giao tiếp trong các tình huống quen thuộc và mua sắm, đi lại.', 'river', '#2E9CC4', 2),
+  ('stage-3', 'B1 Intermediate Skills', 'Tự tin xử lý tình huống khi du lịch, học tập và phỏng vấn.', 'autumn', '#D97706', 3),
+  ('stage-4', 'B2 Upper-Intermediate Business', 'Làm chủ tiếng Anh công sở, cuộc họp, email và đàm phán.', 'alpine', '#2E7DA8', 4),
+  ('stage-5', 'C1 Advanced Fluency', 'Bày tỏ quan điểm sâu sắc, kể chuyện và diễn đạt ý tưởng phức tạp.', 'coast', '#2A9D8F', 5),
+  ('stage-6', 'C2 Mastery & Proficiency', 'Thành thạo như người bản xứ, làm chủ thành ngữ và văn phong học thuật.', 'sakura', '#D65A86', 6);
 
 INSERT INTO lessons (stage_id, code, title, topic, sort_order) VALUES
   -- Stage 1 (A1)
@@ -302,36 +304,42 @@ INSERT INTO lessons (stage_id, code, title, topic, sort_order) VALUES
   (1, 's1-numbers', 'Con số & Đếm số', 'Numbers', 3),
   (1, 's1-family', 'Thành viên gia đình', 'Family', 4),
   (1, 's1-food', 'Thức ăn & Đồ uống hàng ngày', 'Food', 5),
+  (1, 's1-time', 'Giờ giấc & Ngày tháng', 'Time & Dates', 6),
   -- Stage 2 (A2)
   (2, 's2-food', 'Ẩm thực & Gọi món', 'Food', 1),
   (2, 's2-shopping', 'Mua sắm & Hỏi giá', 'Shopping', 2),
   (2, 's2-daily-activities', 'Hoạt động thường nhật', 'Daily Activities', 3),
   (2, 's2-transportation', 'Phương tiện & Giao thông', 'Transportation', 4),
   (2, 's2-hobbies', 'Sở thích & Giải trí', 'Hobbies', 5),
+  (2, 's2-health', 'Sức khỏe & Bác sĩ', 'Health', 6),
   -- Stage 3 (B1)
   (3, 's3-travel', 'Du lịch & Khách sạn', 'Travel', 1),
   (3, 's3-school', 'Trường học & Giáo dục', 'School', 2),
   (3, 's3-hobbies', 'Giải trí & Hoạt động ngoài trời', 'Hobbies', 3),
   (3, 's3-job-interview', 'Phỏng vấn xin việc', 'Job Interview', 4),
   (3, 's3-technology', 'Công nghệ & Cuộc sống hiện đại', 'Technology', 5),
+  (3, 's3-environment', 'Môi trường & Thiên nhiên', 'Environment', 6),
   -- Stage 4 (B2)
   (4, 's4-telephone', 'Giao tiếp qua điện thoại', 'Telephone Calls', 1),
   (4, 's4-meetings', 'Cuộc họp & Thảo luận', 'Meetings', 2),
   (4, 's4-emails', 'Viết Email thương mại', 'Emails', 3),
   (4, 's4-workplace', 'Giao tiếp chốn công sở', 'At the Workplace', 4),
   (4, 's4-negotiation', 'Đàm phán kinh doanh', 'Negotiation', 5),
+  (4, 's4-presentations', 'Thuyết trình & Trình bày', 'Presentations', 6),
   -- Stage 5 (C1)
   (5, 's5-opinions', 'Bày tỏ quan điểm', 'Sharing Opinions', 1),
   (5, 's5-storytelling', 'Kỹ năng kể chuyện', 'Storytelling', 2),
   (5, 's5-goals', 'Kế hoạch & Mục tiêu', 'Plans and Goals', 3),
   (5, 's5-discussion', 'Tranh luận chuyên sâu', 'Discussion', 4),
   (5, 's5-review', 'Ôn tập giao tiếp nâng cao', 'Everyday Review', 5),
+  (5, 's5-media', 'Truyền thông & Xã hội', 'Media & Society', 6),
   -- Stage 6 (C2)
   (6, 's6-idioms', 'Thành ngữ & Cụm động từ nâng cao', 'Idioms', 1),
   (6, 's6-academic', 'Từ vựng học thuật cao cấp', 'Academic', 2),
   (6, 's6-grammar', 'Cấu trúc ngữ pháp phức tạp', 'Grammar', 3),
   (6, 's6-rhetoric', 'Nghệ thuật hùng biện & Văn phong', 'Rhetoric', 4),
-  (6, 's6-masterclass', 'Tổng hợp tinh hoa', 'Masterclass', 5);
+  (6, 's6-masterclass', 'Tổng hợp tinh hoa', 'Masterclass', 5),
+  (6, 's6-literature', 'Văn học & Phê bình', 'Literature', 6);
 
 -- ============================================================================
 -- 3. KHỞI TẠO BẢNG TẠM CHO TOÀN BỘ 300 CÂU HỎI (STAGE 1 ĐẾN 6)
@@ -351,6 +359,7 @@ CREATE TEMPORARY TABLE seed_questions (
   correct_answer VARCHAR(500) NOT NULL,
   distractor_one VARCHAR(500) NOT NULL,
   distractor_two VARCHAR(500) NOT NULL,
+  difficulty ENUM('beginner', 'intermediate', 'advanced') NOT NULL DEFAULT 'beginner',
   PRIMARY KEY (lesson_code, sort_order)
 ) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -704,6 +713,84 @@ INSERT INTO seed_fill_choice_questions (lesson_code, sort_order, question_text, 
   ('s6-masterclass', 6, 'True fluency demands complete ___ over grammar.', 'Danh từ "command" (sự làm chủ).', 'command', 'control', 'mastery');
 
 -- ============================================================================
+-- 7b. 60 CÂU HỎI CHO 6 BÀI MỚI (LESSON 6 CỦA MỖI STAGE)
+-- ============================================================================
+INSERT INTO seed_questions
+  (lesson_code, sort_order, question_text, explanation, correct_answer, distractor_one, distractor_two, difficulty)
+VALUES
+  -- Stage 1 · Time & Dates
+  ('s1-time', 1, 'Câu nào dùng để hỏi "Mấy giờ rồi?"', 'Cấu trúc hỏi giờ là "What time is it?".', 'What time is it?', 'What day is it?', 'How old is it?', 'beginner'),
+  ('s1-time', 2, 'Dịch "Monday" sang tiếng Việt.', '"Monday" là thứ Hai.', 'Thứ Hai', 'Thứ Ba', 'Chủ Nhật', 'beginner'),
+  ('s1-time', 3, 'Tháng nào là tháng đầu tiên của năm?', 'Tháng đầu năm là January.', 'January', 'March', 'December', 'beginner'),
+  ('s1-time', 4, 'Chọn giới từ đúng: "I get up ___ seven o''clock."', 'Dùng "at" trước giờ cụ thể.', 'at', 'on', 'in', 'beginner'),
+  ('s1-time', 5, '"Buổi chiều" trong tiếng Anh là gì?', '"Afternoon" là buổi chiều.', 'afternoon', 'morning', 'evening', 'beginner'),
+  ('s1-time', 6, 'Dịch "hôm nay" sang tiếng Anh.', '"Hôm nay" là today.', 'today', 'tomorrow', 'yesterday', 'beginner'),
+  ('s1-time', 7, '"Half past six" là mấy giờ?', 'Half past six = 6 giờ 30.', '6:30', '6:00', '5:30', 'beginner'),
+  ('s1-time', 8, 'Cuối tuần gồm những ngày nào?', 'Cuối tuần là thứ Bảy và Chủ Nhật.', 'Saturday and Sunday', 'Monday and Tuesday', 'Friday and Monday', 'beginner'),
+  ('s1-time', 9, 'Chọn giới từ đúng: "My birthday is ___ May."', 'Dùng "in" trước tháng.', 'in', 'on', 'at', 'beginner'),
+  ('s1-time', 10, 'Dịch "next week" sang tiếng Việt.', '"Next week" là tuần sau.', 'Tuần sau', 'Tuần trước', 'Tuần này', 'beginner'),
+
+  -- Stage 2 · Health
+  ('s2-health', 1, 'Khi bị đau đầu, bạn nên nói gì?', '"Headache" nghĩa là đau đầu.', 'I have a headache.', 'I have a toothache.', 'I have a backache.', 'beginner'),
+  ('s2-health', 2, 'Dịch "bác sĩ" sang tiếng Anh.', '"Bác sĩ" là doctor.', 'doctor', 'teacher', 'driver', 'beginner'),
+  ('s2-health', 3, 'Nơi bạn mua thuốc là gì?', 'Mua thuốc ở pharmacy (hiệu thuốc).', 'pharmacy', 'bakery', 'library', 'beginner'),
+  ('s2-health', 4, 'Chọn động từ đúng: "You should ___ more water."', 'Uống nước dùng "drink".', 'drink', 'eat', 'sleep', 'beginner'),
+  ('s2-health', 5, 'Triệu chứng "sốt" trong tiếng Anh là gì?', '"Sốt" là fever.', 'fever', 'cough', 'cold', 'beginner'),
+  ('s2-health', 6, 'Dịch "I feel sick." sang tiếng Việt.', '"Sick" nghĩa là ốm/mệt.', 'Tôi cảm thấy ốm.', 'Tôi cảm thấy khỏe.', 'Tôi cảm thấy đói.', 'beginner'),
+  ('s2-health', 7, 'Bạn nên làm gì khi bị cảm?', 'Nghỉ ngơi và uống nước ấm giúp hồi phục.', 'Rest and drink warm water.', 'Run outside for an hour.', 'Skip sleep and study all night.', 'beginner'),
+  ('s2-health', 8, 'Nha sĩ trong tiếng Anh là gì?', '"Nha sĩ" là dentist.', 'dentist', 'doctor', 'nurse', 'beginner'),
+  ('s2-health', 9, 'Chọn tính từ đúng: "She has a ___ throat."', 'Cụm "sore throat" nghĩa là đau họng.', 'sore', 'sour', 'safe', 'beginner'),
+  ('s2-health', 10, 'Dịch "Take this medicine twice a day."', 'Twice a day = hai lần một ngày.', 'Uống thuốc này hai lần một ngày.', 'Uống thuốc này mỗi tuần một lần.', 'Mua thuốc này hai lần một ngày.', 'beginner'),
+
+  -- Stage 3 · Environment
+  ('s3-environment', 1, 'Dịch "môi trường" sang tiếng Anh.', '"Môi trường" là environment.', 'environment', 'equipment', 'entertainment', 'intermediate'),
+  ('s3-environment', 2, 'Rác thải nhựa gây hại trực tiếp cho đâu?', 'Rác nhựa gây hại cho môi trường.', 'the environment', 'the weather', 'the traffic', 'intermediate'),
+  ('s3-environment', 3, 'Chọn động từ đúng: "We should ___ plastic bags."', 'Giảm túi nhựa dùng "reduce".', 'reduce', 'increase', 'produce', 'intermediate'),
+  ('s3-environment', 4, 'Năng lượng mặt trời trong tiếng Anh là gì?', '"Solar" là mặt trời.', 'solar energy', 'wind energy', 'water energy', 'intermediate'),
+  ('s3-environment', 5, 'Dịch "climate change" sang tiếng Việt.', '"Climate change" là biến đổi khí hậu.', 'Biến đổi khí hậu', 'Thời tiết đẹp', 'Không khí sạch', 'intermediate'),
+  ('s3-environment', 6, 'Việc trồng cây giúp ích gì cho không khí?', 'Cây làm sạch không khí.', 'It cleans the air.', 'It makes more trash.', 'It wastes water.', 'intermediate'),
+  ('s3-environment', 7, 'Chọn tính từ đúng: "We must protect ___ animals."', '"Endangered" nghĩa là có nguy cơ tuyệt chủng.', 'endangered', 'expensive', 'crowded', 'intermediate'),
+  ('s3-environment', 8, 'Từ "recycle" có nghĩa là gì?', '"Recycle" là tái chế.', 'Tái chế', 'Tiêu hủy', 'Mua mới', 'intermediate'),
+  ('s3-environment', 9, 'Nguồn nước nào dùng để uống an toàn?', 'Nước sạch là fresh water.', 'fresh water', 'salt water', 'dirty water', 'intermediate'),
+  ('s3-environment', 10, 'Dịch "Turn off the lights to save electricity."', 'Turn off = tắt; save electricity = tiết kiệm điện.', 'Tắt đèn để tiết kiệm điện.', 'Bật đèn để dùng nhiều điện.', 'Tắt đèn để tăng hóa đơn.', 'intermediate'),
+
+  -- Stage 4 · Presentations
+  ('s4-presentations', 1, 'Phần mở đầu bài thuyết trình thường gồm gì?', 'Mở đầu bằng giới thiệu chủ đề.', 'Giới thiệu chủ đề', 'Danh sách tài liệu tham khảo', 'Lời cảm ơn cuối bài', 'intermediate'),
+  ('s4-presentations', 2, 'Dịch "slide" trong bài thuyết trình sang tiếng Việt.', '"Slide" là trang trình chiếu.', 'Trang trình chiếu', 'Trang giấy', 'Bảng tin', 'intermediate'),
+  ('s4-presentations', 3, 'Câu nào mở đầu bài thuyết trình lịch sự?', 'Cách mở đầu chuẩn mực là giới thiệu chủ đề.', 'Good morning, today I would like to talk about...', 'Give me your attention now.', 'I will finish as quickly as possible.', 'intermediate'),
+  ('s4-presentations', 4, 'Chọn cụm từ đúng: "Let''s move ___ to the next point."', 'Cụm "move on to" nghĩa là chuyển sang ý tiếp theo.', 'on', 'out of', 'away from', 'intermediate'),
+  ('s4-presentations', 5, 'Từ "audience" nghĩa là gì?', '"Audience" là khán giả/người nghe.', 'Khán giả', 'Diễn giả', 'Đồng nghiệp', 'intermediate'),
+  ('s4-presentations', 6, 'Bạn nên làm gì khi sắp hết thời gian thuyết trình?', 'Tóm tắt ý chính và cảm ơn khán giả.', 'Tóm tắt ý chính và cảm ơn.', 'Nói nhanh hơn và bỏ qua kết luận.', 'Dừng lại mà không nói gì.', 'intermediate'),
+  ('s4-presentations', 7, 'Dịch "in conclusion" sang tiếng Việt.', '"In conclusion" dùng để kết luận.', 'Tóm lại', 'Đầu tiên', 'Ví dụ', 'intermediate'),
+  ('s4-presentations', 8, 'Chọn động từ đúng: "The chart ___ the sales figures."', 'Chủ ngữ số ít "the chart" đi với "shows".', 'shows', 'show', 'showing', 'intermediate'),
+  ('s4-presentations', 9, 'Câu nào mời khán giả đặt câu hỏi?', 'Câu mời hỏi lịch sự là "Are there any questions?".', 'Are there any questions?', 'No questions are allowed.', 'Please leave the room now.', 'intermediate'),
+  ('s4-presentations', 10, 'Giao tiếp bằng mắt khi thuyết trình giúp gì?', 'Ánh mắt tạo kết nối với khán giả.', 'Tạo kết nối với khán giả', 'Che giấu sự lo lắng', 'Đọc nhanh hơn', 'intermediate'),
+
+  -- Stage 5 · Media & Society
+  ('s5-media', 1, 'Dịch "social media" sang tiếng Việt.', '"Social media" là mạng xã hội.', 'Mạng xã hội', 'Truyền hình', 'Báo giấy', 'advanced'),
+  ('s5-media', 2, 'Tin tức giả trong tiếng Anh là gì?', 'Cụm "fake news" nghĩa là tin giả.', 'fake news', 'good news', 'breaking news', 'advanced'),
+  ('s5-media', 3, 'Chọn động từ đúng: "We should ___ information before sharing it."', 'Cần kiểm chứng thông tin trước khi chia sẻ.', 'verify', 'ignore', 'delete', 'advanced'),
+  ('s5-media', 4, 'Từ "influence" nghĩa là gì?', '"Influence" là ảnh hưởng.', 'Ảnh hưởng', 'Cấm đoán', 'Bỏ qua', 'advanced'),
+  ('s5-media', 5, 'Nền tảng nào phát video trực tuyến?', 'Streaming platforms phát nội dung trực tuyến.', 'streaming platforms', 'printing presses', 'radio towers', 'advanced'),
+  ('s5-media', 6, 'Dịch "privacy" sang tiếng Việt.', '"Privacy" là quyền riêng tư.', 'Quyền riêng tư', 'Sự nổi tiếng', 'Sự im lặng', 'advanced'),
+  ('s5-media', 7, 'Câu nào thể hiện quan điểm trái chiều một cách lịch sự?', 'Cách phản biện lịch sự là thừa nhận ý kiến rồi nêu quan điểm khác.', 'I see your point, but...', 'You are completely wrong.', 'I do not care what you think.', 'advanced'),
+  ('s5-media', 8, 'Chọn từ đúng: "The article went ___ last night."', 'Cụm "go viral" nghĩa là lan truyền nhanh.', 'viral', 'silent', 'local', 'advanced'),
+  ('s5-media', 9, 'Quảng cáo trực tuyến thường nhắm vào ai?', 'Quảng cáo nhắm tới target audience.', 'target audience', 'foreign tourists', 'random strangers', 'advanced'),
+  ('s5-media', 10, 'Dịch "freedom of speech" sang tiếng Việt.', '"Freedom of speech" là tự do ngôn luận.', 'Tự do ngôn luận', 'Tự do đi lại', 'Tự do tín ngưỡng', 'advanced'),
+
+  -- Stage 6 · Literature
+  ('s6-literature', 1, 'Từ "novel" nghĩa là gì?', '"Novel" là tiểu thuyết.', 'Tiểu thuyết', 'Bài thơ', 'Truyện ngắn', 'advanced'),
+  ('s6-literature', 2, 'Dịch "nhân vật chính" sang tiếng Anh.', '"Nhân vật chính" là main character.', 'main character', 'side character', 'narrator', 'advanced'),
+  ('s6-literature', 3, 'Chọn động từ đúng: "The author ___ a vivid picture of the city."', 'Chủ ngữ số ít "the author" đi với "paints".', 'paints', 'paint', 'painting', 'advanced'),
+  ('s6-literature', 4, 'Từ "metaphor" nghĩa là gì?', '"Metaphor" là ẩn dụ.', 'Ẩn dụ', 'So sánh', 'Nhân hóa', 'advanced'),
+  ('s6-literature', 5, 'Thể loại "biography" viết về điều gì?', 'Biography kể về cuộc đời một người.', 'Cuộc đời của một người', 'Một giả thuyết khoa học', 'Một chuyến phiêu lưu hư cấu', 'advanced'),
+  ('s6-literature', 6, 'Dịch "plot" trong tác phẩm văn học.', '"Plot" là cốt truyện.', 'Cốt truyện', 'Bìa sách', 'Tác giả', 'advanced'),
+  ('s6-literature', 7, 'Câu nào nhận xét văn phong phù hợp?', 'Nhận xét văn phong nên nói về cách viết.', 'The prose is elegant and precise.', 'The book is very heavy.', 'I bought it yesterday.', 'advanced'),
+  ('s6-literature', 8, 'Từ "symbolism" liên quan đến điều gì?', 'Symbolism là việc dùng biểu tượng trong tác phẩm.', 'Biểu tượng trong tác phẩm', 'Số liệu thống kê', 'Ngữ pháp câu', 'advanced'),
+  ('s6-literature', 9, 'Chọn giới từ đúng: "The novel explores themes ___ identity and loss."', 'Cụm "themes of" là cách nói đúng.', 'of', 'at', 'by', 'advanced'),
+  ('s6-literature', 10, 'Dịch "critical analysis" sang tiếng Việt.', '"Critical analysis" là phân tích phê bình.', 'Phân tích phê bình', 'Phân tích hóa học', 'Đánh giá thể thao', 'advanced');
+
+-- ============================================================================
 -- 8. NẠP DỮ LIỆU ĐẦY ĐỦ 30 BÀI (LISTEN CHOICE)
 -- ============================================================================
 INSERT INTO seed_listen_choice_questions (lesson_code, sort_order, question_text, explanation, audio_url, correct_answer, distractor_one, distractor_two, distractor_three) VALUES
@@ -744,7 +831,7 @@ INSERT INTO seed_listen_choice_questions (lesson_code, sort_order, question_text
 
 -- Multiple Choice
 INSERT INTO questions (lesson_id, question_text, question_type, explanation, difficulty, sort_order) 
-SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, 'beginner', seed.sort_order 
+SELECT l.id, seed.question_text, 'multiple_choice', seed.explanation, seed.difficulty, seed.sort_order 
 FROM seed_questions AS seed JOIN lessons AS l ON l.code = seed.lesson_code;
 
 -- Word Order

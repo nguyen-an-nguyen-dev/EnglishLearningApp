@@ -39,6 +39,10 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginPayload) => Promise<void>;
+  loginWithProvider: (provider: 'google' | 'facebook', token: string) => Promise<void>;
   register: (credentials: RegisterPayload) => Promise<void>;
+  changePassword: (payload: { currentPassword: string; newPassword: string }) => Promise<void>;
+  updateProfile: (payload: { name: string; email: string }) => Promise<void>;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 }

@@ -7,7 +7,11 @@ export interface StageRow extends RowDataPacket {
   code: string;
   title: string;
   description: string | null;
+  theme_key: string;
+  accent_color: string;
   sort_order: number;
+  lesson_count: number;
+  question_count: number;
   created_at: Date;
 }
 
@@ -59,7 +63,11 @@ export interface Stage {
   code: string;
   title: string;
   description: string | null;
+  theme_key: string;
+  accent_color: string;
   sort_order: number;
+  lesson_count: number;
+  question_count: number;
 }
 
 export interface Answer {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../../config/env';
@@ -47,6 +48,87 @@ export async function login(input: unknown): Promise<{ token: string; user: Auth
   if (!row || !(await bcrypt.compare(data.password, row.password_hash))) {
     throw new HttpError(401, 'Invalid email or password.');
   }
+
+  const token = jwt.sign(
+    {},
+    jwtSecret(),
+    { subject: String(row.id), expiresIn: env.jwtExpiresIn as SignOptions['expiresIn'] },
+  );
+  return { token, user: authRepository.toAuthUser(row) };
+}
+
+export type OAuthProvider = 'google' | 'facebook';
+
+interface ProviderProfile {
+  email: string;
+  name: string;
+}
+
+async function fetchGoogleProfile(idToken: string): Promise<ProviderProfile> {
+  if (!env.googleClientId) throw new HttpError(503, 'Google sign-in is not configured.');
+  const response = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+  );
+  if (!response.ok) throw new HttpError(401, 'Google token is invalid or expired.');
+  const data = (await response.json()) as Record<string, string>;
+  if (data.aud !== env.googleClientId) throw new HttpError(401, 'Google token was issued for another app.');
+  if (data.email_verified !== 'true' || !data.email) {
+    throw new HttpError(401, 'This Google account has no verified email.');
+  }
+  return { email: data.email.toLowerCase(), name: data.name || data.email.split('@')[0] };
+}
+
+async function fetchFacebookProfile(accessToken: string): Promise<ProviderProfile> {
+  if (!env.facebookAppId) throw new HttpError(503, 'Facebook sign-in is not configured.');
+  const url = `https://graph.facebook.com/me?fields=id,name,email&access_token=${encodeURIComponent(accessToken)}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new HttpError(401, 'Facebook token is invalid or expired.');
+  const data = (await response.json()) as { id?: string; name?: string; email?: string };
+  if (!data.email) throw new HttpError(401, 'Facebook did not share an email address.');
+  return { email: data.email.toLowerCase(), name: data.name || data.email.split('@')[0] };
+}
+
+export interface ProviderConfig {
+  google: boolean;
+  facebook: boolean;
+  googleClientId: string;
+  facebookAppId: string;
+}
+
+export async function listProviders(): Promise<ProviderConfig> {
+  return {
+    google: Boolean(env.googleClientId),
+    facebook: Boolean(env.facebookAppId),
+    googleClientId: env.googleClientId,
+    facebookAppId: env.facebookAppId,
+  };
+}
+
+export async function loginWithProvider(
+  provider: OAuthProvider,
+  rawToken: unknown,
+): Promise<{ token: string; user: AuthUser }> {
+  if (typeof rawToken !== 'string' || rawToken.trim().length === 0) {
+    throw new HttpError(422, 'Missing provider token.');
+  }
+
+  const profile = provider === 'google'
+    ? await fetchGoogleProfile(rawToken.trim())
+    : await fetchFacebookProfile(rawToken.trim());
+
+  let row = await authRepository.findByEmail(profile.email);
+
+  if (!row) {
+    const unusablePassword = await bcrypt.hash(`${provider}:${randomUUID()}`, BCRYPT_ROUNDS);
+    try {
+      await authRepository.createUser(profile.name, profile.email, unusablePassword);
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+    }
+    row = await authRepository.findByEmail(profile.email);
+  }
+
+  if (!row) throw new HttpError(500, 'Could not create an account for this provider.');
 
   const token = jwt.sign(
     {},
