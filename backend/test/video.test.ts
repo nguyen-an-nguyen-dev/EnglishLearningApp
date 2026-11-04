@@ -79,9 +79,9 @@ test('video catalogue exposes progress for the signed-in learner', async () => {
   const detailResponse = await fetch(`${baseUrl}/api/videos/${first.id}`, { headers: authHeaders() });
   assert.equal(detailResponse.status, 200);
   const detail = await detailResponse.json() as ApiEnvelope<{
-    video: { vocabulary: unknown[]; subtitle_en: string | null };
+    video: { segments: unknown[]; subtitle_en: string | null };
   }>;
-  assert.ok(detail.data.video.vocabulary.length > 0);
+  assert.ok(detail.data.video.segments.length > 0, 'Every library video needs caption segments.');
   assert.ok((detail.data.video.subtitle_en ?? '').length > 0);
 });
 
@@ -165,7 +165,9 @@ test('YouTube import rejects invalid links and curated lessons cannot be deleted
   const invalidBody = await invalid.json() as ApiEnvelope<unknown> & { errors: string[] };
   assert.ok(invalidBody.errors.includes('INVALID_YOUTUBE_URL'));
 
-  const remove = await fetch(`${baseUrl}/api/videos/1`, {
+  const list = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() })
+    .then((response) => response.json()) as ApiEnvelope<{ videos: Array<{ id: number }> }>;
+  const remove = await fetch(`${baseUrl}/api/videos/${list.data.videos[0].id}`, {
     method: 'DELETE',
     headers: authHeaders(),
   });
@@ -173,6 +175,8 @@ test('YouTube import rejects invalid links and curated lessons cannot be deleted
 });
 
 test('saved vocabulary can be added, listed, and removed', async () => {
+  const videoList = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() })
+    .then((response) => response.json()) as ApiEnvelope<{ videos: Array<{ id: number }> }>;
   const save = await fetch(`${baseUrl}/api/vocabulary`, {
     method: 'POST',
     headers: authHeaders(),
@@ -181,7 +185,7 @@ test('saved vocabulary can be added, listed, and removed', async () => {
       ipa: '/ˈnætʃ.ər.əl/',
       meaningVi: 'tự nhiên',
       detailVi: 'Tính từ: trôi chảy.',
-      videoId: 1,
+      videoId: videoList.data.videos[0].id,
     }),
   });
   assert.equal(save.status, 201);

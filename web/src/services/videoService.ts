@@ -3,6 +3,7 @@ import type {
   CompleteVideoResult,
   SaveWordPayload,
   SavedWord,
+  VideoAnalysisModel,
   VideoLessonDetail,
   VideoLessonSummary,
 } from '../types/video'
@@ -27,10 +28,13 @@ export async function saveVideoProgressApi(
   })
 }
 
-export async function importVideoApi(url: string): Promise<VideoLessonDetail> {
+export async function importVideoApi(
+  url: string,
+  model: VideoAnalysisModel = 'bolt',
+): Promise<VideoLessonDetail> {
   const data = await requestApi<{ video: VideoLessonDetail }>('/api/videos/import', {
     method: 'POST',
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, model }),
   })
   return data.video
 }

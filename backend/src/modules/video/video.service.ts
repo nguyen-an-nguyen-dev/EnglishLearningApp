@@ -1,11 +1,13 @@
 import { HttpError } from '../../middleware/error-handler';
 import * as repo from './video.repository';
+import { refineSegmentsWithAi } from './video.segmentation';
 import type {
   CompleteVideoResult,
   SaveWordInput,
   SavedWord,
   VideoLessonDetail,
   VideoLessonRow,
+  VideoAnalysisModel,
   VideoLessonSummary,
   VideoProgress,
   VideoProgressRow,
@@ -185,7 +187,11 @@ export async function completeVideo(
   };
 }
 
-export async function importVideo(userId: number, rawUrl: string): Promise<VideoLessonDetail> {
+export async function importVideo(
+  userId: number,
+  rawUrl: string,
+  analysisModel: VideoAnalysisModel = 'bolt',
+): Promise<VideoLessonDetail> {
   const youtubeId = extractYouTubeId(rawUrl);
   if (!youtubeId) {
     throw new HttpError(400, 'Enter a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
@@ -208,7 +214,8 @@ export async function importVideo(userId: number, rawUrl: string): Promise<Video
   }
 
   const source = await fetchYouTubeImportSource(youtubeId);
-  const subtitleEn = source.segments.map((segment) => segment.text).join(' ').slice(0, 500);
+  const segments = await refineSegmentsWithAi(source.segments, analysisModel, source.cues);
+  const subtitleEn = segments.map((segment) => segment.text).join(' ').slice(0, 500);
 
   let videoId: number;
   try {
@@ -221,7 +228,7 @@ export async function importVideo(userId: number, rawUrl: string): Promise<Video
       thumbnailUrl: source.thumbnailUrl,
       durationSeconds: source.durationSeconds,
       subtitleEn,
-      segments: source.segments,
+      segments,
     });
   } catch (error) {
     if (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ER_DUP_ENTRY') {

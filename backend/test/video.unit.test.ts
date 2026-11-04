@@ -5,6 +5,7 @@ import {
   hasWatchedEnough,
 } from '../src/modules/video/video.service';
 import {
+  parseImportModel,
   parseImportUrl,
   parseSaveWordInput,
   parseSavedWord,
@@ -13,10 +14,18 @@ import {
 } from '../src/modules/video/video.validation';
 import {
   extractYouTubeId,
+  MAX_IMPORT_DURATION_SECONDS,
   parseJson3Cues,
+  parseVttCues,
   segmentCaptionCues,
+  stripPunctuation,
   videoCodeForUser,
 } from '../src/modules/video/video.youtube';
+import {
+  buildSegmentsFromEnds,
+  parseAiSentenceEnds,
+  refineSegmentsWithAi,
+} from '../src/modules/video/video.segmentation';
 import { HttpError } from '../src/middleware/error-handler';
 
 test('video completion needs at least 90% of the duration', () => {
@@ -89,6 +98,18 @@ test('YouTube links are reduced to a safe video id', () => {
   assert.throws(() => parseImportUrl({}), (error) => error instanceof HttpError && error.statusCode === 422);
 });
 
+test('video analysis model defaults to Bolt and only accepts known choices', () => {
+  assert.equal(parseImportModel({}), 'bolt');
+  assert.equal(parseImportModel({ model: 'bolt' }), 'bolt');
+  assert.equal(parseImportModel({ model: 'gemini' }), 'gemini');
+  assert.throws(
+    () => parseImportModel({ model: 'nvidia' }),
+    (error) => error instanceof HttpError
+      && error.statusCode === 422
+      && error.errors.includes('INVALID_ANALYSIS_MODEL'),
+  );
+});
+
 test('json3 captions become sentence segments', () => {
   const cues = parseJson3Cues({
     events: [
@@ -103,11 +124,16 @@ test('json3 captions become sentence segments', () => {
 
   const segments = segmentCaptionCues(cues);
   assert.deepEqual(segments.map((segment) => segment.text), [
-    'Hello there. How are you? I am fine.',
+    'Hello there How are you I am fine',
   ]);
   assert.deepEqual(segments.map((segment) => [segment.startMs, segment.endMs]), [
     [0, 6900],
   ]);
+});
+
+test('lesson text keeps words, digits and single spaces only', () => {
+  assert.equal(stripPunctuation(`Don't say "I'm ~ fine!"`), 'Dont say Im fine');
+  assert.equal(stripPunctuation('Rock \'n\' roll — 24/7'), 'Rock n roll 24 7');
 });
 
 test('a reaction leads into the sentence that follows it', () => {
@@ -119,8 +145,8 @@ test('a reaction leads into the sentence that follows it', () => {
   ]);
 
   assert.deepEqual(segments.map((segment) => segment.text), [
-    'Oh yes! We will graduate next month.',
-    'I know. Time goes by so fast.',
+    'Oh yes We will graduate next month',
+    'I know Time goes by so fast',
   ]);
 });
 
@@ -138,13 +164,13 @@ test('every sentence becomes its own line, however short', () => {
   ]);
 
   assert.deepEqual(segments.map((segment) => segment.text), [
-    'Hi there. Today I am going to tell you how to use make and do.',
-    'Now they can be tricky.',
-    'But here are four things to remember.',
-    'We use make when we create something... like this cake!',
-    'We use do to talk about an activity.',
-    'What are you doing?',
-    'I\'m doing some work.',
+    'Hi there Today I am going to tell you how to use make and do',
+    'Now they can be tricky',
+    'But here are four things to remember',
+    'We use make when we create something like this cake',
+    'We use do to talk about an activity',
+    'What are you doing',
+    'Im doing some work',
   ]);
   assert.equal(segments.at(-1)?.endMs, 20_700);
 });
@@ -157,9 +183,9 @@ test('short conversational turns split one sentence per line', () => {
   ]);
 
   assert.deepEqual(segments.map((segment) => segment.text), [
-    'You look happy today.',
-    'Yes I am very happy.',
-    'Why are you so happy?',
+    'You look happy today',
+    'Yes I am very happy',
+    'Why are you so happy',
   ]);
 });
 
@@ -198,4 +224,152 @@ test('overlapping rolling captions never produce overlapping segments', () => {
     );
   }
   assert.match(segments.map((segment) => segment.text).join(' '), /so what is new/i);
+});
+
+test('AI sentence ends must ascend and reach the last fragment', () => {
+  assert.deepEqual(parseAiSentenceEnds({ sentence_ends: [3, 7, 11] }, 11), [3, 7, 11]);
+  assert.deepEqual(parseAiSentenceEnds([[2], [3]], 0), null);
+  assert.deepEqual(parseAiSentenceEnds(['2', '3'], 4), [2, 3, 4]);
+  assert.deepEqual(parseAiSentenceEnds({ sentence_ends: [4] }, 4), [4]);
+  assert.equal(parseAiSentenceEnds({ sentence_ends: [3, 3] }, 5), null);
+  assert.equal(parseAiSentenceEnds({ sentence_ends: [0, 1] }, 5), null);
+  assert.equal(parseAiSentenceEnds({ sentence_ends: [6] }, 5), null);
+  assert.equal(parseAiSentenceEnds({ sentence_ends: [] }, 5), null);
+  assert.equal(parseAiSentenceEnds({ sentence_ends: 'nope' }, 5), null);
+});
+
+test('segments stop at sentence ends and pack whole sentences only', () => {
+  const sentences = [
+    { startMs: 0, endMs: 3000, text: 'Hello there.' },
+    { startMs: 3000, endMs: 7000, text: 'How are you?' },
+    { startMs: 7000, endMs: 20000, text: 'I was waiting for the bus.' },
+    { startMs: 20000, endMs: 23000, text: 'Then it arrived.' },
+  ];
+
+  assert.deepEqual(
+    buildSegmentsFromEnds(sentences, [2, 3, 4]).map((segment) => [
+      segment.startMs,
+      segment.endMs,
+      segment.text,
+    ]),
+    [
+      [0, 7000, 'Hello there How are you'],
+      [7000, 20000, 'I was waiting for the bus'],
+      [20000, 23000, 'Then it arrived'],
+    ],
+  );
+
+  assert.deepEqual(
+    buildSegmentsFromEnds(sentences, [4]).map((segment) => segment.text),
+    ['Hello there How are you I was waiting for the bus Then it arrived'],
+  );
+});
+
+test('AI sentence ends cut caption fragments at spoken sentence boundaries', async () => {
+  const { env } = await import('../src/config/env');
+  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalFetch = globalThis.fetch;
+  const fallback = [
+    { startMs: 0, endMs: 22000, text: 'The weather was beautiful how was the food the food was amazing' },
+  ];
+  const cues = [
+    { startMs: 0, endMs: 6000, text: 'the weather' },
+    { startMs: 6000, endMs: 14000, text: 'was beautiful.' },
+    { startMs: 14000, endMs: 18000, text: 'how was the food' },
+    { startMs: 18000, endMs: 22000, text: 'the food was amazing.' },
+  ];
+
+  try {
+    env.nvidiaApiKey = 'test-only-nvidia-key';
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      choices: [{ message: { content: '{"sentence_ends":[2,4]}' } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+    const segments = await refineSegmentsWithAi(fallback, 'bolt', cues);
+    assert.deepEqual(
+      segments.map((segment) => [segment.startMs, segment.endMs, segment.text]),
+      [
+        [0, 14000, 'The weather was beautiful'],
+        [14000, 22000, 'How was the food the food was amazing'],
+      ],
+    );
+  } finally {
+    env.nvidiaApiKey = originalNvidiaKey;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('AI grouping is used when the provider answers, and rule-based segments win on failure', async () => {
+  const { env } = await import('../src/config/env');
+  const originalAiKey = env.aiApiKey;
+  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalFetch = globalThis.fetch;
+  const sentences = [
+    { startMs: 0, endMs: 2000, text: 'Hello there.' },
+    { startMs: 2000, endMs: 4000, text: 'How are you?' },
+  ];
+  let requestedUrl = '';
+
+  const successResponse = () => new Response(JSON.stringify({
+    choices: [{ message: { content: '{"sentence_ends":[2]}' } }],
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  try {
+    env.aiApiKey = 'test-only-gemini-key';
+    env.nvidiaApiKey = 'test-only-nvidia-key';
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      requestedUrl = String(input);
+      return successResponse();
+    }) as typeof fetch;
+
+    assert.deepEqual(
+      (await refineSegmentsWithAi(sentences)).map((segment) => [segment.startMs, segment.endMs, segment.text]),
+      [[0, 4000, 'Hello there How are you']],
+    );
+    assert.equal(requestedUrl, env.nvidiaApiUrl, 'Bolt is the default analysis model');
+
+    assert.deepEqual(
+      (await refineSegmentsWithAi(sentences, 'gemini')).map((segment) => [segment.startMs, segment.endMs, segment.text]),
+      [[0, 4000, 'Hello there How are you']],
+    );
+    assert.equal(requestedUrl, env.aiApiUrl, 'Gemini uses the Gemini endpoint');
+
+    globalThis.fetch = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
+    assert.deepEqual(await refineSegmentsWithAi(sentences), sentences);
+    assert.deepEqual(await refineSegmentsWithAi(sentences, 'gemini'), sentences);
+
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      choices: [{ message: { content: '{"sentence_ends":[1,1]}' } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    assert.deepEqual(await refineSegmentsWithAi(sentences), sentences);
+  } finally {
+    env.aiApiKey = originalAiKey;
+    env.nvidiaApiKey = originalNvidiaKey;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('WebVTT captions are parsed when the track has no json3 variant', () => {
+  const vtt = [
+    'WEBVTT',
+    'Kind: captions',
+    'Language: en',
+    '',
+    '00:00:13.225 --> 00:00:15.353 align:start position:0%',
+    'Hey, once upon a younger year',
+    '',
+    '00:00:15.394 --> 00:00:17.188',
+    'When all our shadows disappeared &lt;br&gt;',
+    '',
+    '00:00:17.230 --> 00:00:20.192',
+    '[Music]',
+    '',
+  ].join('\n');
+  const cues = parseVttCues(vtt);
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0].startMs, 13225);
+  assert.equal(cues[0].endMs, 15353);
+  assert.equal(cues[0].text, 'Hey, once upon a younger year');
+  assert.equal(cues[1].text, 'When all our shadows disappeared');
+  assert.equal(MAX_IMPORT_DURATION_SECONDS, 300);
 });

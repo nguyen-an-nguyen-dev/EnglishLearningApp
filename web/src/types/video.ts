@@ -1,3 +1,5 @@
+export type VideoAnalysisModel = 'bolt' | 'gemini'
+
 export interface VideoProgress {
   watched_seconds: number
   completed: boolean
@@ -88,17 +90,6 @@ export interface ArenaSummary {
   last_played_at: string | null
 }
 
-export interface PracticeQuestion {
-  id: number
-  answer: string
-  translation: string
-  part_of_speech: string
-  cefr_level: string
-  example: string
-  example_vi: string
-  image_url: string | null
-  options: string[]
-}
 
 export interface BattleOpponent {
   userId: number

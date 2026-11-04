@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2';
 import type { Badge } from '../badges/badges.types';
 
+export type VideoAnalysisModel = 'bolt' | 'gemini';
+
 export interface VideoLessonRow extends RowDataPacket {
   id: number;
   code: string;

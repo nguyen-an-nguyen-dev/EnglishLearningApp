@@ -1,5 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
-import type { SaveWordInput } from './video.types';
+import type { SaveWordInput, VideoAnalysisModel } from './video.types';
 
 function asObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -26,6 +26,14 @@ export function parseImportUrl(value: unknown): string {
     throw new HttpError(422, 'Provide a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
   }
   return url;
+}
+
+export function parseImportModel(value: unknown): VideoAnalysisModel {
+  const body = asObject(value);
+  const model = body.model ?? body.analysisModel ?? body.analysis_model;
+  if (model === undefined || model === null || model === '') return 'bolt';
+  if (model === 'bolt' || model === 'gemini') return model;
+  throw new HttpError(422, 'Invalid analysis model.', ['INVALID_ANALYSIS_MODEL']);
 }
 
 export function parseWatchedSeconds(value: unknown): number {
