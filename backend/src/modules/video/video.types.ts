@@ -1,0 +1,149 @@
+import type { RowDataPacket } from 'mysql2';
+import type { Badge } from '../badges/badges.types';
+
+export interface VideoLessonRow extends RowDataPacket {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  topic: string;
+  cefr_level: string;
+  provider: 'youtube' | 'file';
+  video_url: string;
+  thumbnail_url: string | null;
+  duration_seconds: number;
+  xp_reward: number;
+  sort_order: number;
+  owner_user_id: number | null;
+  subtitle_en: string | null;
+  subtitle_vi: string | null;
+  created_at: Date;
+}
+
+export interface VideoSegmentRow extends RowDataPacket {
+  id: number;
+  video_id: number;
+  start_ms: number;
+  end_ms: number;
+  text_en: string;
+  text_vi: string | null;
+  sort_order: number;
+}
+
+export interface VideoVocabularyRow extends RowDataPacket {
+  id: number;
+  video_id: number;
+  word: string;
+  ipa: string;
+  meaning_vi: string;
+  detail_vi: string;
+}
+
+export interface VideoProgressRow extends RowDataPacket {
+  id: number;
+  user_id: number;
+  video_id: number;
+  watched_seconds: number;
+  completed: boolean | 0 | 1;
+  completed_at: Date | null;
+  updated_at: Date;
+}
+
+export interface SavedWordRow extends RowDataPacket {
+  id: number;
+  user_id: number;
+  video_id: number | null;
+  word: string;
+  ipa: string | null;
+  meaning_vi: string | null;
+  detail_vi: string | null;
+  created_at: Date;
+}
+
+export interface VideoProgress {
+  watched_seconds: number;
+  completed: boolean;
+  completed_at: string | null;
+}
+
+export interface VideoVocabulary {
+  id: number;
+  word: string;
+  ipa: string;
+  meaning_vi: string;
+  detail_vi: string;
+}
+
+export interface VideoLessonSummary {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  topic: string;
+  cefr_level: string;
+  provider: 'youtube' | 'file';
+  video_url: string;
+  thumbnail_url: string | null;
+  duration_seconds: number;
+  xp_reward: number;
+  sort_order: number;
+  is_owned: boolean;
+  progress: VideoProgress | null;
+}
+
+export interface VideoSegment {
+  id: number;
+  start_ms: number;
+  end_ms: number;
+  text_en: string;
+  text_vi: string | null;
+}
+
+export interface VideoLessonDetail extends VideoLessonSummary {
+  subtitle_en: string | null;
+  subtitle_vi: string | null;
+  vocabulary: VideoVocabulary[];
+  segments: VideoSegment[];
+}
+
+export interface ImportedVideoInput {
+  code: string;
+  title: string;
+  description: string | null;
+  provider: 'youtube';
+  videoUrl: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number;
+  subtitleEn: string;
+  segments: Array<{ startMs: number; endMs: number; text: string }>;
+}
+
+export interface SavedWord {
+  id: number;
+  video_id: number | null;
+  word: string;
+  ipa: string | null;
+  meaning_vi: string | null;
+  detail_vi: string | null;
+  created_at: string;
+}
+
+export interface SaveProgressInput {
+  watchedSeconds: number;
+}
+
+export interface CompleteVideoResult {
+  progress: VideoProgress;
+  completed: boolean;
+  already_completed: boolean;
+  xp_earned: number;
+  badges_awarded: Badge[];
+}
+
+export interface SaveWordInput {
+  word: string;
+  ipa?: string;
+  meaningVi?: string;
+  detailVi?: string;
+  videoId?: number;
+}

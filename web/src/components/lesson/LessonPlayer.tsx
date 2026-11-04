@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { ArrowClockwise, Pause, Play } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
 import {
   checkLessonAnswerApi,
@@ -25,7 +26,6 @@ interface QuestionBodyProps {
   question: Question
   lessonId: number
   lessonTitle: string
-  token: string
   isLast: boolean
   onCorrect: (answer: string) => void
 }
@@ -36,6 +36,13 @@ function kindOf(type: string): ExerciseKind {
   if (type === 'listening' || type === 'listen_choice') return 'NGHE'
   if (type === 'multiple_choice' || type === 'fill_choice') return 'ĐỌC'
   return 'VIẾT'
+}
+
+/** `m:ss` clock for the audio player. */
+function formatSeconds(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '0:00'
+  const total = Math.round(value)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
 function shuffleAnswers(answers: AnswerOption[]): AnswerOption[] {
@@ -60,7 +67,6 @@ function QuestionBody({
   question,
   lessonId,
   lessonTitle,
-  token,
   isLast,
   onCorrect,
 }: QuestionBodyProps) {
@@ -74,12 +80,15 @@ function QuestionBody({
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null)
   const [selectedWordIds, setSelectedWordIds] = useState<number[]>([])
   const [wordOrder] = useState(() => shuffleIndices(question.word_bank.length))
+  const [mode, setMode] = useState<'tap' | 'type'>('tap')
   const [input, setInput] = useState('')
   const [checked, setChecked] = useState(false)
   const [feedback, setFeedback] = useState<CheckAnswerFeedback | null>(null)
   const [checking, setChecking] = useState(false)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [audioTime, setAudioTime] = useState(0)
+  const [audioLength, setAudioLength] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? null
@@ -88,11 +97,12 @@ function QuestionBody({
     .filter((word): word is string => Boolean(word))
   const answer = isOptions
     ? selectedOptionId !== null ? String(selectedOptionId) : ''
-    : isWordBank
+    : isWordBank && mode === 'tap'
       ? selectedWords.join(' ')
       : input.trim()
   const ready = answer.length > 0
   const kind = kindOf(question.question_type)
+  const hasAudio = question.question_type === 'listening' || question.question_type === 'listen_choice'
   const highlightedCorrect = (option: AnswerOption) => (
     checked && feedback !== null && feedback.correct_answer === option.answer_text
   )
@@ -104,11 +114,24 @@ function QuestionBody({
     const audio = audioRef.current
     if (!audio) return
     if (audio.paused) {
-      if (audio.ended) audio.currentTime = 0
+      if (audio.ended || audio.currentTime >= audio.duration - 0.05) audio.currentTime = 0
       void audio.play().catch(() => setInlineError('Không phát được âm thanh của câu này.'))
     } else {
       audio.pause()
     }
+  }
+
+  function replayAudio() {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = 0
+    void audio.play().catch(() => setInlineError('Không phát được âm thanh của câu này.'))
+  }
+
+  function switchMode(next: 'tap' | 'type') {
+    if (checked) return
+    setMode(next)
+    setInlineError(null)
   }
 
   function addWord(wordId: number) {
@@ -129,7 +152,7 @@ function QuestionBody({
     setInlineError(null)
     audioRef.current?.pause()
     try {
-      const result = await checkLessonAnswerApi(lessonId, question.id, answer, token)
+      const result = await checkLessonAnswerApi(lessonId, question.id, answer)
       setFeedback(result)
       setChecked(true)
     } catch (error: unknown) {
@@ -189,27 +212,51 @@ function QuestionBody({
 
           <h1 className="lesson-prompt">{prompt}</h1>
 
-          {(question.question_type === 'listening' || question.question_type === 'listen_choice') && (
-            <div className="lesson-audio-row">
-              {question.audio_url ? (
-                <>
-                  <audio
-                    ref={audioRef}
-                    src={question.audio_url}
-                    preload="metadata"
-                    onPlay={() => setPlaying(true)}
-                    onPause={() => setPlaying(false)}
-                    onEnded={() => setPlaying(false)}
-                  />
-                  <button type="button" className="lesson-audio-button" onClick={toggleAudio}>
-                    {playing ? 'Tạm dừng' : 'Nghe'}
-                  </button>
-                  <span className="lesson-audio-note">Nghe đoạn âm thanh rồi trả lời bên dưới.</span>
-                </>
-              ) : (
-                <span className="lesson-audio-note">Câu này chưa có âm thanh.</span>
-              )}
-            </div>
+          {hasAudio && (
+            question.audio_url ? (
+              <div className={`lesson-audio${playing ? ' is-playing' : ''}`}>
+                <audio
+                  ref={audioRef}
+                  src={question.audio_url}
+                  preload="metadata"
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
+                  onEnded={() => {
+                    setPlaying(false)
+                    setAudioTime(0)
+                  }}
+                  onTimeUpdate={(event) => setAudioTime(event.currentTarget.currentTime)}
+                  onLoadedMetadata={(event) => setAudioLength(event.currentTarget.duration)}
+                />
+                <button
+                  type="button"
+                  className="lesson-audio-play"
+                  onClick={toggleAudio}
+                  aria-label={playing ? 'Tạm dừng' : 'Nghe đoạn hội thoại'}
+                >
+                  {playing ? <Pause size={20} weight="fill" /> : <Play size={20} weight="fill" />}
+                </button>
+                <div className="lesson-audio-body">
+                  <span className="lesson-audio-label">Nghe đoạn hội thoại</span>
+                  <div className="lesson-audio-track">
+                    <span style={{ width: `${audioLength ? (audioTime / audioLength) * 100 : 0}%` }} />
+                  </div>
+                </div>
+                <span className="lesson-audio-time">
+                  {formatSeconds(audioTime)} / {formatSeconds(audioLength)}
+                </span>
+                <button
+                  type="button"
+                  className="lesson-audio-replay"
+                  onClick={replayAudio}
+                  aria-label="Nghe lại từ đầu"
+                >
+                  <ArrowClockwise size={16} weight="bold" />
+                </button>
+              </div>
+            ) : (
+              <p className="lesson-audio-note">Câu này chưa có âm thanh.</p>
+            )
           )}
 
           {isOptions && (
@@ -237,43 +284,82 @@ function QuestionBody({
 
           {isWordBank && (
             <>
-              <div className="lesson-word-answer">
-                {selectedWordIds.length === 0 ? (
-                  <span className="lesson-word-placeholder">Chạm các từ bên dưới để xếp câu.</span>
-                ) : (
-                  selectedWordIds.map((wordId, position) => (
-                    <button
-                      key={`${wordId}-${position}`}
-                      type="button"
-                      className="lesson-word is-selected"
-                      onClick={() => removeWord(wordId)}
-                      disabled={checked}
-                    >
-                      {question.word_bank[wordId]}
-                    </button>
-                  ))
-                )}
-              </div>
-              {selectedWordIds.length > 0 && !checked && (
-                <button type="button" className="lesson-clear" onClick={() => setSelectedWordIds([])}>
-                  Xóa hết
+              <div className="lesson-mode" role="tablist" aria-label="Cách trả lời">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === 'tap'}
+                  className={`lesson-mode-tab${mode === 'tap' ? ' is-active' : ''}`}
+                  onClick={() => switchMode('tap')}
+                  disabled={checked}
+                >
+                  Chạm từ
                 </button>
-              )}
-              <div className="lesson-word-bank">
-                {wordOrder
-                  .filter((wordId) => !selectedWordIds.includes(wordId))
-                  .map((wordId) => (
-                    <button
-                      key={wordId}
-                      type="button"
-                      className="lesson-word"
-                      onClick={() => addWord(wordId)}
-                      disabled={checked}
-                    >
-                      {question.word_bank[wordId]}
-                    </button>
-                  ))}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === 'type'}
+                  className={`lesson-mode-tab${mode === 'type' ? ' is-active' : ''}`}
+                  onClick={() => switchMode('type')}
+                  disabled={checked}
+                >
+                  Tự viết
+                </button>
               </div>
+
+              {mode === 'tap' ? (
+                <>
+                  <div className="lesson-word-answer">
+                    {selectedWordIds.length === 0 ? (
+                      <span className="lesson-word-placeholder">Chạm các từ bên dưới để xếp câu.</span>
+                    ) : (
+                      selectedWordIds.map((wordId, position) => (
+                        <button
+                          key={`${wordId}-${position}`}
+                          type="button"
+                          className="lesson-word is-selected"
+                          onClick={() => removeWord(wordId)}
+                          disabled={checked}
+                        >
+                          {question.word_bank[wordId]}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {selectedWordIds.length > 0 && !checked && (
+                    <button type="button" className="lesson-clear" onClick={() => setSelectedWordIds([])}>
+                      Xóa hết
+                    </button>
+                  )}
+                  <div className="lesson-word-bank">
+                    {wordOrder
+                      .filter((wordId) => !selectedWordIds.includes(wordId))
+                      .map((wordId) => (
+                        <button
+                          key={wordId}
+                          type="button"
+                          className="lesson-word"
+                          onClick={() => addWord(wordId)}
+                          disabled={checked}
+                        >
+                          {question.word_bank[wordId]}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              ) : (
+                <input
+                  className="lesson-text-input"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  placeholder={hasAudio ? 'Nghe rồi viết lại cả câu…' : 'Viết lại cả câu bằng tiếng Anh…'}
+                  disabled={checked}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoFocus
+                />
+              )}
             </>
           )}
 
@@ -338,7 +424,7 @@ export function LessonPlayer({
   useEffect(() => {
     if (!token) return
     let active = true
-    getLessonQuestionsApi(lessonId, token)
+    getLessonQuestionsApi(lessonId)
       .then((data) => {
         if (!active) return
         setQuestions(data)
@@ -368,7 +454,7 @@ export function LessonPlayer({
   function finish(log: SubmittedAnswer[]) {
     setSubmitting(true)
     setError(null)
-    submitLessonCompletionApi(lessonId, log, token ?? undefined)
+    submitLessonCompletionApi(lessonId, log)
       .then((data) => {
         setResult(data)
       })
@@ -503,7 +589,6 @@ export function LessonPlayer({
         question={currentQuestion}
         lessonId={lessonId}
         lessonTitle={lessonTitle}
-        token={token ?? ''}
         isLast={index === questions.length - 1}
         onCorrect={handleCorrect}
       />

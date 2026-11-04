@@ -101,3 +101,52 @@ export async function finishMatch(
     [status, winnerUserId, matchId],
   );
 }
+
+interface AggregateRow extends RowDataPacket {
+  played: number;
+  wins: number;
+}
+
+interface RecentMatchRow extends RowDataPacket {
+  winner_user_id: number | null;
+  finished_at: Date | null;
+}
+
+export interface MatchSummaryRow {
+  played: number;
+  wins: number;
+  winStreak: number;
+  lastPlayedAt: Date | null;
+}
+
+export async function getMatchSummary(userId: number): Promise<MatchSummaryRow> {
+  const [aggregateRows] = await pool.execute<AggregateRow[]>(
+    `SELECT COUNT(*) AS played,
+            COALESCE(SUM(CASE WHEN winner_user_id = ? THEN 1 ELSE 0 END), 0) AS wins
+     FROM matches
+     WHERE status = 'completed' AND (player_one_id = ? OR player_two_id = ?)`,
+    [userId, userId, userId],
+  );
+
+  const [recentRows] = await pool.execute<RecentMatchRow[]>(
+    `SELECT winner_user_id, COALESCE(finished_at, completed_at, created_at) AS finished_at
+     FROM matches
+     WHERE status = 'completed' AND (player_one_id = ? OR player_two_id = ?)
+     ORDER BY COALESCE(finished_at, completed_at, created_at) DESC
+     LIMIT 50`,
+    [userId, userId],
+  );
+
+  let winStreak = 0;
+  for (const row of recentRows) {
+    if (row.winner_user_id === userId) winStreak += 1;
+    else break;
+  }
+
+  return {
+    played: Number(aggregateRows[0]?.played ?? 0),
+    wins: Number(aggregateRows[0]?.wins ?? 0),
+    winStreak,
+    lastPlayedAt: recentRows[0]?.finished_at ? new Date(recentRows[0].finished_at) : null,
+  };
+}

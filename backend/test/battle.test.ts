@@ -6,11 +6,12 @@ import { after, before, test } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
 import type { BattleWord } from '../src/modules/battle/battle.repository';
-import { BATTLE_ROUNDS, type BattleRepository } from '../src/modules/battle/battle.socket';
+import { BATTLE_ROUNDS, hintSchedule, type BattleRepository } from '../src/modules/battle/battle.socket';
 
-// Shorten the real 30s round / 4.5s reveal so the whole match stays a fast test.
+// Shorten the real 30s round / 3s reveal / 20s reconnect grace so the whole match stays a fast test.
 const TEST_ROUND_MS = 1_500;
 const TEST_REVEAL_MS = 150;
+const TEST_RECONNECT_MS = 400;
 
 // Eight easy and four hard words, matching the 70/30 split the socket asks the repository for.
 // 'environment' and 'beautiful' are long enough to exercise every hint position.
@@ -94,6 +95,7 @@ interface Question {
   exampleVi: string;
   letterCount: number;
   letterHints: Array<{ position: number; letter: string }>;
+  hintSchedule: Array<{ atMs: number; letters: Array<{ position: number; letter: string }> }>;
   imageUrl: string | null;
   durationMs: number;
 }
@@ -167,7 +169,11 @@ before(async () => {
   const { attachBattleSocket } = await import('../src/modules/battle/battle.socket.js');
   repository = new MemoryBattleRepository();
   httpServer = createServer();
-  const io = attachBattleSocket(httpServer, repository, { roundMs: TEST_ROUND_MS, revealMs: TEST_REVEAL_MS });
+  const io = attachBattleSocket(httpServer, repository, {
+    roundMs: TEST_ROUND_MS,
+    revealMs: TEST_REVEAL_MS,
+    reconnectMs: TEST_RECONNECT_MS,
+  });
   closeIo = () => new Promise((resolve) => io.close(() => resolve()));
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const address = httpServer.address();
@@ -338,20 +344,21 @@ test('an unanswered round times out, reveals the word and scores nobody', async 
   }
 });
 
-test('match:leave during a round cancels the match and clears the round timer', async () => {
+test('match:leave awards the win to the remaining player and clears the round timer', async () => {
   const first = await connectClient(301);
   const second = await connectClient(302);
   try {
     const [, , game] = await joinMatch(first, second);
     let unexpectedQuestion = false;
     second.on('game:question', () => { unexpectedQuestion = true; });
-    const left = waitForEvent<{ status: string; reason?: string; totalRounds: number }>(second, 'game:finish');
+    const left = waitForEvent<{ status: string; reason?: string; totalRounds: number; winnerUserId: number | null }>(second, 'game:finish');
     first.emit('match:leave');
     const resultAfterLeave = await left;
-    assert.equal(resultAfterLeave.status, 'cancelled');
+    assert.equal(resultAfterLeave.status, 'completed');
     assert.equal(resultAfterLeave.reason, 'left');
+    assert.equal(resultAfterLeave.winnerUserId, 302);
     assert.equal(resultAfterLeave.totalRounds, BATTLE_ROUNDS);
-    assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'cancelled', winnerUserId: null });
+    assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'completed', winnerUserId: 302 });
     await new Promise((resolve) => setTimeout(resolve, TEST_ROUND_MS + 400));
     assert.equal(unexpectedQuestion, false);
   } finally {
@@ -360,20 +367,71 @@ test('match:leave during a round cancels the match and clears the round timer', 
   }
 });
 
-test('opponent disconnect cancels an active match instead of leaving it stuck', async () => {
+test('an opponent disconnect after the grace period awards the win to the remaining player', async () => {
   const first = await connectClient(401);
   const second = await connectClient(402);
   try {
     const [, , game] = await joinMatch(first, second);
-    const finish = waitForEvent<{ status: string; reason?: string; matchId: number }>(first, 'game:finish');
+    const finish = waitForEvent<{ status: string; reason?: string; matchId: number; winnerUserId: number | null }>(first, 'game:finish', 2_000);
+    const premature = waitForEvent(first, 'game:finish', TEST_RECONNECT_MS - 100).catch(() => null);
     second.disconnect();
+    assert.equal(await premature, null);
     const result = await finish;
     assert.equal(result.matchId, game.matchId);
-    assert.equal(result.status, 'cancelled');
+    assert.equal(result.status, 'completed');
     assert.equal(result.reason, 'opponent_disconnected');
-    assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'cancelled', winnerUserId: null });
+    assert.equal(result.winnerUserId, 401);
+    assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'completed', winnerUserId: 401 });
   } finally {
     first.disconnect();
     second.disconnect();
   }
+});
+
+test('a refreshed client can resume the same match before the grace period ends', async () => {
+  const first = await connectClient(501);
+  const second = await connectClient(502);
+  let resumedClient: ClientSocket | null = null;
+  try {
+    const [, , game, question] = await joinMatch(first, second);
+    second.disconnect();
+    resumedClient = await connectClient(502);
+    const resumed = waitForEvent<{
+      matchId: number;
+      game: { totalRounds: number };
+      question: Question | null;
+      scores: Array<{ userId: number; score: number }>;
+      remainingMs: number;
+    }>(resumedClient, 'game:resume');
+    resumedClient.emit('game:resume', { matchId: game.matchId });
+    const payload = await resumed;
+    assert.equal(payload.matchId, game.matchId);
+    assert.equal(payload.game.totalRounds, BATTLE_ROUNDS);
+    assert.equal(payload.question?.round, question.round);
+    assert.equal(payload.question?.wordId, question.wordId);
+    assert.ok(payload.remainingMs > 0);
+    assert.deepEqual(payload.scores, [
+      { userId: 501, name: 'Player 501', score: 0 },
+      { userId: 502, name: 'Player 502', score: 0 },
+    ]);
+    resumedClient.emit('match:leave');
+  } finally {
+    first.disconnect();
+    resumedClient?.disconnect();
+    second.disconnect();
+  }
+});
+
+test('hint schedule starts empty and reveals about 20% of the letters every 5 seconds', () => {
+  const word = 'environment';
+  const schedule = hintSchedule(word, 25_000);
+  assert.deepEqual(schedule.map((step) => step.atMs), [5_000, 10_000, 15_000, 20_000]);
+  for (let index = 0; index < schedule.length; index += 1) {
+    const step = schedule[index];
+    assert.ok(step.letters.length > 0);
+    assert.ok(step.letters.length < word.length);
+    for (const hint of step.letters) assert.equal(word[hint.position], hint.letter);
+    if (index > 0) assert.ok(step.letters.length >= schedule[index - 1].letters.length);
+  }
+  assert.equal(schedule.length, 4);
 });

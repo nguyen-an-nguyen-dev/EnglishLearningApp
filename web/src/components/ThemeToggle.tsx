@@ -3,9 +3,9 @@ import { Moon, Sun } from '@phosphor-icons/react'
 
 export type Theme = 'light' | 'dark'
 
-export const THEME_STORAGE_KEY = 'engorace_theme'
+const THEME_STORAGE_KEY = 'engorace_theme'
 
-export function readTheme(): Theme {
+function readTheme(): Theme {
   if (typeof document === 'undefined') return 'light'
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }

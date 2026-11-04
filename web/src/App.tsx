@@ -2,32 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   BookOpenText,
-  CalendarBlank,
-  CheckCircle,
-  Crown,
-  Flag,
-  Flame,
   Gear,
   Lightning,
-  Medal,
-  Play,
-  ShieldCheck,
   SignOut,
-  Sword,
   Trophy,
   UserCircle,
-  UsersThree,
+  YoutubeLogo,
 } from '@phosphor-icons/react'
 import { useAuth } from './context/AuthContext'
 import { LandingPage } from './components/landing/LandingPage'
 import type { AuthUser } from './types/auth'
 import { useI18n } from './i18n'
-import { formatCompact } from './utils/format'
-import { AccountActions } from './components/AccountActions'
 import { SettingsPanel } from './components/SettingsPanel'
 import { RouteMapCard } from './components/roadmap/RouteMapCard'
 import { LessonPlayer } from './components/lesson/LessonPlayer'
+import { VideoLearningView } from './components/video/VideoLearningView'
+import { ArenaView } from './components/arena/ArenaView'
+import { RankingsView } from './components/rankings/RankingsView'
+import { ProfileView } from './components/profile/ProfileView'
 import { useLearning } from './context/LearningContext'
+import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
   STAGE_VISUALS,
@@ -38,7 +32,20 @@ import {
   stageTop,
 } from './roadmap'
 
-export type DashboardTab = 'study' | 'compete' | 'rankings' | 'profile'
+export type DashboardTab = 'study' | 'videos' | 'compete' | 'rankings' | 'profile'
+
+const TAB_STORAGE_KEY = 'engorace_active_tab'
+const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'compete', 'rankings', 'profile']
+
+function readStoredTab(): DashboardTab {
+  try {
+    const stored = sessionStorage.getItem(TAB_STORAGE_KEY)
+    if (stored && DASHBOARD_TABS.includes(stored as DashboardTab)) return stored as DashboardTab
+  } catch {
+    /* storage can be unavailable in private mode */
+  }
+  return 'study'
+}
 
 interface SidebarProps {
   user: AuthUser | null
@@ -56,6 +63,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
 
   const tabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
+    { id: 'videos', label: t.navVideos, icon: YoutubeLogo },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankings, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
@@ -81,9 +89,8 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
               className={`nav-item ${active ? 'nav-item-active' : ''}`}
               onClick={() => onSelectTab(tab.id)}
             >
-              <Icon size={22} weight={active ? 'fill' : 'bold'} />
+              <Icon size={24} weight={active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
-              {active && <span className="nav-dot" />}
             </button>
           )
         })}
@@ -205,10 +212,7 @@ function StudyView({ user, onOpenLesson }: { user: AuthUser | null; onOpenLesson
   }, [stages.length, activeStageIndex])
 
   useEffect(() => {
-    if (selectedId === null) {
-      setCardAnchor(null)
-      return
-    }
+    if (selectedId === null) return
     const container = mapScrollRef.current
     const map = container?.closest<HTMLElement>('.study-map')
     if (!container || !map) return
@@ -358,332 +362,6 @@ function StudyView({ user, onOpenLesson }: { user: AuthUser | null; onOpenLesson
 }
 
 /* ------------------------------------------------------------- */
-/* TAB 2: THI ĐUA                                                */
-/* ------------------------------------------------------------- */
-function CompeteView() {
-  const { t } = useI18n()
-
-  const supportingChallenges = [
-    {
-      title: t.challengeSpeedTitle,
-      category: t.challengeSpeedCategory,
-      reward: '+30 XP',
-      players: t.challengeSpeedPlayers,
-      icon: Lightning,
-    },
-    {
-      title: t.challengeDuelTitle,
-      category: t.challengeDuelCategory,
-      reward: '+50 XP',
-      players: t.challengeDuelPlayers,
-      icon: Sword,
-    },
-  ]
-
-  return (
-    <div className="tab-view-container">
-      <div className="page-heading page-heading-row">
-        <div>
-          <span className="page-eyebrow">{t.competeEyebrow}</span>
-          <h1>{t.competeTitle}</h1>
-          <p>{t.competeDesc}</p>
-        </div>
-        <span className="page-note"><CalendarBlank size={15} /> {t.seasonNote(2)}</span>
-      </div>
-
-      <div className="compete-layout">
-        <section className="featured-challenge" aria-labelledby="featured-challenge-title">
-          <div className="featured-challenge-top">
-            <span className="featured-label"><Flag size={14} weight="fill" /> {t.featuredLabel}</span>
-            <span className="featured-reward">+100 XP</span>
-          </div>
-          <div className="featured-challenge-body">
-            <span className="featured-icon"><Trophy size={30} weight="fill" /></span>
-            <h2 id="featured-challenge-title">{t.featuredTitle}</h2>
-            <p>{t.featuredDesc}</p>
-            <div className="featured-meta">
-              <span><UsersThree size={16} /> {t.featuredPlayers}</span>
-              <span><CalendarBlank size={16} /> {t.featuredStarts(2)}</span>
-            </div>
-            <button type="button" className="featured-action">
-              <Play size={16} weight="fill" />
-              <span>{t.featuredJoin}</span>
-            </button>
-          </div>
-        </section>
-
-        <div className="challenge-side">
-          {supportingChallenges.map((item) => {
-            const Icon = item.icon
-            return (
-              <article className="challenge-row" key={item.title}>
-                <span className="challenge-row-icon"><Icon size={22} weight="fill" /></span>
-                <div className="challenge-row-copy">
-                  <span className="challenge-row-category">{item.category}</span>
-                  <h3>{item.title}</h3>
-                  <span className="challenge-row-players">{item.players}</span>
-                </div>
-                <div className="challenge-row-aside">
-                  <span className="challenge-row-reward">{item.reward}</span>
-                  <button type="button" className="challenge-row-action" aria-label={t.startAria(item.title)}>
-                    <Play size={15} weight="fill" />
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-
-          <aside className="season-card">
-            <div className="season-card-head">
-              <span>{t.seasonCardTitle}</span>
-              <strong>04</strong>
-            </div>
-            <div className="season-progress" aria-label={t.seasonProgressAria(68)}>
-              <span style={{ width: '68%' }} />
-            </div>
-            <p>{t.seasonCardBody}</p>
-          </aside>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------- */
-/* TAB 3: BẢNG XẾP HẠNG                                          */
-/* ------------------------------------------------------------- */
-function RankingsView({ user }: { user: AuthUser | null }) {
-  const { t } = useI18n()
-  const currentName = user?.name || 'An Nguyễn'
-
-  const leaderboard = [
-    { rank: 1, name: 'Minh Triết', streak: 42, xp: 1250 },
-    { rank: 2, name: 'Thu Thảo', streak: 31, xp: 980 },
-    { rank: 3, name: 'Hoàng Nam', streak: 28, xp: 840 },
-    { rank: 4, name: currentName, streak: user?.streak ?? 4, xp: user?.xp ?? 240, isMe: true },
-    { rank: 5, name: 'Hải Đăng', streak: 12, xp: 210 },
-    { rank: 6, name: 'Bảo Ngọc', streak: 9, xp: 190 },
-    { rank: 7, name: 'Thanh Hằng', streak: 7, xp: 160 },
-  ]
-
-  const podium = [leaderboard[1], leaderboard[0], leaderboard[2]]
-  const rest = leaderboard.slice(3)
-
-  return (
-    <div className="tab-view-container">
-      <div className="page-heading page-heading-row">
-        <div>
-          <span className="page-eyebrow">{t.rankEyebrow}</span>
-          <h1>{t.rankTitle}</h1>
-          <p>{t.rankDesc}</p>
-        </div>
-        <span className="page-note"><CalendarBlank size={15} /> {t.rankUpdated}</span>
-      </div>
-
-      <div className="ranking-layout">
-        <section className="ranking-podium-card" aria-label={t.podiumAria}>
-          <div className="ranking-podium-head">
-            <div>
-              <span className="section-kicker">{t.topThree}</span>
-              <h2>{t.leaders}</h2>
-            </div>
-            <span className="ranking-podium-caption">{t.podiumCaption}</span>
-          </div>
-          <div className="podium">
-            {podium.map((item) => (
-              <article className={`podium-place podium-place-${item.rank}`} key={item.rank}>
-                <span className="podium-crown" aria-hidden="true">
-                  {item.rank === 1 ? <Crown size={22} weight="fill" /> : <Medal size={20} weight="fill" />}
-                </span>
-                <span className="podium-avatar">{item.name[0]}</span>
-                <span className="podium-name">{item.name}</span>
-                <span className="podium-xp" title={`${item.xp} XP`}>{formatCompact(item.xp)} XP</span>
-                <span className="podium-streak"><Flame size={13} weight="fill" /> {t.days(item.streak)}</span>
-                <span className="podium-step">{item.rank}</span>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <aside className="ranking-season-card">
-          <span className="section-kicker">{t.seasonKicker}</span>
-          <h2>{t.seasonLeft}</h2>
-          <p>{t.seasonBody}</p>
-          <div className="ranking-season-row"><span>{t.yourPosition}</span><strong>#4</strong></div>
-          <div className="ranking-season-row"><span>{t.gapTop3}</span><strong>600 XP</strong></div>
-          <div className="ranking-season-row"><span>{t.promotion}</span><strong>Top 10</strong></div>
-          <div className="season-progress" aria-label={t.seasonProgressAria(58)}>
-            <span style={{ width: '58%' }} />
-          </div>
-        </aside>
-      </div>
-
-      <div className="leaderboard-card">
-        <div className="leaderboard-table-header">
-          <span className="col-rank">{t.tableRank}</span>
-          <span className="col-user">{t.tableUser}</span>
-          <span className="col-streak">{t.tableStreak}</span>
-          <span className="col-xp">{t.tableXp}</span>
-        </div>
-
-        <div className="leaderboard-rows">
-          {rest.map((item) => (
-            <div
-              key={item.rank}
-              className={`leaderboard-row ${item.isMe ? 'leaderboard-row-me' : ''}`}
-            >
-              <div className="col-rank">
-                <span className="rank-num">#{item.rank}</span>
-              </div>
-              <div className="col-user">
-                <span className="table-avatar">{item.name[0]}</span>
-                <div>
-                  <strong>{item.name}</strong>
-                  {item.isMe && <span className="me-badge">{t.you}</span>}
-                </div>
-              </div>
-              <div className="col-streak">
-                <Flame size={15} weight="fill" />
-                <span>{t.days(item.streak)}</span>
-              </div>
-              <div className="col-xp" title={`${item.xp} XP`}>
-                <strong>{formatCompact(item.xp)} XP</strong>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------- */
-/* TAB 4: PROFILE                                                */
-/* ------------------------------------------------------------- */
-function ProfileView({ user, onLogout }: { user: AuthUser | null; onLogout: () => void }) {
-  const { t } = useI18n()
-  const { stages, loading } = useLearning()
-  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
-  const displayName = user?.name || 'An Nguyễn'
-  const email = user?.email || 'an.nguyen@example.com'
-  const streak = user?.streak ?? 4
-  const xp = user?.xp ?? 240
-  const lessons = useMemo(() => flattenLessons(stages), [stages])
-  const completedStops = lessons.filter((lesson) => lesson.status === 'done').length
-  const progressPercent = Math.round((completedStops / Math.max(1, lessons.length)) * 100)
-  const currentStage = stages.find((stage) => stage.lessons.some((lesson) => lesson.status === 'current'))
-    ?? stages.find((stage) => stage.completedCount < stage.totalCount)
-    ?? stages[0]
-  const currentStageNumber = currentStage?.sortOrder ?? 1
-  const stageStatus = (index: number): 'done' | 'current' | 'locked' => {
-    const stage = stages[index]
-    if (!stage) return 'locked'
-    if (stage.totalCount > 0 && stage.completedCount === stage.totalCount) return 'done'
-    if (stage.lessons.some((lesson) => lesson.status === 'current')) return 'current'
-    return 'locked'
-  }
-
-  return (
-    <div className="tab-view-container">
-      <div className="page-heading">
-        <div>
-          <span className="page-eyebrow">{t.profileEyebrow}</span>
-          <h1>{t.profileTitle}</h1>
-          <p>{t.profileDesc}</p>
-        </div>
-      </div>
-
-      <div className="profile-dashboard-grid">
-        <div className="profile-main-card">
-          <div className="profile-hero-banner">
-            <span className="profile-large-avatar">{initial}</span>
-            <div className="profile-hero-info">
-              <h2>{displayName}</h2>
-              <p>{email}</p>
-              <span className="role-tag">
-                <ShieldCheck size={16} weight="fill" /> {t.activeLearner}
-              </span>
-            </div>
-            <span className="profile-rank">{t.rankTag}</span>
-          </div>
-
-          <div className="profile-stats-grid">
-            <div className="p-stat-box">
-              <span className="p-stat-icon"><Flame size={22} weight="fill" /></span>
-              <strong>{t.days(streak)}</strong>
-              <small>{t.statStreakLabel}</small>
-            </div>
-            <div className="p-stat-box">
-              <span className="p-stat-icon"><Lightning size={22} weight="fill" /></span>
-              <strong title={`${xp} XP`}>{formatCompact(xp)} XP</strong>
-              <small>{t.statXpLabel}</small>
-            </div>
-            <div className="p-stat-box">
-              <span className="p-stat-icon"><CheckCircle size={22} weight="fill" /></span>
-              <strong>{loading ? '…' : t.studyDoneCount(completedStops, lessons.length)}</strong>
-              <small>{t.statLessonsLabel}</small>
-            </div>
-          </div>
-
-          <section className="profile-progress-section" aria-labelledby="profile-progress-title">
-            <div className="profile-progress-head">
-              <div>
-                <span className="section-kicker">{t.pathKicker}</span>
-                <h3 id="profile-progress-title">{t.pathTitle(currentStageNumber)}</h3>
-              </div>
-              <span>{progressPercent}%</span>
-            </div>
-            <div className="profile-progress-track" role="img" aria-label={t.pathAria(progressPercent)}>
-              {stages.map((stage, index) => (
-                <span
-                  key={stage.id}
-                  className={`profile-progress-step profile-progress-step-${stageStatus(index)}`}
-                />
-              ))}
-            </div>
-            <div className="profile-milestones">
-              {(currentStage?.lessons ?? []).map((lesson) => (
-                <div className={`profile-milestone profile-milestone-${lesson.status}`} key={lesson.id}>
-                  <span className="profile-milestone-num">{String(lesson.lessonIndex + 1).padStart(2, '0')}</span>
-                  <span className="profile-milestone-title">{lesson.title}</span>
-                  <span className="profile-milestone-status">
-                    {lesson.status === 'done' ? t.statusDone : lesson.status === 'current' ? t.statusCurrent : t.statusLocked}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="profile-badges">
-            <span className="profile-badge"><Flag size={15} weight="fill" /> {t.badgeStart}</span>
-            <span className="profile-badge"><Flame size={15} weight="fill" /> {t.badgeStreak}</span>
-            <span className="profile-badge is-muted"><Sword size={15} weight="fill" /> {t.badgeSprint}</span>
-          </div>
-        </div>
-
-        <div className="profile-settings-card">
-          <h3>{t.accountOptions}</h3>
-
-          <AccountActions user={user} />
-
-          <div className="settings-divider" />
-
-          <div className="profile-side-note">
-            <strong>{t.tipTitle}</strong>
-            <p>{t.tipBody(streak)}</p>
-          </div>
-
-          <button type="button" className="profile-logout-btn" onClick={onLogout}>
-            <SignOut size={18} />
-            <span>{t.logoutLong}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------- */
 /* MAIN APP COMPONENT                                            */
 /* ------------------------------------------------------------- */
 function App() {
@@ -691,9 +369,17 @@ function App() {
   const { user, isAuthenticated, logout } = useAuth()
   const { refresh } = useLearning()
   const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<DashboardTab>('study')
+  const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
   const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(TAB_STORAGE_KEY, activeTab)
+    } catch {
+      /* storage can be unavailable in private mode */
+    }
+  }, [activeTab])
 
   const currentView = (() => {
     if (userNavigatedToLanding) {
@@ -701,6 +387,17 @@ function App() {
     }
     return isAuthenticated ? 'dashboard' : 'landing'
   })()
+
+  function selectTab(tab: DashboardTab) {
+    if (tab === activeTab) return
+    if (!confirmArenaLeave()) return
+    setActiveTab(tab)
+  }
+
+  function viewLanding() {
+    if (!confirmArenaLeave()) return
+    setUserNavigatedToLanding(true)
+  }
 
   function handleLogout() {
     logout()
@@ -717,6 +414,7 @@ function App() {
 
   const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
+    { id: 'videos', label: t.navVideos, icon: YoutubeLogo },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankingsShort, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
@@ -727,9 +425,9 @@ function App() {
       <Sidebar
         user={user}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={selectTab}
         onLogout={handleLogout}
-        onViewLanding={() => setUserNavigatedToLanding(true)}
+        onViewLanding={viewLanding}
         onOpenSettings={(anchor) => setSettingsAnchor((prev) => (prev === anchor ? null : anchor))}
       />
       <div className="app-main">
@@ -756,9 +454,10 @@ function App() {
               onOpenLesson={(lessonId, lessonTitle) => setActiveLesson({ id: lessonId, title: lessonTitle })}
             />
           )}
-          {activeTab === 'compete' && <CompeteView />}
-          {activeTab === 'rankings' && <RankingsView user={user} />}
-          {activeTab === 'profile' && <ProfileView user={user} onLogout={handleLogout} />}
+          {activeTab === 'videos' && <VideoLearningView />}
+          {activeTab === 'compete' && <ArenaView />}
+          {activeTab === 'rankings' && <RankingsView />}
+          {activeTab === 'profile' && <ProfileView onLogout={handleLogout} />}
 
           <footer className="page-footer">
             <span>{t.footerLeft}</span>
@@ -776,9 +475,9 @@ function App() {
               key={tab.id}
               type="button"
               className={active ? 'mobile-nav-active' : ''}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
             >
-              <Icon size={22} weight={active ? 'fill' : 'bold'} />
+              <Icon size={24} weight={active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
             </button>
           )

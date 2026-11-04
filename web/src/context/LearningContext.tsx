@@ -28,7 +28,7 @@ function LearningProviderInner({ token, children }: { token: string | null; chil
     if (!token) return
 
     let cancelled = false
-    getProgressApi(token)
+    getProgressApi()
       .then((data) => {
         if (cancelled) return
         setProgress(data)

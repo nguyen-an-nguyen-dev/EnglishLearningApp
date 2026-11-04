@@ -9,7 +9,9 @@ import type { BattleWord } from './battle.repository';
 type ClientEvents = {
   'match:join': () => void;
   'match:leave': () => void;
+  'game:resume': (payload: { matchId: number }) => void;
   'game:answer': (payload: unknown) => void;
+  'game:attempt': (payload: { text: string }) => void;
 };
 
 type ServerEvents = {
@@ -17,8 +19,12 @@ type ServerEvents = {
   'game:start': (payload: GameStartPayload) => void;
   'game:question': (payload: GameQuestionPayload) => void;
   'game:answerResult': (payload: AnswerResultPayload) => void;
+  'game:opponentAttempt': (payload: { text: string }) => void;
+  'game:opponentAway': (payload: { away: boolean }) => void;
   'game:roundEnd': (payload: RoundEndPayload) => void;
   'game:finish': (payload: GameFinishPayload) => void;
+  'game:resume': (payload: GameResumePayload) => void;
+  'game:resumeFailed': (payload: { matchId: number; message: string }) => void;
   'game:error': (payload: { code: string; message: string }) => void;
 };
 
@@ -37,6 +43,7 @@ interface Player {
   userId: number;
   socket: BattleSocket;
   name: string;
+  reconnectTimer: NodeJS.Timeout | null;
 }
 
 interface PendingPair {
@@ -62,6 +69,10 @@ interface MatchState {
   status: 'active' | 'completed' | 'cancelled';
   resolving: boolean;
   timer: NodeJS.Timeout | null;
+  question: GameQuestionPayload | null;
+  roundEnd: RoundEndPayload | null;
+  roundStartedAt: number;
+  revealUntil: number | null;
 }
 
 interface MatchFoundPayload {
@@ -76,6 +87,16 @@ interface GameStartPayload {
   roundDurationMs: number;
 }
 
+interface HintLetter {
+  position: number;
+  letter: string;
+}
+
+interface HintStep {
+  atMs: number;
+  letters: HintLetter[];
+}
+
 interface GameQuestionPayload {
   matchId: number;
   round: number;
@@ -88,7 +109,8 @@ interface GameQuestionPayload {
   example: string;
   exampleVi: string;
   letterCount: number;
-  letterHints: Array<{ position: number; letter: string }>;
+  letterHints: HintLetter[];
+  hintSchedule: HintStep[];
   imageUrl: string | null;
   durationMs: number;
 }
@@ -121,9 +143,22 @@ interface GameFinishPayload {
   reason?: 'opponent_disconnected' | 'left' | 'server_error';
 }
 
-export const BATTLE_ROUNDS = 12;
-export const BATTLE_ROUND_MS = 30_000;
-export const BATTLE_REVEAL_MS = 4_500;
+interface GameResumePayload {
+  matchId: number;
+  game: GameStartPayload;
+  opponent: { userId: number; name: string };
+  question: GameQuestionPayload | null;
+  roundEnd: RoundEndPayload | null;
+  scores: Array<{ userId: number; name: string; score: number }>;
+  remainingMs: number;
+}
+
+export const BATTLE_ROUNDS = 8;
+export const BATTLE_ROUND_MS = 25_000;
+export const BATTLE_REVEAL_MS = 3_000;
+export const BATTLE_RECONNECT_GRACE_MS = 10_000;
+export const BATTLE_HINT_STEP_MS = 5_000;
+const BATTLE_HINT_STEPS = 4;
 // Most of a match should stay playable, so ~70% of the words come from the easier bands.
 export const BATTLE_EASY_SHARE = 0.7;
 export const BATTLE_EASY_LEVELS = ['A1', 'A2', 'B1'];
@@ -132,6 +167,7 @@ export const BATTLE_HARD_LEVELS = ['B2', 'C1', 'C2'];
 export interface BattleTiming {
   roundMs: number;
   revealMs: number;
+  reconnectMs?: number;
 }
 
 function normalizeAnswer(answer: string): string {
@@ -163,6 +199,39 @@ function letterHints(word: string): Array<{ position: number; letter: string }> 
   return [...positions]
     .sort((a, b) => a - b)
     .map((position) => ({ position, letter: word[position] }));
+}
+
+// Letter positions spread outward from the middle so early hints do not hand out the prefix.
+function spreadPositions(length: number): number[] {
+  const centerLeft = Math.floor((length - 1) / 2);
+  const centerRight = Math.ceil((length - 1) / 2);
+  const order: number[] = [centerLeft];
+  if (centerRight !== centerLeft) order.push(centerRight);
+  for (let offset = 1; order.length < length; offset += 1) {
+    const left = centerLeft - offset;
+    const right = centerRight + offset;
+    if (left >= 0) order.push(left);
+    if (right < length) order.push(right);
+  }
+  return order;
+}
+
+// 0 hints at kick-off, then ~20% of the letters every 5 seconds (capped near 80%).
+export function hintSchedule(word: string, roundMs: number): Array<{ atMs: number; letters: Array<{ position: number; letter: string }> }> {
+  const order = spreadPositions(word.length);
+  const steps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
+  const schedule: Array<{ atMs: number; letters: Array<{ position: number; letter: string }> }> = [];
+  for (let step = 1; step <= steps; step += 1) {
+    const count = Math.min(word.length, Math.max(1, Math.round(word.length * 0.2 * step)));
+    schedule.push({
+      atMs: step * BATTLE_HINT_STEP_MS,
+      letters: order
+        .slice(0, count)
+        .sort((a, b) => a - b)
+        .map((position) => ({ position, letter: word[position] })),
+    });
+  }
+  return schedule;
 }
 
 function shuffleWords(words: BattleWord[]): BattleWord[] {
@@ -250,6 +319,35 @@ export function attachBattleSocket(
     match.timer = null;
   }
 
+  function clearReconnectTimers(match: MatchState): void {
+    for (const player of match.players) {
+      if (!player.reconnectTimer) continue;
+      clearTimeout(player.reconnectTimer);
+      player.reconnectTimer = null;
+    }
+  }
+
+  function resumePayload(match: MatchState, userId: number): GameResumePayload {
+    const opponent = match.players.find((player) => player.userId !== userId) ?? match.players[0];
+    const remainingMs = match.roundEnd
+      ? Math.max(0, (match.revealUntil ?? Date.now()) - Date.now())
+      : Math.max(0, timing.roundMs - (Date.now() - match.roundStartedAt));
+    return {
+      matchId: match.id,
+      game: {
+        matchId: match.id,
+        players: match.players.map(({ userId: id, name }) => ({ userId: id, name })),
+        totalRounds: match.words.length,
+        roundDurationMs: timing.roundMs,
+      },
+      opponent: { userId: opponent.userId, name: opponent.name },
+      question: match.question,
+      roundEnd: match.roundEnd,
+      scores: scoresFor(match),
+      remainingMs,
+    };
+  }
+
   async function persistMatchEnd(
     matchId: number,
     status: 'completed' | 'cancelled',
@@ -264,21 +362,28 @@ export function attachBattleSocket(
     leavingSocketId?: string,
   ): Promise<void> {
     if (match.status !== 'active') return;
-    match.status = 'cancelled';
+    const forfeit = reason === 'left' || reason === 'opponent_disconnected';
+    const remaining = leavingSocketId
+      ? match.players.find((player) => player.socket.id !== leavingSocketId)
+      : undefined;
+    const winnerUserId = forfeit && remaining?.socket.connected ? remaining.userId : null;
+    const status: 'completed' | 'cancelled' = winnerUserId === null ? 'cancelled' : 'completed';
+    match.status = status;
     clearRoundTimer(match);
+    clearReconnectTimers(match);
     matches.delete(match.id);
     releasePlayers(match.players);
     for (const player of match.players) matchesBySocket.delete(player.socket.id);
     try {
-      await persistMatchEnd(match.id, 'cancelled', null);
+      await persistMatchEnd(match.id, status, winnerUserId);
     } catch (error) {
-      console.error('Failed to persist cancelled Word Battle match:', error);
+      console.error('Failed to persist interrupted Word Battle match:', error);
       for (const player of match.players) emitError(player.socket, 'PERSISTENCE_ERROR', 'The match could not be saved. Please try again.');
     }
     const payload: GameFinishPayload = {
       matchId: match.id,
-      status: 'cancelled',
-      winnerUserId: null,
+      status,
+      winnerUserId,
       scores: scoresFor(match),
       totalRounds: match.words.length,
       reason,
@@ -333,6 +438,7 @@ export function attachBattleSocket(
       exampleVi: word.exampleVi,
       letterCount: word.word.length,
       letterHints: letterHints(word.word),
+      hintSchedule: hintSchedule(word.word, timing.roundMs),
       imageUrl: word.imageUrl,
       durationMs: timing.roundMs,
     };
@@ -343,7 +449,11 @@ export function attachBattleSocket(
     match.answers = new Map();
     match.resolving = false;
     match.startedAt = Date.now();
+    match.roundStartedAt = match.startedAt;
+    match.revealUntil = null;
+    match.roundEnd = null;
     const payload = questionPayload(match);
+    match.question = payload;
     match.timer = setTimeout(() => {
       match.timer = null;
       expireRound(match);
@@ -409,6 +519,8 @@ export function attachBattleSocket(
       timedOut,
       scores: scoresFor(match),
     };
+    match.roundEnd = roundEndPayload;
+    match.revealUntil = Date.now() + timing.revealMs;
     for (const player of match.players) player.socket.emit('game:roundEnd', roundEndPayload);
 
     match.timer = setTimeout(() => {
@@ -430,6 +542,7 @@ export function attachBattleSocket(
         : playerOneScore > playerTwoScore ? playerOne.userId : playerTwo.userId;
       match.status = 'completed';
       matches.delete(match.id);
+      clearReconnectTimers(match);
       releasePlayers(match.players);
       for (const player of match.players) matchesBySocket.delete(player.socket.id);
       try {
@@ -484,6 +597,10 @@ export function attachBattleSocket(
       status: 'active',
       resolving: false,
       timer: null,
+      question: null,
+      roundEnd: null,
+      roundStartedAt: 0,
+      revealUntil: null,
     };
     matches.set(matchId, match);
     for (const player of pair.players) {
@@ -528,7 +645,7 @@ export function attachBattleSocket(
         return;
       }
       if (!socket.connected || cancelledJoins.has(socket.id)) return;
-      const player: Player = { userId, socket, name };
+      const player: Player = { userId, socket, name, reconnectTimer: null };
       const opponent = waitingPlayers.shift();
       if (!opponent) {
         waitingPlayers.push(player);
@@ -581,6 +698,34 @@ export function attachBattleSocket(
     if (index >= 0) waitingPlayers.splice(index, 1);
   }
 
+  // A refresh drops the socket for a moment; the match stays alive and resumes when the user is back.
+  function resumeMatch(socket: BattleSocket, matchId: number): void {
+    const match = matches.get(matchId);
+    if (!match || match.status !== 'active') {
+      socket.emit('game:resumeFailed', {
+        matchId,
+        message: 'This match is no longer active.',
+      });
+      return;
+    }
+    const player = match.players.find((candidate) => candidate.userId === socket.data.userId);
+    if (!player) {
+      socket.emit('game:resumeFailed', {
+        matchId,
+        message: 'You are not part of this match.',
+      });
+      return;
+    }
+    if (player.reconnectTimer) {
+      clearTimeout(player.reconnectTimer);
+      player.reconnectTimer = null;
+    }
+    if (player.socket.id !== socket.id) matchesBySocket.delete(player.socket.id);
+    player.socket = socket;
+    matchesBySocket.set(socket.id, match);
+    socket.emit('game:resume', resumePayload(match, socket.data.userId));
+  }
+
   io.on('connection', (socket) => {
     const battleSocket = socket as BattleSocket;
     battleSocket.on('match:join', () => {
@@ -601,6 +746,18 @@ export function attachBattleSocket(
         return;
       }
       leaveQueue(battleSocket);
+    });
+    battleSocket.on('game:resume', (payload) => {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        emitError(battleSocket, 'INVALID_RESUME', 'Provide the match to resume.');
+        return;
+      }
+      const matchId = (payload as { matchId?: unknown }).matchId;
+      if (typeof matchId !== 'number' || !Number.isSafeInteger(matchId) || matchId <= 0) {
+        emitError(battleSocket, 'INVALID_RESUME', 'Provide the match to resume.');
+        return;
+      }
+      resumeMatch(battleSocket, matchId);
     });
     battleSocket.on('game:answer', (payload) => {
       const match = matchesBySocket.get(battleSocket.id);
@@ -643,12 +800,40 @@ export function attachBattleSocket(
         responseTimeMs: match.answers.get(battleSocket.data.userId)!.responseTimeMs,
       });
     });
+    // Shows the opponent what was submitted — only on submit, never per keystroke.
+    // The answer itself is still graded server-side from `game:answer`.
+    battleSocket.on('game:attempt', (payload) => {
+      const match = matchesBySocket.get(battleSocket.id);
+      if (!match || match.status !== 'active') return;
+      const text = typeof payload?.text === 'string' ? payload.text.slice(0, 48) : '';
+      for (const player of match.players) {
+        if (player.socket.id === battleSocket.id || !player.socket.connected) continue;
+        player.socket.emit('game:opponentAttempt', { text });
+      }
+    });
     battleSocket.on('disconnect', () => {
       leaveQueue(battleSocket);
       const pair = pendingBySocket.get(battleSocket.id);
-      if (pair) void cancelPendingPair(pair, battleSocket.id);
+      if (pair) {
+        void cancelPendingPair(pair, battleSocket.id);
+        return;
+      }
       const match = matchesBySocket.get(battleSocket.id);
-      if (match) void cancelMatch(match, 'opponent_disconnected', battleSocket.id);
+      if (!match) return;
+      matchesBySocket.delete(battleSocket.id);
+      const player = match.players.find((candidate) => candidate.socket.id === battleSocket.id);
+      if (!player) return;
+      if (player.reconnectTimer) clearTimeout(player.reconnectTimer);
+      // Tell the other side right away instead of leaving them on a frozen
+      // board until the grace period runs out.
+      for (const other of match.players) {
+        if (other.userId === player.userId || !other.socket.connected) continue;
+        other.socket.emit('game:opponentAway', { away: true });
+      }
+      player.reconnectTimer = setTimeout(() => {
+        player.reconnectTimer = null;
+        if (match.status === 'active') void cancelMatch(match, 'opponent_disconnected', player.socket.id);
+      }, timing.reconnectMs ?? BATTLE_RECONNECT_GRACE_MS);
     });
   });
 

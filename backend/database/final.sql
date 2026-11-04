@@ -994,7 +994,220 @@ INSERT INTO battle_words
   ('nostalgia', 'nỗi nhớ quá khứ', 'noun', 'C2', 'Cảm giác ngọt ngào khi nhớ về một thời đã qua.', 'Old songs often fill listeners with nostalgia.', 'Những bài hát cũ thường gợi cho người nghe nỗi nhớ quá khứ.', NULL, 100);
 
 -- ============================================================================
--- 11. DỌN DẸP BẢNG TẠM & HOÀN TẤT
+-- ============================================================================
+-- 11. VIDEO LEARNING (HỌC QUA VIDEO)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS video_lessons (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  code VARCHAR(64) NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  description VARCHAR(500) NULL,
+  topic VARCHAR(100) NOT NULL,
+  cefr_level ENUM('A1', 'A2', 'B1', 'B2', 'C1', 'C2') NOT NULL,
+  provider ENUM('youtube', 'file') NOT NULL DEFAULT 'youtube',
+  video_url VARCHAR(500) NOT NULL,
+  thumbnail_url VARCHAR(500) NULL,
+  duration_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  xp_reward SMALLINT UNSIGNED NOT NULL DEFAULT 20,
+  sort_order SMALLINT UNSIGNED NOT NULL,
+  owner_user_id BIGINT UNSIGNED NULL,
+  subtitle_en VARCHAR(500) NULL,
+  subtitle_vi VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_video_lessons_code (code),
+  KEY idx_video_lessons_sort (sort_order),
+  KEY idx_video_lessons_owner (owner_user_id, created_at),
+  CONSTRAINT fk_video_lessons_owner FOREIGN KEY (owner_user_id) REFERENCES users (id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS video_segments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  video_id BIGINT UNSIGNED NOT NULL,
+  start_ms INT UNSIGNED NOT NULL,
+  end_ms INT UNSIGNED NOT NULL,
+  text_en TEXT NOT NULL,
+  text_vi TEXT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_video_segments_video (video_id, sort_order),
+  CONSTRAINT fk_video_segments_video FOREIGN KEY (video_id) REFERENCES video_lessons (id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS video_vocabulary (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  video_id BIGINT UNSIGNED NOT NULL,
+  word VARCHAR(80) NOT NULL,
+  ipa VARCHAR(80) NOT NULL,
+  meaning_vi VARCHAR(160) NOT NULL,
+  detail_vi VARCHAR(500) NOT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_video_vocabulary_word (video_id, word),
+  KEY idx_video_vocabulary_video (video_id, sort_order),
+  CONSTRAINT fk_video_vocabulary_video FOREIGN KEY (video_id) REFERENCES video_lessons (id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS video_progress (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  video_id BIGINT UNSIGNED NOT NULL,
+  watched_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  completed_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_video_progress_user_video (user_id, video_id),
+  KEY idx_video_progress_user (user_id, completed),
+  CONSTRAINT fk_video_progress_user FOREIGN KEY (user_id) REFERENCES users (id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_video_progress_video FOREIGN KEY (video_id) REFERENCES video_lessons (id)
+    ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS saved_words (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  video_id BIGINT UNSIGNED NULL,
+  word VARCHAR(80) NOT NULL,
+  ipa VARCHAR(80) NULL,
+  meaning_vi VARCHAR(160) NULL,
+  detail_vi VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_saved_words_user_word (user_id, word),
+  KEY idx_saved_words_user (user_id, created_at),
+  CONSTRAINT fk_saved_words_user FOREIGN KEY (user_id) REFERENCES users (id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_saved_words_video FOREIGN KEY (video_id) REFERENCES video_lessons (id)
+    ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- Lesson catalogue
+-- ----------------------------------------------------------------------------
+
+INSERT IGNORE INTO video_lessons
+  (code, title, description, topic, cefr_level, provider, video_url, thumbnail_url,
+   duration_seconds, xp_reward, sort_order, subtitle_en, subtitle_vi)
+VALUES
+  ('video-small-talk',
+   'Chào hỏi tự nhiên như người bản xứ',
+   'Học cách mở đầu câu chuyện bằng những cụm từ đệm tự nhiên và luyện shadowing theo từng cụm.',
+   'Giao tiếp hằng ngày', 'A2', 'youtube',
+   'https://www.youtube.com/watch?v=juKd26qkNAw', NULL,
+   1713, 20, 1,
+   'Actually, to be completely honest, I had no idea how natural this would feel!',
+   'Thực ra mà nói thật lòng, tôi không hề biết cảm giác này lại tự nhiên đến thế!'),
+  ('video-cafe-order',
+   'Gọi đồ uống tại quán cà phê',
+   'Mẫu câu gọi đồ uống lịch sự, kèm cách yêu cầu mức đường và kích cỡ.',
+   'Đời sống', 'A1', 'file',
+   '/media/videos/cafe-order.mp4', '/media/videos/cafe-order.jpg',
+   8, 20, 2,
+   'Could I get a large iced coffee with less sugar, please?',
+   'Cho tôi một ly cà phê đá lớn với ít đường hơn, làm ơn nhé?'),
+  ('video-travel-directions',
+   'Hỏi đường khi đi du lịch',
+   'Hỏi đường lịch sự tới ga tàu gần nhất và nghe cách người bản xứ chỉ đường.',
+   'Du lịch', 'B1', 'file',
+   '/media/videos/travel-directions.mp4', '/media/videos/travel-directions.jpg',
+   9, 20, 3,
+   'Excuse me, could you tell me how to get to the nearest train station?',
+   'Xin lỗi, bạn có thể chỉ giúp tôi đường đến ga tàu gần nhất không?');
+
+CREATE TEMPORARY TABLE IF NOT EXISTS seed_video_vocabulary (
+  code VARCHAR(64) NOT NULL,
+  word VARCHAR(80) NOT NULL,
+  ipa VARCHAR(80) NOT NULL,
+  meaning_vi VARCHAR(160) NOT NULL,
+  detail_vi VARCHAR(500) NOT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL
+) ENGINE=InnoDB CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO seed_video_vocabulary (code, word, ipa, meaning_vi, detail_vi, sort_order) VALUES
+  ('video-small-talk', 'Actually,', '/ˈæk.tʃu.ə.li/', 'Thực ra', 'Từ đệm tự nhiên người bản xứ hay dùng để mở đầu ý kiến.', 1),
+  ('video-small-talk', 'to', '/tuː/', 'để', 'Giới từ liên kết mục đích.', 2),
+  ('video-small-talk', 'be', '/biː/', 'thì', 'Động từ to be nguyên mẫu.', 3),
+  ('video-small-talk', 'completely', '/kəmˈpliːt.li/', 'hoàn toàn', 'Trạng từ nhấn mạnh mức độ triệt để.', 4),
+  ('video-small-talk', 'honest,', '/ˈɒn.ɪst/', 'thành thật', 'Cụm “to be honest” = thành thật mà nói.', 5),
+  ('video-small-talk', 'I', '/aɪ/', 'tôi', 'Đại từ chủ ngữ ngôi thứ nhất.', 6),
+  ('video-small-talk', 'had', '/hæd/', 'đã', 'Quá khứ đơn của have.', 7),
+  ('video-small-talk', 'no', '/nəʊ/', 'không', 'Từ phủ định.', 8),
+  ('video-small-talk', 'idea', '/aɪˈdɪə/', 'biết', '“have no idea” = hoàn toàn không hề biết trước.', 9),
+  ('video-small-talk', 'how', '/haʊ/', 'thế nào', 'Liên từ chỉ phương thức.', 10),
+  ('video-small-talk', 'natural', '/ˈnætʃ.ər.əl/', 'tự nhiên', 'Tính từ: trôi chảy, không gượng gạo.', 11),
+  ('video-small-talk', 'this', '/ðɪs/', 'điều này', 'Đại từ chỉ định.', 12),
+  ('video-small-talk', 'would', '/wʊd/', 'sẽ', 'Trợ động từ chỉ khả năng.', 13),
+  ('video-small-talk', 'feel!', '/fiːl/', 'cảm nhận!', 'Động từ: mang lại cảm giác.', 14),
+
+  ('video-cafe-order', 'Could', '/kʊd/', 'có thể', 'Modal xin phép lịch sự: Could I get…?', 1),
+  ('video-cafe-order', 'large', '/lɑːdʒ/', 'lớn', 'Kích cỡ đồ uống lớn hơn bình thường.', 2),
+  ('video-cafe-order', 'iced', '/aɪst/', 'đá lạnh', 'Tính từ chỉ đồ uống có đá.', 3),
+  ('video-cafe-order', 'coffee', '/ˈkɒf.i/', 'cà phê', 'Đồ uống phổ biến, ở đây là cà phê đá.', 4),
+  ('video-cafe-order', 'less', '/les/', 'ít hơn', 'So sánh hơn của little: less sugar = ít đường hơn.', 5),
+  ('video-cafe-order', 'sugar', '/ˈʃʊɡ.ər/', 'đường', 'Chất tạo vị ngọt dùng trong đồ uống.', 6),
+  ('video-cafe-order', 'please?', '/pliːz/', 'làm ơn nhé?', 'Từ thêm vào cuối câu để tăng tính lịch sự.', 7),
+
+  ('video-travel-directions', 'Excuse', '/ɪkˈskjuːz/', 'xin lỗi', '“Excuse me” dùng để mở lời với người lạ.', 1),
+  ('video-travel-directions', 'me,', '/miː/', 'tôi', 'Tân ngữ của “excuse me”.', 2),
+  ('video-travel-directions', 'could', '/kʊd/', 'có thể', 'Modal lịch sự khi nhờ ai đó giúp.', 3),
+  ('video-travel-directions', 'tell', '/tel/', 'chỉ giúp', 'Tell me how = nói cho tôi biết làm thế nào.', 4),
+  ('video-travel-directions', 'get', '/ɡet/', 'đi đến', '“get to” = đến được một địa điểm.', 5),
+  ('video-travel-directions', 'nearest', '/ˈnɪə.rɪst/', 'gần nhất', 'So sánh nhất của near.', 6),
+  ('video-travel-directions', 'train', '/treɪn/', 'tàu hỏa', 'Phương tiện di chuyển đường sắt.', 7),
+  ('video-travel-directions', 'station?', '/ˈsteɪ.ʃən/', 'ga', 'Nơi tàu dừng để đón và trả khách.', 8);
+
+INSERT IGNORE INTO video_vocabulary (video_id, word, ipa, meaning_vi, detail_vi, sort_order)
+SELECT v.id, s.word, s.ipa, s.meaning_vi, s.detail_vi, s.sort_order
+FROM seed_video_vocabulary s
+JOIN video_lessons v ON v.code = s.code;
+
+DROP TEMPORARY TABLE IF EXISTS seed_video_vocabulary;
+
+INSERT INTO video_segments (video_id, start_ms, end_ms, text_en, text_vi, sort_order)
+SELECT v.id, 0, v.duration_seconds * 1000, v.subtitle_en, v.subtitle_vi, 1
+FROM video_lessons v
+LEFT JOIN video_segments s ON s.video_id = v.id
+WHERE v.code IN ('video-cafe-order', 'video-travel-directions')
+  AND v.subtitle_en IS NOT NULL
+  AND s.id IS NULL;
+
+INSERT INTO video_segments (video_id, start_ms, end_ms, text_en, text_vi, sort_order)
+SELECT v.id, s.start_ms, s.end_ms, s.text_en, s.text_vi, s.sort_order
+FROM video_lessons v
+JOIN (
+  SELECT
+    11040 AS start_ms,
+    16000 AS end_ms,
+    'Welcome to EnglishClass101.com. English in Three Minutes.' AS text_en,
+    'Chào mừng đến với EnglishClass101.com. Tiếng Anh trong ba phút.' AS text_vi,
+    1 AS sort_order
+  UNION ALL
+  SELECT
+    16000,
+    21199,
+    'The fastest, easiest and most fun way to learn English.',
+    'Cách học tiếng Anh nhanh nhất, dễ nhất và thú vị nhất.',
+    2
+  UNION ALL
+  SELECT
+    21199,
+    28640,
+    'Hi, how''s it going? I''m Alicia. Nice to meet you.',
+    'Chào bạn, dạo này thế nào? Tôi là Alicia. Rất vui được gặp bạn.',
+    3
+) s
+WHERE v.code = 'video-small-talk'
+  AND NOT EXISTS (SELECT 1 FROM video_segments x WHERE x.video_id = v.id);
+
+
+-- 12. DỌN DẸP BẢNG TẠM & HOÀN TẤT
 -- ============================================================================
 DROP TEMPORARY TABLE IF EXISTS seed_questions;
 DROP TEMPORARY TABLE IF EXISTS seed_word_order_questions;

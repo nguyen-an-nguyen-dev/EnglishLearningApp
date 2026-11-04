@@ -1210,8 +1210,6 @@ body {
   transition: color 150ms ease, transform 150ms ease;
 }
 .lp-back-top:hover { color: var(--brand-700); transform: translateY(-2px); }
-.lp-back-top-icon { transition: transform 160ms ease; }
-.lp-back-top:hover .lp-back-top-icon { transform: translateY(-2px); }
 
 /* Reveal */
 .lp-motion-ready [data-reveal] {
