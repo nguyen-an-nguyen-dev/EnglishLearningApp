@@ -1,0 +1,162 @@
+{
+  "report": [
+    {
+      "case": "landing-light-1440",
+      "pageErrors": []
+    },
+    {
+      "case": "landing-dark-1440",
+      "pageErrors": []
+    },
+    {
+      "case": "landing-light-390",
+      "pageErrors": []
+    },
+    {
+      "case": "dashboard-light-1440",
+      "eng": "rgb(0, 158, 203)",
+      "o": "rgb(92, 175, 107)",
+      "race": "rgb(217, 130, 11)",
+      "paper": "#FFFDF9",
+      "shell": "#F7F1E8",
+      "videoMono": null,
+      "pageErrors": []
+    },
+    {
+      "case": "dashboard-dark-1440",
+      "eng": "rgb(0, 199, 255)",
+      "o": "rgb(124, 203, 134)",
+      "race": "rgb(245, 158, 11)",
+      "paper": "#26221F",
+      "shell": "#1C1917",
+      "videoMono": null,
+      "pageErrors": []
+    },
+    {
+      "case": "dashboard-light-390",
+      "pageErrors": []
+    },
+    {
+      "case": "dashboard-dark-390",
+      "pageErrors": []
+    },
+    {
+      "case": "videos-light-1440",
+      "eng": "rgb(0, 158, 203)",
+      "o": "rgb(92, 175, 107)",
+      "race": "rgb(217, 130, 11)",
+      "paper": "#FFFDF9",
+      "shell": "#F7F1E8",
+      "videoMono": "true",
+      "pageErrors": []
+    },
+    {
+      "case": "videos-dark-1440",
+      "eng": "rgb(0, 199, 255)",
+      "o": "rgb(124, 203, 134)",
+      "race": "rgb(245, 158, 11)",
+      "paper": "#26221F",
+      "shell": "#1C1917",
+      "videoMono": "true",
+      "pageErrors": []
+    },
+    {
+      "case": "notebook-light-1440",
+      "eng": "rgb(0, 158, 203)",
+      "o": "rgb(92, 175, 107)",
+      "race": "rgb(217, 130, 11)",
+      "paper": "#FFFDF9",
+      "shell": "#F7F1E8",
+      "videoMono": "true",
+      "pageErrors": []
+    },
+    {
+      "case": "practice-light-1440",
+      "eng": "rgb(0, 158, 203)",
+      "o": "rgb(92, 175, 107)",
+      "race": "rgb(217, 130, 11)",
+      "paper": "#FFFDF9",
+      "shell": "#F7F1E8",
+      "videoMono": "true",
+      "veil": 1,
+      "veilLabel": "Chỉ nghe · đã ẩn phụ đề và giao diện YouTube",
+      "wordmark": {
+        "eng": "rgb(0, 158, 203)",
+        "o": "rgb(92, 175, 107)",
+        "race": "rgb(217, 130, 11)",
+        "paper": "#FFFDF9",
+        "shell": "#F7F1E8",
+        "videoMono": "true"
+      },
+      "pageErrors": []
+    },
+    {
+      "case": "practice-dark-1440",
+      "eng": "rgb(0, 199, 255)",
+      "o": "rgb(124, 203, 134)",
+      "race": "rgb(245, 158, 11)",
+      "paper": "#26221F",
+      "shell": "#1C1917",
+      "videoMono": "true",
+      "veil": 1,
+      "veilLabel": "Chỉ nghe · đã ẩn phụ đề và giao diện YouTube",
+      "wordmark": {
+        "eng": "rgb(0, 199, 255)",
+        "o": "rgb(124, 203, 134)",
+        "race": "rgb(245, 158, 11)",
+        "paper": "#26221F",
+        "shell": "#1C1917",
+        "videoMono": "true"
+      },
+      "pageErrors": []
+    },
+    {
+      "case": "arena-light-1440",
+      "eng": "rgb(0, 158, 203)",
+      "o": "rgb(92, 175, 107)",
+      "race": "rgb(217, 130, 11)",
+      "paper": "#FFFDF9",
+      "shell": "#F7F1E8",
+      "videoMono": null,
+      "practiceCardVisible": 0,
+      "pageErrors": []
+    },
+    {
+      "case": "arena-dark-1440",
+      "eng": "rgb(0, 199, 255)",
+      "o": "rgb(124, 203, 134)",
+      "race": "rgb(245, 158, 11)",
+      "paper": "#26221F",
+      "shell": "#1C1917",
+      "videoMono": null,
+      "practiceCardVisible": 0,
+      "pageErrors": []
+    }
+  ],
+  "assetCheck": {
+    "apple.jpg": {
+      "status": 200,
+      "bytes": 46559
+    },
+    "tenacity.jpg": {
+      "status": 200,
+      "bytes": 166811
+    },
+    "borrow.jpg": {
+      "status": 200,
+      "bytes": 163927
+    },
+    "knowledge.jpg": {
+      "status": 200,
+      "bytes": 83579
+    },
+    "travel.jpg": {
+      "status": 200,
+      "bytes": 32857
+    },
+    "early.jpg": {
+      "status": 200,
+      "bytes": 44428
+    }
+  }
+}
