@@ -17,7 +17,7 @@ export async function saveTranslation(
       result.sourceLanguage,
       result.translatedText,
       result.targetLanguage,
-      'Gemini',
+      'NVIDIA',
     ],
   );
   const [rows] = await pool.execute<TranslationHistoryRow[]>(

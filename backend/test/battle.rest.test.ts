@@ -78,33 +78,3 @@ test('arena summary starts empty for a new learner', async () => {
   assert.equal(body.data.win_rate, 0);
 });
 
-test('practice mode builds four distinct options per question', async () => {
-  const response = await fetch(`${baseUrl}/api/battle/practice?count=12&levels=A1,A2,B1,B2`, {
-    headers: authHeaders(),
-  });
-  assert.equal(response.status, 200);
-  const body = await response.json() as ApiEnvelope<{
-    questions: Array<{
-      id: number;
-      answer: string;
-      translation: string;
-      example: string;
-      options: string[];
-    }>;
-  }>;
-  assert.equal(body.data.questions.length, 12);
-  for (const question of body.data.questions) {
-    assert.equal(question.options.length, 4);
-    assert.equal(new Set(question.options).size, 4);
-    assert.ok(question.options.includes(question.answer));
-    assert.ok(question.translation.length > 0);
-    assert.equal(question.example.toLowerCase().includes(question.answer.toLowerCase()), false);
-  }
-});
-
-test('practice mode validates count and CEFR levels', async () => {
-  const badCount = await fetch(`${baseUrl}/api/battle/practice?count=100`, { headers: authHeaders() });
-  assert.equal(badCount.status, 400);
-  const badLevels = await fetch(`${baseUrl}/api/battle/practice?levels=Z9`, { headers: authHeaders() });
-  assert.equal(badLevels.status, 400);
-});

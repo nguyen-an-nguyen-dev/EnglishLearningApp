@@ -239,7 +239,6 @@ export function VideoNotebookView({ words, onBack, onWordsChange }: VideoNoteboo
             onClick={() => startReview(words)}
             disabled={total === 0}
           >
-            <Sparkle size={17} weight="fill" />
             <span>{t.videoNotebookPractice}</span>
             <ArrowRight size={17} weight="bold" />
           </button>

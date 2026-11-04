@@ -1,6 +1,8 @@
 /* ==========================================================================
-   ENGORACE — COASTAL ROUTE
-   Sea-mist dominant · deep-sea ink secondary · sun-yellow accent.
+   ENGORACE LANDING — PALE CYAN (light-only)
+   One bright gam from header to footer: a pale tint of the brand cyan instead
+   of pure white, deep teal ink, cyan reserved for actions. The landing page
+   never enters dark mode; the dashboard keeps its own warm latte tokens.
    Flat surfaces, thin rules, editorial type. No glass, no floating blobs.
    ========================================================================== */
 
@@ -25,6 +27,46 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Landing is light-only. LandingPage.tsx switches the document back to the
+   light token set while mounted, then this rule tints that whole light ramp
+   toward the brand cyan. Scoped here so the dashboard palette is untouched. */
+html.lp-active,
+html.lp-active body { background: #E4F7FF; }
+
+html.lp-active .landing-page-wrapper {
+  --brand-50: #E4F7FF;
+  --brand-100: #D9F2FD;
+  --brand-200: #C6E9F8;
+  --brand-300: #A9DCF0;
+  --brand-400: #4DD3FA;
+  --brand-500: #00C7FF;
+  --brand-600: #006E8F;
+  --brand-700: #00688A;
+  --brand-800: #075A75;
+  --brand-900: #0E3542;
+  --brand-950: #092833;
+
+  --accent-100: #DCF4FE;
+  --accent-200: #C4EAFA;
+  --accent-400: #63D2F2;
+  --accent-500: #00A9DB;
+  --accent-600: #007A9E;
+
+  --paper: #F1FBFF;
+  --paper-muted: #E6F5FD;
+  --ink: #0E3542;
+  --ink-soft: #2F5C6B;
+  --muted: #4C7383;
+  --line: #CDE8F4;
+  --line-strong: #ADD9EC;
+  --pill-bg: #00688A;
+  --pill-fg: #F1FBFF;
+
+  --lp-cta-bg: #CFEDFB;
+  --shadow-card: 0 1px 2px rgb(12 78 105 / 5%), 0 14px 32px -20px rgb(12 78 105 / 18%);
+  --shadow-float: 0 18px 44px -24px rgb(12 78 105 / 22%);
+}
+
 .landing-page-wrapper *,
 .landing-page-wrapper *::before,
 .landing-page-wrapper *::after { box-sizing: border-box; }
@@ -56,7 +98,7 @@ body {
   padding-inline: clamp(24px, 4vw, 48px);
 }
 .lp-modes { max-width: 1200px; }
-.lp-conclusion-content { max-width: 1200px; padding-bottom: 36px; }
+.lp-conclusion-content { max-width: 1200px; padding-bottom: 56px; }
 
 .lp-skip-link {
   position: fixed;
@@ -67,7 +109,7 @@ body {
   transform: translateY(-160%);
   border-radius: 8px;
   background: var(--brand-900);
-  color: #F8FAFC !important;
+  color: #FFFDF9 !important;
   font-size: 13px;
   font-weight: 700;
 }
@@ -111,9 +153,14 @@ body {
 .lp-wordmark:hover .lp-brand-logo-wrap { transform: rotate(-3deg); }
 .lp-brand-logo-img { width: 34px; height: 34px; display: block; object-fit: contain; }
 .lp-brand-wordmark { display: inline-flex; align-items: center; color: var(--ink); font-size: 20px; font-weight: 800; }
-.lp-brand-eng { color: var(--brand-700); }
-.lp-brand-o { color: inherit; }
-.lp-brand-race { color: var(--accent-500); }
+/* Single source of truth for the wordmark: the shared tokens in index.css.
+   Landing, dashboard, auth modal and video pages all render the same trio. */
+.lp-brand-eng,
+.auth-modal-brand .brand-eng { color: var(--brand-wordmark-eng); }
+.lp-brand-o,
+.auth-modal-brand .brand-o { color: var(--brand-wordmark-o); }
+.lp-brand-race,
+.auth-modal-brand .brand-race { color: var(--brand-wordmark-race); }
 
 .lp-primary-nav { display: flex; align-items: center; gap: clamp(22px, 3vw, 40px); }
 .lp-primary-nav > a {
@@ -169,20 +216,22 @@ body {
 }
 .lp-button:active:not(:disabled) { transform: translateY(1px); }
 .lp-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* White label needs a deeper cyan fill to stay legible (≈6:1 vs #00C7FF ≈2:1).
+   Bright #00C7FF is kept for borders, icons and hover accents. */
 .lp-button-primary {
-  border-color: var(--brand-500);
-  background: var(--brand-500);
-  color: var(--brand-950) !important;
-  box-shadow: 0 3px 14px -5px rgb(0 199 255 / 70%);
+  border-color: var(--brand-600);
+  background: var(--brand-600);
+  color: #FFFFFF !important;
+  box-shadow: 0 3px 14px -6px rgb(0 104 138 / 28%);
 }
-.lp-button-primary:hover:not(:disabled) { border-color: var(--brand-400); background: var(--brand-400); }
+.lp-button-primary:hover:not(:disabled) { border-color: var(--brand-700); background: var(--brand-700); }
 .lp-button-large { min-height: 50px; padding: 0 22px; font-size: 14.5px; }
 .lp-button-sun {
-  border-color: var(--accent-400);
-  background: var(--accent-400);
-  color: var(--brand-950) !important;
+  border-color: var(--accent-600);
+  background: var(--accent-600);
+  color: #FFFFFF !important;
 }
-.lp-button-sun:hover:not(:disabled) { border-color: var(--accent-200); background: var(--accent-200); }
+.lp-button-sun:hover:not(:disabled) { border-color: var(--accent-600); background: #00688A; }
 .lp-button-nested {
   padding: 0 8px 0 14px;
   border-color: var(--line-strong);
@@ -317,9 +366,10 @@ body {
   justify-content: center;
   overflow: hidden;
   padding: 36px 32px;
-  border: 1px solid var(--brand-200);
+  border: 1px solid var(--line-strong);
   border-radius: 20px;
-  background: linear-gradient(166deg, #CDF1FE 0%, #A9E6FA 54%, #86DFFA 100%);
+  /* Pale cyan tint of the same gam as the canvas, just a little deeper. */
+  background: linear-gradient(166deg, #EAF8FF 0%, #D6EFFC 54%, #BEE4F6 100%);
 }
 .lp-hero-sun {
   position: absolute;
@@ -364,7 +414,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 11px;
   background: var(--paper);
-  box-shadow: 0 14px 34px -20px rgb(15 23 42 / 45%);
+  box-shadow: 0 14px 34px -20px rgb(12 78 110 / 45%);
 }
 .lp-proof-letter {
   display: grid;
@@ -392,7 +442,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 15px;
   background: var(--paper);
-  box-shadow: 0 24px 54px -30px rgb(15 23 42 / 48%), 0 2px 5px rgb(15 23 42 / 5%);
+  box-shadow: 0 24px 54px -30px rgb(12 78 110 / 48%), 0 2px 5px rgb(12 78 110 / 5%);
 }
 .lp-preview-topline {
   display: flex;
@@ -500,7 +550,7 @@ body {
   border: 0;
   border-radius: 7px;
   background: var(--brand-700);
-  color: #F8FAFC;
+  color: #FFFDF9;
   cursor: pointer;
   font-size: 12.5px;
   font-weight: 700;
@@ -508,7 +558,7 @@ body {
 }
 .lp-preview-submit:hover:not(:disabled),
 .lp-preview-check:hover { background: var(--brand-800); }
-.lp-preview-submit:disabled { background: #CBD5E1; cursor: not-allowed; }
+.lp-preview-submit:disabled { background: #C2E1EF; color: var(--ink-soft); cursor: not-allowed; }
 .lp-preview-check { width: 34px; padding: 0; background: var(--brand-100); color: var(--brand-800); }
 
 /* ==========================================================================
@@ -590,10 +640,10 @@ body {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 14px 28px -22px rgb(15 23 42 / 26%);
+  box-shadow: 0 1px 2px rgb(12 78 110 / 4%), 0 14px 28px -22px rgb(12 78 110 / 26%);
   transition: border-color 170ms ease, box-shadow 170ms ease, transform 170ms ease;
 }
-.lp-stage-card:hover { transform: translateY(-3px); border-color: var(--brand-300); box-shadow: 0 1px 2px rgb(15 23 42 / 5%), 0 22px 40px -26px rgb(15 23 42 / 38%); }
+.lp-stage-card:hover { transform: translateY(-3px); border-color: var(--brand-300); box-shadow: 0 1px 2px rgb(12 78 110 / 5%), 0 22px 40px -26px rgb(12 78 110 / 38%); }
 .lp-stage-item.is-active .lp-stage-card {
   border-color: var(--brand-500);
   box-shadow: 0 0 0 1.5px var(--brand-500), 0 24px 44px -26px rgb(0 122 158 / 45%);
@@ -696,7 +746,7 @@ body {
   border: 1px solid var(--line-strong);
   border-radius: 15px;
   background: var(--paper);
-  box-shadow: 0 18px 44px -34px rgb(15 23 42 / 38%);
+  box-shadow: 0 18px 44px -34px rgb(12 78 110 / 38%);
 }
 .lp-panel-head {
   display: flex;
@@ -749,7 +799,7 @@ body {
   overflow: hidden;
   border-radius: 14px;
   background: var(--brand-950);
-  box-shadow: 0 22px 46px -32px rgb(15 23 42 / 60%);
+  box-shadow: 0 22px 46px -32px rgb(12 78 110 / 60%);
 }
 .lp-yt-iframe { width: 100%; height: 100%; display: block; border: 0; }
 
@@ -795,7 +845,7 @@ body {
   transition: background 140ms ease, color 140ms ease;
 }
 .landing-page-wrapper .lp-sub-word:hover { background: var(--brand-200); color: var(--brand-800) !important; }
-.landing-page-wrapper .lp-sub-word.is-active { background: var(--brand-600); color: #FFFFFF !important; }
+.landing-page-wrapper .lp-sub-word.is-active { background: var(--brand-600); color: #FFFDF9 !important; }
 .landing-page-wrapper .lp-sub-word.is-saved { box-shadow: inset 0 0 0 1px var(--accent-400); }
 .landing-page-wrapper .lp-sub-word.is-masked {
   border-style: dashed;
@@ -1058,7 +1108,7 @@ body {
   padding: 2px 7px;
   border-radius: 5px;
   background: var(--brand-600);
-  color: #FFFFFF;
+  color: #FFFDF9;
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -1131,8 +1181,8 @@ body {
   overflow: hidden;
   padding: 42px clamp(28px, 4vw, 52px);
   border-radius: 18px;
-  background: var(--brand-900);
-  color: #F8FAFC;
+  background: var(--lp-cta-bg);
+  color: var(--ink);
   isolation: isolate;
 }
 .lp-final-cta::before {
@@ -1142,16 +1192,16 @@ body {
   bottom: -190px;
   width: 420px;
   height: 420px;
-  border: 1px solid rgb(179 215 232 / 18%);
+  border: 1px solid rgb(0 104 138 / 14%);
   border-radius: 50%;
   content: "";
 }
 .lp-final-cta-copy { max-width: 560px; }
-.lp-final-cta .lp-eyebrow { color: var(--brand-300); margin-bottom: 12px; }
+.lp-final-cta .lp-eyebrow { color: var(--brand-700); margin-bottom: 12px; }
 .lp-final-cta h2 {
   max-width: 15ch;
   margin: 0;
-  color: #F8FAFC;
+  color: var(--ink);
   font-size: clamp(30px, 3.6vw, 44px);
   font-weight: 750;
   letter-spacing: -0.05em;
@@ -1161,7 +1211,7 @@ body {
 .lp-final-cta-copy > p:last-child {
   max-width: 420px;
   margin: 13px 0 0;
-  color: var(--brand-200);
+  color: var(--ink-soft);
   font-size: 14.5px;
   line-height: 1.62;
 }
@@ -1171,7 +1221,7 @@ body {
   z-index: -1;
   right: 46px;
   bottom: -34px;
-  color: rgb(179 215 232 / 10%);
+  color: rgb(0 104 138 / 9%);
   font-family: "Fraunces Variable", Georgia, serif;
   font-size: 150px;
   font-weight: 600;
@@ -1179,24 +1229,31 @@ body {
   pointer-events: none;
 }
 
-.lp-footer { margin-top: 44px; }
+/* The footer is a full-width band, not a strip inside the content column. */
+.lp-footer {
+  border-top: 1px solid var(--line);
+  background: var(--brand-50);
+}
 .lp-footer-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px 32px;
-  padding: 22px 0 24px;
-  border-top: 1px solid var(--line);
+  gap: 16px 32px;
+  width: min(100% - 64px, 1200px);
+  margin: 0 auto;
+  padding: 28px 0 32px;
   color: var(--muted);
   font-size: 13px;
 }
-.lp-footer-brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.lp-footer-brand { display: grid; gap: 6px; min-width: 0; }
+.lp-footer-brand-line { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .lp-footer-brand .lp-wordmark { font-size: 17px; gap: 8px; }
 .lp-footer-brand .lp-brand-logo-img { width: 30px; height: 30px; }
 .lp-footer-copy { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.lp-footer-tagline { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .lp-footer-nav { display: flex; gap: 24px; }
-.lp-footer-nav a { color: var(--muted); font-weight: 600; transition: color 150ms ease; }
+.lp-footer-nav a { color: var(--ink-soft); font-weight: 600; transition: color 150ms ease; }
 .lp-footer-nav a:hover { color: var(--brand-700); }
 .lp-back-top {
   display: inline-flex;
@@ -1259,9 +1316,6 @@ body {
   letter-spacing: -0.04em;
   line-height: 1;
 }
-.auth-modal-brand .brand-eng { color: inherit; }
-.auth-modal-brand .brand-o { color: inherit; }
-.auth-modal-brand .brand-race { color: var(--accent-500); }
 .auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1283,7 +1337,7 @@ body {
   font-weight: 700;
 }
 .auth-tab:hover { color: var(--ink); }
-.auth-tab-active { background: var(--paper); color: var(--brand-800); box-shadow: 0 1px 3px rgb(15 23 42 / 10%); }
+.auth-tab-active { background: var(--paper); color: var(--brand-800); box-shadow: 0 1px 3px rgb(12 78 110 / 10%); }
 .auth-social { display: grid; gap: 8px; justify-items: center; }
 .auth-social-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .auth-social-btn {
@@ -1462,7 +1516,7 @@ body {
     padding: 8px 20px 18px;
     border-bottom: 1px solid var(--line);
     background: var(--paper);
-    box-shadow: 0 18px 30px -24px rgb(15 23 42 / 40%);
+    box-shadow: 0 18px 30px -24px rgb(12 78 110 / 40%);
   }
   .lp-primary-nav.is-open { display: flex; }
   .lp-primary-nav > a { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -1548,8 +1602,8 @@ body {
 
   .lp-final-cta { flex-direction: column; align-items: flex-start; gap: 22px; padding: 30px 24px; }
   .lp-final-cta-mark { right: 12px; bottom: -16px; font-size: 100px; }
-  .lp-footer-row { gap: 12px 16px; padding: 18px 0 20px; }
-  .lp-footer-brand { flex: 1 1 100%; gap: 10px; }
+  .lp-footer-row { gap: 12px 16px; width: min(100% - 40px, 1200px); padding: 22px 0 24px; }
+  .lp-footer-brand { flex: 1 1 100%; gap: 6px; }
   .lp-footer-brand .lp-wordmark { font-size: 15px; }
   .lp-footer-nav { gap: 18px; }
   .lp-conclusion-content { padding-bottom: 24px; }
@@ -1602,35 +1656,6 @@ body {
   }
 }
 
-.lp-header-actions .theme-toggle { width: 42px; height: 42px; }
-.lp-mobile-nav-actions .theme-toggle { width: 42px; height: 42px; }
-
-/* ==========================================================================
-   Dark theme overrides for illustrated panels
-   ========================================================================== */
-:root[data-theme="dark"] .lp-hero-art-panel {
-  background: linear-gradient(166deg, #14374A 0%, #0F2A38 54%, #0A1F2B 100%);
-  border-color: #1E4757;
-}
-:root[data-theme="dark"] .lp-hero-horizon { background: rgb(255 255 255 / 22%); }
-:root[data-theme="dark"] .lp-hero-horizon::before,
-:root[data-theme="dark"] .lp-hero-horizon::after { background: rgb(255 255 255 / 14%); }
-:root[data-theme="dark"] .lp-hero-sun { opacity: 0.85; }
-
-:root[data-theme="dark"] .lp-final-cta {
-  background: #101B26;
-  border: 1px solid var(--line);
-}
-:root[data-theme="dark"] .lp-final-cta h2 { color: #F0F6FC; }
-:root[data-theme="dark"] .lp-final-cta-copy > p:last-child { color: var(--muted); }
-:root[data-theme="dark"] .lp-final-cta .lp-eyebrow { color: var(--brand-700); }
-
-:root[data-theme="dark"] .lp-yt-player-wrap { background: #05090D; }
-
-/* Segmented auth tabs need more separation on a dark surface */
-:root[data-theme="dark"] .auth-tabs { background: var(--paper-muted); border-color: var(--line); }
-:root[data-theme="dark"] .auth-tab-active {
-  background: var(--brand-100);
-  color: var(--brand-700);
-  box-shadow: none;
-}
+/* No dark variant here on purpose: the landing is a single bright gam.
+   The theme switch lives in the dashboard only; LandingPage.tsx restores
+   the saved theme as soon as the learner enters the app. */

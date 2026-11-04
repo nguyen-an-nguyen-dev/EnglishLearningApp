@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { ThemeToggle } from '../ThemeToggle'
 import {
   ArrowCounterClockwise,
   ArrowRight,
@@ -71,7 +70,6 @@ export function LandingHeader({
             <a key={item.href} href={item.href} onClick={onCloseMenu}>{item.label}</a>
           ))}
           <div className="lp-mobile-nav-actions">
-            <ThemeToggle />
             {isAuthenticated ? (
               <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
                 Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
@@ -88,7 +86,6 @@ export function LandingHeader({
         </nav>
 
         <div className="lp-header-actions">
-          <ThemeToggle />
           {isAuthenticated ? (
             <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
               Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
@@ -632,7 +629,7 @@ export function LearningModesSection({
               <div className="lp-yt-player-wrap">
                 <iframe
                   className="lp-yt-iframe"
-                  src="https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=1&rel=0&modestbranding=1"
+                  src="https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=1&rel=0&modestbranding=1&cc_load_policy=0&iv_load_policy=3"
                   title="English Conversation Video Clip"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
@@ -941,13 +938,16 @@ export function LandingFooter() {
     <footer className="lp-footer">
       <div className="lp-footer-row">
         <div className="lp-footer-brand">
-          <a className="lp-wordmark" href="#top" aria-label="Engorace, về đầu trang">
-            <div className="lp-brand-logo-wrap" aria-hidden="true">
-              <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
-            </div>
-            <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
-          </a>
-          <span className="lp-footer-copy">© {new Date().getFullYear()} Engorace</span>
+          <div className="lp-footer-brand-line">
+            <a className="lp-wordmark" href="#top" aria-label="Engorace, về đầu trang">
+              <div className="lp-brand-logo-wrap" aria-hidden="true">
+                <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
+              </div>
+              <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
+            </a>
+            <span className="lp-footer-copy">© {new Date().getFullYear()} Engorace</span>
+          </div>
+          <p className="lp-footer-tagline">Luyện tiếng Anh qua tình huống đời thường, mỗi ngày một bài ngắn.</p>
         </div>
 
         <nav className="lp-footer-nav" aria-label="Liên kết chân trang">

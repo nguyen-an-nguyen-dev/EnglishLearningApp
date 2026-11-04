@@ -31,6 +31,8 @@ export const YOUTUBE_LOCKED_VARS = {
   cc_load_policy: 0,
   iv_load_policy: 3,
   rel: 0,
+  showinfo: 0,
+  autohide: 1,
   modestbranding: 1,
   playsinline: 1,
   enablejsapi: 1,

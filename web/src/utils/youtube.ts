@@ -7,6 +7,7 @@ export interface YouTubePlayerInstance {
   setPlaybackRate?: (rate: number) => void
   setPlaybackQuality?: (quality: string) => void
   setPlaybackQualityRange?: (start: string, end?: string) => void
+  setOption?: (module: string, option: string, value: unknown) => void
   unloadModule?: (module: string) => void
   destroy: () => void
 }
@@ -20,6 +21,8 @@ export interface YouTubeNamespace {
       events?: {
         onReady?: (event: { target: YouTubePlayerInstance }) => void
         onStateChange?: (event: { data: number; target: YouTubePlayerInstance }) => void
+        onApiChange?: (event: { target: YouTubePlayerInstance }) => void
+        onError?: (event: { data: number; target: YouTubePlayerInstance }) => void
       }
     },
   ) => YouTubePlayerInstance

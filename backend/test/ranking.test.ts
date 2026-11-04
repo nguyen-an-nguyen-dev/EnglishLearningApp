@@ -119,7 +119,7 @@ test('lesson completion awards eligible badges once and persists them', async ()
   const [badgeRows] = await testPool.execute<RowDataPacket[]>(
     `SELECT code FROM badges WHERE code IN ('first_lesson', 'lessons_10', 'xp_100', 'xp_500')`,
   );
-  assert.equal(badgeRows.length, 4, 'Run database/seed.sql before the badge integration tests.');
+  assert.equal(badgeRows.length, 4, 'Run backend/database/final.sql before the badge integration tests.');
 
   const [lessonRows] = await testPool.execute<LessonRow[]>(
     `SELECT l.id FROM lessons l JOIN stages s ON s.id = l.stage_id

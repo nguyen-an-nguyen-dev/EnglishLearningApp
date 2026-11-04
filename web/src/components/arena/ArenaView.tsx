@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ArrowClockwise,
   ArrowRight,
-  CheckCircle,
   Clock,
-  Fire,
   Flag,
   ImageSquare,
   Lightning,
-  Play,
   Sword,
-  Timer,
   Trophy,
   UsersThree,
   X,
@@ -20,7 +15,6 @@ import { useI18n } from '../../i18n'
 import {
   createBattleSocket,
   getArenaSummaryApi,
-  getPracticeQuestionsApi,
 } from '../../services/battleService'
 import type { BattleSocket } from '../../services/battleService'
 import type {
@@ -31,7 +25,6 @@ import type {
   BattleRoundEnd,
   BattleScore,
   BattleStart,
-  PracticeQuestion,
 } from '../../types/video'
 import { matchOutcome } from '../../utils/arena'
 import { setArenaLeaveGuard } from '../../utils/arenaGuard'
@@ -43,16 +36,11 @@ import {
   type BattleSessionSnapshot,
 } from '../../utils/battleSession'
 
-type ArenaMode = 'duel' | 'practice'
 type DuelScreen = 'lobby' | 'queue' | 'match' | 'result'
-type PracticeScreen = 'idle' | 'loading' | 'playing' | 'done'
-type PracticeFeedback = { picked: string | null; correct: boolean } | null
 type DuelConnection = { mode: 'queue' | 'resume'; matchId?: number; nonce: number }
 
-const PRACTICE_SECONDS = 15
 const DUEL_ROUNDS = 8
 const DUEL_SECONDS = 25
-const PRACTICE_COUNT = 12
 
 /** Three colour bands so the prompt card reads as A / B / C at a glance. */
 function levelBandOf(level: string): 'a' | 'b' | 'c' {
@@ -678,239 +666,9 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
   )
 }
 
-function PracticePanel() {
-  const { t } = useI18n()
-  const [screen, setScreen] = useState<PracticeScreen>('idle')
-  const [questions, setQuestions] = useState<PracticeQuestion[]>([])
-  const [index, setIndex] = useState(0)
-  const [feedback, setFeedback] = useState<PracticeFeedback>(null)
-  const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
-  const [bestStreak, setBestStreak] = useState(0)
-  const [secondsLeft, setSecondsLeft] = useState(PRACTICE_SECONDS)
-  const [error, setError] = useState<string | null>(null)
-  const advanceTimer = useRef<number | null>(null)
-  const answeredRef = useRef(false)
-
-  const clearAdvanceTimer = useCallback(() => {
-    if (advanceTimer.current !== null) {
-      window.clearTimeout(advanceTimer.current)
-      advanceTimer.current = null
-    }
-  }, [])
-
-  useEffect(() => () => clearAdvanceTimer(), [clearAdvanceTimer])
-
-  const advance = useCallback(() => {
-    setFeedback(null)
-    answeredRef.current = false
-    setSecondsLeft(PRACTICE_SECONDS)
-    setIndex((current) => {
-      if (current >= questions.length - 1) {
-        setScreen('done')
-        return current
-      }
-      return current + 1
-    })
-  }, [questions.length])
-
-  const settleAnswer = useCallback((picked: string | null) => {
-    if (answeredRef.current) return
-    answeredRef.current = true
-    const question = questions[index]
-    if (!question) return
-    const correct = picked === question.answer
-    setFeedback({ picked, correct })
-    if (correct) {
-      setScore((current) => current + 1)
-      const nextStreak = streak + 1
-      setStreak(nextStreak)
-      setBestStreak((best) => Math.max(best, nextStreak))
-    } else {
-      setStreak(0)
-    }
-    clearAdvanceTimer()
-    advanceTimer.current = window.setTimeout(advance, 1_500)
-  }, [advance, clearAdvanceTimer, index, questions, streak])
-
-  useEffect(() => {
-    if (screen !== 'playing' || feedback) return
-    answeredRef.current = false
-    const startedAt = Date.now()
-    const interval = window.setInterval(() => {
-      const left = Math.max(0, Math.ceil((PRACTICE_SECONDS * 1000 - (Date.now() - startedAt)) / 1000))
-      setSecondsLeft(left)
-      if (left <= 0) {
-        window.clearInterval(interval)
-        settleAnswer(null)
-      }
-    }, 500)
-    return () => window.clearInterval(interval)
-  }, [screen, index, feedback, settleAnswer])
-
-  async function startPractice() {
-    setScreen('loading')
-    setError(null)
-    try {
-      const loaded = await getPracticeQuestionsApi(PRACTICE_COUNT)
-      setQuestions(loaded)
-      setIndex(0)
-      setScore(0)
-      setStreak(0)
-      setBestStreak(0)
-      setFeedback(null)
-      answeredRef.current = false
-      setSecondsLeft(PRACTICE_SECONDS)
-      setScreen('playing')
-    } catch (loadError: unknown) {
-      setError(loadError instanceof Error ? loadError.message : t.arenaPracticeError)
-      setScreen('idle')
-    }
-  }
-
-  if (screen === 'idle' || screen === 'loading') {
-    return (
-      <section className="arena-lobby">
-        <div className="arena-lobby-copy">
-          <span className="arena-kicker">02 · {t.arenaPracticeTab}</span>
-          <h2>{t.arenaPracticeTitle}</h2>
-          <p>{t.arenaPracticeDesc}</p>
-          <ul className="arena-facts">
-            <li><Lightning size={16} /><span>{t.arenaPracticeCount(PRACTICE_COUNT)}</span></li>
-            <li><Timer size={16} /><span>{t.arenaPracticeSeconds(PRACTICE_SECONDS)}</span></li>
-            <li><Trophy size={16} /><span>{t.arenaPracticeLevel}</span></li>
-          </ul>
-          {error && <p className="arena-error">{error}</p>}
-          <button
-            type="button"
-            className="arena-cta"
-            onClick={() => void startPractice()}
-            disabled={screen === 'loading'}
-          >
-            {screen === 'loading'
-              ? <span className="video-spinner is-small" aria-hidden="true" />
-              : <Play size={16} weight="fill" />}
-            <span>{screen === 'loading' ? t.arenaPracticeLoading : t.arenaPracticeStart}</span>
-          </button>
-        </div>
-
-        <aside className="arena-rules">
-          <span className="arena-rules-label">{t.arenaPracticeRulesTitle}</span>
-          <ol>
-            <li><span>01</span><p>{t.arenaPracticeRuleOne}</p></li>
-            <li><span>02</span><p>{t.arenaPracticeRuleTwo}</p></li>
-            <li><span>03</span><p>{t.arenaPracticeRuleThree}</p></li>
-          </ol>
-        </aside>
-      </section>
-    )
-  }
-
-  if (screen === 'done') {
-    return (
-      <section className="arena-verdict is-draw">
-        <span className="arena-verdict-icon" aria-hidden="true"><Trophy size={40} weight="regular" /></span>
-        <span className="arena-kicker">{t.arenaPracticeTab}</span>
-        <h2>{t.arenaPracticeDoneTitle}</h2>
-        <p>{t.arenaPracticeDoneDesc(score, questions.length)}</p>
-        <div className="arena-verdict-scores">
-          <div className="is-you"><span>{t.arenaCorrect}</span><strong>{score}</strong></div>
-          <div><span>{t.arenaBestStreak}</span><strong>{bestStreak}</strong></div>
-        </div>
-        <div className="arena-verdict-actions">
-          <button type="button" className="arena-cta is-compact" onClick={() => void startPractice()}>
-            <ArrowClockwise size={16} /> {t.arenaRestart}
-          </button>
-        </div>
-      </section>
-    )
-  }
-
-  const question = questions[index]
-  if (!question) {
-    return (
-      <section className="arena-verdict">
-        <p>{t.arenaPracticeError}</p>
-        <button type="button" className="arena-cta is-compact" onClick={() => void startPractice()}>
-          {t.retry}
-        </button>
-      </section>
-    )
-  }
-
-  return (
-    <section className="arena-practice">
-      <header className="arena-practice-head">
-        <div>
-          <span className="arena-kicker">{t.arenaPracticeTab}</span>
-          <h2>{t.arenaPracticeQuestion(index + 1, questions.length)}</h2>
-        </div>
-        <div className="arena-run">
-          <span><Fire size={15} weight="fill" /> {streak}</span>
-          <span className={secondsLeft <= 5 ? 'is-urgent' : ''}>
-            <Timer size={15} weight="fill" /> {secondsLeft}s
-          </span>
-          <span><Trophy size={15} weight="fill" /> {score}</span>
-        </div>
-      </header>
-
-      <div className="arena-question">
-        <div className={`arena-prompt is-${levelBandOf(question.cefr_level)}`}>
-          <PromptFrame src={question.image_url} label={t.arenaImageSlot} />
-          <p className="arena-tags">
-            {question.cefr_level}<i>·</i>{question.part_of_speech}
-          </p>
-          <p className="arena-label">{t.arenaChooseTranslation}</p>
-          <h2>{question.translation}</h2>
-          <p className="arena-clue">{question.example}</p>
-          {question.example_vi && <p className="arena-clue-vi">{question.example_vi}</p>}
-        </div>
-
-        <div className="arena-reply">
-          <ol className="arena-options">
-            {question.options.map((option, position) => {
-              const isCorrect = option === question.answer
-              const isPicked = feedback?.picked === option
-              const stateClass = feedback
-                ? isCorrect ? ' is-correct' : isPicked ? ' is-wrong' : ''
-                : ''
-              return (
-                <li key={option}>
-                  <button
-                    type="button"
-                    className={`arena-option${stateClass}`}
-                    onClick={() => settleAnswer(option)}
-                    disabled={Boolean(feedback)}
-                  >
-                    <span className="arena-option-key">{String.fromCharCode(65 + position)}</span>
-                    <span className="arena-option-text">{option}</span>
-                    {feedback && isCorrect && <CheckCircle size={18} weight="fill" />}
-                    {feedback && isPicked && !isCorrect && <X size={18} />}
-                  </button>
-                </li>
-              )
-            })}
-          </ol>
-
-          {feedback && (
-            <p className={`arena-feedback${feedback.correct ? ' is-correct' : ' is-wrong'}`}>
-              {feedback.correct
-                ? t.arenaCorrect
-                : feedback.picked === null
-                  ? t.arenaPracticeTimeout(question.answer)
-                  : t.arenaPracticeWrong(question.answer)}
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 export function ArenaView() {
   const { t } = useI18n()
   const { user } = useAuth()
-  const [mode, setMode] = useState<ArenaMode>('duel')
   const [summary, setSummary] = useState<ArenaSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
   const [summaryKey, setSummaryKey] = useState(0)
@@ -944,33 +702,7 @@ export function ArenaView() {
         </div>
         <ArenaRecord summary={summary} loading={summaryLoading} />
       </header>
-
-      <div className="arena-switch" role="tablist" aria-label={t.arenaTitle}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'duel'}
-          className={`arena-switch-tab${mode === 'duel' ? ' is-active' : ''}`}
-          onClick={() => setMode('duel')}
-        >
-          <span>{t.arenaDuelTab}</span>
-          <small>{t.arenaDuelTabDesc}</small>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'practice'}
-          className={`arena-switch-tab${mode === 'practice' ? ' is-active' : ''}`}
-          onClick={() => setMode('practice')}
-        >
-          <span>{t.arenaPracticeTab}</span>
-          <small>{t.arenaPracticeTabDesc}</small>
-        </button>
-      </div>
-
-      {mode === 'duel'
-        ? <DuelPanel currentUserId={user?.id ?? 0} onSummaryRefresh={refreshSummary} />
-        : <PracticePanel />}
+      <DuelPanel currentUserId={user?.id ?? 0} onSummaryRefresh={refreshSummary} />
     </div>
   )
 }

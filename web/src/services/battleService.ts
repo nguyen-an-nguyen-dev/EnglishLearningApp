@@ -10,7 +10,6 @@ import type {
   BattleRoundEnd,
   BattleScore,
   BattleStart,
-  PracticeQuestion,
 } from '../types/video'
 
 interface ClientToServerEvents {
@@ -50,12 +49,6 @@ export async function getArenaSummaryApi(): Promise<ArenaSummary> {
   return requestApi<ArenaSummary>('/api/battle/summary')
 }
 
-export async function getPracticeQuestionsApi(count = 12): Promise<PracticeQuestion[]> {
-  const data = await requestApi<{ questions: PracticeQuestion[] }>(
-    `/api/battle/practice?count=${count}&levels=A1,A2,B1,B2`,
-  )
-  return data.questions
-}
 
 export type {
   BattleAnswerResult,

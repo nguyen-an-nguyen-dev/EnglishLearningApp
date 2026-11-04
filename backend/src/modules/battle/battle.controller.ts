@@ -17,14 +17,4 @@ export const getSummary: RequestHandler = async (request, response, next) => {
   }
 };
 
-export const getPractice: RequestHandler = async (request, response, next) => {
-  try {
-    requireUserId(request);
-    const count = battleService.parsePracticeCount(request.query.count);
-    const levels = battleService.parsePracticeLevels(request.query.levels);
-    const questions = await battleService.getPracticeQuestions(count, levels);
-    response.json({ success: true, data: { questions } });
-  } catch (error) {
-    next(error);
-  }
-};
+

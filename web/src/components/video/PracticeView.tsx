@@ -19,6 +19,30 @@ import { loadYouTubeApi, type YouTubePlayerInstance } from '../../utils/youtube'
 const SEGMENT_END_MARGIN_S = 0.12
 const SEGMENT_START_DRIFT_S = 0.5
 
+/**
+ * `cc_load_policy=0` only means "don't force captions on" — YouTube can still
+ * render auto captions from the viewer's own preference. Clear the track and
+ * unload the renderer as soon as the module exists, then repeat on every
+ * player event because the module is loaded lazily and can remount after a
+ * seek. The picture stays fully visible: we only turn the captions off, we do
+ * not hide the video (the learner explicitly wants to watch it).
+ */
+function stripCaptions(player: YouTubePlayerInstance) {
+  try {
+    player.setOption?.('captions', 'track', {})
+  } catch {
+    /* the captions module is not mounted yet — the next pass will catch it */
+  }
+  try {
+    player.unloadModule?.('captions')
+    player.unloadModule?.('cc')
+  } catch {
+    /* ignore a module that was never loaded */
+  }
+}
+
+const CAPTION_GUARD_MS = 400
+
 interface PracticePlayerProps {
   video: VideoLessonDetail
   segment: VideoSegment
@@ -41,18 +65,18 @@ function StageCover({
   onPlay: () => void
 }) {
   return (
-    <button type="button" className="parrot-cover" onClick={onPlay}>
+    <button type="button" className="practice-cover" onClick={onPlay}>
       {poster && (
         <span
-          className="parrot-cover-poster"
+          className="practice-cover-poster"
           aria-hidden="true"
           style={{ backgroundImage: `url("${poster}")` }}
         />
       )}
-      <span className="parrot-cover-play">
+      <span className="practice-cover-play">
         <Play size={22} weight="fill" />
       </span>
-      <span className="parrot-cover-label">{label}</span>
+      <span className="practice-cover-label">{label}</span>
     </button>
   )
 }
@@ -62,6 +86,8 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
   const hostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YouTubePlayerInstance | null>(null)
   const tickerRef = useRef<number | null>(null)
+  const captionGuardRef = useRef<number | null>(null)
+  const hasStartedRef = useRef(false)
   const segmentRef = useRef<VideoSegment>(segment)
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -77,6 +103,24 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     if (tickerRef.current !== null) {
       window.clearInterval(tickerRef.current)
       tickerRef.current = null
+    }
+  }, [])
+
+  /**
+   * The captions module can remount at any time (seek, quality change, ad
+   * break). While sound is playing we keep clearing it on a short timer, on
+   * top of the one-shot passes triggered by player events.
+   */
+  const startCaptionGuard = useCallback((player: YouTubePlayerInstance) => {
+    if (captionGuardRef.current !== null) return
+    stripCaptions(player)
+    captionGuardRef.current = window.setInterval(() => stripCaptions(player), CAPTION_GUARD_MS)
+  }, [])
+
+  const stopCaptionGuard = useCallback(() => {
+    if (captionGuardRef.current !== null) {
+      window.clearInterval(captionGuardRef.current)
+      captionGuardRef.current = null
     }
   }, [])
 
@@ -106,10 +150,12 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     const player = playerRef.current
     const current = segmentRef.current
     if (!player || !current) return
+    hasStartedRef.current = true
     player.seekTo(current.start_ms / 1000, true)
     player.playVideo()
+    startCaptionGuard(player)
     startTicker()
-  }, [startTicker])
+  }, [startCaptionGuard, startTicker])
 
   useEffect(() => {
     let cancelled = false
@@ -128,20 +174,32 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
             onReady: (event) => {
               if (cancelled) return
               const player = event.target as YouTubePlayerInstance
-              // Pin 720p and drop the caption renderer so nothing can turn it back on.
               player.setPlaybackQualityRange?.('hd720', 'hd720')
               player.setPlaybackQuality?.('hd720')
-              player.unloadModule?.('captions')
-              player.unloadModule?.('cc')
+              stripCaptions(player)
               setReady(true)
             },
+            onApiChange: (event) => {
+              // Fired when a module (notably `captions`) is loaded or unloaded.
+              if (!cancelled) stripCaptions(event.target as YouTubePlayerInstance)
+            },
             onStateChange: (event) => {
-              if (event.data === 1) {
+              if (cancelled) return
+              const player = event.target as YouTubePlayerInstance
+              stripCaptions(player)
+              // 1 = playing, 3 = buffering. Buffering only counts as "playing"
+              // after the learner has started a segment, otherwise the cover
+              // would flash away during the initial cue.
+              if (event.data === 1 || (event.data === 3 && hasStartedRef.current)) {
+                startCaptionGuard(player)
+                window.setTimeout(() => { if (!cancelled) stripCaptions(player) }, 350)
                 setPlaying(true)
                 startTicker()
                 return
               }
+              if (event.data === 3) return
               setPlaying(false)
+              stopCaptionGuard()
               stopTicker()
             },
           },
@@ -154,6 +212,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     return () => {
       cancelled = true
       stopTicker()
+      stopCaptionGuard()
       try {
         playerRef.current?.destroy()
       } catch {
@@ -161,7 +220,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
       }
       playerRef.current = null
     }
-  }, [startTicker, stopTicker, video.video_url])
+  }, [startCaptionGuard, startTicker, stopCaptionGuard, stopTicker, video.video_url])
 
   useEffect(() => {
     if (!ready || playToken === 0) return
@@ -170,7 +229,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
 
   if (failed || !embedUrl) {
     return (
-      <div className="video-stage parrot-stage">
+      <div className="video-stage practice-stage">
         {embedUrl && (
           <iframe
             className="video-frame"
@@ -179,6 +238,8 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
             allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
           />
         )}
+        {/* No IFrame API here: cc_load_policy=0 is the only caption guard, but
+            the video itself stays visible like everywhere else. */}
         <div className="video-fallback-note">
           <p>{t.videoYoutubeFallback}</p>
         </div>
@@ -187,12 +248,15 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
   }
 
   return (
-    <div className="video-stage parrot-stage">
+    <div className={`video-stage practice-stage${playing ? ' is-playing' : ''}`}>
       <div className="video-youtube-host" ref={hostRef} />
+      {/* YouTube shows its own pause overlay (history, related videos, logo)
+          whenever the iframe is paused. A custom cover keeps that chrome hidden
+          and still gives the learner a clear replay button. */}
       {!playing && (
         <StageCover
           poster={poster}
-          label={playToken === 0 ? t.parrotStart : t.parrotReplay}
+          label={playToken === 0 ? t.practiceStart : t.practiceReplay}
           onPlay={onPlay}
         />
       )}
@@ -222,7 +286,7 @@ function FilePracticePlayer({ video, segment, playToken, onPlay }: PracticePlaye
   }
 
   return (
-    <div className="video-stage parrot-stage">
+    <div className="video-stage practice-stage">
       <video
         className="video-file"
         ref={videoRef}
@@ -238,7 +302,7 @@ function FilePracticePlayer({ video, segment, playToken, onPlay }: PracticePlaye
       {!playing && (
         <StageCover
           poster={video.thumbnail_url ?? null}
-          label={playToken === 0 ? t.parrotStart : t.parrotReplay}
+          label={playToken === 0 ? t.practiceStart : t.practiceReplay}
           onPlay={onPlay}
         />
       )}
@@ -252,7 +316,7 @@ function PracticePlayer(props: PracticePlayerProps) {
     : <FilePracticePlayer {...props} />
 }
 
-interface ParrotPracticeViewProps {
+interface PracticeViewProps {
   video: VideoLessonDetail
   savedWords: SavedWord[]
   onSavedWord: (word: SavedWord) => void
@@ -263,7 +327,7 @@ function normalizeSavedWord(value: string): string {
   return value.toLocaleLowerCase('en').replace(/[^a-z0-9]/g, '')
 }
 
-export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: ParrotPracticeViewProps) {
+export function PracticeView({ video, savedWords, onSavedWord, onBack }: PracticeViewProps) {
   const { t } = useI18n()
   const segments = video.segments
   const [index, setIndex] = useState(0)
@@ -339,9 +403,9 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
           videoId: video.id,
         })
         onSavedWord(saved)
-        setSaveNote({ tone: 'ok', text: t.parrotWordSaved(saved.word) })
+        setSaveNote({ tone: 'ok', text: t.practiceWordSaved(saved.word) })
       } else {
-        setSaveNote({ tone: 'info', text: t.parrotWordSaving(token.raw) })
+        setSaveNote({ tone: 'info', text: t.practiceWordSaving(token.raw) })
         const lookup = await lookupWordApi(token.raw)
         const saved = await saveWordApi({
           word: lookup.word || token.raw,
@@ -351,10 +415,10 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
           videoId: video.id,
         })
         onSavedWord(saved)
-        setSaveNote({ tone: 'ok', text: t.parrotWordSaved(saved.word) })
+        setSaveNote({ tone: 'ok', text: t.practiceWordSaved(saved.word) })
       }
     } catch {
-      setSaveNote({ tone: 'error', text: t.parrotWordSaveFailed })
+      setSaveNote({ tone: 'error', text: t.practiceWordSaveFailed })
     } finally {
       setSavingWord(null)
     }
@@ -362,10 +426,10 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
 
   if (!segment) {
     return (
-      <div className="parrot-unavailable">
-        <span className="parrot-unavailable-icon"><Headphones size={44} weight="regular" /></span>
+      <div className="practice-unavailable">
+        <span className="practice-unavailable-icon"><Headphones size={44} weight="regular" /></span>
         <p>{t.videoListeningUnavailable}</p>
-        <button type="button" className="parrot-ghost-btn" onClick={onBack}>
+        <button type="button" className="practice-ghost-btn" onClick={onBack}>
           <span>{t.videoBack}</span>
         </button>
       </div>
@@ -374,22 +438,22 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
 
   if (finished) {
     return (
-      <div className="parrot-practice">
-        <div className="parrot-done">
-          <span className="parrot-done-star is-a" aria-hidden="true">*</span>
-          <span className="parrot-done-star is-b" aria-hidden="true">*</span>
-          <span className="parrot-done-star is-c" aria-hidden="true">*</span>
-          <span className="parrot-done-icon"><Trophy size={64} weight="regular" /></span>
-          <span className="parrot-done-eyebrow">{t.parrotDoneEyebrow}</span>
-          <h2>{t.parrotDoneTitle}</h2>
-          <p>{t.parrotDoneDesc(segments.length)}</p>
-          <div className="parrot-done-actions">
-            <button type="button" className="parrot-solid-btn" onClick={restart}>
+      <div className="practice-practice">
+        <div className="practice-done">
+          <span className="practice-done-star is-a" aria-hidden="true">*</span>
+          <span className="practice-done-star is-b" aria-hidden="true">*</span>
+          <span className="practice-done-star is-c" aria-hidden="true">*</span>
+          <span className="practice-done-icon"><Trophy size={64} weight="regular" /></span>
+          <span className="practice-done-eyebrow">{t.practiceDoneEyebrow}</span>
+          <h2>{t.practiceDoneTitle}</h2>
+          <p>{t.practiceDoneDesc(segments.length)}</p>
+          <div className="practice-done-actions">
+            <button type="button" className="practice-solid-btn" onClick={restart}>
               <ArrowClockwise size={16} weight="bold" />
-              <span>{t.parrotRestart}</span>
+              <span>{t.practiceRestart}</span>
             </button>
-            <button type="button" className="parrot-ghost-btn" onClick={onBack}>
-              <span>{t.parrotBackToLibrary}</span>
+            <button type="button" className="practice-ghost-btn" onClick={onBack}>
+              <span>{t.practiceBackToLibrary}</span>
             </button>
           </div>
         </div>
@@ -398,21 +462,21 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
   }
 
   return (
-    <div className="parrot-practice">
-      <div className="parrot-layout">
-        <div className="parrot-media-column">
-          <div className="parrot-player-card">
-            <div className="parrot-player-head">
-              <span className="parrot-player-index">{paddedIndex} / {paddedTotal}</span>
-              <span className="parrot-player-time">
+    <div className="practice-practice">
+      <div className="practice-layout">
+        <div className="practice-media-column">
+          <div className="practice-player-card">
+            <div className="practice-player-head">
+              <span className="practice-player-index">{paddedIndex} / {paddedTotal}</span>
+              <span className="practice-player-time">
                 {formatClock(segment.start_ms / 1000)} – {formatClock(segment.end_ms / 1000)}
               </span>
               <button
                 type="button"
-                className="parrot-head-replay"
+                className="practice-head-replay"
                 onClick={replaySegment}
-                aria-label={playToken === 0 ? t.parrotStart : t.parrotReplay}
-                title={playToken === 0 ? t.parrotStart : t.parrotReplay}
+                aria-label={playToken === 0 ? t.practiceStart : t.practiceReplay}
+                title={playToken === 0 ? t.practiceStart : t.practiceReplay}
               >
                 <ArrowClockwise size={15} weight="bold" />
               </button>
@@ -425,28 +489,28 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
               onPlay={replaySegment}
             />
 
-            <div className="parrot-ticks is-on-media" aria-hidden="true">
+            <div className="practice-ticks is-on-media" aria-hidden="true">
               {segments.map((entry, tick) => (
                 <span
                   key={entry.id}
-                  className={`parrot-tick${tick < index ? ' is-done' : ''}${tick === index ? ' is-current' : ''}`}
+                  className={`practice-tick${tick < index ? ' is-done' : ''}${tick === index ? ' is-current' : ''}`}
                 />
               ))}
             </div>
 
-            <p className="parrot-player-note">{t.parrotControlHint}</p>
+            <p className="practice-player-note">{t.practiceControlHint}</p>
           </div>
         </div>
 
-        <section className="parrot-board" aria-label={t.parrotTitle}>
-          <div className="parrot-board-head">
-            <h2 className="parrot-board-title">
+        <section className="practice-board" aria-label={t.practiceTitle}>
+          <div className="practice-board-head">
+            <h2 className="practice-board-title">
               <Headphones size={18} weight="bold" />
-              {t.parrotTitle}
+              {t.practiceTitle}
             </h2>
           </div>
 
-          <div className="parrot-script" aria-label={t.parrotScript}>
+          <div className="practice-script" aria-label={t.practiceScript}>
             {scriptTokens.map((token, tokenIndex) => {
               const isRevealed = revealed.has(tokenIndex)
               const prefixLength = match.prefixes.get(tokenIndex) ?? 0
@@ -456,9 +520,9 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
                 <button
                   key={`${token.clean}-${tokenIndex}`}
                   type="button"
-                  className={`parrot-word${isRevealed ? ' is-revealed' : prefixLength > 0 ? ' is-partial' : ' is-hidden'}${isSaved ? ' is-saved' : ''}`}
-                  aria-label={isRevealed ? undefined : t.parrotHiddenWord(token.raw.length)}
-                  title={canSave ? t.parrotSaveWordHint : undefined}
+                  className={`practice-word${isRevealed ? ' is-revealed' : prefixLength > 0 ? ' is-partial' : ' is-hidden'}${isSaved ? ' is-saved' : ''}`}
+                  aria-label={isRevealed ? undefined : t.practiceHiddenWord(token.raw.length)}
+                  title={canSave ? t.practiceSaveWordHint : undefined}
                   disabled={!canSave}
                   onClick={canSave ? () => void saveScriptWord(token) : undefined}
                 >
@@ -467,42 +531,42 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
                     : (
                       <>
                         {prefixLength > 0 && (
-                          <span className="parrot-prefix" aria-hidden="true">{token.raw.slice(0, prefixLength)}</span>
+                          <span className="practice-prefix" aria-hidden="true">{token.raw.slice(0, prefixLength)}</span>
                         )}
                         <span aria-hidden="true">{'*'.repeat(token.raw.length - prefixLength)}</span>
                       </>
                     )}
-                  {isSaved && <CheckCircle className="parrot-word-saved" size={12} weight="fill" aria-hidden="true" />}
-                  {savingWord === token.clean && <span className="parrot-save-spinner" aria-hidden="true" />}
+                  {isSaved && <CheckCircle className="practice-word-saved" size={12} weight="fill" aria-hidden="true" />}
+                  {savingWord === token.clean && <span className="practice-save-spinner" aria-hidden="true" />}
                 </button>
               )
             })}
           </div>
-          <p className="parrot-save-hint">
+          <p className="practice-save-hint">
             <CheckCircle size={13} weight="regular" />
-            <span>{t.parrotSaveWordHint}</span>
+            <span>{t.practiceSaveWordHint}</span>
           </p>
           {saveNote && (
-            <p className={`parrot-save-note is-${saveNote.tone}`} role="status">
+            <p className={`practice-save-note is-${saveNote.tone}`} role="status">
               {saveNote.tone === 'info'
-                ? <span className="parrot-save-spinner" aria-hidden="true" />
+                ? <span className="practice-save-spinner" aria-hidden="true" />
                 : <CheckCircle size={14} weight="fill" />}
               <span>{saveNote.text}</span>
             </p>
           )}
 
-          <div className="parrot-progress-row">
-            <span>{t.parrotRevealed(revealed.size, scriptTokens.length)}</span>
+          <div className="practice-progress-row">
+            <span>{t.practiceRevealed(revealed.size, scriptTokens.length)}</span>
             <strong>{percent}%</strong>
           </div>
-          <div className="parrot-meter" aria-hidden="true">
+          <div className="practice-meter" aria-hidden="true">
             <span style={{ width: `${percent}%` }} />
           </div>
 
-          <label className="parrot-input-label" htmlFor="parrot-answer">{t.parrotInputLabel}</label>
+          <label className="practice-input-label" htmlFor="practice-answer">{t.practiceInputLabel}</label>
           <textarea
-            id="parrot-answer"
-            className={`parrot-input${complete ? ' is-complete' : ''}`}
+            id="practice-answer"
+            className={`practice-input${complete ? ' is-complete' : ''}`}
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
             onKeyDown={(event) => {
@@ -511,7 +575,7 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
                 if (complete) goNext()
               }
             }}
-            placeholder={t.parrotPlaceholder}
+            placeholder={t.practicePlaceholder}
             rows={3}
             spellCheck={false}
             autoCapitalize="none"
@@ -519,21 +583,21 @@ export function ParrotPracticeView({ video, savedWords, onSavedWord, onBack }: P
           />
 
           {complete ? (
-            <p className="parrot-success" role="status">
+            <p className="practice-success" role="status">
               <CheckCircle size={17} weight="fill" />
-              <span>{t.parrotSuccess}</span>
+              <span>{t.practiceSuccess}</span>
             </p>
           ) : (
-            <p className="parrot-hint">{t.parrotLockedHint}</p>
+            <p className="practice-hint">{t.practiceLockedHint}</p>
           )}
 
           <button
             type="button"
-            className="parrot-next"
+            className="practice-next"
             disabled={!complete}
             onClick={goNext}
           >
-            <span>{index + 1 >= segments.length ? t.parrotFinish : t.parrotNext}</span>
+            <span>{index + 1 >= segments.length ? t.practiceFinish : t.practiceNext}</span>
             <ArrowRight size={17} weight="bold" />
           </button>
         </section>

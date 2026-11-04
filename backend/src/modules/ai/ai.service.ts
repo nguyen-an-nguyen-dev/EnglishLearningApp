@@ -125,13 +125,13 @@ export async function requestAi(messages: ProviderMessage[]): Promise<AiReply> {
     throw new HttpError(429, 'The AI service is busy. Please wait a moment and try again.');
   }
   if (response.status === 401 || response.status === 403) {
-    throw new HttpError(503, 'Gemini rejected the backend API key or its permissions. Check the backend AI_API_KEY.');
+    throw new HttpError(503, 'The AI provider rejected the backend API key or its permissions. Check the backend AI_API_KEY.');
   }
   if (response.status === 400 || response.status === 404) {
-    throw new HttpError(503, 'Gemini rejected the model or request format. Check the backend AI_MODEL and Gemini API settings.');
+    throw new HttpError(503, 'The AI provider rejected the model or request format. Check the backend AI_MODEL settings.');
   }
   if (!response.ok) {
-    throw new HttpError(503, 'Gemini is temporarily unavailable. Please try again later.');
+    throw new HttpError(503, 'The AI service is temporarily unavailable. Please try again later.');
   }
 
   let payload: unknown;

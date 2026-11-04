@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowClockwise,
@@ -18,7 +18,7 @@ import {
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
 import { ApiError } from '../../services/apiClient'
-import { ParrotPracticeView } from './ParrotPracticeView'
+import { PracticeView } from './PracticeView'
 import { VideoNotebookView } from './VideoNotebookView'
 import {
   deleteVideoApi,
@@ -29,6 +29,7 @@ import {
 } from '../../services/videoService'
 import type {
   SavedWord,
+  VideoAnalysisModel,
   VideoLessonDetail,
   VideoLessonSummary,
 } from '../../types/video'
@@ -110,41 +111,40 @@ function VideoLessonView({
 
   return (
     <div className="video-detail">
-      <div className="parrot-topbar">
-        <button type="button" className="parrot-back-btn" onClick={onBack}>
+      <div className="practice-topbar">
+        <button type="button" className="practice-back-btn" onClick={onBack}>
           <ArrowLeft size={19} weight="regular" />
           <span>{t.videoBack}</span>
         </button>
-        <div className="parrot-topbar-meta">
-          <span className="parrot-meta is-solid">{video.cefr_level}</span>
-          <span className="parrot-meta">{video.topic}</span>
-          <span className="parrot-meta"><Clock size={12} weight="bold" /> {formatClock(video.duration_seconds)}</span>
+        <div className="practice-topbar-meta">
+          <span className="practice-meta is-solid">{video.cefr_level}</span>
+          <span className="practice-meta">{video.topic}</span>
+          <span className="practice-meta"><Clock size={12} weight="bold" /> {formatClock(video.duration_seconds)}</span>
           {hasSegments && (
-            <span className="parrot-meta"><Headphones size={12} weight="bold" /> {t.videoSegmentsCount(video.segments.length)}</span>
+            <span className="practice-meta"><Headphones size={12} weight="bold" /> {t.videoSegmentsCount(video.segments.length)}</span>
           )}
           {completed && (
-            <span className="parrot-meta is-solid"><CheckCircle size={12} weight="fill" /> {t.videoCompleted}</span>
+            <span className="practice-meta is-solid"><CheckCircle size={12} weight="fill" /> {t.videoCompleted}</span>
           )}
-          <button type="button" className="parrot-notebook-btn" onClick={onOpenNotebook}>
+          <button type="button" className="practice-notebook-btn" onClick={onOpenNotebook}>
             <BookOpenText size={13} />
             <span>{t.videoNotebook}</span>
-            <strong>{savedWords.length}</strong>
           </button>
         </div>
       </div>
 
-      <header className="parrot-hero">
-        <div className="parrot-hero-copy">
-          <span className="parrot-eyebrow">
+      <header className="practice-hero">
+        <div className="practice-hero-copy">
+          <span className="practice-eyebrow">
             <Headphones size={14} weight="bold" />
-            {t.parrotEyebrow}
+            {t.practiceEyebrow}
           </span>
           <h1>{video.title}</h1>
           {video.description && <p>{video.description}</p>}
         </div>
         {hasSegments && (
-          <div className="parrot-hero-mark" aria-hidden="true">
-            <span>{t.parrotSegmentsUnit}</span>
+          <div className="practice-hero-mark" aria-hidden="true">
+            <span>{t.practiceSegmentsUnit}</span>
             <strong>{segmentNumber}</strong>
             <small>* * *</small>
           </div>
@@ -152,17 +152,17 @@ function VideoLessonView({
       </header>
 
       {hasSegments ? (
-        <ParrotPracticeView
+        <PracticeView
           video={video}
           savedWords={savedWords}
           onSavedWord={onSavedWord}
           onBack={onBack}
         />
       ) : (
-        <div className="parrot-unavailable">
-          <span className="parrot-unavailable-icon"><Headphones size={44} weight="regular" /></span>
+        <div className="practice-unavailable">
+          <span className="practice-unavailable-icon"><Headphones size={44} weight="regular" /></span>
           <p>{t.videoListeningUnavailable}</p>
-          <button type="button" className="parrot-ghost-btn" onClick={onBack}>
+          <button type="button" className="practice-ghost-btn" onClick={onBack}>
             <span>{t.videoBack}</span>
           </button>
         </div>
@@ -170,8 +170,6 @@ function VideoLessonView({
     </div>
   )
 }
-
-type VideoScope = 'all' | 'library' | 'mine'
 
 export function VideoLearningView() {
   const { t } = useI18n()
@@ -187,14 +185,16 @@ export function VideoLearningView() {
   const [savedWords, setSavedWords] = useState<SavedWord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [level, setLevel] = useState('all')
-  const [scope, setScope] = useState<VideoScope>('all')
   const [view, setView] = useState<'library' | 'notebook'>('library')
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [importOpen, setImportOpen] = useState(false)
   const [importUrl, setImportUrl] = useState('')
+  const [analysisModel, setAnalysisModel] = useState<VideoAnalysisModel>('bolt')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const importDialogRef = useRef<HTMLDialogElement>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
@@ -221,23 +221,25 @@ export function VideoLearningView() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  const scopedVideos = useMemo(() => {
-    if (scope === 'mine') return videos.filter((video) => video.is_owned)
-    if (scope === 'library') return videos.filter((video) => !video.is_owned)
-    return videos
-  }, [scope, videos])
-  const levels = useMemo(
-    () => Array.from(new Set(scopedVideos.map((video) => video.cefr_level))).sort(),
-    [scopedVideos],
-  )
-  const filteredVideos = useMemo(
-    () => level === 'all' ? scopedVideos : scopedVideos.filter((video) => video.cefr_level === level),
-    [level, scopedVideos],
-  )
+  useEffect(() => {
+    const dialog = importDialogRef.current
+    if (!dialog) return
+    if (importOpen && !dialog.open) {
+      dialog.showModal()
+      importInputRef.current?.focus()
+    }
+    if (!importOpen && dialog.open) dialog.close()
+  }, [importOpen])
+
   const completedCount = videos.filter((video) => video.progress?.completed).length
   const earnedXp = videos
     .filter((video) => video.progress?.completed)
     .reduce((sum, video) => sum + video.xp_reward, 0)
+  const analysisModels: Array<{ id: VideoAnalysisModel; label: string; hint: string }> = [
+    { id: 'bolt', label: t.videoModelBolt, hint: t.videoModelBoltHint },
+    { id: 'gemini', label: t.videoModelGemini, hint: t.videoModelGeminiHint },
+  ]
+  const analysisModelLabel = analysisModel === 'gemini' ? t.videoModelGemini : t.videoModelBolt
 
   function importErrorMessage(importFailure: unknown): string {
     if (importFailure instanceof ApiError) {
@@ -261,12 +263,13 @@ export function VideoLearningView() {
     setImporting(true)
     setImportError(null)
     try {
-      const video = await importVideoApi(url)
+      const video = await importVideoApi(url, analysisModel)
       setVideos((current) => [
         video,
         ...current.filter((entry) => entry.id !== video.id),
       ])
       setImportUrl('')
+      setImportOpen(false)
       setSelectedVideoId(video.id)
     } catch (importFailure) {
       setImportError(importErrorMessage(importFailure))
@@ -327,11 +330,20 @@ export function VideoLearningView() {
           <p>{t.videosDesc}</p>
         </div>
         <div className="video-heading-actions">
-          <span className="page-note"><YoutubeLogo size={16} weight="duotone" /> {t.videosNote}</span>
+          <button
+            type="button"
+            className="video-add-btn"
+            onClick={() => {
+              setImportError(null)
+              setImportOpen(true)
+            }}
+          >
+            <Plus size={15} weight="bold" />
+            <span>{t.videoAddAction}</span>
+          </button>
           <button type="button" className="video-notebook-link" onClick={() => setView('notebook')}>
             <BookOpenText size={15} />
             <span>{t.videoNotebook}</span>
-            <strong>{savedWords.length}</strong>
           </button>
         </div>
       </div>
@@ -354,31 +366,109 @@ export function VideoLearningView() {
         </div>
       </section>
 
-      <section className="video-import-card" aria-label={t.videoImportTitle}>
-        <div className="video-import-head">
-          <span className="video-section-label"><YoutubeLogo size={16} weight="fill" /> {t.videoImportTitle}</span>
-          <span className="video-import-hint">{t.videoImportHint}</span>
-        </div>
-        <p className="video-import-desc">{t.videoImportDesc}</p>
-        <form className="video-import-form" onSubmit={(event) => void handleImport(event)}>
-          <label className="video-import-field">
-            <LinkSimple size={17} />
-            <input
-              type="url"
-              value={importUrl}
-              onChange={(event) => setImportUrl(event.target.value)}
-              placeholder={t.videoImportPlaceholder}
-              aria-label={t.videoImportTitle}
+      <dialog
+        ref={importDialogRef}
+        className="video-import-dialog"
+        aria-labelledby="video-import-dialog-title"
+        aria-busy={importing}
+        onCancel={(event) => {
+          if (importing) event.preventDefault()
+        }}
+        onClose={() => setImportOpen(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget && !importing) setImportOpen(false)
+        }}
+      >
+        <div className={`video-import-dialog-panel${importing ? ' is-analyzing' : ''}`}>
+          <div className="video-import-dialog-head">
+            <div className="video-import-dialog-copy">
+              <span className="video-section-label"><YoutubeLogo size={16} weight="fill" /> {t.videoImportTitle}</span>
+              <h2 id="video-import-dialog-title">{t.videoImportDialogTitle}</h2>
+              <p className="video-import-desc">{t.videoImportDesc}</p>
+            </div>
+            <button
+              type="button"
+              className="video-import-dialog-close"
+              onClick={() => setImportOpen(false)}
               disabled={importing}
-            />
-          </label>
-          <button type="submit" className="video-primary-btn" disabled={importing || !importUrl.trim()}>
-            {importing ? <span className="video-spinner is-small" aria-hidden="true" /> : <Plus size={16} weight="bold" />}
-            <span>{importing ? t.videoImporting : t.videoImportAction}</span>
-          </button>
-        </form>
-        {importError && <p className="video-import-error" role="alert">{importError}</p>}
-      </section>
+              aria-label={t.close}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <form className="video-import-dialog-form" onSubmit={(event) => void handleImport(event)}>
+            <label className="video-import-field is-dialog">
+              <LinkSimple size={17} />
+              <input
+                ref={importInputRef}
+                type="url"
+                value={importUrl}
+                onChange={(event) => setImportUrl(event.target.value)}
+                placeholder={t.videoImportPlaceholder}
+                aria-label={t.videoImportTitle}
+                disabled={importing}
+              />
+            </label>
+
+            <div className="video-import-model-section">
+              <span className="video-import-options-label">
+                <Sparkle size={13} weight="fill" />
+                {t.videoModelLabel}
+              </span>
+              <div className="video-model-switch" role="radiogroup" aria-label={t.videoModelLabel}>
+                {analysisModels.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={analysisModel === model.id}
+                    className={`video-model-option${analysisModel === model.id ? ' is-active' : ''}`}
+                    onClick={() => setAnalysisModel(model.id)}
+                    disabled={importing}
+                  >
+                    <span className="video-model-radio" aria-hidden="true" />
+                    <span className="video-model-copy">
+                      <strong>{model.label}</strong>
+                      <small>{model.hint}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {importing && (
+              <div className="video-import-status" role="status" aria-live="polite">
+                <span className="video-spinner" aria-hidden="true" />
+                <div className="video-import-status-copy">
+                  <strong>{t.videoAnalyzing}</strong>
+                  <small>{t.videoAnalyzingHint(analysisModelLabel)}</small>
+                </div>
+                <span className="video-import-status-line" aria-hidden="true"><span /></span>
+              </div>
+            )}
+
+            {importError && <p className="video-import-error" role="alert">{importError}</p>}
+
+            <div className="video-import-dialog-footer">
+              <div className="video-import-dialog-actions">
+                <button
+                  type="button"
+                  className="video-ghost-btn"
+                  onClick={() => setImportOpen(false)}
+                  disabled={importing}
+                >
+                  <span>{t.videoCancel}</span>
+                </button>
+                <button type="submit" className="video-primary-btn" disabled={importing || !importUrl.trim()}>
+                  {importing ? <span className="video-spinner is-small" aria-hidden="true" /> : <Plus size={16} weight="bold" />}
+                  <span>{importing ? t.videoImporting : t.videoImportAction}</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </dialog>
 
       {notice && (
         <div className={`video-toast is-${notice.tone}`} role="status">
@@ -389,46 +479,6 @@ export function VideoLearningView() {
           </button>
         </div>
       )}
-
-      <div className="video-scope-row">
-        {([
-          ['all', t.videoScopeAll],
-          ['library', t.videoScopeLibrary],
-          ['mine', t.videoScopeMine],
-        ] as Array<[VideoScope, string]>).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`video-scope-chip${scope === value ? ' is-active' : ''}`}
-            onClick={() => {
-              setScope(value)
-              setLevel('all')
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="video-filter-row">
-        <button
-          type="button"
-          className={`video-filter-chip${level === 'all' ? ' is-active' : ''}`}
-          onClick={() => setLevel('all')}
-        >
-          {t.videoAllLevels}
-        </button>
-        {levels.map((entry) => (
-          <button
-            key={entry}
-            type="button"
-            className={`video-filter-chip${level === entry ? ' is-active' : ''}`}
-            onClick={() => setLevel(entry)}
-          >
-            {entry}
-          </button>
-        ))}
-      </div>
 
       {loading && (
         <div className="video-state-card">
@@ -451,15 +501,15 @@ export function VideoLearningView() {
         </div>
       )}
 
-      {!loading && !error && filteredVideos.length === 0 && (
+      {!loading && !error && videos.length === 0 && (
         <div className="video-state-card">
-          <p>{scope === 'mine' ? t.videoMineEmpty : t.videoEmpty}</p>
+          <p>{t.videoLibraryEmpty}</p>
         </div>
       )}
 
-      {!loading && !error && filteredVideos.length > 0 && (
+      {!loading && !error && videos.length > 0 && (
         <div className="video-grid">
-          {filteredVideos.map((video) => {
+          {videos.map((video) => {
             const thumb = video.thumbnail_url ?? youtubeThumbnailUrl(video.video_url)
             const completed = Boolean(video.progress?.completed)
             const ratio = videoCompletionRatio(
@@ -483,6 +533,11 @@ export function VideoLearningView() {
                   {completed && (
                     <span className="video-thumb-done">
                       <CheckCircle size={16} weight="fill" /> {t.videoCompleted}
+                    </span>
+                  )}
+                  {ratio > 0 && (
+                    <span className="video-thumb-progress" aria-hidden="true">
+                      <span style={{ width: `${ratio}%` }} />
                     </span>
                   )}
                 </button>
@@ -509,14 +564,13 @@ export function VideoLearningView() {
                   <h3>{video.title}</h3>
                   {video.description && <p>{video.description}</p>}
                   <div className="video-card-footer">
-                    <div className="video-card-progress">
-                      <div className="video-meter-track" aria-hidden="true">
-                        <span style={{ width: `${ratio}%` }} />
-                      </div>
-                      <small>{completed ? t.videoCompleted : t.videoProgressLabel(ratio)}</small>
-                    </div>
-                    <span className="video-card-xp">
-                      {video.xp_reward > 0 ? `+${video.xp_reward} XP` : t.videoPractice}
+                    <span className="video-card-progress-text">
+                      {completed ? t.videoCompleted : t.videoProgressLabel(ratio)}
+                    </span>
+                    <span className={`video-card-badge ${video.xp_reward > 0 ? 'is-xp' : 'is-practice'}`}>
+                      {video.xp_reward > 0
+                        ? <><Sparkle size={11} weight="fill" /><span>+{video.xp_reward} XP</span></>
+                        : <><Headphones size={11} weight="bold" /><span>{t.videoPractice}</span></>}
                     </span>
                   </div>
                   <button

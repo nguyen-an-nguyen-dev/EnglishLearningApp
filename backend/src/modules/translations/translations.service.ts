@@ -156,7 +156,7 @@ async function requestProvider(
 
   if (response.status === 401 || response.status === 403) {
     throw new ProviderAttemptError(
-      new HttpError(503, 'Gemini rejected the backend API key or its permissions. Check backend AI_API_KEY.'),
+      new HttpError(503, 'The AI provider rejected the backend API key or its permissions. Check backend AI_API_KEY.'),
       false,
     );
   }
@@ -168,7 +168,7 @@ async function requestProvider(
   }
   if (response.status === 400 || response.status === 404) {
     throw new ProviderAttemptError(
-      new HttpError(503, 'Gemini rejected the model or request. Check backend AI_MODEL and Gemini settings.'),
+      new HttpError(503, 'The AI provider rejected the model or request. Check backend AI_MODEL.'),
       true,
     );
   }

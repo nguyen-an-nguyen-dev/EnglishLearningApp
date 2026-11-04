@@ -44,6 +44,30 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     return () => window.removeEventListener('keydown', handleMenuKeyDown)
   }, [menuOpen])
 
+  // The landing has no dark mode: one bright cyan gam from header to footer.
+  // Force the light token set while mounted, then restore the learner's saved
+  // theme so the dashboard is unchanged when they enter the app.
+  useEffect(() => {
+    const root = document.documentElement
+    const previousTheme = root.dataset.theme
+    const previousColorScheme = root.style.colorScheme
+    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    const previousMeta = themeMeta?.content ?? null
+
+    root.classList.add('lp-active')
+    root.dataset.theme = 'light'
+    root.style.colorScheme = 'light'
+    if (themeMeta) themeMeta.content = '#E4F7FF'
+
+    return () => {
+      root.classList.remove('lp-active')
+      if (previousTheme === undefined) delete root.dataset.theme
+      else root.dataset.theme = previousTheme
+      root.style.colorScheme = previousColorScheme
+      if (themeMeta && previousMeta !== null) themeMeta.content = previousMeta
+    }
+  }, [])
+
   // Reveal-on-scroll: reveal once, then stay visible.
   // Two-way reveal made sections vanish when scrolling back up, which read as jank.
   useEffect(() => {
@@ -125,8 +149,8 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
               </button>
               <span className="lp-final-cta-mark" aria-hidden="true">A1</span>
             </section>
-            <LandingFooter />
           </div>
+          <LandingFooter />
         </div>
       </main>
 
