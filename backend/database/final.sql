@@ -95,7 +95,7 @@ CREATE TABLE `users` (
 CREATE TABLE `chats` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint(20) unsigned NOT NULL,
-  `topic` enum('DAILY_CONVERSATION','TRAVEL','FOOD','SHOPPING','SCHOOL','FAMILY','HOBBIES','JOB_INTERVIEW') NOT NULL DEFAULT 'DAILY_CONVERSATION',
+  `topic` enum('DAILY_CONVERSATION','TRAVEL','FOOD','SHOPPING','SCHOOL','FAMILY','HOBBIES','JOB_INTERVIEW','STUDY_COACH') NOT NULL DEFAULT 'DAILY_CONVERSATION',
   `title` varchar(200) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),

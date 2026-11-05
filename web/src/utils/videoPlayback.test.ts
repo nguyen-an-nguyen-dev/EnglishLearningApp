@@ -16,7 +16,7 @@ test('YouTube URLs are converted to privacy-friendly embeds', () => {
   assert.equal(youtubeVideoId('https://youtu.be/juKd26qkNAw?t=10'), 'juKd26qkNAw')
   assert.equal(
     youtubeEmbedUrl('https://www.youtube.com/watch?v=juKd26qkNAw'),
-    'https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=0&disablekb=1&fs=0&cc_load_policy=0&iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&vq=hd720',
+    'https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=0&disablekb=1&fs=0&cc_load_policy=0&iv_load_policy=3&rel=0&showinfo=0&autohide=1&modestbranding=1&playsinline=1&enablejsapi=1&vq=hd720',
   )
   assert.equal(
     youtubeThumbnailUrl('https://www.youtube.com/watch?v=juKd26qkNAw'),

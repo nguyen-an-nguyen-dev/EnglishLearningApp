@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { HttpError } from '../../middleware/error-handler';
 import * as aiService from './ai.service';
-import { parseAiTopic, parseChatId, parseUserMessage } from './ai.validation';
+import { parseAiTopic, parseChatId, parseChatTurn } from './ai.validation';
 
 export const listChats: RequestHandler = async (request, response, next) => {
   try {
@@ -50,9 +50,25 @@ export const sendMessage: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
     const chatId = parseChatId(request.params.chatId);
-    const message = parseUserMessage(request.body);
-    const data = await aiService.sendMessage(request.auth.userId, chatId, message);
+    const turn = parseChatTurn(request.body);
+    const data = await aiService.sendMessage(
+      request.auth.userId,
+      chatId,
+      turn.message,
+      turn.intent,
+      turn.context,
+    );
     response.status(201).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStudyPlan: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const plan = await aiService.getStudyPlan(request.auth.userId);
+    response.json({ success: true, data: plan });
   } catch (error) {
     next(error);
   }

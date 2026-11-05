@@ -56,7 +56,18 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
   }
 
   return (
-    <div className="tab-view-container profile-view">
+    <div
+      className="tab-view-container profile-view"
+      data-user-name={displayName}
+      data-user-email={user?.email || ''}
+      data-user-xp={xp}
+      data-user-streak={streak}
+      data-lessons-done={done}
+      data-lessons-total={lessons.length}
+      data-progress-percent={percent}
+      data-current-stage={currentStage?.title || ''}
+      data-badges-count={badges.length}
+    >
       <header className="page-heading">
         <span className="page-eyebrow">{t.profileEyebrow}</span>
         <h1>{t.profileTitle}</h1>
@@ -147,8 +158,8 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
             {t.tipBody(streak)}
           </p>
           <button type="button" className="profile-logout" onClick={onLogout}>
-            <SignOut size={17} weight="regular" />
-            <span>{t.logoutLong}</span>
+            <SignOut size={16} weight="bold" />
+            <span>{t.logoutShort}</span>
           </button>
         </aside>
       </div>

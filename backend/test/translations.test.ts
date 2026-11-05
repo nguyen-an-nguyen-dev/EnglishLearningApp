@@ -298,3 +298,29 @@ test('a long pasted text also splits into chunks instead of waiting on one slow 
   const result = await response.json() as { data: { translatedText: string } };
   assert.equal(result.data.translatedText, ['CC', 'CC', 'CC'].join('\n'));
 });
+
+test('DELETE /api/translations clears the signed-in user history', async () => {
+  const auth = { Authorization: `Bearer ${token}` };
+  const history = await fetch(`${baseUrl}/api/translations`, { headers: auth });
+  assert.equal(history.status, 200);
+  const historyBody = await history.json() as { data: { translations: unknown[] } };
+  assert.ok(historyBody.data.translations.length > 0);
+
+  const unauthorized = await fetch(`${baseUrl}/api/translations`, { method: 'DELETE' });
+  assert.equal(unauthorized.status, 401);
+
+  const cleared = await fetch(`${baseUrl}/api/translations`, { method: 'DELETE', headers: auth });
+  assert.equal(cleared.status, 200);
+  const clearedBody = await cleared.json() as { data: { deleted: number } };
+  assert.equal(clearedBody.data.deleted, historyBody.data.translations.length);
+
+  const emptyHistory = await fetch(`${baseUrl}/api/translations`, { headers: auth });
+  assert.equal(emptyHistory.status, 200);
+  const emptyBody = await emptyHistory.json() as { data: { translations: unknown[] } };
+  assert.equal(emptyBody.data.translations.length, 0);
+
+  const clearedAgain = await fetch(`${baseUrl}/api/translations`, { method: 'DELETE', headers: auth });
+  assert.equal(clearedAgain.status, 200);
+  const clearedAgainBody = await clearedAgain.json() as { data: { deleted: number } };
+  assert.equal(clearedAgainBody.data.deleted, 0);
+});

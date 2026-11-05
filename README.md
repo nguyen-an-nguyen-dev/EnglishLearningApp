@@ -153,6 +153,14 @@ POST   /api/vocabulary                     { word, ipa?, meaningVi?, detailVi?, 
 DELETE /api/vocabulary/:word
 
 GET  /api/battle/summary                   (số trận, thắng, tỉ lệ, streak)
+
+GET    /api/ai/study-plan                 (snapshot + 3 bước + lời khuyên AI)
+GET    /api/ai/chats
+POST   /api/ai/chats                      { topic }
+GET    /api/ai/chats/:chatId
+DELETE /api/ai/chats/:chatId
+POST   /api/ai/chats/:chatId/messages     { message, intent?, context? }
+GET    /api/ai/chats/:chatId/feedback
 ```
 
 Tab "Luyện tập / Tự luyện phản xạ với 12 câu" trong đấu trường **đã bị xoá** (cả UI lẫn
@@ -188,6 +196,54 @@ video nhạc) chỉ phát hành WebVTT dù đã yêu cầu `json3`; thiếu fall
 Đấu 1v1 chạy trên cùng server Socket.IO. Các event quan trọng: `game:opponentAttempt` (bắn 1 lần
 khi đối phương **bấm trả lời**, không bắn theo từng ký tự), `game:opponentAway` (đối phương rời
 trận → bên còn lại thoát màn đấu ngay).
+
+### AI bạn học — En Buddy (cá nhân hoá lộ trình)
+
+Một drawer chat **dùng được ở cả 6 tab** (`web/src/components/ai/StudyBuddy.tsx` +
+`web/src/buddy.css`). Không thêm tab sidebar; thẻ tắt "Chú xe có việc nè" từng đặt trong header
+trang Học Tập **đã bỏ theo yêu cầu 05/11** — lối vào duy nhất là chú xe ở góc màn hình.
+Chat biết tab đang mở (`context.tab`) và bài hiện tại (`context.focus`), có chip câu hỏi nhanh
+đổi theo tab, lịch sử cuộc trò chuyện và thẻ sửa lỗi ngữ pháp.
+
+**Hướng thiết kế (user chốt 05/11): không làm widget chat kiểu SaaS.** Nhân vật là chính
+**chú xe chở sách trong `web/public/logo.png`**: xe lăn nhẹ ở góc màn hình kèm bong bóng thoại
+đổi câu, trong panel có avatar biểu cảm (vui / đang nghĩ / hụt), bong bóng thoại có đuôi, tab
+dán sticker hơi nghiêng, tiêu đề Fraunces nghiêng, nền chấm kiểu sổ tay và copy thân mật
+("3 việc nho nhỏ thôi!", "Mình lật sổ của bạn rồi"). Không dùng kicker monospace / tab gạch chân /
+hairline chia ô kiểu Intercom. Giữ nguyên mọi selector `.buddy-*` để script QA chạy tiếp.
+
+**Một hệ nhịp duy nhất** (`web/src/buddy.css`): `--buddy-ease` / `--buddy-soft` /
+`--buddy-fast|mid|slow` là easing + duration dùng chung cho mọi hover, entrance và idle loop.
+Xe và bóng đổ cùng `buddy-breathe 4.2s`; bong bóng gợi ý đổi câu bằng **crossfade 280ms**
+(không pop lệch nhịp); panel có cả `buddy-panel-in` lẫn `buddy-panel-out` (nút X / Esc);
+tin nhắn và 3 bước kế hoạch cùng `buddy-rise` (bước delay 0/70/140ms); chấm "đang gõ" cùng
+`--buddy-soft`. Mood của xe chỉ là `transition` trên `transform`, tách khỏi animation thở nhờ
+wrapper `.buddy-breathe` — không còn chỗ nào `animation: none` đè hover.
+`prefers-reduced-motion` tắt sạch loop/entrance. QA: `.workbuddy-ai/tmp-shots/buddy-motion-qa.cjs`
+đo easing, đóng/mở, Esc và reduced-motion.
+
+- **Kế hoạch không do AI bịa**: `GET /api/ai/study-plan` gom dữ liệu thật
+  (`getLearnerContext`: level / chủ đề yếu / lỗi sai gần đây + `getStudyStats`: progress, video,
+  từ đã lưu, bản dịch, trận đấu, XP) rồi `buildStudyPlan()` sinh đúng 3 bước, mỗi bước có
+  `target.tab` và `lessonId` của bài đang mở. Web bấm "Bắt đầu" là nhảy thẳng vào bài / tab đó.
+  AI chỉ viết 2 câu giải thích (`aiNote`); nếu provider lỗi thì `aiNote = null` và kế hoạch vẫn
+  dùng được.
+- **Chat theo intent**: `POST .../messages` nhận `intent` = `chat | plan | explain | how | practice`
+  và `context` đã sanitize (tab whitelist, chuỗi cắt 160/240 ký tự, coi là dữ liệu không tin cậy).
+  Với `STUDY_COACH` hoặc intent ≠ `chat`, backend dùng prompt coach có `CURRENT_PAGE_JSON` +
+  `LEARNER_DATA_JSON`; topic hội thoại cũ giữ nguyên prompt để không đổi contract cũ.
+  Mọi lượt vẫn lưu `chats / messages / ai_feedback` và trả feedback sửa lỗi.
+- **Provider**: `requestCoachAi()` ưu tiên `NVIDIA_API_URL` (nhanh) rồi fallback `requestAi()`
+  (Gemini, timeout 10s cho luồng coach). `requestAi()` giữ nguyên timeout/error contract cũ.
+  Lý do: `AI_API_URL` từng timeout trong mạng dev, còn NVIDIA trả JSON ~1s. Không đổi `.env`.
+- **Không bao giờ chết trắng**: nếu cả 2 provider lỗi (hay gặp khi plan + chat gọi cùng lúc),
+  `buildOfflineCoachReply()` trả câu trả lời "tự lật sổ tay" có tên bài tiếp theo, chủ đề yếu và
+  đúng màn hình đang mở — vẫn lưu vào lịch sử, không báo 503 cho người học. `ai.unit.test.ts`
+  và `ai.test.ts` có test riêng cho đường này.
+- **DB**: enum `chats.topic` có thêm `STUDY_COACH` (đã ALTER DB thật + sửa đúng 1 dòng trong
+  `final.sql`, **không** regenerate vì DB thật đang có thêm dữ liệu QA: `matches`, `translations`,
+  `video_lessons`, `video_segments`; `verify-final-sql.cjs` vì thế đang báo lệch có sẵn từ trước).
+- Chưa có: streaming, markdown renderer, rate-limit cho `/api/ai/*`, ghi `users.streak`.
 
 ### Khoá trình phát YouTube (luyện nghe)
 
@@ -296,6 +352,22 @@ số liệu / serif accent. Theme lưu ở localStorage key **`engorace_theme`**
   chạy cả 2 theme), strip `.rank-you` (hạng / XP / khoảng cách), lane XP cho hạng 4+.
 - **Video / luyện nghe**: bỏ "Phòng luyện nghe" và dải nút điều khiển, thay bằng `01 / 04` +
   đồng hồ segment + nút replay; cột video rộng `1.85fr / 0.8fr`.
+- **Dịch Tài Liệu**: `.translate-page` cao đúng `100dvh`, nên **không dùng `view-fade`**
+  (keyframes bắt đầu `translateY(6px)`): 6px đó tạo vùng cuộn thừa trong 260ms → thanh cuộn
+  trang nháy lên rồi biến mất. `index.css` gán riêng `.learning-page-translate .tab-view-container`
+  sang `view-fade-flat` (chỉ opacity). Các tab khác vẫn giữ `view-fade`.
+- **Lộ trình / sương mù (05/11)**: trong `RouteMapCard.tsx`, phần bản đồ **chưa học** bị phủ sương
+  theo 2 lớp chồng (cùng một mép mềm, không seam): `fogLight` từ chặng đầu tiên còn bài chưa
+  `done` (`.22/.31/.28`), `fogDense` từ chặng đầu tiên mà **mọi bài đều `locked`**
+  (`.28/.36/.32`). Chặng đang học chỉ nằm ở lớp mỏng → marker/xe vẫn rõ; chặng đã xong hoàn toàn
+  thì không có sương. Cảnh của chặng mờ dùng `.is-foggy` (`saturate(.68) blur(1.2px)`), chặng
+  đang học dùng `.is-misty` (chỉ `saturate(.86)`). Dải mây là ellipse tô radial gradient
+  `fogWispId`, trôi `roadmap-fog-drift 22s var(--buddy-soft)`; cả cụm có
+  `pointerEvents="none"` nên marker khoá **vẫn bấm được** (hiện card với CTA disabled).
+  Nhãn "Chặng chưa mở khoá" chỉ hiện khi có chặng chưa chạm tới và **ẩn ở ≤640px** (SVG scale
+  xuống ~3 lần thì chữ 13px thành ~4px). `prefers-reduced-motion` tắt trôi mây.
+  QA: `.workbuddy-ai/tmp-shots/roadmap-fog-qa.cjs` (4 case: tài khoản mới 5 chặng mờ / tài khoản
+  35-36 bài chỉ 1 lớp mỏng / dark / 390px).
 
 ---
 

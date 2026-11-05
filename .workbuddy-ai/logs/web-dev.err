@@ -1,0 +1,219 @@
+[2m7:21:50 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: dedupeHistory is not defined
+[39m > TranslateView src/components/translate/TranslateView.tsx:281:24
+    279 |  
+    280 |    const cappedHistory = history.slice(0, HISTORY_LIMIT)
+    281 |    const uniqueHistory = dedupeHistory(cappedHistory)
+        |                          ^
+    282 |    const historyPageCount = Math.max(1, Math.ceil(uniqueHistory.length / historyPageSize))
+    283 |    const activeHistoryPage = Math.min(historyPage, historyPageCount - 1)
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m7:21:50 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <TranslateView> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m7:22:03 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: dedupeHistory is not defined
+[39m > TranslateView src/components/translate/TranslateView.tsx:281:24
+    279 |  
+    280 |    const cappedHistory = history.slice(0, HISTORY_LIMIT)
+    281 |    const uniqueHistory = dedupeHistory(cappedHistory)
+        |                          ^
+    282 |    const historyPageCount = Math.max(1, Math.ceil(uniqueHistory.length / historyPageSize))
+    283 |    const activeHistoryPage = Math.min(historyPage, historyPageCount - 1)
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m7:22:03 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <TranslateView> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m7:22:12 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: dedupeHistory is not defined
+[39m > TranslateView src/components/translate/TranslateView.tsx:281:24
+    279 |  
+    280 |    const cappedHistory = history.slice(0, HISTORY_LIMIT)
+    281 |    const uniqueHistory = dedupeHistory(cappedHistory)
+        |                          ^
+    282 |    const historyPageCount = Math.max(1, Math.ceil(uniqueHistory.length / historyPageSize))
+    283 |    const activeHistoryPage = Math.min(historyPage, historyPageCount - 1)
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m7:22:12 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <TranslateView> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m7:33:55 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] SyntaxError: The requested module '/src/components/landing/LandingSections.tsx?t=1793882035263' does not provide an export named 'LandingFooter'
+[2m7:33:55 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/components/landing/LandingPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m10:17:36 PM[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mExpected a semicolon or an implicit semicolon after a statement, but found none
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/components/roadmap/RouteMapCard.tsx:1560:12 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m1560 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m)[0m[38;5;249m)[0m[38;5;249m}[0m
+ [38;5;240m     │[0m            │ 
+ [38;5;240m     │[0m            ╰─ 
+ [38;5;240m     │[0m 
+ [38;5;240m     │[0m [38;5;115mHelp[0m: Try inserting a semicolon here
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/src/components/roadmap/RouteMapCard.tsx[39m
+      at transformWithOxc (file:///C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/node_modules/vite/dist/node/chunks/node.js:7581:19)
+      at TransformPluginContext.transform (file:///C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/node_modules/vite/dist/node/chunks/node.js:7653:26)
+      at EnvironmentPluginContainer.transform (file:///C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/node_modules/vite/dist/node/chunks/node.js:8545:51)
+      at async loadAndTransform (file:///C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/node_modules/vite/dist/node/chunks/node.js:19988:26)
+      at async viteTransformMiddleware (file:///C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp/web/node_modules/vite/dist/node/chunks/node.js:20207:20)
+[2m10:17:36 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/components/roadmap/RouteMapCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m10:28:01 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: fogGradientId is not defined
+[39m > RouteMapCard src/components/roadmap/RouteMapCard.tsx:1535:30
+    1533 |              <feGaussianBlur stdDeviation="11" />
+    1534 |            </filter>
+    1535 |            <linearGradient id={fogGradientId} x1="0" y1="0" x2="0" y2="1">
+         |                                ^
+    1536 |              <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+    1537 |              <stop offset=".06" stopColor="#FFFFFF" stopOpacity=".42" />
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m10:28:01 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <RouteMapCard> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m10:28:19 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: fogGradientId is not defined
+[39m > RouteMapCard src/components/roadmap/RouteMapCard.tsx:1546:30
+    1544 |              <feGaussianBlur stdDeviation="11" />
+    1545 |            </filter>
+    1546 |            <linearGradient id={fogGradientId} x1="0" y1="0" x2="0" y2="1">
+         |                                ^
+    1547 |              <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+    1548 |              <stop offset=".06" stopColor="#FFFFFF" stopOpacity=".42" />
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m10:28:19 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <RouteMapCard> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m10:28:32 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Cannot read properties of undefined (reading '0')
+[39m > src/components/roadmap/RouteMapCard.tsx:1569:43
+    1567 |  
+    1568 |            {stages.map((stage, stageIndex) => {
+    1569 |              const isFoggy = fog?.untouched[stageIndex]?.untouched ?? false
+         |                                             ^
+    1570 |              return (
+    1571 |              <g key={stage.id}>
+ > RouteMapCard src/components/roadmap/RouteMapCard.tsx:1568:18
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+
+[2m10:28:32 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <RouteMapCard> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m10:28:49 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: fogGradientId is not defined
+[39m > RouteMapCard src/components/roadmap/RouteMapCard.tsx:1636:30
+    1634 |                  width={ROADMAP_LAYOUT.width}
+    1635 |                  height={height - fog.start}
+    1636 |                  fill={`url(#${fogGradientId})`}
+         |                                ^
+    1637 |                />
+    1638 |                {fog.wisps.map((wisp) => (
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+[2m10:28:49 PM[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <RouteMapCard> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m10:29:05 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mReceived NaN for the `y` attribute. If this is expected, cast the value to a string.
+[2m11:54:20 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/progress[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/translations[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/progress[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/me[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/translations[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/progress[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/auth/me[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:23 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/progress[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)
+[2m11:54:38 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/progress[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1492:18)
+    at afterConnectMultiple (node:net:2161:7)

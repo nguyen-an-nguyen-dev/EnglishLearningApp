@@ -73,3 +73,13 @@ export const listHistory: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
+
+export const clearHistory: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const deleted = await service.clearHistory(request.auth.userId);
+    response.json({ success: true, data: { deleted } });
+  } catch (error) {
+    next(error);
+  }
+};

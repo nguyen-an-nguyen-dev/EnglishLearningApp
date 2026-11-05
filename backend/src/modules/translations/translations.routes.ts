@@ -15,5 +15,6 @@ const parseMultipartFile: RequestHandler = (request, response, next) => {
 };
 
 translationRouter.get('/translations', authenticate, controller.listHistory);
+translationRouter.delete('/translations', authenticate, controller.clearHistory);
 translationRouter.post('/translate', authenticate, controller.translateText);
 translationRouter.post('/translate/file', authenticate, parseMultipartFile, controller.translateFile);

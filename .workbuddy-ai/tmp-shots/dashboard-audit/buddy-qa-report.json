@@ -1,0 +1,78 @@
+[
+  {
+    "case": "light-1440",
+    "steps": 3,
+    "note": "Mình nghĩ là: Hôm nay bạn nên Học bài Văn học & Phê bình trước vì bài tiếp theo đang mở trong lộ trình. Bài này là bài 36.",
+    "reply": "Trước tiên, mình nên Học bài Văn học & Phê bình mất 12 phút. Sau đó, Gỡ lại chủ đề Masterclass mất 8 phút, và cuối cùng là Luyện nghe: Learn English - Greetings",
+    "bounds": {
+      "left": 1028,
+      "right": 1422,
+      "top": 242,
+      "bottom": 882,
+      "viewport": [
+        1440,
+        900
+      ],
+      "navTop": null,
+      "overlapNav": false
+    },
+    "consoleErrors": []
+  },
+  {
+    "case": "dark-1440",
+    "steps": 3,
+    "note": "Mình nghĩ là: Hôm nay bạn nên Học bài Văn học & Phê bình trước vì bài tiếp theo đang mở trong lộ trình. Bạn đã hoàn thành 35 bài học rồi.",
+    "reply": "Trước tiên, bạn hãy làm Học bài Văn học & Phê bình trong khoảng 12 phút nhé. Tiếp theo, mình sẽ Gỡ lại chủ đề Masterclass mất khoảng 8 phút. Cuối cùng, bạn chuy",
+    "bounds": {
+      "left": 1028,
+      "right": 1422,
+      "top": 242,
+      "bottom": 882,
+      "viewport": [
+        1440,
+        900
+      ],
+      "navTop": null,
+      "overlapNav": false
+    },
+    "consoleErrors": []
+  },
+  {
+    "case": "light-390",
+    "steps": 3,
+    "note": "Mình nghĩ là: Bạn nên Học bài Văn học & Phê bình trước vì bài tiếp theo đang mở trong lộ trình 35/36 bài đã xong. Hãy tập trung vào chủ đề này trước n",
+    "reply": "Trước tiên, bạn hãy làm Học bài Văn học & Phê bình trong khoảng 12 phút nhé. Tiếp theo, mình sẽ Gỡ lại chủ đề Masterclass mất khoảng 8 phút. Cuối cùng, bạn chuy",
+    "bounds": {
+      "left": 10,
+      "right": 380,
+      "top": 120,
+      "bottom": 760,
+      "viewport": [
+        390,
+        844
+      ],
+      "navTop": 764,
+      "overlapNav": false
+    },
+    "consoleErrors": []
+  },
+  {
+    "case": "dark-390",
+    "steps": 3,
+    "note": "Mình nghĩ là: Hãy học bài Văn học & Phê bình trước vì bài tiếp theo đang mở trong lộ trình. Bạn đã hoàn thành 35 bài học rồi nhé.",
+    "reply": "Trước tiên, bạn hãy làm Học bài Văn học & Phê bình trong khoảng 12 phút nhé. Tiếp theo, mình sẽ Gỡ lại chủ đề Masterclass mất khoảng 8 phút. Cuối cùng, bạn chuy",
+    "bounds": {
+      "left": 10,
+      "right": 380,
+      "top": 120,
+      "bottom": 760,
+      "viewport": [
+        390,
+        844
+      ],
+      "navTop": 764,
+      "overlapNav": false
+    },
+    "consoleErrors": []
+  }
+]

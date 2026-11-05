@@ -447,7 +447,17 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
     }
     const urgent = secondsLeft <= 5
     return (
-      <section className="arena-match">
+      <section
+        className="arena-match"
+        data-round={question?.round ?? 1}
+        data-total-rounds={game.totalRounds}
+        data-my-score={scoreFor(currentUserId)}
+        data-opponent-name={opponentPlayer?.name ?? t.arenaOpponent}
+        data-opponent-score={scoreFor(opponentPlayer?.userId ?? opponentId)}
+        data-question-translation={question?.translation ?? ''}
+        data-question-example={question?.example ?? ''}
+        data-question-level={question?.cefrLevel ?? ''}
+      >
         <header className="arena-match-bar">
           <span className="arena-kicker">{t.arenaDuelTab}</span>
           <button
@@ -693,7 +703,13 @@ export function ArenaView() {
   }, [])
 
   return (
-    <div className="tab-view-container arena-view">
+    <div
+      className="tab-view-container arena-view"
+      data-played={summary?.played ?? 0}
+      data-wins={summary?.wins ?? 0}
+      data-win-rate={summary?.win_rate ?? 0}
+      data-win-streak={summary?.win_streak ?? 0}
+    >
       <header className="arena-head">
         <div>
           <span className="page-eyebrow">{t.arenaEyebrow}</span>

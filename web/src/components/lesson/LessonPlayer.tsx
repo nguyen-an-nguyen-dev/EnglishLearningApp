@@ -575,7 +575,14 @@ export function LessonPlayer({
   }
 
   return (
-    <div className="lesson-player">
+    <div
+      className="lesson-player"
+      data-lesson-title={lessonTitle}
+      data-question-prompt={currentQuestion.question_text}
+      data-question-index={`${index + 1}/${questions.length}`}
+      data-question-type={currentQuestion.question_type}
+      data-question-explanation={currentQuestion.explanation || ''}
+    >
       <header className="lesson-header">
         <button type="button" className="lesson-close" onClick={onClose}>Đóng</button>
         <div className="lesson-progress" role="progressbar" aria-valuemin={1} aria-valuemax={questions.length} aria-valuenow={index + 1}>

@@ -22,6 +22,7 @@ let pool: typeof import('../src/db/pool').pool;
 let originalFetch: typeof fetch;
 let providerResponse: Response | Error | null = null;
 let providerRequestBody: { messages?: Array<{ role: string; content: string }> } | null = null;
+let forceProviderFailure = false;
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -44,7 +45,12 @@ before(async () => {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url === (process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')) {
+    const providerUrls = [
+      process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      process.env.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
+    ];
+    if (providerUrls.includes(url)) {
+      if (forceProviderFailure) return jsonResponse({ error: { message: 'provider down' } }, 503);
       const current = providerResponse;
       providerResponse = null;
       providerRequestBody = typeof init?.body === 'string'
@@ -297,4 +303,96 @@ test('AI chats can be deleted by their owner and cascade to messages and feedbac
   );
   assert.equal(Number(messageRows[0].n), 0, 'deleting a chat cascades its messages');
   assert.equal(Number(feedbackRows[0].n), 0, 'deleting a chat cascades its AI feedback');
+});
+
+test('study plan and coach chat are grounded in real learner data and page context', async () => {
+  const auth = { Authorization: `Bearer ${ownerToken}` };
+
+  const unauthorizedPlan = await fetch(`${baseUrl}/api/ai/study-plan`);
+  assert.equal(unauthorizedPlan.status, 401);
+
+  providerResponse = providerOk('Bạn nên học bài tiếp theo trước vì nó đang mở trong lộ trình.');
+  const planResponse = await fetch(`${baseUrl}/api/ai/study-plan`, { headers: auth });
+  assert.equal(planResponse.status, 200);
+  const planBody = await planResponse.json() as {
+    data: {
+      snapshot: { completedLessons: number; totalLessons: number; nextLesson: { id: number } | null };
+      steps: Array<{ id: string; kind: string; title: string; minutes: number; target: { tab: string; lessonId?: number } }>;
+      aiNote: string | null;
+    };
+  };
+  assert.equal(planBody.data.steps.length, 3, 'a plan always has three concrete steps');
+  assert.ok(planBody.data.steps[0].target.tab, 'each step links back to a dashboard tab');
+  assert.ok(planBody.data.steps.every((step) => step.title && step.minutes > 0));
+  assert.ok(planBody.data.snapshot.totalLessons > 0, 'plan reads the real lesson catalogue');
+  assert.equal(typeof planBody.data.aiNote, 'string');
+
+  const create = await fetch(`${baseUrl}/api/ai/chats`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ topic: 'STUDY_COACH' }),
+  });
+  assert.equal(create.status, 201, 'STUDY_COACH is a valid topic');
+  const { data: { chat } } = await create.json() as { data: { chat: { id: number; title: string } } };
+  assert.equal(chat.title, 'En Buddy');
+
+  providerResponse = providerOk('Mình gợi ý bạn làm bài tiếp theo trước, rồi ôn chủ đề yếu.');
+  const sent = await fetch(`${baseUrl}/api/ai/chats/${chat.id}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({
+      message: 'Hôm nay học gì trước?',
+      intent: 'plan',
+      context: { tab: 'study', focus: 'Bài hiện tại' },
+    }),
+  });
+  assert.equal(sent.status, 201);
+  const prompt = providerRequestBody?.messages?.[0]?.content ?? '';
+  assert.match(prompt, /CURRENT_PAGE_JSON/, 'coach prompt receives the current page');
+  assert.match(prompt, /plan_steps/, 'coach prompt receives the deterministic plan');
+  assert.match(prompt, /"tab":"study"/, 'page context is passed through');
+  assert.match(prompt, /LEARNER_DATA_JSON/, 'coach prompt still carries learner data');
+
+  const badIntent = await fetch(`${baseUrl}/api/ai/chats/${chat.id}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ message: 'Hello', intent: 'HACK' }),
+  });
+  assert.equal(badIntent.status, 422, 'unknown intents are rejected');
+
+  const cleaned = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, {
+    method: 'DELETE',
+    headers: auth,
+  });
+  assert.equal(cleaned.status, 200);
+});
+
+test('coach chat falls back to the notebook when every AI provider is down', async () => {
+  const auth = { Authorization: `Bearer ${ownerToken}` };
+  const create = await fetch(`${baseUrl}/api/ai/chats`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ topic: 'STUDY_COACH' }),
+  });
+  assert.equal(create.status, 201);
+  const { data: { chat } } = await create.json() as { data: { chat: { id: number } } };
+
+  forceProviderFailure = true;
+  try {
+    const sent = await fetch(`${baseUrl}/api/ai/chats/${chat.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ message: 'Hôm nay học gì trước?', intent: 'plan' }),
+    });
+    assert.equal(sent.status, 201, 'the buddy still answers from real data');
+    const body = await sent.json() as { data: { aiMessage: { content: string }; feedback: unknown[] } };
+    assert.match(body.data.aiMessage.content, /tự lật sổ tay/);
+    assert.match(body.data.aiMessage.content, /Việc đầu tiên/);
+    assert.deepEqual(body.data.feedback, []);
+  } finally {
+    forceProviderFailure = false;
+  }
+
+  const cleaned = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, { method: 'DELETE', headers: auth });
+  assert.equal(cleaned.status, 200);
 });

@@ -5,6 +5,7 @@ import {
   Gear,
   Lightning,
   SignOut,
+  Translate,
   Trophy,
   UserCircle,
   YoutubeLogo,
@@ -17,10 +18,13 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { RouteMapCard } from './components/roadmap/RouteMapCard'
 import { LessonPlayer } from './components/lesson/LessonPlayer'
 import { VideoLearningView } from './components/video/VideoLearningView'
+import { TranslateView } from './components/translate/TranslateView'
 import { ArenaView } from './components/arena/ArenaView'
 import { RankingsView } from './components/rankings/RankingsView'
 import { ProfileView } from './components/profile/ProfileView'
 import { useLearning } from './context/LearningContext'
+import { StudyBuddy, type BuddyView } from './components/ai/StudyBuddy'
+import type { StudyStep } from './services/aiChatService'
 import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
@@ -32,10 +36,10 @@ import {
   stageTop,
 } from './roadmap'
 
-export type DashboardTab = 'study' | 'videos' | 'compete' | 'rankings' | 'profile'
+export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile'
 
 const TAB_STORAGE_KEY = 'engorace_active_tab'
-const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'compete', 'rankings', 'profile']
+const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile']
 
 function readStoredTab(): DashboardTab {
   try {
@@ -61,9 +65,10 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
   const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const displayName = user?.name || 'An Nguyễn'
 
-  const tabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
+  const tabs: { id: DashboardTab; label: string; icon: typeof BookOpenText; activeIcon?: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
     { id: 'videos', label: t.navVideos, icon: YoutubeLogo },
+    { id: 'translate', label: t.navTranslate, icon: Translate },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankings, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
@@ -80,8 +85,8 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
 
       <nav className="sidebar-nav" aria-label={t.navAria}>
         {tabs.map((tab) => {
-          const Icon = tab.icon
           const active = activeTab === tab.id
+          const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
           return (
             <button
               key={tab.id}
@@ -89,7 +94,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
               className={`nav-item ${active ? 'nav-item-active' : ''}`}
               onClick={() => onSelectTab(tab.id)}
             >
-              <Icon size={24} weight={active ? 'fill' : 'regular'} />
+              <Icon size={24} weight={tab.id === 'translate' ? 'regular' : active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
             </button>
           )
@@ -141,7 +146,10 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
 /* ------------------------------------------------------------- */
 /* TAB 1: HỌC TẬP                                                */
 /* ------------------------------------------------------------- */
-function StudyView({ user, onOpenLesson }: { user: AuthUser | null; onOpenLesson: (lessonId: number, lessonTitle: string) => void }) {
+function StudyView({ user, onOpenLesson }: {
+  user: AuthUser | null
+  onOpenLesson: (lessonId: number, lessonTitle: string) => void
+}) {
   const { t, lang } = useI18n()
   const { stages, loading, error, refresh } = useLearning()
   const firstName = user?.name ? user.name.trim().split(/\s+/)[0] : 'An'
@@ -367,11 +375,33 @@ function StudyView({ user, onOpenLesson }: { user: AuthUser | null; onOpenLesson
 function App() {
   const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
-  const { refresh } = useLearning()
+  const { stages, refresh } = useLearning()
   const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
   const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
+  const [buddyView, setBuddyView] = useState<BuddyView>(null)
+
+  const tabLabels: Record<DashboardTab, string> = {
+    study: t.navStudy,
+    videos: t.navVideos,
+    translate: t.navTranslate,
+    compete: t.navCompete,
+    rankings: t.navRankings,
+    profile: t.navProfile,
+  }
+  const buddyFocus = activeTab === 'study' ? (findCurrentLesson(stages)?.title ?? '') : ''
+
+  function handleBuddyAction(step: StudyStep) {
+    if (step.target.tab !== activeTab) {
+      if (!confirmArenaLeave()) return
+      setActiveTab(step.target.tab)
+    }
+    if (step.target.lessonId && step.target.lessonTitle) {
+      setActiveLesson({ id: step.target.lessonId, title: step.target.lessonTitle })
+    }
+    setBuddyView(null)
+  }
 
   useEffect(() => {
     try {
@@ -412,9 +442,10 @@ function App() {
     )
   }
 
-  const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText }[] = [
+  const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText; activeIcon?: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
     { id: 'videos', label: t.navVideos, icon: YoutubeLogo },
+    { id: 'translate', label: t.navTranslateShort, icon: Translate },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankingsShort, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
@@ -431,7 +462,13 @@ function App() {
         onOpenSettings={(anchor) => setSettingsAnchor((prev) => (prev === anchor ? null : anchor))}
       />
       <div className="app-main">
-        <main className={`learning-page${activeTab === 'study' ? ' learning-page-map' : ''}`}>
+        <main
+          className={`learning-page${activeTab === 'study' ? ' learning-page-map' : ''}${activeTab === 'translate' ? ' learning-page-translate' : ''}`}
+          data-current-lesson={findCurrentLesson(stages)?.title ?? ''}
+          data-total-lessons={stages.reduce((acc, s) => acc + s.totalCount, 0)}
+          data-completed-lessons={stages.reduce((acc, s) => acc + s.completedCount, 0)}
+          data-current-stage={stages[findCurrentStageIndex(stages)]?.title ?? ''}
+        >
           <div className="mobile-brand-row">
             <div className="brand-block">
               <img src="/logo.png" alt="" className="brand-logo-img" />
@@ -455,21 +492,17 @@ function App() {
             />
           )}
           {activeTab === 'videos' && <VideoLearningView />}
+          {activeTab === 'translate' && <TranslateView />}
           {activeTab === 'compete' && <ArenaView />}
           {activeTab === 'rankings' && <RankingsView />}
           {activeTab === 'profile' && <ProfileView onLogout={handleLogout} />}
-
-          <footer className="page-footer">
-            <span>{t.footerLeft}</span>
-            <span>{t.footerRight}</span>
-          </footer>
         </main>
       </div>
 
       <nav className="mobile-nav" aria-label={t.mobileNavAria}>
         {mobileTabs.map((tab) => {
-          const Icon = tab.icon
           const active = activeTab === tab.id
+          const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
           return (
             <button
               key={tab.id}
@@ -477,7 +510,7 @@ function App() {
               className={active ? 'mobile-nav-active' : ''}
               onClick={() => selectTab(tab.id)}
             >
-              <Icon size={24} weight={active ? 'fill' : 'regular'} />
+              <Icon size={24} weight={tab.id === 'translate' ? 'regular' : active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
             </button>
           )
@@ -485,6 +518,15 @@ function App() {
       </nav>
 
       <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
+
+      <StudyBuddy
+        activeTab={activeTab}
+        tabLabel={tabLabels[activeTab]}
+        focusLabel={buddyFocus}
+        view={buddyView}
+        onViewChange={setBuddyView}
+        onAction={handleBuddyAction}
+      />
 
       {activeLesson && (
         <LessonPlayer

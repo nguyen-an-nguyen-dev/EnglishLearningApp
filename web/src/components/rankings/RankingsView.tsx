@@ -118,9 +118,25 @@ export function RankingsView() {
   }, [entries, me])
 
   const share = (xp: number) => (leader && leader.xp > 0 ? Math.round((xp / leader.xp) * 100) : 0)
+  const myIndex = entries.findIndex((entry) => entry.userId === user?.id)
+  const above = myIndex > 0 ? entries[myIndex - 1] : null
+  const below = myIndex >= 0 && myIndex < entries.length - 1 ? entries[myIndex + 1] : null
 
   return (
-    <div className="tab-view-container rank-view">
+    <div
+      className="tab-view-container rank-view"
+      data-my-rank={myRank ?? ''}
+      data-total-users={entries.length}
+      data-my-xp={me?.xp ?? user?.xp ?? 0}
+      data-leader-name={leader?.name ?? ''}
+      data-leader-xp={leader?.xp ?? 0}
+      data-above-name={above?.name ?? ''}
+      data-above-rank={above?.rank ?? ''}
+      data-above-xp={above?.xp ?? ''}
+      data-below-name={below?.name ?? ''}
+      data-below-rank={below?.rank ?? ''}
+      data-below-xp={below?.xp ?? ''}
+    >
       <header className="page-heading rank-head">
         <div>
           <span className="page-eyebrow">{t.rankEyebrow}</span>

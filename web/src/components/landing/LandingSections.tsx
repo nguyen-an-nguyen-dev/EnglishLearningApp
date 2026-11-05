@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext'
 import {
   ArrowCounterClockwise,
   ArrowRight,
-  ArrowUp,
   BookOpenText,
   CheckCircle,
   Clock,
@@ -69,26 +68,12 @@ export function LandingHeader({
           {navItems.map((item) => (
             <a key={item.href} href={item.href} onClick={onCloseMenu}>{item.label}</a>
           ))}
-          <div className="lp-mobile-nav-actions">
-            {isAuthenticated ? (
-              <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
-                Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
-              </button>
-            ) : (
-              <>
-                <button className="lp-nav-login" type="button" onClick={onLogin}>Đăng nhập</button>
-                <button className="lp-button lp-button-primary" type="button" onClick={onRegister}>
-                  Bắt đầu <ArrowRight size={17} weight="bold" />
-                </button>
-              </>
-            )}
-          </div>
         </nav>
 
         <div className="lp-header-actions">
           {isAuthenticated ? (
             <button className="lp-button lp-button-primary" type="button" onClick={onContinue}>
-              Vào bảng điều khiển <ArrowRight size={17} weight="bold" />
+              Tiếp tục <ArrowRight size={17} weight="bold" />
             </button>
           ) : (
             <>
@@ -926,40 +911,6 @@ export function LearningModesSection({
         </div>
       </div>
     </section>
-  )
-}
-
-/* =========================================================================
-   FINAL CTA & FOOTER
-   ========================================================================= */
-
-export function LandingFooter() {
-  return (
-    <footer className="lp-footer">
-      <div className="lp-footer-row">
-        <div className="lp-footer-brand">
-          <div className="lp-footer-brand-line">
-            <a className="lp-wordmark" href="#top" aria-label="Engorace, về đầu trang">
-              <div className="lp-brand-logo-wrap" aria-hidden="true">
-                <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
-              </div>
-              <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
-            </a>
-            <span className="lp-footer-copy">© {new Date().getFullYear()} Engorace</span>
-          </div>
-          <p className="lp-footer-tagline">Luyện tiếng Anh qua tình huống đời thường, mỗi ngày một bài ngắn.</p>
-        </div>
-
-        <nav className="lp-footer-nav" aria-label="Liên kết chân trang">
-          <a href="#curriculum">Lộ trình</a>
-          <a href="#modes">Hình thức học</a>
-        </nav>
-
-        <a href="#top" className="lp-back-top" aria-label="Về đầu trang" title="Về đầu trang">
-          <ArrowUp size={18} weight="bold" aria-hidden="true" />
-        </a>
-      </div>
-    </footer>
   )
 }
 

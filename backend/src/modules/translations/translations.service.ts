@@ -267,7 +267,7 @@ export async function translateText(
   );
   const word = isSingleWord(text) ? text : null;
   const providerResult = await translateWithGemini(text, sourceLanguage, targetLanguage, word);
-  return repository.saveTranslation(userId, {
+  const saved = await repository.saveTranslation(userId, {
     originalText: text,
     translatedText: providerResult.translation,
     sourceLanguage,
@@ -275,8 +275,15 @@ export async function translateText(
     fileName,
     wordDetails: providerResult.wordDetails ?? null,
   });
+  await repository.trimTranslations(userId, 10);
+  return saved;
 }
 
 export async function listHistory(userId: number): Promise<TranslationResult[]> {
+  await repository.trimTranslations(userId, 10);
   return repository.listTranslations(userId);
+}
+
+export async function clearHistory(userId: number): Promise<number> {
+  return repository.clearTranslations(userId);
 }

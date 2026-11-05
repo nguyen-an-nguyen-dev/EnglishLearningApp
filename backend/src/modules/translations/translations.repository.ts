@@ -39,6 +39,31 @@ export async function saveTranslation(
   };
 }
 
+export async function trimTranslations(userId: number, keep = 10): Promise<number> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    `DELETE FROM translations
+      WHERE user_id = ?
+        AND id NOT IN (
+          SELECT id FROM (
+            SELECT id FROM translations
+            WHERE user_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+          ) keep
+        )`,
+    [userId, userId, keep],
+  );
+  return result.affectedRows;
+}
+
+export async function clearTranslations(userId: number): Promise<number> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    'DELETE FROM translations WHERE user_id = ?',
+    [userId],
+  );
+  return result.affectedRows;
+}
+
 export async function listTranslations(userId: number): Promise<TranslationResult[]> {
   const [rows] = await pool.execute<TranslationHistoryRow[]>(
     `SELECT id, file_name, original_text, translated_text, source_language, target_language, created_at

@@ -110,7 +110,14 @@ function VideoLessonView({
   const segmentNumber = String(video.segments.length).padStart(2, '0')
 
   return (
-    <div className="video-detail">
+    <div
+      className="video-detail"
+      data-video-title={video.title}
+      data-video-topic={video.topic}
+      data-video-level={video.cefr_level}
+      data-video-desc={video.description || ''}
+      data-video-segments={video.segments.slice(0, 8).map((s) => s.text_en).filter(Boolean).join(' / ')}
+    >
       <div className="practice-topbar">
         <button type="button" className="practice-back-btn" onClick={onBack}>
           <ArrowLeft size={19} weight="regular" />

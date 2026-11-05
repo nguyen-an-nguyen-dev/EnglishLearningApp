@@ -1377,12 +1377,44 @@ export function RouteMapCard({
   const clipId = `roadmap-clip-${uid}`
   const roadShadowId = `roadmap-road-shadow-${uid}`
   const carGlowId = `roadmap-car-glow-${uid}`
+  const fogLightId = `roadmap-fog-light-${uid}`
+  const fogDenseId = `roadmap-fog-dense-${uid}`
+  const fogWispId = `roadmap-fog-wisp-${uid}`
   const titleId = `roadmap-title-${uid}`
   const descriptionId = `roadmap-description-${uid}`
 
   const nodes = useMemo(() => buildMapNodes(stages), [stages])
   const height = roadmapHeight(stages.length)
   const roadPath = useMemo(() => buildRoadPath(nodes, stages.length), [nodes, stages.length])
+
+  // Fog of war. Two stacked banks with one shared soft leading edge:
+  //   light  — everything from the first stage that is not fully completed;
+  //   dense  — everything from the first stage whose lessons are all locked.
+  // The current lesson always stays in the light layer, so it remains readable.
+  const fog = useMemo(() => {
+    const incompleteIndex = stages.findIndex((stage) => (
+      stage.lessons.some((lesson) => lesson.status !== 'done')
+    ))
+    if (incompleteIndex < 0) return null
+    const untouchedIndex = stages.findIndex((stage) => (
+      stage.lessons.every((lesson) => lesson.status === 'locked')
+    ))
+    const lightStart = Math.max(0, stageTop(incompleteIndex) - 140)
+    const denseStart = untouchedIndex >= 0
+      ? Math.max(0, stageTop(untouchedIndex) - 140)
+      : null
+    const wispStart = untouchedIndex >= 0 ? untouchedIndex : incompleteIndex
+    const wisps = stages.slice(wispStart).flatMap((stage, offset) => [
+      { key: `${stage.id}-a`, cx: 250, cy: stageTop(wispStart + offset) + 210, rx: 330, ry: 62, delay: `${offset * 2.4}s` },
+      { key: `${stage.id}-b`, cx: 880, cy: stageTop(wispStart + offset) + 490, rx: 300, ry: 54, delay: `${offset * 2.4 + 1.2}s` },
+    ])
+    const sceneState = stages.map((_stage, index) => {
+      if (untouchedIndex >= 0 && index >= untouchedIndex) return 'is-foggy'
+      if (index >= incompleteIndex) return 'is-misty'
+      return ''
+    })
+    return { lightStart, denseStart, wisps, sceneState, labelY: denseStart === null ? null : denseStart + 168 }
+  }, [stages])
 
   const currentNode = nodes.find((node) => node.lesson.status === 'current')
     ?? [...nodes].reverse().find((node) => node.lesson.status === 'done')
@@ -1511,15 +1543,36 @@ export function RouteMapCard({
           <filter id={carGlowId} x="-100%" y="-100%" width="300%" height="300%">
             <feGaussianBlur stdDeviation="11" />
           </filter>
+          <linearGradient id={fogLightId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+            <stop offset=".06" stopColor="#FFFFFF" stopOpacity=".22" />
+            <stop offset=".55" stopColor="#FFFFFF" stopOpacity=".31" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity=".28" />
+          </linearGradient>
+          <linearGradient id={fogDenseId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+            <stop offset=".06" stopColor="#FFFFFF" stopOpacity=".28" />
+            <stop offset=".55" stopColor="#FFFFFF" stopOpacity=".36" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity=".32" />
+          </linearGradient>
+          <radialGradient id={fogWispId}>
+            <stop offset="0" stopColor="#C9DEE9" stopOpacity=".55" />
+            <stop offset=".55" stopColor="#DDEDF4" stopOpacity=".3" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
         <g clipPath={`url(#${clipId})`}>
           <rect width={ROADMAP_LAYOUT.width} height={height} fill="#EDF7FA" />
 
-          {stages.map((stage, stageIndex) => (
+          {stages.map((stage, stageIndex) => {
+            const sceneState = fog?.sceneState[stageIndex] ?? ''
+            return (
             <g key={stage.id}>
               <rect x="0" y={stageTop(stageIndex)} width={ROADMAP_LAYOUT.width} height={ROADMAP_LAYOUT.stageHeight} fill={SCENES[stage.theme].bg} />
-              <StageScene theme={stage.theme} y={stageTop(stageIndex)} index={stageIndex} uid={uid} />
+              <g className={`roadmap-stage-scene${sceneState ? ` ${sceneState}` : ''}`}>
+                <StageScene theme={stage.theme} y={stageTop(stageIndex)} index={stageIndex} uid={uid} />
+              </g>
               {stageIndex > 0 && (
                 <g>
                   <path d={`M0 ${stageTop(stageIndex) + 6}C180 ${stageTop(stageIndex) - 4} 360 ${stageTop(stageIndex) + 16} 560 ${stageTop(stageIndex) + 4}C760 ${stageTop(stageIndex) - 8} 940 ${stageTop(stageIndex) + 14} 1120 ${stageTop(stageIndex) + 2}`} transform="translate(0 7)" fill="none" stroke="#0F172A" strokeWidth="6" opacity=".08" />
@@ -1528,7 +1581,8 @@ export function RouteMapCard({
                 </g>
               )}
             </g>
-          ))}
+            )
+          })}
 
           <g filter={`url(#${roadShadowId})`}>
             <path d={roadPath.d} fill="none" stroke="#A9B6C3" strokeWidth="58" strokeLinecap="round" />
@@ -1571,6 +1625,49 @@ export function RouteMapCard({
               lang={lang}
             />
           ))}
+
+          {fog && (
+            <g className="roadmap-fog" pointerEvents="none" aria-hidden="true">
+              <rect
+                x="0"
+                y={fog.lightStart}
+                width={ROADMAP_LAYOUT.width}
+                height={height - fog.lightStart}
+                fill={`url(#${fogLightId})`}
+              />
+              {fog.denseStart !== null && (
+                <rect
+                  x="0"
+                  y={fog.denseStart}
+                  width={ROADMAP_LAYOUT.width}
+                  height={height - fog.denseStart}
+                  fill={`url(#${fogDenseId})`}
+                />
+              )}
+              {fog.wisps.map((wisp) => (
+                <ellipse
+                  key={wisp.key}
+                  className="roadmap-fog-wisp"
+                  cx={wisp.cx}
+                  cy={wisp.cy}
+                  rx={wisp.rx}
+                  ry={wisp.ry}
+                  fill={`url(#${fogWispId})`}
+                  style={{ animationDelay: wisp.delay }}
+                />
+              ))}
+              {fog.labelY !== null && (
+                <text
+                  x="64"
+                  y={fog.labelY}
+                  textAnchor="start"
+                  className="roadmap-fog-label"
+                >
+                  {lang === 'en' ? 'Unexplored stages' : 'Chặng chưa mở khoá'}
+                </text>
+              )}
+            </g>
+          )}
 
           {currentNode && (
             <g

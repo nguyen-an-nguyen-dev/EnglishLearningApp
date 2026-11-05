@@ -5,7 +5,6 @@ import { AuthModal, type AuthMode } from '../auth/AuthModal'
 import {
   CurriculumSection,
   HeroSection,
-  LandingFooter,
   LandingHeader,
   LearningModesSection,
 } from './LandingSections'
@@ -57,7 +56,7 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     root.classList.add('lp-active')
     root.dataset.theme = 'light'
     root.style.colorScheme = 'light'
-    if (themeMeta) themeMeta.content = '#E4F7FF'
+    if (themeMeta) themeMeta.content = '#EAF9FF'
 
     return () => {
       root.classList.remove('lp-active')
@@ -147,10 +146,8 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
               <button className="lp-button lp-button-sun lp-button-large" type="button" onClick={() => openAuth('register')}>
                 Bắt đầu học <ArrowRight size={18} weight="bold" />
               </button>
-              <span className="lp-final-cta-mark" aria-hidden="true">A1</span>
             </section>
           </div>
-          <LandingFooter />
         </div>
       </main>
 

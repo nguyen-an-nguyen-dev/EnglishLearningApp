@@ -5,6 +5,7 @@ import * as controller from './ai.controller';
 export const aiRouter = Router();
 
 aiRouter.use(authenticate);
+aiRouter.get('/study-plan', controller.getStudyPlan);
 aiRouter.get('/chats', controller.listChats);
 aiRouter.post('/chats', controller.createChat);
 aiRouter.get('/chats/:chatId', controller.getChat);

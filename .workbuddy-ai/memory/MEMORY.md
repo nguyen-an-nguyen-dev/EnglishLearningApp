@@ -63,6 +63,45 @@ viền hoá mọi thứ). Không lặp lại. `DESIGN-RULES.md` cũ đã gộp v
   Track `auto` = `max-content` từng làm nút `Trả lời` thò ra khỏi `.arena-reply` ở 730px.
   Quy tắc số 10 trong mục 4 README.
 
+## En Buddy — AI bạn học (chốt 05/11)
+
+- **Kiến trúc (user giao, cập nhật 05/11)**: drawer chat toàn cục ở cả 6 tab. Thẻ tắt
+  "Chú xe có việc nè" trong header trang Học Tập **đã bị user bắt bỏ** — lối vào duy nhất là chú
+  xe ở góc màn hình. **Không thêm tab sidebar**, không tạo file plan/doc riêng, không thêm lại
+  card vào roadmap.
+  Code: `web/src/components/ai/StudyBuddy.tsx`, `web/src/buddy.css`,
+  `web/src/services/aiChatService.ts`, gắn trong `App.tsx`.
+- Backend `/api/ai/chats*` đã có từ trước (Gemini + `getLearnerContext`), web từng không gọi.
+  Bổ sung `GET /api/ai/study-plan`, enum `chats.topic` + `STUDY_COACH`, `intent`/`context` cho
+  `POST .../messages`. **Plan 3 bước luôn tính từ DB thật** (`buildStudyPlan`), AI chỉ viết
+  `aiNote`; bước có `target.tab`/`lessonId` để web nhảy thẳng vào bài.
+- `AI_API_URL` (Gemini) timeout trong mạng dev; `NVIDIA_API_URL` trong `.env` chạy ~1s.
+  `requestCoachAi()` (chỉ luồng coach/plan) ưu tiên NVIDIA rồi fallback Gemini 15s;
+  **giữ nguyên `requestAi()`** để contract/test cũ không đổi. Không sửa `.env`.
+- `final.sql` chỉ sửa 1 dòng enum, KHÔNG regenerate (DB thật có dữ liệu QA thừa;
+  `verify-final.sql` báo lệch có sẵn từ trước). Đừng "sửa" cái lệch đó bằng cách dump lại DB.
+- **Giao diện phải vui, KHÔNG phải widget chat SaaS** (user chê bản đầu 05/11): nhân vật là
+  chú xe chở sách `web/public/logo.png` (bong bóng thoại, mood, sticker nghiêng, nền chấm sổ tay,
+  copy thân mật). Cấm quay lại kicker monospace / tab gạch chân / pill Intercom.
+- Nếu cả 2 provider AI lỗi, `buildOfflineCoachReply()` trả câu "tự lật sổ tay" từ dữ liệu thật;
+  không để chat báo 503 cho người học. Giữ selector `.buddy-*` cho script QA.
+- **Motion có 1 hệ nhịp chung** (`--buddy-ease/soft/fast/mid/slow` trong `buddy.css`): thở xe +
+  bóng 4.2s, bong bóng crossfade, panel in/out, tin nhắn + bước `buddy-rise`, chấm gõ cùng easing.
+  Mood xe là transition tách khỏi animation nhờ wrapper `.buddy-breathe`. Đừng thêm animation
+  độc lập nhịp riêng; `prefers-reduced-motion` phải tắt sạch. UI thiên gần gũi: nghiêng rất nhẹ,
+  không tab gạch chân, padding rộng.
+
+## Roadmap / sương mù (05/11)
+
+- Chặng chưa học bị phủ sương **2 lớp**: nhẹ từ chặng đầu còn bài chưa `done`, dày từ chặng đầu
+  mà mọi bài `locked`. Lý do có 2 lớp: `test@test.com` đã xong 35/36 bài, nếu chỉ mờ chặng
+  "toàn locked" thì tài khoản chính không thấy hiệu ứng gì. Chặng đã xong hết thì trong suốt.
+- Code nằm trong `RouteMapCard.tsx` (`fog` memo + gradient id) và `index.css`
+  (`.roadmap-stage-scene.is-misty/.is-foggy`, `.roadmap-fog-wisp`, `.roadmap-fog-label`).
+  Sương có `pointerEvents="none"` để marker khoá vẫn bấm được; nhãn ẩn ≤640px; wisps dùng chung
+  `--buddy-soft` và tắt khi reduced-motion. Không dùng một rect trắng đặc (tẩy trắng cảnh).
+
 ## Việc còn treo
 
 - Social login (Google/Facebook) chưa có backend OAuth — cần client ID từ user.
+- AI: streaming, markdown renderer, rate-limit `/api/ai/*`, ghi `users.streak`, bản en cho nội dung AI.

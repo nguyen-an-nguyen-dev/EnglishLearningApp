@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Engorace · Color Preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+      background: #ECE5DA;
+      color: #2E2620;
+      transition: background 180ms ease, color 180ms ease;
+    }
+    body[data-mode="dark"] { background: #101010; color: #F4ECE2; }
+
+    /* Toolbar ------------------------------------------------------------- */
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 20px;
+      padding: 14px clamp(16px, 4vw, 40px);
+      border-bottom: 1px solid rgb(46 38 32 / 10%);
+      background: rgb(255 253 249 / 86%);
+      backdrop-filter: blur(14px);
+    }
+    body[data-mode="dark"] .toolbar {
+      border-bottom-color: rgb(255 255 255 / 10%);
+      background: rgb(22 20 18 / 86%);
+    }
+    .toolbar-title { display: flex; align-items: baseline; gap: 10px; font-weight: 750; }
+    .toolbar-title small { font-size: 11px; font-weight: 500; opacity: 0.6; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    .seg {
+      display: inline-flex;
+      gap: 3px;
+      padding: 3px;
+      border: 1px solid rgb(46 38 32 / 14%);
+      border-radius: 10px;
+      background: rgb(46 38 32 / 4%);
+    }
+    body[data-mode="dark"] .seg { border-color: rgb(255 255 255 / 14%); background: rgb(255 255 255 / 5%); }
+    .seg button {
+      padding: 7px 12px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 650;
+      opacity: 0.68;
+    }
+    .seg button.is-on { background: #FFFFFF; opacity: 1; box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }
+    body[data-mode="dark"] .seg button.is-on { background: rgb(255 255 255 / 14%); }
+
+    /* Layout -------------------------------------------------------------- */
+    .page { max-width: 1180px; margin: 0 auto; padding: 26px clamp(16px, 4vw, 40px) 70px; }
+    .intro h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); letter-spacing: -0.03em; }
+    .intro p { max-width: 760px; margin: 10px 0 0; font-size: 13.5px; line-height: 1.7; opacity: 0.7; }
+    .intro .ratio { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; font-size: 11px; font-weight: 700; }
+    .ratio span { padding: 6px 10px; border-radius: 999px; background: rgb(46 38 32 / 6%); }
+    body[data-mode="dark"] .ratio span { background: rgb(255 255 255 / 7%); }
+
+    .palette { margin-top: 34px; }
+    .palette-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+    .palette-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
+    .palette-head p { margin: 0; font-size: 12px; opacity: 0.6; }
+
+    /* Mock app ------------------------------------------------------------ */
+    .mock {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: 0 24px 60px -38px rgb(0 0 0 / 45%);
+    }
+    .mock-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 18px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--nav);
+    }
+    .mock-brand { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; }
+    .mock-brand span:nth-child(2) { color: var(--wordmark-eng); }
+    .mock-brand span:nth-child(3) { color: var(--wordmark-o); }
+    .mock-brand span:nth-child(4) { color: var(--wordmark-race); }
+    .mock-links { display: flex; flex-wrap: wrap; gap: 4px; }
+    .mock-links span { padding: 6px 10px; border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .mock-links span.is-active { background: var(--soft); color: var(--ink); }
+
+    .mock-body { padding: 20px; }
+    .mock-kicker { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+    .mock-body h3 { margin: 8px 0 0; font-size: 22px; letter-spacing: -0.035em; }
+    .mock-body h3 em { color: var(--accent); font-family: Georgia, serif; font-weight: 500; }
+    .mock-sub { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    .workbench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card);
+    }
+    .tabs { display: flex; gap: 3px; padding: 3px; border-radius: 9px; background: var(--soft); }
+    .tabs span { flex: 1; padding: 7px 0; border-radius: 7px; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+    .tabs span.is-active { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+    .langbar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; font-size: 11.5px; font-weight: 750; }
+    .swap {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--soft);
+      color: var(--accent-strong);
+      font-size: 14px;
+    }
+    .textarea {
+      min-height: 96px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--soft);
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .counter { align-self: flex-end; color: var(--muted); font-size: 9.5px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 38px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 9px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
+      transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+    }
+    .btn-primary { background: var(--primary); color: var(--primary-text); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost { border: 1px solid var(--border); background: transparent; color: var(--ink); }
+    .btn-ghost:hover { border-color: var(--accent-strong); color: var(--accent-strong); }
+    .btn-disabled { background: var(--primary); color: var(--primary-text); opacity: 0.5; cursor: not-allowed; }
+    .btn.is-hover { background: var(--primary-hover); }
+    .state-label { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .result-label { color: var(--accent); font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+    .result-text { font-size: 13px; line-height: 1.7; }
+    .word-card { padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--soft); }
+    .word-head { display: flex; align-items: baseline; gap: 8px; }
+    .word-head strong { font-size: 16px; font-weight: 800; }
+    .word-head em { color: var(--muted); font-size: 11px; font-style: normal; }
+    .pos { display: inline-block; margin-top: 5px; color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+    .meaning { margin: 8px 0 0; font-size: 12px; font-weight: 650; }
+    .example { margin: 6px 0 0; color: var(--muted); font-size: 11px; font-style: italic; line-height: 1.55; }
+
+    .notice { margin-top: 10px; padding: 9px 11px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+    .notice-error { background: var(--err-bg); color: var(--err); }
+    .notice-ok { background: var(--ok-bg); color: var(--ok); }
+
+    /* Swatches ------------------------------------------------------------- */
+    .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-top: 12px; }
+    .swatch { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+    .swatch-chip { height: 44px; background: var(--chip); }
+    .swatch-meta { padding: 7px 9px; }
+    .swatch-name { color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+    .swatch-hex { margin-top: 2px; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* Palettes ------------------------------------------------------------- */
+    .p1 {
+      --bg: #F6F0E7; --nav: #FBF6EE; --card: #FFFDF9; --soft: #FBF5EC;
+      --border: #E7DCCD; --ink: #2E2620; --muted: #7D7064;
+      --primary: #006F8F; --primary-hover: #005A75; --primary-text: #FFFFFF;
+      --accent: #006F8F; --accent-strong: #005A75;
+      --ok-bg: #E9F3E6; --ok: #2E6B3E; --err-bg: #FBE9E5; --err: #A63B2E;
+      --wordmark-eng: #009ECB; --wordmark-o: #5CAF6B; --wordmark-race: #D9820B;
+    }
+    body[data-mode="dark"] .p1 {
+      --bg: #1A1715; --nav: #201C19; --card: #26211D; --soft: #2E2721;
+      --border: #3B332B; --ink: #F4ECE2; --muted: #B3A597;
+      --primary: #37C6F0; --primary-hover: #6FDAFA; --primary-text: #06232C;
+      --accent: #6FDAFA; --accent-strong: #6FDAFA;
+      --ok-bg: #1C2A21; --ok: #7CCB86; --err-bg: #351C1C; --err: #FF9A93;
+      --wordmark-eng: #00C7FF; --wordmark-o: #7CCB86; --wordmark-race: #F59E0B;
+    }
+    .p2 {
+      --bg: #F2EADF; --nav: #F8F1E7; --card: #FFFCF6; --soft: #FAF3E9;
+      --border: #D9C9B6; --ink: #2A211A; --muted: #7A6B5C;
+      --primary: #3A2E24; --primary-hover: #554434; --primary-text: #FFF8EE;
+      --accent: #B47512; --accent-strong: #8A5A0E;
+      --ok-bg: #E9F3E6; --ok: #2E6B3E; --err-bg: #FBE9E5; --err: #A63B2E;
+      --wordmark-eng: #009ECB; --wordmark-o: #5CAF6B; --wordmark-race: #D9820B;
+    }
+    body[data-mode="dark"] .p2 {
+      --bg: #171310; --nav: #1E1915; --card: #221C17; --soft: #2A231D;
+      --border: #3B3128; --ink: #F7EFE4; --muted: #B9A896;
+      --primary: #E9D7BF; --primary-hover: #F5E7D3; --primary-text: #2A211A;
+      --accent: #F5C86A; --accent-strong: #F5C86A;
+      --ok-bg: #1C2A21; --ok: #7CCB86; --err-bg: #351C1C; --err: #FF9A93;
+      --wordmark-eng: #00C7FF; --wordmark-o: #7CCB86; --wordmark-race: #F59E0B;
+    }
+    .p3 {
+      --bg: #F4F1EA; --nav: #FAF7F0; --card: #FFFCF5; --soft: #F7F3EA;
+      --border: #DDD6C9; --ink: #1F2933; --muted: #6E7A82;
+      --primary: #123B4A; --primary-hover: #0C2E3A; --primary-text: #F7FCFE;
+      --accent: #007A9E; --accent-strong: #0C5B73;
+      --ok-bg: #E9F3E6; --ok: #2E6B3E; --err-bg: #FBE9E5; --err: #A63B2E;
+      --wordmark-eng: #009ECB; --wordmark-o: #5CAF6B; --wordmark-race: #D9820B;
+    }
+    body[data-mode="dark"] .p3 {
+      --bg: #121A1E; --nav: #162126; --card: #1A2429; --soft: #202C32;
+      --border: #2B3A41; --ink: #EAF2F4; --muted: #9FB2BA;
+      --primary: #38C7EE; --primary-hover: #62D9F7; --primary-text: #062A36;
+      --accent: #62D9F7; --accent-strong: #62D9F7;
+      --ok-bg: #173029; --ok: #7CCB86; --err-bg: #341E1E; --err: #FF9A93;
+      --wordmark-eng: #00C7FF; --wordmark-o: #7CCB86; --wordmark-race: #F59E0B;
+    }
+
+    .is-hidden { display: none !important; }
+
+    @media (max-width: 760px) {
+      .workbench { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-mode="light">
+  <header class="toolbar">
+    <div class="toolbar-title">Engorace · Color preview <small>gợi ý phối màu, chưa áp vào app</small></div>
+    <div class="controls">
+      <div class="seg" id="mode-switch">
+        <button type="button" data-mode="light" class="is-on">Sáng</button>
+        <button type="button" data-mode="dark">Tối</button>
+      </div>
+      <div class="seg" id="filter-switch">
+        <button type="button" data-filter="all" class="is-on">Cả 3</button>
+        <button type="button" data-filter="1">1</button>
+        <button type="button" data-filter="2">2</button>
+        <button type="button" data-filter="3">3</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="intro">
+      <h1>Ba hướng phối màu cho nền và nút</h1>
+      <p>Mỗi bảng màu được áp vào cùng một mock trang Dịch để so sánh trực tiếp: nền trang, nav, card, ô nhập, nút chính, nút phụ, trạng thái hover/disabled và màu lỗi. Đổi Sáng/Tối ở thanh trên; hover thật vào nút để xem màu hover.</p>
+      <div class="ratio">
+        <span>60% nền trung tính</span>
+        <span>30% chữ &amp; viền</span>
+        <span>10% nút màu</span>
+      </div>
+    </section>
+
+    <section class="palette p1">
+      <div class="palette-head">
+        <h2>1 · Warm Paper + Teal Ink <span style="opacity:.55">(khuyên dùng)</span></h2>
+        <p>Giấy ấm + teal đậm · gần token hiện tại nhất</p>
+      </div>
+      <div class="mock">
+        <div class="mock-nav">
+          <div class="mock-brand"><span>Eng</span><span>o</span><span>race</span></div>
+          <div class="mock-links">
+            <span>Học Tập</span><span>Video</span><span class="is-active">Dịch Tài Liệu</span><span>Thi Đua</span><span>Xếp Hạng</span>
+          </div>
+        </div>
+        <div class="mock-body">
+          <span class="mock-kicker">Dịch thuật</span>
+          <h3>Dịch tài liệu, <em>giữ nguyên mạch văn bản.</em></h3>
+          <p class="mock-sub">Dán văn bản hoặc tải tệp .txt — AI dịch sang ngôn ngữ còn lại, giữ nguyên xuống dòng.</p>
+          <div class="workbench">
+            <div class="panel">
+              <div class="tabs"><span class="is-active">Văn bản</span><span>Tệp .txt</span></div>
+              <div class="langbar"><span>English</span><span class="swap">⇄</span><span>Tiếng Việt</span></div>
+              <div class="textarea">The weather is beautiful today, so we walked along the river.</div>
+              <span class="counter">60 / 10.000</span>
+              <div class="actions">
+                <button class="btn btn-primary" type="button">Dịch văn bản</button>
+                <button class="btn btn-ghost" type="button">Đổi chiều</button>
+              </div>
+            </div>
+            <div class="panel">
+              <span class="result-label">Bản dịch</span>
+              <div class="result-text">Hôm nay thời tiết rất đẹp nên chúng tôi đã đi dạo dọc bờ sông.</div>
+              <div class="word-card">
+                <div class="word-head"><strong>weather</strong><em>/ˈweð.ər/</em></div>
+                <span class="pos">Danh từ</span>
+                <p class="meaning">thời tiết</p>
+                <p class="example">The weather is lovely today.</p>
+              </div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <div><div class="state-label">Primary</div><button class="btn btn-primary" type="button">Dịch văn bản</button></div>
+            <div><div class="state-label">Hover</div><button class="btn btn-primary is-hover" type="button">Hover</button></div>
+            <div><div class="state-label">Ghost</div><button class="btn btn-ghost" type="button">Đổi chiều</button></div>
+            <div><div class="state-label">Disabled</div><button class="btn btn-disabled" type="button" disabled>Dịch văn bản</button></div>
+          </div>
+          <div class="notice notice-error">Tệp quá lớn. Giới hạn tối đa là 20 KB.</div>
+          <div class="notice notice-ok">Đã lưu từ vào sổ từ.</div>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-chip" style="--chip:#F6F0E7"></div><div class="swatch-meta"><div class="swatch-name">Nền</div><div class="swatch-hex">#F6F0E7</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#FFFDF9"></div><div class="swatch-meta"><div class="swatch-name">Card</div><div class="swatch-hex">#FFFDF9</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#2E2620"></div><div class="swatch-meta"><div class="swatch-name">Chữ</div><div class="swatch-hex">#2E2620</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#006F8F"></div><div class="swatch-meta"><div class="swatch-name">Nút</div><div class="swatch-hex">#006F8F</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#005A75"></div><div class="swatch-meta"><div class="swatch-name">Hover</div><div class="swatch-hex">#005A75</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#00A7CF"></div><div class="swatch-meta"><div class="swatch-name">Focus</div><div class="swatch-hex">#00A7CF</div></div></div>
+      </div>
+    </section>
+
+    <section class="palette p2">
+      <div class="palette-head">
+        <h2>2 · Espresso + Cream</h2>
+        <p>Ấm, editorial · hợp cảm giác “tài liệu giấy”</p>
+      </div>
+      <div class="mock">
+        <div class="mock-nav">
+          <div class="mock-brand"><span>Eng</span><span>o</span><span>race</span></div>
+          <div class="mock-links">
+            <span>Học Tập</span><span>Video</span><span class="is-active">Dịch Tài Liệu</span><span>Thi Đua</span><span>Xếp Hạng</span>
+          </div>
+        </div>
+        <div class="mock-body">
+          <span class="mock-kicker">Dịch thuật</span>
+          <h3>Dịch tài liệu, <em>giữ nguyên mạch văn bản.</em></h3>
+          <p class="mock-sub">Dán văn bản hoặc tải tệp .txt — AI dịch sang ngôn ngữ còn lại, giữ nguyên xuống dòng.</p>
+          <div class="workbench">
+            <div class="panel">
+              <div class="tabs"><span class="is-active">Văn bản</span><span>Tệp .txt</span></div>
+              <div class="langbar"><span>English</span><span class="swap">⇄</span><span>Tiếng Việt</span></div>
+              <div class="textarea">The weather is beautiful today, so we walked along the river.</div>
+              <span class="counter">60 / 10.000</span>
+              <div class="actions">
+                <button class="btn btn-primary" type="button">Dịch văn bản</button>
+                <button class="btn btn-ghost" type="button">Đổi chiều</button>
+              </div>
+            </div>
+            <div class="panel">
+              <span class="result-label">Bản dịch</span>
+              <div class="result-text">Hôm nay thời tiết rất đẹp nên chúng tôi đã đi dạo dọc bờ sông.</div>
+              <div class="word-card">
+                <div class="word-head"><strong>weather</strong><em>/ˈweð.ər/</em></div>
+                <span class="pos">Danh từ</span>
+                <p class="meaning">thời tiết</p>
+                <p class="example">The weather is lovely today.</p>
+              </div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <div><div class="state-label">Primary</div><button class="btn btn-primary" type="button">Dịch văn bản</button></div>
+            <div><div class="state-label">Hover</div><button class="btn btn-primary is-hover" type="button">Hover</button></div>
+            <div><div class="state-label">Ghost</div><button class="btn btn-ghost" type="button">Đổi chiều</button></div>
+            <div><div class="state-label">Disabled</div><button class="btn btn-disabled" type="button" disabled>Dịch văn bản</button></div>
+          </div>
+          <div class="notice notice-error">Tệp quá lớn. Giới hạn tối đa là 20 KB.</div>
+          <div class="notice notice-ok">Đã lưu từ vào sổ từ.</div>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-chip" style="--chip:#F2EADF"></div><div class="swatch-meta"><div class="swatch-name">Nền</div><div class="swatch-hex">#F2EADF</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#FFFCF6"></div><div class="swatch-meta"><div class="swatch-name">Card</div><div class="swatch-hex">#FFFCF6</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#2A211A"></div><div class="swatch-meta"><div class="swatch-name">Chữ</div><div class="swatch-hex">#2A211A</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#3A2E24"></div><div class="swatch-meta"><div class="swatch-name">Nút</div><div class="swatch-hex">#3A2E24</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#554434"></div><div class="swatch-meta"><div class="swatch-name">Hover</div><div class="swatch-hex">#554434</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#B47512"></div><div class="swatch-meta"><div class="swatch-name">Nhấn</div><div class="swatch-hex">#B47512</div></div></div>
+      </div>
+    </section>
+
+    <section class="palette p3">
+      <div class="palette-head">
+        <h2>3 · Ink Navy + Citrus</h2>
+        <p>Tương phản lạnh, cyan chỉ làm điểm nhấn</p>
+      </div>
+      <div class="mock">
+        <div class="mock-nav">
+          <div class="mock-brand"><span>Eng</span><span>o</span><span>race</span></div>
+          <div class="mock-links">
+            <span>Học Tập</span><span>Video</span><span class="is-active">Dịch Tài Liệu</span><span>Thi Đua</span><span>Xếp Hạng</span>
+          </div>
+        </div>
+        <div class="mock-body">
+          <span class="mock-kicker">Dịch thuật</span>
+          <h3>Dịch tài liệu, <em>giữ nguyên mạch văn bản.</em></h3>
+          <p class="mock-sub">Dán văn bản hoặc tải tệp .txt — AI dịch sang ngôn ngữ còn lại, giữ nguyên xuống dòng.</p>
+          <div class="workbench">
+            <div class="panel">
+              <div class="tabs"><span class="is-active">Văn bản</span><span>Tệp .txt</span></div>
+              <div class="langbar"><span>English</span><span class="swap">⇄</span><span>Tiếng Việt</span></div>
+              <div class="textarea">The weather is beautiful today, so we walked along the river.</div>
+              <span class="counter">60 / 10.000</span>
+              <div class="actions">
+                <button class="btn btn-primary" type="button">Dịch văn bản</button>
+                <button class="btn btn-ghost" type="button">Đổi chiều</button>
+              </div>
+            </div>
+            <div class="panel">
+              <span class="result-label">Bản dịch</span>
+              <div class="result-text">Hôm nay thời tiết rất đẹp nên chúng tôi đã đi dạo dọc bờ sông.</div>
+              <div class="word-card">
+                <div class="word-head"><strong>weather</strong><em>/ˈweð.ər/</em></div>
+                <span class="pos">Danh từ</span>
+                <p class="meaning">thời tiết</p>
+                <p class="example">The weather is lovely today.</p>
+              </div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <div><div class="state-label">Primary</div><button class="btn btn-primary" type="button">Dịch văn bản</button></div>
+            <div><div class="state-label">Hover</div><button class="btn btn-primary is-hover" type="button">Hover</button></div>
+            <div><div class="state-label">Ghost</div><button class="btn btn-ghost" type="button">Đổi chiều</button></div>
+            <div><div class="state-label">Disabled</div><button class="btn btn-disabled" type="button" disabled>Dịch văn bản</button></div>
+          </div>
+          <div class="notice notice-error">Tệp quá lớn. Giới hạn tối đa là 20 KB.</div>
+          <div class="notice notice-ok">Đã lưu từ vào sổ từ.</div>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-chip" style="--chip:#F4F1EA"></div><div class="swatch-meta"><div class="swatch-name">Nền</div><div class="swatch-hex">#F4F1EA</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#FFFCF5"></div><div class="swatch-meta"><div class="swatch-name">Card</div><div class="swatch-hex">#FFFCF5</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#1F2933"></div><div class="swatch-meta"><div class="swatch-name">Chữ</div><div class="swatch-hex">#1F2933</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#123B4A"></div><div class="swatch-meta"><div class="swatch-name">Nút</div><div class="swatch-hex">#123B4A</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#0C2E3A"></div><div class="swatch-meta"><div class="swatch-name">Hover</div><div class="swatch-hex">#0C2E3A</div></div></div>
+        <div class="swatch"><div class="swatch-chip" style="--chip:#F2B544"></div><div class="swatch-meta"><div class="swatch-name">Nhấn</div><div class="swatch-hex">#F2B544</div></div></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const modeButtons = [...document.querySelectorAll('#mode-switch button')];
+    const filterButtons = [...document.querySelectorAll('#filter-switch button')];
+    const palettes = [...document.querySelectorAll('.palette')];
+
+    function applyMode(mode) {
+      document.body.dataset.mode = mode;
+      modeButtons.forEach((button) => button.classList.toggle('is-on', button.dataset.mode === mode));
+    }
+
+    function applyFilter(filter) {
+      filterButtons.forEach((button) => button.classList.toggle('is-on', button.dataset.filter === filter));
+      palettes.forEach((section, index) => {
+        section.classList.toggle('is-hidden', filter !== 'all' && filter !== String(index + 1));
+      });
+    }
+
+    modeButtons.forEach((button) => button.addEventListener('click', () => applyMode(button.dataset.mode)));
+    filterButtons.forEach((button) => button.addEventListener('click', () => applyFilter(button.dataset.filter)));
+  </script>
+</body>
+</html>

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
-import { parseAiTopic, parseChatId, parseUserMessage } from '../src/modules/ai/ai.validation';
+import { parseAiTopic, parseChatId, parseChatTurn, parseUserMessage } from '../src/modules/ai/ai.validation';
 import { HttpError } from '../src/middleware/error-handler';
+import type { StudyStats } from '../src/modules/ai/ai.repository';
+import type { LearnerContext } from '../src/modules/ai/ai.types';
 
 let ai: typeof import('../src/modules/ai/ai.service');
 
@@ -120,4 +122,118 @@ test('translation validation accepts only en/vi pairs and limits text', async ()
   assert.equal(translations.isSingleWord('beautiful'), true);
   assert.equal(translations.isSingleWord("don't"), true);
   assert.equal(translations.isSingleWord('very good'), false);
+});
+
+test('study coach validation accepts intents and sanitizes untrusted page context', () => {
+  const turn = parseChatTurn({
+    message: '  Hôm nay học gì?  ',
+    intent: 'plan',
+    context: { tab: 'videos', focus: '  Greetings  ', detail: 'x'.repeat(1500) },
+  });
+  assert.equal(turn.message, 'Hôm nay học gì?');
+  assert.equal(turn.intent, 'plan');
+  assert.equal(turn.context?.tab, 'videos');
+  assert.equal(turn.context?.focus, 'Greetings');
+  assert.equal(turn.context?.detail?.length, 1000);
+
+  const plain = parseChatTurn({ message: 'Hello' });
+  assert.equal(plain.intent, 'chat');
+  assert.equal(plain.context, null);
+
+  const unknownTab = parseChatTurn({ message: 'Hello', context: { tab: 'somewhere-else' } });
+  assert.equal(unknownTab.context?.tab, 'study');
+  assert.throws(
+    () => parseChatTurn({ message: 'Hello', intent: 'HACK' }),
+    (error) => error instanceof HttpError && error.statusCode === 422,
+  );
+});
+
+test('study plan steps come from real progress, weak topics and unlock order', () => {
+  const stats: StudyStats = {
+    totalLessons: 4,
+    completedLessons: 1,
+    completedLessonIds: [1],
+    lessons: [
+      { id: 1, title: 'Bài 1', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 2, title: 'Bài 2', topic: 'Masterclass', stageTitle: 'Chặng 1' },
+      { id: 3, title: 'Bài 3', topic: 'Literature', stageTitle: 'Chặng 2' },
+      { id: 4, title: 'Bài 4', topic: 'Literature', stageTitle: 'Chặng 2' },
+    ],
+    videosTotal: 2,
+    videosCompleted: 0,
+    nextVideo: { id: 9, title: 'Video A' },
+    savedWords: 0,
+    translations: 3,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 1,
+    xp: 20,
+    streak: 2,
+  };
+  const learner: LearnerContext = {
+    level: 'intermediate',
+    completedTopics: ['Intro'],
+    weakTopics: [{ topic: 'Masterclass', mistakes: 3 }],
+    recentMistakes: [],
+    previousFeedback: [],
+  };
+
+  const snapshot = ai.toStudySnapshot(learner, stats);
+  assert.equal(snapshot.nextLesson?.id, 2, 'the lesson after the completed one is next');
+  assert.equal(snapshot.xp, 20);
+  assert.equal(snapshot.weakTopics[0].mistakes, 3);
+
+  const steps = ai.buildStudyPlan(snapshot, stats);
+  assert.equal(steps.length, 3);
+  assert.equal(steps[0].kind, 'lesson');
+  assert.equal(steps[0].target.lessonId, 2, 'step one deep-links into the exact lesson');
+  assert.equal(steps[1].kind, 'review');
+  assert.match(steps[1].reason, /3 câu/);
+  assert.equal(steps[2].target.tab, 'videos');
+
+  const finished = ai.toStudySnapshot(learner, {
+    ...stats,
+    completedLessons: 4,
+    completedLessonIds: [1, 2, 3, 4],
+  });
+  assert.equal(finished.nextLesson, null);
+  assert.equal(ai.buildStudyPlan(finished, { ...stats, completedLessonIds: [1, 2, 3, 4] })[0].kind, 'review');
+});
+
+test('offline coach reply still names the real next lesson and weak topic', () => {
+  const stats: StudyStats = {
+    totalLessons: 3,
+    completedLessons: 1,
+    completedLessonIds: [1],
+    lessons: [
+      { id: 1, title: 'Bài 1', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 2, title: 'Bài 2', topic: 'Masterclass', stageTitle: 'Chặng 1' },
+      { id: 3, title: 'Bài 3', topic: 'Literature', stageTitle: 'Chặng 2' },
+    ],
+    videosTotal: 0,
+    videosCompleted: 0,
+    nextVideo: null,
+    savedWords: 0,
+    translations: 0,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 0,
+    xp: 20,
+    streak: 0,
+  };
+  const learner: LearnerContext = {
+    level: 'beginner',
+    completedTopics: ['Intro'],
+    weakTopics: [{ topic: 'Masterclass', mistakes: 4 }],
+    recentMistakes: [],
+    previousFeedback: [],
+  };
+  const snapshot = ai.toStudySnapshot(learner, stats);
+  const steps = ai.buildStudyPlan(snapshot, stats);
+  const reply = ai.buildOfflineCoachReply(snapshot, steps, 'plan', { tab: 'study', focus: 'Bài 2' });
+  assert.match(reply.reply, /Bài 2/);
+  assert.match(reply.reply, /Masterclass/);
+  assert.match(reply.reply, /4 câu/);
+  assert.match(reply.reply, /Bài 2/);
+  assert.deepEqual(reply.feedback, []);
 });

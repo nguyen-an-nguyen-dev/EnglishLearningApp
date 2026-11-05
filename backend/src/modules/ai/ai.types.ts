@@ -7,9 +7,75 @@ export const AI_TOPICS = [
   'FAMILY',
   'HOBBIES',
   'JOB_INTERVIEW',
+  'STUDY_COACH',
 ] as const;
 
 export type AiTopic = (typeof AI_TOPICS)[number];
+
+/** The learner's purpose for a turn. `chat` keeps the original tutor behaviour. */
+export const CHAT_INTENTS = ['chat', 'plan', 'explain', 'how', 'practice'] as const;
+export type ChatIntent = (typeof CHAT_INTENTS)[number];
+
+export const CHAT_TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile'] as const;
+export type ChatTab = (typeof CHAT_TABS)[number];
+
+/** Untrusted page context sent by the web. Never interpolated into SQL. */
+export interface ChatContext {
+  tab: ChatTab;
+  focus?: string;
+  detail?: string;
+}
+
+export interface ChatTurn {
+  message: string;
+  intent: ChatIntent;
+  context: ChatContext | null;
+}
+
+export type StudyStepKind = 'lesson' | 'review' | 'vocab' | 'video' | 'arena' | 'translate';
+
+export interface StudyStepTarget {
+  tab: ChatTab;
+  lessonId?: number;
+  lessonTitle?: string;
+  videoId?: number;
+}
+
+export interface StudyStep {
+  id: string;
+  kind: StudyStepKind;
+  title: string;
+  reason: string;
+  minutes: number;
+  target: StudyStepTarget;
+}
+
+export interface StudySnapshot {
+  level: LearnerContext['level'];
+  xp: number;
+  streak: number;
+  completedLessons: number;
+  totalLessons: number;
+  weakTopics: Array<{ topic: string; mistakes: number }>;
+  recentMistakes: Array<{ topic: string; prompt: string; answer: string }>;
+  nextLesson: { id: number; title: string; topic: string } | null;
+  videosCompleted: number;
+  videosTotal: number;
+  nextVideo: { id: number; title: string } | null;
+  savedWords: number;
+  translations: number;
+  battlesPlayed: number;
+  battleWins: number;
+  badges: number;
+}
+
+export interface StudyPlan {
+  snapshot: StudySnapshot;
+  steps: StudyStep[];
+  aiNote: string | null;
+  generatedAt: string;
+}
+
 export type FeedbackType = 'GRAMMAR' | 'VOCABULARY' | 'TENSE' | 'WORD_ORDER' | 'OTHER';
 
 export interface ChatRow {
