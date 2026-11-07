@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import Colors from '@/constants/Colors';
+import FloatingStudyBuddy from '@/components/FloatingStudyBuddy';
 import { AppDialogProvider } from '@/contexts/app-dialog-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AppThemeProvider, useAppTheme } from '@/contexts/theme-context';
@@ -59,10 +60,10 @@ function RootLayoutNav() {
   const { isLoading, token } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const inAuthGroup = segments[0] === '(auth)';
 
   useEffect(() => {
     if (isLoading) return;
-    const inAuthGroup = segments[0] === '(auth)';
     if (!token && !inAuthGroup) router.replace('/login');
     if (token && inAuthGroup) router.replace('/');
   }, [isLoading, router, segments, token]);
@@ -89,13 +90,16 @@ function RootLayoutNav() {
       },
     }}>
       <StatusBar style={theme} />
-      <Stack>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="battle" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="battle" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+        {token && !inAuthGroup ? <FloatingStudyBuddy /> : null}
+      </View>
     </ThemeProvider>
   );
 }
