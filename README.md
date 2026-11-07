@@ -103,6 +103,21 @@ thêm dữ liệu QA (`matches`, `translations`, `video_lessons`). Cấp quyền
 `UPDATE users SET role = 'admin' WHERE email = '...';` — backend đọc role từ DB ở **mỗi** request
 `/api/admin/*`, nên không cần đăng nhập lại và hạ quyền cũng có hiệu lực ngay.
 
+Nếu backend báo `Unknown column 'role' in 'SELECT'`, DB đang chạy cũ hơn `final.sql`. **Không** nạp
+lại toàn bộ `final.sql` lên DB có dữ liệu cần giữ vì file sẽ drop database. Chọn đúng DB mà
+`backend/.env` khai báo trong `DB_NAME` rồi chạy lệnh nâng cấp không mất dữ liệu:
+
+```sql
+ALTER TABLE users
+  ADD COLUMN role ENUM('learner','admin') NOT NULL DEFAULT 'learner' AFTER streak;
+```
+
+Sau đó, nếu tài khoản quản trị mặc định vẫn là `test@test.com` (id `10`), cấp lại quyền:
+
+```sql
+UPDATE users SET role = 'admin' WHERE id = 10 AND email = 'test@test.com';
+```
+
 Bảng từ vựng đấu trường là **`battle_words`** (`word_en`, `translation_vi`, `cefr_level`,
 `part_of_speech`, `example_en`, `example_vi`, `image_url`), không phải `words`. Cả 100 dòng đã có
 ảnh minh hoạ ngay trong `final.sql`. File nằm trong `web/public/arena/<word>.jpg` — **100 file

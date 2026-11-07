@@ -6,8 +6,8 @@ import { useAppTheme } from '@/contexts/theme-context';
 const tabSymbols = {
   learning: { ios: 'map.fill', android: 'map', web: 'map' },
   ranking: { ios: 'trophy.fill', android: 'emoji_events', web: 'emoji_events' },
+  video: { ios: 'play.rectangle.fill', android: 'video_library', web: 'video_library' },
   translate: { ios: 'character.bubble.fill', android: 'translate', web: 'translate' },
-  talk: { ios: 'bubble.left.and.bubble.right.fill', android: 'forum', web: 'forum' },
   settings: { ios: 'gearshape.fill', android: 'settings', web: 'settings' },
 } as const;
 
@@ -53,20 +53,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="talk"
+        options={{
+          title: 'Học video',
+          tabBarIcon: ({ color }) => (
+            <SymbolView name={tabSymbols.video} tintColor={color} size={22} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="translate"
         options={{
           title: 'Dịch',
           tabBarIcon: ({ color }) => (
             <SymbolView name={tabSymbols.translate} tintColor={color} size={22} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="talk"
-        options={{
-          title: 'Chat AI',
-          tabBarIcon: ({ color }) => (
-            <SymbolView name={tabSymbols.talk} tintColor={color} size={22} />
           ),
         }}
       />
