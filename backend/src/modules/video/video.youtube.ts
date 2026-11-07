@@ -1,5 +1,5 @@
 import type { SpawnOptions } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import youtubeDl from 'youtube-dl-exec';
@@ -11,6 +11,39 @@ export const MAX_IMPORTS_PER_USER = 20;
 
 const FETCH_TIMEOUT_MS = 120_000;
 const CAPTION_LANGS = ['en', 'en-orig', 'en-en', 'en-US', 'en-GB', 'en-AU', 'en-CA', 'en-IN'];
+
+/** Human labels for caption languages we can name, keyed by ISO base code. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'tiếng Anh', vi: 'tiếng Việt', ja: 'tiếng Nhật', ko: 'tiếng Hàn', zh: 'tiếng Trung',
+  fr: 'tiếng Pháp', es: 'tiếng Tây Ban Nha', de: 'tiếng Đức', th: 'tiếng Thái', id: 'tiếng Indonesia',
+  ru: 'tiếng Nga', pt: 'tiếng Bồ Đào Nha', hi: 'tiếng Hindi', ar: 'tiếng Ả Rập', it: 'tiếng Ý',
+  nl: 'tiếng Hà Lan', tr: 'tiếng Thổ Nhĩ Kỳ', pl: 'tiếng Ba Lan', uk: 'tiếng Ukraina',
+};
+
+/** Every caption track YouTube advertises for this video (manual + automatic). */
+export function captionLanguageCodes(metadata: Record<string, unknown>): string[] {
+  const codes = new Set<string>();
+  for (const field of ['subtitles', 'automatic_captions']) {
+    const tracks = metadata[field];
+    if (!tracks || typeof tracks !== 'object' || Array.isArray(tracks)) continue;
+    for (const code of Object.keys(tracks as Record<string, unknown>)) codes.add(code);
+  }
+  return [...codes];
+}
+
+function isEnglishCaption(code: string): boolean {
+  return code.toLocaleLowerCase('en').split(/[-_]/)[0] === 'en';
+}
+
+/** "tiếng Pháp, tiếng Đức" — base languages only, deduped, capped for the message. */
+export function describeCaptionLanguages(codes: string[]): string {
+  const bases = [...new Set(codes.map((code) => code.toLocaleLowerCase('en').split(/[-_]/)[0]))];
+  return bases
+    .filter((base) => base !== 'en')
+    .map((base) => LANGUAGE_NAMES[base] ?? base)
+    .slice(0, 6)
+    .join(', ');
+}
 const SENTENCE_END = /[.!?]["'”’)\]]*\s*$/;
 const TRAILING_OFF = /(?:\.\.\.|…)\s*$/;
 /** Below this a cue is a fragment, not something worth its own line. */
@@ -43,7 +76,15 @@ export interface YouTubeImportSource {
   thumbnailUrl: string | null;
   durationSeconds: number;
   segments: TranscriptSegment[];
+  /** Line-level cues: what the rule-based splitter should work from. */
   cues: CaptionCue[];
+  /**
+   * Word-level cues for the AI sentence splitter. Always maximally fine even for
+   * music, because a cut point per word is what lets the model end a sentence
+   * anywhere; the rule-based path keeps the line-level `cues` so lyrics are not
+   * diced into single words.
+   */
+  aiCues: CaptionCue[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -90,6 +131,11 @@ export function canonicalYouTubeUrl(videoId: string): string {
 
 export function videoCodeForUser(videoId: string, userId: number): string {
   return `yt_${videoId}_u${userId}`;
+}
+
+/** Shared library videos have no owner, so their code must not collide with any learner import. */
+export function videoCodeForShared(videoId: string): string {
+  return `yt_${videoId}_shared`;
 }
 
 export function tidyCaptionText(value: string): string {
@@ -431,70 +477,171 @@ async function readCaptionCues(
   return [];
 }
 
-function mapYtDlpError(error: unknown): HttpError {
+export function mapYtDlpError(error: unknown): HttpError {
   const message = error instanceof Error ? error.message : String(error);
   if (/timed? ?out|ETIMEDOUT|SIGTERM|killed/i.test(message)) {
-    return new HttpError(504, 'Reading the YouTube video timed out. Please try again.', ['VIDEO_IMPORT_TIMEOUT']);
+    return new HttpError(504, 'Đọc video YouTube bị quá thời gian. Thử lại giúp mình nhé.', ['VIDEO_IMPORT_TIMEOUT']);
   }
-  if (/no subtitles|There are no subtitles/i.test(message)) {
-    return new HttpError(422, 'This video has no English captions to analyze.', ['VIDEO_NO_CAPTIONS']);
+  if (/no subtitles|There are no subtitles|no automatic captions|no caption/i.test(message)) {
+    return new HttpError(422, 'Video này không có phụ đề nào (kể cả phụ đề tự động).', ['VIDEO_NO_CAPTIONS']);
   }
   if (/429|too many requests|rate.?limit/i.test(message)) {
-    return new HttpError(503, 'YouTube is limiting requests right now. Please try again in a few minutes.', ['VIDEO_IMPORT_UNAVAILABLE']);
+    return new HttpError(503, 'YouTube đang tạm giới hạn yêu cầu. Đợi vài phút rồi thử lại nhé.', ['VIDEO_IMPORT_RATE_LIMIT']);
   }
-  if (/private|unavailable|removed|members-only|age-restricted|not available|sign in/i.test(message)) {
-    return new HttpError(422, 'This YouTube video is unavailable or private.', ['VIDEO_UNAVAILABLE']);
+  if (/members-only|join this channel|paid|premium|sign in|age.?restricted|private video|this video is private/i.test(message)) {
+    return new HttpError(422, 'Video này đang riêng tư hoặc cần đăng nhập / trả phí nên không đọc được.', ['VIDEO_PRIVATE']);
+  }
+  if (/unavailable|removed|deleted|does not exist|blocked|not available/i.test(message)) {
+    return new HttpError(422, 'Video không còn tồn tại hoặc bị chặn theo khu vực.', ['VIDEO_UNAVAILABLE']);
   }
   console.error('YouTube import failed:', message.slice(0, 600));
-  return new HttpError(502, 'Could not analyze that YouTube video. Please try another link.', ['VIDEO_IMPORT_UNAVAILABLE']);
+  return new HttpError(502, 'Không đọc được video này. Kiểm tra link có công khai và còn tồn tại không.', ['VIDEO_IMPORT_UNAVAILABLE']);
 }
 
-export async function fetchYouTubeImportSource(videoId: string): Promise<YouTubeImportSource> {
-  const directory = await mkdtemp(path.join(tmpdir(), 'engorace-yt-'));
-  try {
-    let payload: unknown;
-    try {
-      payload = await youtubeDl(
-        canonicalYouTubeUrl(videoId),
-        {
-          dumpSingleJson: true,
-          noSimulate: true,
-          skipDownload: true,
-          writeSubs: true,
-          writeAutoSubs: true,
-          subLangs: CAPTION_LANGS,
-          subFormat: 'json3',
-          output: path.join(directory, '%(id)s'),
-          noPlaylist: true,
-          noWarnings: true,
-          noProgress: true,
-          retries: 2,
-          socketTimeout: 20,
-        },
-        { timeout: FETCH_TIMEOUT_MS } as SpawnOptions & { timeout: number },
-      );
-    } catch (error) {
-      throw mapYtDlpError(error);
-    }
+export interface YouTubeFetchOptions {
+  /** Reject videos at or above this length. Defaults to the learner import limit. */
+  maxDurationSeconds?: number;
+}
 
-    const metadata = typeof payload === 'string'
-      ? JSON.parse(payload) as unknown
-      : payload;
+const YTDLP_FLAGS = (directory: string) => ({
+  dumpSingleJson: true,
+  noSimulate: true,
+  skipDownload: true,
+  writeSubs: true,
+  writeAutoSubs: true,
+  subLangs: CAPTION_LANGS,
+  subFormat: 'json3',
+  output: path.join(directory, '%(id)s'),
+  noPlaylist: true,
+  noWarnings: true,
+  noProgress: true,
+  retries: 2,
+  socketTimeout: 20,
+});
+
+/**
+ * yt-dlp ships as a PyInstaller one-file build: every run unpacks itself into a
+ * temp directory first. Under a restricted token (sandboxed dev shells, some CI
+ * images) that unpack fails with "Could not create temporary directory!" even
+ * though the OS temp folder is writable by ordinary processes. Pointing TEMP and
+ * TMP at a directory the process demonstrably owns makes the run work, so a
+ * failure of that exact shape is retried once against `YTDLP_TEMP_DIR` (default
+ * `<backend>/.yt-dlp-tmp`) before it is reported as a real import error.
+ */
+function isTempDirFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /could not create temporary directory|PYI-\d+/i.test(message)
+    || /unable to open for writing|Permission denied|EACCES|EPERM/i.test(message);
+}
+
+/**
+ * Where yt-dlp is allowed to scratch. The OS temp folder is the right default,
+ * but a restricted token can deny writes there for the spawned process while
+ * still letting our own process create the directory — so the fallback lives
+ * inside the project, where the sandbox always allows writes.
+ */
+async function scratchRoots(): Promise<string[]> {
+  const roots = [tmpdir()];
+  const configured = process.env.YTDLP_TEMP_DIR?.trim();
+  roots.push(configured && configured.length > 0 ? configured : path.join(process.cwd(), '.yt-dlp-tmp'));
+  return [...new Set(roots.map((root) => path.resolve(root)))];
+}
+
+async function runYtDlp(videoId: string, directory: string, tempRoot?: string): Promise<unknown> {
+  return youtubeDl(
+    canonicalYouTubeUrl(videoId),
+    YTDLP_FLAGS(directory) as never,
+    {
+      timeout: FETCH_TIMEOUT_MS,
+      ...(tempRoot
+        ? { env: { ...process.env, TEMP: tempRoot, TMP: tempRoot, TMPDIR: tempRoot } }
+        : {}),
+    } as SpawnOptions & { timeout: number },
+  );
+}
+
+interface RawYouTubeSource {
+  payload: unknown;
+  rawCues: CaptionCue[];
+}
+
+/**
+ * Runs yt-dlp from each scratch root in turn. A sandboxed run typically fails
+ * twice before it works: the PyInstaller bootloader cannot unpack itself in the
+ * OS temp dir, and then the caption files cannot be written next to it. Both
+ * present as the same kind of permission failure, so the whole attempt (metadata
+ * + captions) is retried from a directory the process demonstrably owns.
+ *
+ * The captions are read while the directory still exists; it is removed on the
+ * way out either way.
+ */
+async function fetchRawSource(videoId: string): Promise<RawYouTubeSource> {
+  let lastError: unknown;
+  for (const root of await scratchRoots()) {
+    let directory: string | null = null;
+    try {
+      await mkdir(root, { recursive: true });
+      directory = await mkdtemp(path.join(root, 'engorace-yt-'));
+      const payload = await runYtDlp(videoId, directory, root === path.resolve(tmpdir()) ? undefined : root);
+      const metadata = typeof payload === 'string' ? JSON.parse(payload) as unknown : payload;
+      const rawCues = isRecord(metadata)
+        ? normalizeCues(await readCaptionCues(directory, videoId, metadata))
+        : [];
+      return { payload, rawCues };
+    } catch (error) {
+      lastError = error;
+      if (!isTempDirFailure(error)) throw error;
+      console.warn(
+        `yt-dlp could not work in ${root}; trying the next scratch directory.`,
+        error instanceof Error ? error.message : error,
+      );
+    } finally {
+      if (directory) await rm(directory, { recursive: true, force: true });
+    }
+  }
+  throw lastError;
+}
+
+export async function fetchYouTubeImportSource(
+  videoId: string,
+  options: YouTubeFetchOptions = {},
+): Promise<YouTubeImportSource> {
+  let payload: unknown;
+  let rawCues: CaptionCue[];
+  try {
+    ({ payload, rawCues } = await fetchRawSource(videoId));
+  } catch (error) {
+    throw mapYtDlpError(error);
+  }
+  return buildImportSource(payload, rawCues, videoId, options);
+}
+
+/** Turns the raw yt-dlp payload plus its captions into the import result. */
+function buildImportSource(
+  payload: unknown,
+  rawCues: CaptionCue[],
+  videoId: string,
+  options: YouTubeFetchOptions,
+): YouTubeImportSource {
+  const metadata = typeof payload === 'string'
+    ? JSON.parse(payload) as unknown
+    : payload;
     if (!isRecord(metadata)) {
-      throw new HttpError(422, 'Could not read this YouTube video.', ['VIDEO_UNAVAILABLE']);
+      throw new HttpError(422, 'YouTube không trả về thông tin của video này.', ['VIDEO_UNREADABLE']);
     }
     if (metadata.is_live === true || metadata.live_status === 'is_live') {
-      throw new HttpError(422, 'Live streams cannot be imported.', ['VIDEO_UNAVAILABLE']);
+      throw new HttpError(422, 'Video này là livestream nên chưa nhập được. Chọn video đã phát xong nhé.', ['VIDEO_LIVE']);
     }
 
+    const maxDurationSeconds = options.maxDurationSeconds ?? MAX_IMPORT_DURATION_SECONDS;
     const durationSeconds = Math.round(Number(metadata.duration));
     if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
-      throw new HttpError(422, 'This video has no fixed duration and cannot be imported.', ['VIDEO_UNAVAILABLE']);
+      throw new HttpError(422, 'Video không có thời lượng cố định (premiere hoặc đang phát) nên chưa nhập được.', ['VIDEO_NO_DURATION']);
     }
-    if (durationSeconds >= MAX_IMPORT_DURATION_SECONDS) {
+    if (durationSeconds >= maxDurationSeconds) {
       throw new HttpError(
         422,
-        `This video is ${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s long. Imported videos must be shorter than 5 minutes.`,
+        `This video is ${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s long. Imported videos must be shorter than ${Math.round(maxDurationSeconds / 60)} minutes.`,
         ['VIDEO_TOO_LONG'],
       );
     }
@@ -504,15 +651,34 @@ export async function fetchYouTubeImportSource(videoId: string): Promise<YouTube
       : [];
     const isMusic = categories.some((category) => category.toLocaleLowerCase('en') === 'music');
 
-    const rawCues = normalizeCues(await readCaptionCues(directory, videoId, metadata));
-    // Song lyrics read line by line and lose meaning when diced into words;
-    // spoken captions profit from a cut point at every spoken word.
+    // Song lyrics read line by line and lose meaning when diced into words, so
+    // the rule-based splitter keeps the line-level cues for music. The AI gets
+    // word-level cues either way, which is what produced one-line-per-sentence
+    // results for lyrics as well.
     const cues = isMusic ? rawCues : expandCueWords(rawCues);
+    const aiCues = isMusic ? expandCueWords(rawCues) : cues;
     const segments = segmentCaptionCues(cues);
     if (segments.length === 0) {
+      // Say exactly why: no captions at all, or captions in another language only.
+      const captionCodes = captionLanguageCodes(metadata);
+      if (captionCodes.length === 0) {
+        throw new HttpError(
+          422,
+          'Video này không có phụ đề nào (kể cả phụ đề tự động).',
+          ['VIDEO_NO_CAPTIONS'],
+        );
+      }
+      if (!captionCodes.some(isEnglishCaption)) {
+        const spoken = describeCaptionLanguages(captionCodes);
+        throw new HttpError(
+          422,
+          `Video này không có phụ đề tiếng Anh${spoken ? `, chỉ có ${spoken}` : ''}.`,
+          ['VIDEO_NO_ENGLISH_CAPTIONS', spoken ? `Phụ đề hiện có: ${spoken}` : ''].filter(Boolean),
+        );
+      }
       throw new HttpError(
         422,
-        'This video has no English captions to analyze. Try a video with English subtitles.',
+        'Video có phụ đề tiếng Anh nhưng nội dung quá ngắn để chia đoạn.',
         ['VIDEO_NO_CAPTIONS'],
       );
     }
@@ -545,8 +711,6 @@ export async function fetchYouTubeImportSource(videoId: string): Promise<YouTube
       durationSeconds,
       segments,
       cues,
+      aiCues,
     };
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
 }

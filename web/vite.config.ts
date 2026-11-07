@@ -6,6 +6,12 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    watch: {
+      // Editors (this agent tool included) stage writes in `.<file>.tmpdir/`
+      // inside the same folder, then rename. Watching those transient files
+      // throws EBUSY and can wedge the whole dev server, so they stay unseen.
+      ignored: ['**/.*.tmpdir/**', '**/.*.tmpdir', '**/.git/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

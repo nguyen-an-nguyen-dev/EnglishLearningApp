@@ -321,15 +321,30 @@ interface PracticeViewProps {
   savedWords: SavedWord[]
   onSavedWord: (word: SavedWord) => void
   onBack: () => void
+  /**
+   * Landing preview mode. The visitor has no session, so saving a word and
+   * moving past the free segments open the sign-up dialog instead of calling
+   * the API. Rendering is otherwise the real practice screen.
+   */
+  demo?: {
+    /** Segments shown for free. */
+    segmentLimit: number
+    /** Segments the full lesson holds, to show what signing up unlocks. */
+    totalSegments: number
+    onRequireAuth: () => void
+  }
 }
 
 function normalizeSavedWord(value: string): string {
   return value.toLocaleLowerCase('en').replace(/[^a-z0-9]/g, '')
 }
 
-export function PracticeView({ video, savedWords, onSavedWord, onBack }: PracticeViewProps) {
+export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: PracticeViewProps) {
   const { t } = useI18n()
-  const segments = video.segments
+  const segments = useMemo(
+    () => (demo ? video.segments.slice(0, Math.max(1, demo.segmentLimit)) : video.segments),
+    [video.segments, demo],
+  )
   const [index, setIndex] = useState(0)
   const [typed, setTyped] = useState('')
   const [playToken, setPlayToken] = useState(0)
@@ -390,6 +405,10 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack }: Practic
 
   async function saveScriptWord(token: DictationToken) {
     if (token.clean.length < 3 || savingWord || savedKeys.has(token.clean)) return
+    if (demo) {
+      demo.onRequireAuth()
+      return
+    }
     setSavingWord(token.clean)
     setSaveNote(null)
     try {
@@ -437,6 +456,41 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack }: Practic
   }
 
   if (finished) {
+    // The landing preview ends on an invitation, not a completion trophy: the
+    // visitor finished everything they were allowed to see.
+    if (demo) {
+      const remaining = Math.max(0, demo.totalSegments - segments.length)
+      return (
+        <div className="practice-practice">
+          <div className="practice-gate">
+            <span className="practice-gate-icon"><Headphones size={30} weight="regular" /></span>
+            <span className="practice-gate-eyebrow">{t.demoGateEyebrow(segments.length)}</span>
+            <h2>{t.demoGateTitle}</h2>
+            <p>
+              {remaining > 0
+                ? t.demoGateDesc(remaining, demo.totalSegments)
+                : t.demoGateDescNoMore}
+            </p>
+            <ul className="practice-gate-list">
+              <li><CheckCircle size={16} weight="fill" /><span>{t.demoGatePointProgress}</span></li>
+              <li><CheckCircle size={16} weight="fill" /><span>{t.demoGatePointWords}</span></li>
+              <li><CheckCircle size={16} weight="fill" /><span>{t.demoGatePointXp}</span></li>
+            </ul>
+            <div className="practice-gate-actions">
+              <button type="button" className="practice-solid-btn" onClick={demo.onRequireAuth}>
+                <span>{t.demoGateCta}</span>
+                <ArrowRight size={16} weight="bold" />
+              </button>
+              <button type="button" className="practice-ghost-btn" onClick={restart}>
+                <ArrowClockwise size={16} weight="bold" />
+                <span>{t.demoGateReplay}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="practice-practice">
         <div className="practice-done">
@@ -522,7 +576,7 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack }: Practic
                   type="button"
                   className={`practice-word${isRevealed ? ' is-revealed' : prefixLength > 0 ? ' is-partial' : ' is-hidden'}${isSaved ? ' is-saved' : ''}`}
                   aria-label={isRevealed ? undefined : t.practiceHiddenWord(token.raw.length)}
-                  title={canSave ? t.practiceSaveWordHint : undefined}
+                  title={canSave ? (demo ? t.demoSaveHint : t.practiceSaveWordHint) : undefined}
                   disabled={!canSave}
                   onClick={canSave ? () => void saveScriptWord(token) : undefined}
                 >
@@ -544,7 +598,7 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack }: Practic
           </div>
           <p className="practice-save-hint">
             <CheckCircle size={13} weight="regular" />
-            <span>{t.practiceSaveWordHint}</span>
+            <span>{demo ? t.demoSaveHint : t.practiceSaveWordHint}</span>
           </p>
           {saveNote && (
             <p className={`practice-save-note is-${saveNote.tone}`} role="status">
@@ -597,7 +651,11 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack }: Practic
             disabled={!complete}
             onClick={goNext}
           >
-            <span>{index + 1 >= segments.length ? t.practiceFinish : t.practiceNext}</span>
+            <span>
+              {index + 1 >= segments.length
+                ? (demo ? t.demoFinishFree : t.practiceFinish)
+                : t.practiceNext}
+            </span>
             <ArrowRight size={17} weight="bold" />
           </button>
         </section>

@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "nodemon",
+    "dev:tsx": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && node dist/server.js",
-    "test": "tsx --test test/auth.test.ts test/learning.test.ts test/learning.unit.test.ts test/ranking.test.ts test/battle.test.ts test/battle.rest.test.ts test/video.unit.test.ts test/video.test.ts test/ai.unit.test.ts test/ai.test.ts test/translations.test.ts",
+    "test": "tsx --test test/auth.test.ts test/learning.test.ts test/learning.unit.test.ts test/ranking.test.ts test/battle.test.ts test/battle.rest.test.ts test/video.unit.test.ts test/video.test.ts test/admin.unit.test.ts test/admin.test.ts test/buddy.unit.test.ts test/buddy.test.ts test/ai.unit.test.ts test/ai.test.ts test/translations.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.3.0",
     "@types/node": "^22.13.10",
+    "nodemon": "^3.1.14",
     "socket.io-client": "^4.8.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"

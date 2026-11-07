@@ -32,11 +32,29 @@ function parseJsonContent(content: string): unknown {
   try {
     return JSON.parse(normalized) as unknown;
   } catch {
-    const start = normalized.indexOf('{');
-    const end = normalized.lastIndexOf('}');
-    if (start === -1 || end <= start) throw new Error('AI response was not valid JSON.');
-    return JSON.parse(normalized.slice(start, end + 1)) as unknown;
+    /* fall through to the tolerant readers below */
   }
+
+  const start = normalized.indexOf('{');
+  const end = normalized.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    try {
+      return JSON.parse(normalized.slice(start, end + 1)) as unknown;
+    } catch {
+      /* the model may have written unquoted keys — see below */
+    }
+  }
+
+  // Small fast models sometimes answer `{sentence_ends:[3,7]}` without quoting
+  // the key. The list is the only thing we need, and parseAiSentenceEnds still
+  // validates that it ascends and reaches the last fragment.
+  const loose = normalized.match(/sentence_ends\s*:?\s*\[([\d\s,]*)\]/i);
+  if (loose) {
+    const ids = loose[1].split(',').map((part) => Number(part.trim())).filter((id) => Number.isInteger(id));
+    if (ids.length > 0) return { sentence_ends: ids };
+  }
+
+  throw new Error('AI response was not valid JSON.');
 }
 
 /**
@@ -78,8 +96,19 @@ function joinUnitText(units: TranscriptSegment[]): string {
 }
 
 /**
- * Cuts the transcript at the AI sentence ends, then packs whole sentences into
- * playable segments. Segments therefore always stop where a sentence stops; a
+ * A sentence this short is a reaction ("I see.", "Oh wow.", "Right."), not a line
+ * worth dictating on its own, so it joins the sentence before it.
+ */
+const FRAGMENT_MS = 1_800;
+const FRAGMENT_WORDS = 3;
+
+/**
+ * Cuts the transcript at the AI sentence ends, then keeps **one sentence per
+ * segment**: dictation reads line by line ("Nghe từng câu"), so gluing several
+ * sentences into one 12-second window is exactly the bug learners reported.
+ *
+ * A sentence only merges into the previous segment when it is a short reaction
+ * fragment, and even then the size caps still guard the result. A single
  * sentence longer than the caps simply plays on its own.
  */
 export function buildSegmentsFromEnds(
@@ -103,14 +132,13 @@ export function buildSegmentsFromEnds(
   for (const sentence of sentences) {
     const previous = segments[segments.length - 1];
     if (previous) {
+      const duration = sentence.endMs - sentence.startMs;
+      const words = sentence.text.split(/\s+/).filter(Boolean).length;
       const mergedChars = `${previous.text} ${sentence.text}`.length;
-      const short = sentence.endMs - sentence.startMs < 2_000;
+      const fragment = duration < FRAGMENT_MS || words < FRAGMENT_WORDS;
       const fits = sentence.endMs - previous.startMs <= MAX_SEGMENT_MS
         && mergedChars <= MAX_GROUP_CHARS;
-      const fitsWithShort = short
-        && sentence.endMs - previous.startMs <= MAX_SEGMENT_MS + 3_000
-        && mergedChars <= MAX_GROUP_CHARS + 40;
-      if (fits || fitsWithShort) {
+      if (fragment && fits) {
         previous.endMs = sentence.endMs;
         previous.text = `${previous.text} ${sentence.text}`;
         continue;
@@ -144,6 +172,8 @@ interface AnalysisProvider {
   apiUrl: string;
   apiKey: string;
   models: string[];
+  /** The provider accepts `response_format: { type: 'json_object' }`. */
+  jsonMode: boolean;
 }
 
 function providerFor(model: VideoAnalysisModel): AnalysisProvider {
@@ -153,6 +183,7 @@ function providerFor(model: VideoAnalysisModel): AnalysisProvider {
       apiUrl: env.aiApiUrl,
       apiKey: env.aiApiKey,
       models: [env.aiModel, env.aiFallbackModel],
+      jsonMode: true,
     };
   }
   return {
@@ -160,6 +191,7 @@ function providerFor(model: VideoAnalysisModel): AnalysisProvider {
     apiUrl: env.nvidiaApiUrl,
     apiKey: env.nvidiaApiKey,
     models: [env.nvidiaModel],
+    jsonMode: false,
   };
 }
 
@@ -189,6 +221,9 @@ async function requestSentenceEnds(
       ],
       temperature: 0.2,
       max_tokens: MAX_OUTPUT_TOKENS,
+      // The OpenAI-compatible Gemini endpoint honours this and stops answering
+      // with `{sentence_ends:[...]}` (unquoted keys) on long transcripts.
+      ...(provider.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     }),
     signal: AbortSignal.timeout(Math.min(env.aiTimeoutMs, MAX_AI_TIMEOUT_MS)),
   });

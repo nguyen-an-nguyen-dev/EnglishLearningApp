@@ -240,6 +240,7 @@ export interface CompletionData {
   xpEarned: number;
   isFirstCompletion: boolean;
   badgesAwarded: Badge[];
+  practiceSeconds: number | null;
 }
 
 export async function completeLesson(
@@ -248,6 +249,7 @@ export async function completeLesson(
   correctAnswers: number,
   totalQuestions: number,
   score: number,
+  practiceSeconds: number | null = null,
 ): Promise<CompletionData> {
   const XP_PER_COMPLETION = 20;
   const connection: PoolConnection = await pool.getConnection();
@@ -279,16 +281,18 @@ export async function completeLesson(
       // Update existing row
       await connection.execute(
         `UPDATE progress
-         SET status = 'completed', score = ?, completed_at = ?, updated_at = ?
+         SET status = 'completed', score = ?, completed_at = ?, updated_at = ?,
+             practice_seconds = COALESCE(?, practice_seconds),
+             attempts = attempts + 1
          WHERE user_id = ? AND lesson_id = ?`,
-        [score, now, now, userId, lessonId],
+        [score, now, now, practiceSeconds, userId, lessonId],
       );
     } else {
       // Insert new progress row
       await connection.execute<ResultSetHeader>(
-        `INSERT INTO progress (user_id, lesson_id, status, score, started_at, completed_at, updated_at)
-         VALUES (?, ?, 'completed', ?, ?, ?, ?)`,
-        [userId, lessonId, score, now, now, now],
+        `INSERT INTO progress (user_id, lesson_id, status, score, started_at, completed_at, updated_at, practice_seconds, attempts)
+         VALUES (?, ?, 'completed', ?, ?, ?, ?, ?, 1)`,
+        [userId, lessonId, score, now, now, now, practiceSeconds],
       );
     }
 
@@ -319,7 +323,7 @@ export async function completeLesson(
 
     await connection.commit();
 
-    return { correctAnswers, totalQuestions, score, xpEarned, isFirstCompletion, badgesAwarded };
+    return { correctAnswers, totalQuestions, score, xpEarned, isFirstCompletion, badgesAwarded, practiceSeconds };
   } catch (error) {
     await connection.rollback();
     throw error;

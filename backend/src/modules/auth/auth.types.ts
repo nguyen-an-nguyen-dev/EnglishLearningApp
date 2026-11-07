@@ -19,12 +19,16 @@ export interface PasswordChangeInput {
   newPassword: string;
 }
 
+/** `admin` unlocks the content console (`/api/admin/*`); every account starts as a learner. */
+export type UserRole = 'learner' | 'admin';
+
 export interface AuthUser {
   id: number;
   name: string;
   email: string;
   xp: number;
   streak: number;
+  role: UserRole;
 }
 
 declare global {

@@ -31,6 +31,10 @@ export function parseCompleteLessonInput(value: unknown): CompleteLessonInput {
     }
   }
 
+  const practiceSeconds = typeof body.practiceSeconds === 'number' && Number.isFinite(body.practiceSeconds) && body.practiceSeconds >= 0
+    ? Math.min(Math.round(body.practiceSeconds), 24 * 3600)
+    : undefined;
+
   if (errors.length) throw new HttpError(422, 'Validation failed', errors);
 
   return {
@@ -41,6 +45,7 @@ export function parseCompleteLessonInput(value: unknown): CompleteLessonInput {
         answer: (a.answer as string).trim(),
       } as SubmittedAnswer;
     }),
+    practiceSeconds,
   };
 }
 

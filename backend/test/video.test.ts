@@ -67,8 +67,59 @@ function authHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-test('video catalogue exposes progress for the signed-in learner', async () => {
-  const response = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() });
+test('the landing demo needs no account and only leaks a bounded preview', async () => {
+  // No Authorization header on purpose: this is what a visitor sees first.
+  const response = await fetch(`${baseUrl}/api/demo/video`);
+  assert.equal(response.status, 200);
+  const body = await response.json() as ApiEnvelope<{
+    video: {
+      id: number;
+      title: string;
+      duration_seconds: number;
+      provider: string;
+      demo_segment_limit: number;
+      total_segments: number;
+      segments: Array<Record<string, unknown>>;
+    } | null;
+  }>;
+
+  const demo = body.data.video;
+  assert.ok(demo, 'The seeded library must offer a previewable video.');
+  assert.ok(demo.title.length > 0);
+  assert.equal(demo.provider, 'youtube');
+  assert.ok(demo.duration_seconds > 0);
+  assert.ok(demo.demo_segment_limit > 0);
+
+  // Bounded preview: never the whole transcript.
+  assert.ok(demo.segments.length > 0, 'The preview needs at least one segment.');
+  assert.ok(demo.segments.length <= demo.demo_segment_limit);
+  assert.ok(
+    demo.total_segments >= demo.segments.length,
+    'total_segments reports how much is still locked.',
+  );
+
+  for (const segment of demo.segments) {
+    assert.equal(typeof segment.text_en, 'string');
+    assert.ok((segment.text_en as string).length > 0);
+    // The Vietnamese translation and the answer key stay behind the login.
+    assert.equal('text_vi' in segment, false, 'The preview must not ship translations.');
+  }
+
+  // It is the shortest playable shared video, so the visitor sees a short round.
+  const list = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() })
+    .then((result) => result.json()) as ApiEnvelope<{
+      videos: Array<{ id: number; duration_seconds: number }>;
+    }>;
+  const sharedDurations = list.data.videos
+    .filter((video) => video.duration_seconds > 0)
+    .map((video) => video.duration_seconds);
+  assert.ok(
+    demo.duration_seconds <= Math.min(...sharedDurations),
+    'The demo must be the shortest video in the shared library.',
+  );
+});
+
+test('video catalogue exposes progress for the signed-in learner', async () => {  const response = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() });
   assert.equal(response.status, 200);
   const body = await response.json() as ApiEnvelope<{ videos: Array<Record<string, unknown>> }>;
   assert.ok(body.data.videos.length >= 3, 'Seed at least three video lessons.');

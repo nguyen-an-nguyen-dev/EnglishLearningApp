@@ -1,0 +1,62 @@
+{
+  "390": {
+    "pageErrors": [],
+    "dock": 1,
+    "bubble": "Còn một bài nữa là giữ chuỗi 7 ngày.",
+    "noChatThread": 0,
+    "panel": 1,
+    "nudgeCards": 3,
+    "nudgeTitles": [
+      "Chuỗi 7 ngày đang chờ hôm nay",
+      "Bài đang mở: Văn học & Phê bình",
+      "Chủ đề Masterclass đang sai nhiều"
+    ],
+    "panelOverflow": {
+      "scrollWidth": 390,
+      "viewport": 390,
+      "insideViewport": true
+    },
+    "firstCta": "Mở bài này",
+    "panelClosedAfterNav": true,
+    "spotlights": 1,
+    "activeTabAfterNav": "Học Tập",
+    "spotlightAutoCleared": true,
+    "suggestionChips": 4,
+    "answerCard": 1,
+    "answerText": "Ừ, 20 phút nữa mình nhắc bạn mở Sổ từ vựng.",
+    "answerThreadBubbles": 0,
+    "reminderOffer": 1,
+    "reminderSaved": "Đã đặt nhắc. Mình sẽ nhắc đúng giờ.",
+    "reminderRows": 7
+  },
+  "1440": {
+    "pageErrors": [],
+    "dock": 1,
+    "bubble": "Còn một bài nữa là giữ chuỗi 7 ngày.",
+    "noChatThread": 0,
+    "panel": 1,
+    "nudgeCards": 3,
+    "nudgeTitles": [
+      "Chuỗi 7 ngày đang chờ hôm nay",
+      "Bài đang mở: Văn học & Phê bình",
+      "Chủ đề Masterclass đang sai nhiều"
+    ],
+    "panelOverflow": {
+      "scrollWidth": 1440,
+      "viewport": 1440,
+      "insideViewport": true
+    },
+    "firstCta": "Mở bài này",
+    "panelClosedAfterNav": true,
+    "spotlights": 1,
+    "activeTabAfterNav": "Học Tập",
+    "spotlightAutoCleared": true,
+    "suggestionChips": 4,
+    "answerCard": 1,
+    "answerText": "Ừ, 20 phút nữa mình sẽ nhắc bạn ôn Sổ từ.",
+    "answerThreadBubbles": 0,
+    "reminderOffer": 1,
+    "reminderSaved": "Đã đặt nhắc. Mình sẽ nhắc đúng giờ.",
+    "reminderRows": 6
+  }
+}

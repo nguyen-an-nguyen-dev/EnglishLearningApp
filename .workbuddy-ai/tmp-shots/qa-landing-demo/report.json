@@ -1,0 +1,50 @@
+{
+  "390": {
+    "pageErrors": [],
+    "usesRealVideo": 1,
+    "stripe": "Xem thử 3/23 đoạn",
+    "oldMockIframe": 0,
+    "segmentFirst": {
+      "text": "How was your trip",
+      "complete": true,
+      "revealed": 4,
+      "hidden": 0
+    },
+    "progressLabel": "01 / 03",
+    "pageErrorsAfterFirst": [],
+    "saveWordGated": 1,
+    "gateVisible": 1,
+    "gateTitle": "Bạn vừa nghe hết phần xem thử.",
+    "gatePoints": 3,
+    "gateCta": "Tạo tài khoản để học tiếp",
+    "pageScrollWidth": 390,
+    "viewport": 390,
+    "wrapperPresent": true,
+    "panelOverflow": [],
+    "gateOpensAuth": 1
+  },
+  "1440": {
+    "pageErrors": [],
+    "usesRealVideo": 1,
+    "stripe": "Xem thử 3/23 đoạn",
+    "oldMockIframe": 0,
+    "segmentFirst": {
+      "text": "How was your trip",
+      "complete": true,
+      "revealed": 4,
+      "hidden": 0
+    },
+    "progressLabel": "01 / 03",
+    "pageErrorsAfterFirst": [],
+    "saveWordGated": 1,
+    "gateVisible": 1,
+    "gateTitle": "Bạn vừa nghe hết phần xem thử.",
+    "gatePoints": 3,
+    "gateCta": "Tạo tài khoản để học tiếp",
+    "pageScrollWidth": 1440,
+    "viewport": 1440,
+    "wrapperPresent": true,
+    "panelOverflow": [],
+    "gateOpensAuth": 1
+  }
+}

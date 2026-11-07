@@ -4,6 +4,9 @@ import * as controller from './video.controller';
 
 export const videoRouter = Router();
 
+// Public: the landing page previews the shortest real lesson before signup.
+videoRouter.get('/demo/video', controller.getDemoVideo);
+
 videoRouter.get('/videos', authenticate, controller.getVideos);
 videoRouter.post('/videos/import', authenticate, controller.importVideo);
 videoRouter.get('/videos/:videoId', authenticate, controller.getVideo);

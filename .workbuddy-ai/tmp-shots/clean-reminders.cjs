@@ -1,0 +1,17 @@
+﻿const path = require('path')
+const { createRequire } = require('module')
+const ROOT = 'C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp'
+const backendRequire = createRequire(path.join(ROOT, 'backend/package.json'))
+const mysql = backendRequire('mysql2/promise')
+const dotenv = backendRequire('dotenv')
+dotenv.config({ path: path.join(ROOT, 'backend/.env') })
+;(async () => {
+  const conn = await mysql.createConnection({ host: 'localhost', port: 3306, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'english_learning' })
+  const [before] = await conn.query('SELECT COUNT(*) n FROM study_reminders')
+  await conn.query("DELETE FROM study_reminders WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.test' OR email = 'test@test.com')")
+  const [after] = await conn.query('SELECT COUNT(*) n FROM study_reminders')
+  console.log(`reminders: ${before[0].n} -> ${after[0].n}`)
+  const [left] = await conn.query('SELECT id, user_id, title, due_at FROM study_reminders ORDER BY id LIMIT 5')
+  console.table(left)
+  await conn.end()
+})()

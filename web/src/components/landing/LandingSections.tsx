@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { DemoVideoPanel } from './DemoVideoPanel'
+import { useHeroTilt } from './useHeroTilt'
 import {
   ArrowCounterClockwise,
   ArrowRight,
   BookOpenText,
   CheckCircle,
   Clock,
-  Eye,
-  EyeSlash,
   Fire,
   Headphones,
   List,
-  Sparkle,
-  SpeakerHigh,
   Sword,
   X,
   XCircle,
@@ -159,6 +156,10 @@ function LessonPreview() {
 }
 
 export function HeroSection({ onStart }: HeroSectionProps) {
+  // Pointer-driven tilt is composed with the idle float inside the hook, so the
+  // card never fights a CSS keyframe animation.
+  const tiltRef = useHeroTilt<HTMLDivElement>()
+
   return (
     <section id="hero" className="lp-hero" aria-labelledby="lp-hero-title">
       <div className="lp-hero-grid">
@@ -181,13 +182,10 @@ export function HeroSection({ onStart }: HeroSectionProps) {
 
         <div className="lp-hero-art" data-reveal>
           <div className="lp-hero-art-panel">
-            <span className="lp-hero-sun" aria-hidden="true" />
-            <span className="lp-hero-horizon" aria-hidden="true" />
-            <LessonPreview />
-          </div>
-          <div className="lp-hero-proof">
-            <span className="lp-proof-letter">A1</span>
-            <p><strong>Bắt đầu từ con số 0</strong><span>Mỗi bài 5–7 phút, dùng được ngay.</span></p>
+            <span className="lp-hero-floor" aria-hidden="true" />
+            <div className="lp-hero-3d" ref={tiltRef}>
+              <LessonPreview />
+            </div>
           </div>
         </div>
       </div>
@@ -317,32 +315,10 @@ export function CurriculumSection() {
 }
 
 /* =========================================================================
-   HỌC QUA VIDEO, PHỤ ĐỀ TƯƠNG TÁC & ĐẤU TRƯỜNG TỪ VỰNG
+   HỌC QUA VIDEO THẬT + ĐẤU TRƯỜNG TỪ VỰNG
+   Panel video dùng <DemoVideoPanel/>: bài ngắn nhất trong thư viện, lấy từ
+   GET /api/demo/video, chạy đúng màn PracticeView rồi mới chặn ở cổng đăng ký.
    ========================================================================= */
-
-interface SubtitleToken {
-  word: string
-  ipa: string
-  meaning: string
-  detail: string
-}
-
-const videoSubtitleTokens: SubtitleToken[] = [
-  { word: 'Actually,', ipa: '/ˈæk.tʃu.ə.li/', meaning: 'Thực ra', detail: 'Từ đệm tự nhiên người bản xứ hay dùng để mở đầu ý kiến.' },
-  { word: 'to', ipa: '/tuː/', meaning: 'để', detail: 'Giới từ liên kết mục đích.' },
-  { word: 'be', ipa: '/biː/', meaning: 'thì', detail: 'Động từ to be nguyên mẫu.' },
-  { word: 'completely', ipa: '/kəmˈpliːt.li/', meaning: 'hoàn toàn', detail: 'Trạng từ nhấn mạnh mức độ triệt để.' },
-  { word: 'honest,', ipa: '/ˈɒn.ɪst/', meaning: 'thành thật', detail: 'Cụm “to be honest” = thành thật mà nói.' },
-  { word: 'I', ipa: '/aɪ/', meaning: 'tôi', detail: 'Đại từ chủ ngữ ngôi thứ nhất.' },
-  { word: 'had', ipa: '/hæd/', meaning: 'đã', detail: 'Quá khứ đơn của have.' },
-  { word: 'no', ipa: '/nəʊ/', meaning: 'không', detail: 'Từ phủ định.' },
-  { word: 'idea', ipa: '/aɪˈdɪə/', meaning: 'biết', detail: '“have no idea” = hoàn toàn không hề biết trước.' },
-  { word: 'how', ipa: '/haʊ/', meaning: 'thế nào', detail: 'Liên từ chỉ phương thức.' },
-  { word: 'natural', ipa: '/ˈnætʃ.ər.əl/', meaning: 'tự nhiên', detail: 'Tính từ: trôi chảy, không gượng gạo.' },
-  { word: 'this', ipa: '/ðɪs/', meaning: 'điều này', detail: 'Đại từ chỉ định.' },
-  { word: 'would', ipa: '/wʊd/', meaning: 'sẽ', detail: 'Trợ động từ chỉ khả năng.' },
-  { word: 'feel!', ipa: '/fiːl/', meaning: 'cảm nhận!', detail: 'Động từ: mang lại cảm giác.' },
-]
 
 interface DuelQuestion {
   prompt: string
@@ -383,23 +359,7 @@ export function LearningModesSection({
   onStartDuel?: () => void
   onRequireAuth?: () => void
 }) {
-  const { isAuthenticated } = useAuth()
   const [activeMode, setActiveMode] = useState(0)
-
-  const [selectedWord, setSelectedWord] = useState<SubtitleToken | null>(videoSubtitleTokens[0])
-  const [savedWords, setSavedWords] = useState<string[]>([])
-  const [isMaskedMode, setIsMaskedMode] = useState<boolean>(true)
-  const [revealedWords, setRevealedWords] = useState<string[]>([videoSubtitleTokens[0].word])
-
-  function handleTokenClick(token: SubtitleToken) {
-    setSelectedWord(token)
-    setRevealedWords((prev) => (prev.includes(token.word) ? prev : [...prev, token.word]))
-    playSpokenWord(token.word)
-  }
-
-  function toggleMaskMode() {
-    setIsMaskedMode((prev) => !prev)
-  }
 
   const [duelRound, setDuelRound] = useState<number>(0)
   const [playerScore, setPlayerScore] = useState<number>(0)
@@ -534,27 +494,6 @@ export function LearningModesSection({
     setBotDelay(3600 + Math.random() * 4000)
   }
 
-  function toggleSaveWord(word: string) {
-    if (!isAuthenticated) {
-      onRequireAuth?.()
-      return
-    }
-    setSavedWords((prev) =>
-      prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
-    )
-  }
-
-  function playSpokenWord(word: string) {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-      const cleanWord = word.replace(/[^a-zA-Z]/g, '')
-      const utterance = new SpeechSynthesisUtterance(cleanWord)
-      utterance.lang = 'en-US'
-      utterance.rate = 0.92
-      window.speechSynthesis.speak(utterance)
-    }
-  }
-
   const currentQuestion = duelQuestions[duelRound]
 
   return (
@@ -603,118 +542,15 @@ export function LearningModesSection({
         >
           <div className="lp-panel-head">
             <div>
-              <span className="lp-panel-kicker">Bài 03 · Chào hỏi tự nhiên</span>
-              <h3>Nghe câu thật. Chạm vào từ để hiểu.</h3>
+              <span className="lp-panel-kicker">Bài học thật trong app</span>
+              <h3>Nghe câu thật. Gõ lại từng chữ.</h3>
             </div>
-            <span className="lp-panel-note"><Headphones size={15} /> Shadowing theo từng cụm</span>
+            <span className="lp-panel-note"><Headphones size={15} /> Chính bài ngắn nhất trong thư viện</span>
           </div>
 
-          <div className="lp-video-body">
-            <div className="lp-video-top">
-              <div className="lp-yt-player-wrap">
-                <iframe
-                  className="lp-yt-iframe"
-                  src="https://www.youtube-nocookie.com/embed/juKd26qkNAw?autoplay=0&controls=1&rel=0&modestbranding=1&cc_load_policy=0&iv_load_policy=3"
-                  title="English Conversation Video Clip"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-
-              <aside className="lp-word-column">
-                <div className="lp-word-head">
-                  <span className="lp-panel-kicker">Tra cứu tức thì</span>
-                  {selectedWord && (
-                    <button
-                      type="button"
-                      className={`lp-bookmark-btn${savedWords.includes(selectedWord.word) ? ' is-saved' : ''}`}
-                      onClick={() => toggleSaveWord(selectedWord.word)}
-                    >
-                      <Sparkle size={14} weight="fill" />
-                      <span>{savedWords.includes(selectedWord.word) ? 'Đã lưu' : 'Lưu từ'}</span>
-                    </button>
-                  )}
-                </div>
-
-                {selectedWord && (
-                  <div className="lp-word-body">
-                    <div className="lp-word-title-row">
-                      <span className="lp-word-entry">{selectedWord.word}</span>
-                      <span className="lp-word-ipa">{selectedWord.ipa}</span>
-                      <button
-                        type="button"
-                        className="lp-speak-mini-btn"
-                        onClick={() => playSpokenWord(selectedWord.word)}
-                        aria-label={`Nghe phát âm từ ${selectedWord.word}`}
-                      >
-                        <SpeakerHigh size={17} weight="duotone" />
-                      </button>
-                    </div>
-                    <p className="lp-meaning-label">Nghĩa tiếng Việt</p>
-                    <p className="lp-meaning-text">{selectedWord.meaning}</p>
-                    <p className="lp-word-tip">{selectedWord.detail}</p>
-                  </div>
-                )}
-
-                <div className="lp-video-features-list">
-                  <div className="lp-v-feature-item">
-                    <Headphones size={18} weight="duotone" className="lp-vf-icon" />
-                    <div>
-                      <strong>Shadowing ngắt câu</strong>
-                      <span>Nghe và lặp lại theo ngữ điệu bản xứ</span>
-                    </div>
-                  </div>
-                  <div className="lp-v-feature-item">
-                    <BookOpenText size={18} weight="duotone" className="lp-vf-icon" />
-                    <div>
-                      <strong>Sổ từ vựng ngữ cảnh</strong>
-                      <span>Lưu từ kèm video gốc để ghi nhớ sâu</span>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            <div className="lp-subtitle-block">
-              <div className="lp-subtitle-header">
-                <span className="lp-exercise-tag">
-                  <Sparkle size={13} weight="fill" /> Phụ đề tương tác
-                </span>
-                <button
-                  type="button"
-                  className="lp-mask-toggle-btn"
-                  onClick={toggleMaskMode}
-                  aria-label={isMaskedMode ? 'Hiện toàn bộ chữ' : 'Ẩn từ để luyện nghe'}
-                >
-                  {isMaskedMode ? <Eye size={13} weight="bold" /> : <EyeSlash size={13} weight="bold" />}
-                  <span>{isMaskedMode ? 'Hiện đầy đủ' : 'Ẩn từ luyện nghe'}</span>
-                </button>
-              </div>
-
-              <div className="lp-subtitle-phrase" role="region" aria-label="Dòng phụ đề tương tác">
-                {videoSubtitleTokens.map((token) => {
-                  const isSelected = selectedWord?.word === token.word
-                  const isSaved = savedWords.includes(token.word)
-                  const isRevealed = !isMaskedMode || revealedWords.includes(token.word)
-
-                  return (
-                    <button
-                      key={token.word}
-                      type="button"
-                      className={`lp-sub-word${isSelected ? ' is-active' : ''}${isSaved ? ' is-saved' : ''}${!isRevealed ? ' is-masked' : ''}`}
-                      onClick={() => handleTokenClick(token)}
-                      title={!isRevealed ? 'Bấm để mở chữ & nghe phát âm' : `Nghe phát âm: ${token.word}`}
-                    >
-                      {isRevealed ? token.word : '•••'}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <p className="lp-subtitle-vi">“Thực ra mà nói thật lòng, tôi không hề biết cảm giác này lại tự nhiên đến thế!”</p>
-            </div>
-          </div>
+          <DemoVideoPanel onRequireAuth={() => onRequireAuth?.()} />
         </div>
+
 
         <div
           className="lp-modes-slide"
@@ -913,4 +749,3 @@ export function LearningModesSection({
     </section>
   )
 }
-

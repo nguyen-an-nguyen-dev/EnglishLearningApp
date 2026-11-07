@@ -32,7 +32,11 @@ export function BattleResultScreen({ currentUserId, error, onBack, result }: Bat
           ))}
         </View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        <Pressable accessibilityRole="button" onPress={onBack} style={styles.primaryButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onBack}
+          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+        >
           <Text style={styles.primaryButtonText}>Quay lại</Text>
         </Pressable>
       </View>
@@ -53,6 +57,7 @@ const styles = StyleSheet.create({
   score: { color: '#203447', fontSize: 30, fontWeight: '900', marginTop: 5 },
   points: { color: '#71818d', fontSize: 11 },
   error: { color: '#b42318', fontSize: 13, textAlign: 'center', marginTop: 16 },
-  primaryButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', width: '100%', marginTop: 24, borderRadius: 9, backgroundColor: Colors.primaryDark },
-  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  primaryButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', width: '100%', marginTop: 24, borderRadius: 9, backgroundColor: Colors.primary },
+  primaryButtonPressed: { backgroundColor: Colors.primaryDark },
+  primaryButtonText: { color: '#04252b', fontSize: 14, fontWeight: '900' },
 });

@@ -77,3 +77,18 @@ export function parseChatTurn(value: unknown): ChatTurn {
     context: parseContext(asObject(value).context),
   };
 }
+
+/**
+ * The companion asks one question at a time: same sanitising as a chat turn, but
+ * the payload is flat (`{ question }`) because there is no thread to address.
+ */
+export function parseAskInput(value: unknown): ChatTurn {
+  const body = asObject(value);
+  const question = body.question ?? body.message;
+  const normalized = { ...body, message: question };
+  return {
+    message: parseUserMessage(normalized),
+    intent: parseIntent(body.intent),
+    context: parseContext(body.context),
+  };
+}

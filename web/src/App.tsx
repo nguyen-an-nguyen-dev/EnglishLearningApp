@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   BookOpenText,
   Gear,
   Lightning,
+  ShieldCheck,
   SignOut,
   Translate,
   Trophy,
@@ -22,9 +23,12 @@ import { TranslateView } from './components/translate/TranslateView'
 import { ArenaView } from './components/arena/ArenaView'
 import { RankingsView } from './components/rankings/RankingsView'
 import { ProfileView } from './components/profile/ProfileView'
+import { AdminView } from './components/admin/AdminView'
 import { useLearning } from './context/LearningContext'
 import { StudyBuddy, type BuddyView } from './components/ai/StudyBuddy'
-import type { StudyStep } from './services/aiChatService'
+import { BuddySpotlight } from './components/ai/BuddySpotlight'
+import { useBuddySpotlight } from './components/ai/useBuddySpotlight'
+import type { BuddyTarget } from './types/buddy'
 import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
@@ -36,10 +40,10 @@ import {
   stageTop,
 } from './roadmap'
 
-export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile'
+export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile' | 'admin'
 
 const TAB_STORAGE_KEY = 'engorace_active_tab'
-const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile']
+const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile', 'admin']
 
 function readStoredTab(): DashboardTab {
   try {
@@ -73,6 +77,11 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
     { id: 'rankings', label: t.navRankings, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
   ]
+
+  // The content console is for administrators only.
+  if (user?.role === 'admin') {
+    tabs.push({ id: 'admin', label: t.navAdmin, icon: ShieldCheck })
+  }
 
   return (
     <aside className="sidebar">
@@ -381,35 +390,77 @@ function App() {
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
   const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
   const [buddyView, setBuddyView] = useState<BuddyView>(null)
+  // A deep-link request coming from the buddy (open one video or the notebook).
+  const [videoRequest, setVideoRequest] = useState<
+    { kind: 'video' | 'notebook'; videoId?: number; nonce: number } | null
+  >(null)
+  const clearVideoRequest = useCallback(() => setVideoRequest(null), [])
 
-  const tabLabels: Record<DashboardTab, string> = {
-    study: t.navStudy,
-    videos: t.navVideos,
-    translate: t.navTranslate,
-    compete: t.navCompete,
-    rankings: t.navRankings,
-    profile: t.navProfile,
+  // A tab stored by a previous admin session must never open for a learner.
+  const effectiveTab: DashboardTab = activeTab === 'admin' && user?.role !== 'admin' ? 'study' : activeTab
+  /** Element the buddy asked us to circle on the destination screen. */
+  const [buddyHighlight, setBuddyHighlight] = useState<string | null>(null)
+  const spotlight = useBuddySpotlight(buddyHighlight, Boolean(buddyHighlight))
+
+  const videoRequestNonce = useRef(0)
+  const nextVideoNonce = () => {
+    videoRequestNonce.current += 1
+    return videoRequestNonce.current
   }
-  const buddyFocus = activeTab === 'study' ? (findCurrentLesson(stages)?.title ?? '') : ''
 
-  function handleBuddyAction(step: StudyStep) {
-    if (step.target.tab !== activeTab) {
-      if (!confirmArenaLeave()) return
-      setActiveTab(step.target.tab)
+  /**
+   * The buddy now navigates by target, not by action kind: every nudge and answer
+   * carries `{ tab, lessonId?, videoId?, highlight? }`, so one handler covers
+   * "open this lesson", "open this video", "open the notebook" and "circle this".
+   */
+  function handleBuddyNavigate(target: BuddyTarget) {
+    const tab = (target.tab ?? effectiveTab) as DashboardTab
+    if (tab === 'admin' && user?.role !== 'admin') return
+    if (!confirmArenaLeave()) return
+
+    if (target.videoId) {
+      if (effectiveTab !== 'videos') setActiveTab('videos')
+      setVideoRequest({ kind: 'video', videoId: target.videoId, nonce: nextVideoNonce() })
+    } else if (target.highlight === 'control:notebook' || target.highlight === 'control:notebook-open') {
+      if (effectiveTab !== 'videos') setActiveTab('videos')
+      setVideoRequest({ kind: 'notebook', nonce: nextVideoNonce() })
+    } else if (target.lessonId) {
+      if (effectiveTab !== 'study') setActiveTab('study')
+      // A target that asks for a highlight means "show me where it is", so the
+      // map is circled instead of yanking the learner straight into the player.
+      if (!target.highlight) {
+        setActiveLesson({
+          id: target.lessonId,
+          title: lessonTitleFor(target.lessonId) ?? 'Bài học',
+        })
+      }
+    } else if (tab !== effectiveTab) {
+      setActiveTab(tab)
     }
-    if (step.target.lessonId && step.target.lessonTitle) {
-      setActiveLesson({ id: step.target.lessonId, title: step.target.lessonTitle })
-    }
+
     setBuddyView(null)
+    if (target.highlight) {
+      // Let the destination render before looking for the element.
+      setBuddyHighlight(null)
+      window.setTimeout(() => setBuddyHighlight(target.highlight ?? null), 220)
+    }
+  }
+
+  function lessonTitleFor(lessonId: number): string | null {
+    for (const stage of stages) {
+      const found = stage.lessons.find((lesson) => lesson.id === lessonId)
+      if (found) return found.title
+    }
+    return null
   }
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(TAB_STORAGE_KEY, activeTab)
+      sessionStorage.setItem(TAB_STORAGE_KEY, effectiveTab)
     } catch {
       /* storage can be unavailable in private mode */
     }
-  }, [activeTab])
+  }, [effectiveTab])
 
   const currentView = (() => {
     if (userNavigatedToLanding) {
@@ -419,7 +470,7 @@ function App() {
   })()
 
   function selectTab(tab: DashboardTab) {
-    if (tab === activeTab) return
+    if (tab === effectiveTab) return
     if (!confirmArenaLeave()) return
     setActiveTab(tab)
   }
@@ -450,12 +501,15 @@ function App() {
     { id: 'rankings', label: t.navRankingsShort, icon: Trophy },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
   ]
+  if (user?.role === 'admin') {
+    mobileTabs.push({ id: 'admin', label: t.navAdmin, icon: ShieldCheck })
+  }
 
   return (
     <div className="app-shell" id="home">
       <Sidebar
         user={user}
-        activeTab={activeTab}
+        activeTab={effectiveTab}
         onSelectTab={selectTab}
         onLogout={handleLogout}
         onViewLanding={viewLanding}
@@ -463,7 +517,7 @@ function App() {
       />
       <div className="app-main">
         <main
-          className={`learning-page${activeTab === 'study' ? ' learning-page-map' : ''}${activeTab === 'translate' ? ' learning-page-translate' : ''}`}
+          className={`learning-page${effectiveTab === 'study' ? ' learning-page-map' : ''}${effectiveTab === 'translate' ? ' learning-page-translate' : ''}`}
           data-current-lesson={findCurrentLesson(stages)?.title ?? ''}
           data-total-lessons={stages.reduce((acc, s) => acc + s.totalCount, 0)}
           data-completed-lessons={stages.reduce((acc, s) => acc + s.completedCount, 0)}
@@ -485,23 +539,26 @@ function App() {
             </button>
           </div>
 
-          {activeTab === 'study' && (
+          {effectiveTab === 'study' && (
             <StudyView
               user={user}
               onOpenLesson={(lessonId, lessonTitle) => setActiveLesson({ id: lessonId, title: lessonTitle })}
             />
           )}
-          {activeTab === 'videos' && <VideoLearningView />}
-          {activeTab === 'translate' && <TranslateView />}
-          {activeTab === 'compete' && <ArenaView />}
-          {activeTab === 'rankings' && <RankingsView />}
-          {activeTab === 'profile' && <ProfileView onLogout={handleLogout} />}
+          {effectiveTab === 'videos' && (
+            <VideoLearningView videoRequest={videoRequest} onVideoRequestHandled={clearVideoRequest} />
+          )}
+          {effectiveTab === 'translate' && <TranslateView />}
+          {effectiveTab === 'compete' && <ArenaView />}
+          {effectiveTab === 'rankings' && <RankingsView />}
+          {effectiveTab === 'profile' && <ProfileView onLogout={handleLogout} />}
+          {effectiveTab === 'admin' && <AdminView />}
         </main>
       </div>
 
-      <nav className="mobile-nav" aria-label={t.mobileNavAria}>
+      <nav className={`mobile-nav${user?.role === 'admin' ? ' is-admin' : ''}`} aria-label={t.mobileNavAria}>
         {mobileTabs.map((tab) => {
-          const active = activeTab === tab.id
+          const active = effectiveTab === tab.id
           const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
           return (
             <button
@@ -520,13 +577,13 @@ function App() {
       <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
 
       <StudyBuddy
-        activeTab={activeTab}
-        tabLabel={tabLabels[activeTab]}
-        focusLabel={buddyFocus}
+        activeTab={effectiveTab}
         view={buddyView}
         onViewChange={setBuddyView}
-        onAction={handleBuddyAction}
+        onNavigate={handleBuddyNavigate}
       />
+
+      <BuddySpotlight spot={spotlight} />
 
       {activeLesson && (
         <LessonPlayer

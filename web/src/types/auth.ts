@@ -1,9 +1,13 @@
+export type UserRole = 'learner' | 'admin';
+
 export interface AuthUser {
   id: number;
   name: string;
   email: string;
   xp: number;
   streak: number;
+  /** `admin` unlocks the content console tab; everything else is a normal learner. */
+  role: UserRole;
 }
 
 export interface LoginPayload {

@@ -3,6 +3,7 @@ import { pool } from '../../db/pool';
 import { awardEligibleBadges } from '../badges/badges.repository';
 import type { Badge } from '../badges/badges.types';
 import type {
+  CreatedVideoInput,
   ImportedVideoInput,
   SavedWordRow,
   VideoLessonRow,
@@ -31,6 +32,43 @@ export async function getVideoById(videoId: number): Promise<VideoLessonRow | un
     [videoId],
   );
   return rows[0];
+}
+
+/**
+ * The publicly previewable lesson: shortest shared video that actually has
+ * caption segments, so the landing page can show a real dictation round
+ * without anyone signing in yet.
+ */
+export async function getShortestSharedVideo(): Promise<VideoLessonRow | undefined> {
+  const [rows] = await pool.execute<VideoLessonRow[]>(
+    `SELECT ${VIDEO_COLUMNS} FROM video_lessons v
+      WHERE v.owner_user_id IS NULL
+        AND v.duration_seconds > 0
+        AND EXISTS (SELECT 1 FROM video_segments s WHERE s.video_id = v.id)
+      ORDER BY v.duration_seconds ASC, v.id ASC
+      LIMIT 1`,
+  );
+  return rows[0];
+}
+
+export async function countSegmentsByVideo(videoId: number): Promise<number> {
+  const [rows] = await pool.execute<CountRow[]>(
+    'SELECT COUNT(*) AS total FROM video_segments WHERE video_id = ?',
+    [videoId],
+  );
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function getFirstSegmentsByVideo(
+  videoId: number,
+  limit: number,
+): Promise<VideoSegmentRow[]> {
+  const [rows] = await pool.execute<VideoSegmentRow[]>(
+    `SELECT id, video_id, start_ms, end_ms, text_en, text_vi, sort_order
+     FROM video_segments WHERE video_id = ? ORDER BY sort_order ASC LIMIT ?`,
+    [videoId, limit],
+  );
+  return rows;
 }
 
 export async function getVocabularyByVideo(videoId: number): Promise<VideoVocabularyRow[]> {
@@ -76,6 +114,26 @@ export async function createImportedVideo(
   userId: number,
   input: ImportedVideoInput,
 ): Promise<number> {
+  return insertVideoRow({
+    code: input.code,
+    title: input.title,
+    description: input.description,
+    topic: 'Video của tôi',
+    cefrLevel: 'B1',
+    provider: input.provider,
+    videoUrl: input.videoUrl,
+    thumbnailUrl: input.thumbnailUrl,
+    durationSeconds: input.durationSeconds,
+    xpReward: 0,
+    sortOrder: 0,
+    ownerUserId: userId,
+    subtitleEn: input.subtitleEn,
+    segments: input.segments,
+  });
+}
+
+/** Insert one catalogue row plus its caption segments in a single transaction. */
+export async function insertVideoRow(input: CreatedVideoInput): Promise<number> {
   const connection: PoolConnection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -83,16 +141,20 @@ export async function createImportedVideo(
       `INSERT INTO video_lessons
          (code, title, description, topic, cefr_level, provider, video_url, thumbnail_url,
           duration_seconds, xp_reward, sort_order, owner_user_id, subtitle_en, subtitle_vi)
-       VALUES (?, ?, ?, 'Video của tôi', 'B1', ?, ?, ?, ?, 0, 0, ?, ?, NULL)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
       [
         input.code,
         input.title,
         input.description,
+        input.topic,
+        input.cefrLevel,
         input.provider,
         input.videoUrl,
         input.thumbnailUrl,
         input.durationSeconds,
-        userId,
+        input.xpReward,
+        input.sortOrder,
+        input.ownerUserId,
         input.subtitleEn,
       ],
     );
@@ -112,6 +174,22 @@ export async function createImportedVideo(
   } finally {
     connection.release();
   }
+}
+
+/** Shared videos live at the end of the shared section until an admin reorders them. */
+export async function nextSharedSortOrder(): Promise<number> {
+  const [rows] = await pool.execute<CountRow[]>(
+    'SELECT COALESCE(MAX(sort_order), 0) AS total FROM video_lessons WHERE owner_user_id IS NULL',
+  );
+  return Number(rows[0]?.total ?? 0) + 1;
+}
+
+export async function findVideoByCode(code: string): Promise<VideoLessonRow | undefined> {
+  const [rows] = await pool.execute<VideoLessonRow[]>(
+    `SELECT ${VIDEO_COLUMNS} FROM video_lessons WHERE code = ? LIMIT 1`,
+    [code],
+  );
+  return rows[0];
 }
 
 export async function deleteOwnedVideo(userId: number, videoId: number): Promise<boolean> {

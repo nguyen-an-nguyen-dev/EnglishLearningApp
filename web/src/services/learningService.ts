@@ -31,10 +31,11 @@ export async function checkLessonAnswerApi(
 export async function submitLessonCompletionApi(
   lessonId: number,
   answers: SubmittedAnswer[],
+  practiceSeconds?: number,
 ): Promise<CompleteLessonResult> {
   return requestApi<CompleteLessonResult>(
     `/api/lessons/${lessonId}/complete`,
-    { method: 'POST', body: JSON.stringify({ answers }) },
+    { method: 'POST', body: JSON.stringify({ answers, practiceSeconds }) },
   )
 }
 

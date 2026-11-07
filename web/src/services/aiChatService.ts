@@ -12,12 +12,22 @@ export type AiChatTopic =
   | 'STUDY_COACH'
 
 export type ChatIntent = 'chat' | 'plan' | 'explain' | 'how' | 'practice'
-export type ChatTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile'
+export type ChatTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile' | 'admin'
 
 export interface ChatContext {
   tab: ChatTab
   focus?: string
   detail?: string
+}
+
+/** A deep-link the buddy offers so the learner can jump straight to a screen/item. */
+export interface ChatAction {
+  kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook'
+  label: string
+  tab?: ChatTab
+  videoId?: number
+  lessonId?: number
+  lessonTitle?: string
 }
 
 export interface AiChat {
@@ -51,6 +61,8 @@ export interface SendMessageResult {
   userMessage: AiMessage
   aiMessage: AiMessage
   feedback: AiFeedback[]
+  followups: string[]
+  action: ChatAction | null
 }
 
 export interface StudySnapshot {
@@ -65,6 +77,8 @@ export interface StudySnapshot {
   videosCompleted: number
   videosTotal: number
   nextVideo: { id: number; title: string } | null
+  ownedVideos: number
+  ownedVideoTitles: string[]
   savedWords: number
   translations: number
   battlesPlayed: number

@@ -109,7 +109,7 @@ html.lp-active .landing-page-wrapper {
   transform: translateY(-160%);
   border-radius: 8px;
   background: var(--brand-900);
-  color: #FFFDF9 !important;
+  color: var(--paper) !important;
   font-size: 13px;
   font-weight: 700;
 }
@@ -380,80 +380,85 @@ html.lp-active .landing-page-wrapper {
   z-index: 1;
   padding-bottom: 26px;
 }
+
+/* A 3D scene without a painted backdrop: the stage is transparent, and all the
+   depth comes from the floating card's shadow plus the floor shadow under it.
+   The tilt curve and idle float are driven by `useHeroTilt` (one transform per
+   frame), so nothing here animates `transform` in CSS. */
 .lp-hero-art-panel {
   position: relative;
   display: flex;
   height: 100%;
-  min-height: 420px;
-  align-items: flex-start;
+  min-height: 440px;
+  align-items: center;
   justify-content: center;
-  overflow: hidden;
-  padding: 28px;
-  border: 1px solid var(--line-strong);
-  border-radius: 20px;
-  /* Flat tint near canvas so card depth comes from contrast, not gradient. */
-  background: var(--brand-100);
+  overflow: visible;
+  padding: 34px 26px 44px;
+  border: 0;
+  background: none;
+  perspective: 1500px;
+  perspective-origin: 50% 40%;
 }
-.lp-hero-sun {
-  position: absolute;
-  top: 46px;
-  right: 54px;
-  width: 92px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--accent-400);
-  opacity: 0.92;
-}
-.lp-hero-horizon {
-  position: absolute;
-  right: 0;
-  bottom: 64px;
-  left: 0;
-  height: 1px;
-  background: rgb(255 255 255 / 55%);
-}
-.lp-hero-horizon::before,
-.lp-hero-horizon::after {
+
+/* Floor: with no painted backdrop the card needs a ground to float above, so the
+   shadow is the surface. Two ellipses: a wide soft one (ambient) and a tighter,
+   darker one right under the card (contact). */
+.lp-hero-floor {
   position: absolute;
   right: 8%;
+  bottom: 22px;
   left: 8%;
-  height: 1px;
-  background: rgb(255 255 255 / 38%);
-  content: "";
+  height: 92px;
+  border-radius: 50%;
+  background:
+    radial-gradient(46% 50% at 46% 52%, rgb(12 78 110 / 40%), transparent 72%),
+    radial-gradient(56% 62% at 50% 66%, rgb(12 78 110 / 22%), transparent 78%);
+  filter: blur(15px);
+  transform: rotateX(68deg);
+  pointer-events: none;
 }
-.lp-hero-horizon::before { top: 13px; }
-.lp-hero-horizon::after { top: 29px; left: 26%; }
 
-.lp-hero-proof {
+.lp-hero-3d {
   position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: none;
-  margin-top: 12px;
-  padding: 12px 15px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--paper);
-  box-shadow: 0 14px 34px -20px rgb(12 78 110 / 45%);
+  width: min(100%, 430px);
+  /* Resting angle lives here so the hook can read it; the mobile breakpoint
+     simply overrides the variables instead of fighting an inline transform. */
+  --tilt-x: 9deg;
+  --tilt-y: -13deg;
+  --tilt-z: 1.2deg;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) rotateZ(var(--tilt-z));
+  will-change: transform;
 }
-.lp-proof-letter {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: none;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--brand-800);
-  color: var(--paper);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 16px;
-  font-weight: 600;
+
+/* Two ghost plates behind the card give it thickness. They share the parent's
+   tilt, so they read as a stack rather than a shadow. */
+.lp-hero-3d::before,
+.lp-hero-3d::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 15px;
+  content: "";
+  pointer-events: none;
 }
-.lp-hero-proof p { display: grid; gap: 2px; margin: 0; }
-.lp-hero-proof strong { color: var(--ink); font-size: 12.5px; }
-.lp-hero-proof span { color: var(--muted); font-size: 11.5px; }
+
+.lp-hero-3d::before {
+  background: color-mix(in srgb, var(--paper) 58%, var(--brand-200));
+  transform: translate3d(-14px, 15px, -34px);
+  box-shadow: 0 20px 34px -22px rgb(12 78 110 / 62%);
+}
+
+.lp-hero-3d::after {
+  background: color-mix(in srgb, var(--paper) 34%, var(--brand-200));
+  transform: translate3d(-26px, 28px, -68px);
+}
+
+/* Those flat sun / horizon bands were removed with the 3D rebuild: the tilt plus
+   the floor shadow carry the depth, and the flat shapes read as clipped
+   stickers behind the card. */
+
+/* The "Bắt đầu từ con số 0" proof bar was removed (07/11): the hero already has
+   the fact strip on the left, and the floating card is the proof. */
 
 /* Lesson preview card */
 .lp-lesson-preview {
@@ -464,7 +469,13 @@ html.lp-active .landing-page-wrapper {
   border: 1px solid var(--line);
   border-radius: 15px;
   background: var(--paper);
-  box-shadow: 0 24px 54px -30px rgb(12 78 110 / 48%), 0 2px 5px rgb(12 78 110 / 5%);
+  /* With no painted backdrop, the shadow is what lifts the card off the page:
+     one tight edge shadow plus one wide ambient one. */
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 90%) inset,
+    0 20px 34px -20px rgb(12 78 110 / 46%),
+    0 46px 70px -46px rgb(12 78 110 / 52%);
+  transform: translateZ(46px);
 }
 .lp-preview-topline {
   display: flex;
@@ -543,7 +554,7 @@ html.lp-active .landing-page-wrapper {
 .lp-answer-option.is-selected > span::before { border-color: var(--brand-600); box-shadow: inset 0 0 0 3px var(--brand-100); background: var(--brand-600); }
 .lp-answer-option.is-correct { border-color: #6FA99A; background: var(--ok-50); color: var(--ok-600); }
 .lp-answer-option.is-correct > span::before { border-color: var(--ok-600); background: var(--ok-600); box-shadow: inset 0 0 0 3px var(--ok-50); }
-.lp-answer-option.is-incorrect { border-color: #D9A9A3; background: var(--danger-50); color: var(--danger-600); }
+.lp-answer-option.is-incorrect { border-color: var(--danger-600); background: var(--danger-50); color: var(--danger-600); }
 .lp-answer-option.is-incorrect > span::before { border-color: var(--danger-600); background: var(--danger-600); box-shadow: inset 0 0 0 3px var(--danger-50); }
 .lp-answer-option.is-correct svg { color: var(--ok-600); }
 .lp-answer-option.is-incorrect svg { color: var(--danger-600); }
@@ -573,7 +584,7 @@ html.lp-active .landing-page-wrapper {
   border: 0;
   border-radius: 7px;
   background: var(--brand-700);
-  color: #FFFDF9;
+  color: var(--paper);
   cursor: pointer;
   font-size: 12.5px;
   font-weight: 700;
@@ -809,6 +820,92 @@ html.lp-active .landing-page-wrapper {
 
 /* Video mode — one panel, zero nested frames */
 .lp-video-body { display: grid; gap: 24px; }
+
+/* --------------------------------------------------------------------------
+   Live lesson preview inside the "Học qua video" tab.
+   The practice screen itself is styled in learning-modes.css; this block only
+   adds the landing wrapper: free-trial strip + loading / error / empty states.
+   -------------------------------------------------------------------------- */
+.lp-demo { display: grid; gap: 16px; }
+
+.lp-demo-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lp-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--brand-50, #F2FAFD);
+  color: var(--brand-800);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-demo-strip-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-demo-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 54px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--paper-muted, #F0FAFE);
+  color: var(--muted);
+  text-align: center;
+}
+
+.lp-demo-state p { margin: 0; font-size: 13.5px; }
+.lp-demo-state svg { color: var(--brand-600); }
+
+.lp-demo-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brand-600);
+  border-radius: 999px;
+  animation: lp-demo-spin 720ms linear infinite;
+}
+
+@keyframes lp-demo-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lp-demo-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--brand-800);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.lp-demo-retry:hover { border-color: var(--brand-500); background: var(--paper); }
+.lp-demo-retry:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-demo-spinner { animation: none; }
+}
 .lp-video-top {
   display: grid;
   grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
@@ -868,7 +965,7 @@ html.lp-active .landing-page-wrapper {
   transition: background 140ms ease, color 140ms ease;
 }
 .landing-page-wrapper .lp-sub-word:hover { background: var(--brand-200); color: var(--brand-800) !important; }
-.landing-page-wrapper .lp-sub-word.is-active { background: var(--brand-600); color: #FFFDF9 !important; }
+.landing-page-wrapper .lp-sub-word.is-active { background: var(--brand-600); color: var(--paper) !important; }
 .landing-page-wrapper .lp-sub-word.is-saved { box-shadow: inset 0 0 0 1.5px var(--accent-500); color: var(--brand-700); }
 .landing-page-wrapper .lp-sub-word.is-masked {
   border-style: dashed;
@@ -1134,7 +1231,7 @@ html.lp-active .landing-page-wrapper {
   padding: 2px 7px;
   border-radius: 5px;
   background: var(--brand-600);
-  color: #FFFDF9;
+  color: var(--paper);
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -1345,7 +1442,7 @@ html.lp-active .landing-page-wrapper {
 .auth-alert-error {
   margin-bottom: 14px;
   padding: 10px 12px;
-  border: 1px solid #F5C2BE;
+  border: 1px solid var(--danger-600);
   border-radius: 7px;
   background: var(--danger-50);
   color: var(--danger-600);
@@ -1545,9 +1642,14 @@ html.lp-active .landing-page-wrapper {
   .lp-hero-facts { margin-top: 28px; }
   .lp-hero-facts > div { padding-right: 20px; margin-right: 20px; }
   .lp-hero-art-panel { min-height: 390px; padding: 26px 18px 44px; }
-  .lp-hero-sun { top: 26px; right: 30px; width: 66px; }
-  .lp-hero-proof { left: auto; bottom: auto; padding: 10px 12px; }
-  .lp-proof-letter { width: 32px; height: 32px; font-size: 13px; }
+  /* Phones: the stage wraps the card instead of cropping it. `useHeroTilt` only
+     runs on the pointer device, so the static transform here is what phones get. */
+  .lp-hero-art-panel { height: auto; min-height: 0; padding: 22px 14px 30px; align-items: stretch; }
+  .lp-hero-floor { bottom: 6px; height: 42px; }
+  .lp-hero-3d { --tilt-x: 4deg; --tilt-y: -5deg; --tilt-z: 0.4deg; }
+  .lp-hero-3d::before { transform: translate3d(-8px, 8px, -22px); }
+  .lp-hero-3d::after { transform: translate3d(-14px, 14px, -44px); }
+  .lp-lesson-preview { transform: translateZ(24px); }
   .lp-lesson-preview { padding: 17px 17px 12px; }
   .lp-preview-question h2 { font-size: 16px; }
 
@@ -1606,7 +1708,6 @@ html.lp-active .landing-page-wrapper {
   .lp-hero-facts > div { padding-right: 14px; margin-right: 14px; }
   .lp-hero-facts dt { font-size: 20px; }
   .lp-hero-art-panel { min-height: 360px; padding: 20px 12px 40px; }
-  .lp-hero-proof { position: relative; bottom: auto; left: auto; margin-top: 12px; max-width: none; }
   .lp-hero-art { padding-bottom: 0; }
   .lp-lesson-preview { padding: 15px 14px 10px; }
   .lp-answer-option { min-height: 39px; font-size: 11px; }

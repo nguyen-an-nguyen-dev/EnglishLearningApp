@@ -32,7 +32,11 @@ export function FindOpponentScreen({ error, onBack, onFind }: {
           <Rule colors={colors} icon="🏆" text="Ai nhập đúng trước ghi 1 điểm, nhiều điểm hơn sẽ thắng" />
         </View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        <Pressable accessibilityRole="button" onPress={onFind} style={styles.primaryButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onFind}
+          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+        >
           <Text style={styles.primaryButtonText}>Tìm đối thủ</Text>
         </Pressable>
       </View>
@@ -66,6 +70,7 @@ const styles = StyleSheet.create({
   ruleIcon: { fontSize: 15 },
   ruleText: { flex: 1, color: '#71818d', fontSize: 12.5, lineHeight: 18 },
   error: { color: '#b42318', fontSize: 13, textAlign: 'center', marginTop: 14 },
-  primaryButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 25, paddingHorizontal: 22, borderRadius: 9, backgroundColor: Colors.primaryDark },
-  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  primaryButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 25, paddingHorizontal: 22, borderRadius: 9, backgroundColor: Colors.primary },
+  primaryButtonPressed: { backgroundColor: Colors.primaryDark },
+  primaryButtonText: { color: '#04252b', fontSize: 14, fontWeight: '900' },
 });

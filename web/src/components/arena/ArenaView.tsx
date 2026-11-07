@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Clock,
   Flag,
+  House,
   ImageSquare,
   Lightning,
   Sword,
@@ -601,36 +602,44 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
       && (finish.reason === 'left' || finish.reason === 'opponent_disconnected')
     return (
       <section className={`arena-verdict is-${outcome ?? 'draw'}${isCancelled ? ' is-cancelled' : ''}`}>
-        <span className="arena-verdict-icon" aria-hidden="true">
-          {isCancelled
-            ? <Flag size={40} weight="regular" />
-            : outcome === 'win' ? <Trophy size={40} weight="regular" /> : <Sword size={40} weight="regular" />}
-        </span>
-        <span className="arena-kicker">{t.arenaResultKicker}</span>
-        <h2>
-          {isCancelled
-            ? t.arenaMatchCancelled
-            : outcome === 'win'
-              ? t.arenaMatchWin
-              : outcome === 'lose'
-                ? t.arenaMatchLose
-                : t.arenaMatchDraw}
-        </h2>
-        <p>
-          {isCancelled
-            ? t.arenaMatchCancelledDesc
-            : isForfeit
-              ? outcome === 'win' ? t.arenaForfeitWin : t.arenaForfeitLoss
-              : t.arenaMatchScore(finish.scores, currentUserId)}
-        </p>
+        <div className="arena-verdict-hero">
+          <span className="arena-verdict-icon" aria-hidden="true">
+            {isCancelled
+              ? <Flag size={30} weight="regular" />
+              : outcome === 'win' ? <Trophy size={30} weight="fill" /> : <Sword size={30} weight="regular" />}
+          </span>
 
-        <div className="arena-verdict-scores">
-          {finish.scores.map((entry) => (
-            <div className={entry.userId === currentUserId ? 'is-you' : ''} key={entry.userId}>
-              <span>{entry.name}</span>
-              <strong>{entry.score}</strong>
-            </div>
-          ))}
+          <div className="arena-verdict-copy">
+            <span className="arena-kicker">{t.arenaResultKicker}</span>
+            <h2>
+              {isCancelled
+                ? t.arenaMatchCancelled
+                : outcome === 'win'
+                  ? t.arenaMatchWin
+                  : outcome === 'lose'
+                    ? t.arenaMatchLose
+                    : t.arenaMatchDraw}
+            </h2>
+            <p>
+              {isCancelled
+                ? t.arenaMatchCancelledDesc
+                : isForfeit
+                  ? outcome === 'win' ? t.arenaForfeitWin : t.arenaForfeitLoss
+                  : t.arenaMatchScore(finish.scores, currentUserId)}
+            </p>
+          </div>
+
+          <ul className="arena-verdict-scores">
+            {finish.scores.map((entry) => (
+              <li className={entry.userId === currentUserId ? 'is-you' : ''} key={entry.userId}>
+                <span className="arena-verdict-name">{entry.name}</span>
+                {!isCancelled && finish.winnerUserId === entry.userId && (
+                  <span className="arena-verdict-tag">{t.arenaWinnerTag}</span>
+                )}
+                <strong>{entry.score}</strong>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {error && <p className="arena-error">{error}</p>}
@@ -638,8 +647,8 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
           <button type="button" className="arena-cta is-compact" onClick={findOpponent}>
             <Lightning size={16} weight="fill" /> {t.arenaPlayAgain}
           </button>
-          <button type="button" className="arena-link" onClick={resetDuel}>
-            {t.arenaBackToLobby}
+          <button type="button" className="arena-cta is-compact is-ghost" onClick={resetDuel}>
+            <House size={16} weight="bold" /> {t.arenaBackToLobby}
           </button>
         </div>
       </section>
@@ -658,7 +667,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
           <li><Trophy size={16} /><span>{t.arenaRounds(DUEL_ROUNDS)}</span></li>
         </ul>
         {error && <p className="arena-error">{error}</p>}
-        <button type="button" className="arena-cta" onClick={findOpponent}>
+        <button type="button" className="arena-cta" data-buddy-target="control:arena-start" onClick={findOpponent}>
           <span>{t.arenaFindOpponent}</span>
           <ArrowRight size={18} weight="bold" />
         </button>

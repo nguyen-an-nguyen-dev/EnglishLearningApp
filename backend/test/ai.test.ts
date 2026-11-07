@@ -386,8 +386,14 @@ test('coach chat falls back to the notebook when every AI provider is down', asy
     });
     assert.equal(sent.status, 201, 'the buddy still answers from real data');
     const body = await sent.json() as { data: { aiMessage: { content: string }; feedback: unknown[] } };
-    assert.match(body.data.aiMessage.content, /tự lật sổ tay/);
-    assert.match(body.data.aiMessage.content, /Việc đầu tiên/);
+    const content = body.data.aiMessage.content;
+    // The offline answer carries the learner's own numbers, not an apology.
+    assert.match(content, /Việc tiếp theo/);
+    assert.doesNotMatch(
+      content,
+      /tự lật sổ tay|Chào bạn|cố lên|Hỏi lại mình tí nữa/i,
+      'no conversational filler in the fallback',
+    );
     assert.deepEqual(body.data.feedback, []);
   } finally {
     forceProviderFailure = false;

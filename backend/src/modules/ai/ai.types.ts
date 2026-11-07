@@ -16,7 +16,7 @@ export type AiTopic = (typeof AI_TOPICS)[number];
 export const CHAT_INTENTS = ['chat', 'plan', 'explain', 'how', 'practice'] as const;
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
-export const CHAT_TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile'] as const;
+export const CHAT_TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile', 'admin'] as const;
 export type ChatTab = (typeof CHAT_TABS)[number];
 
 /** Untrusted page context sent by the web. Never interpolated into SQL. */
@@ -30,6 +30,19 @@ export interface ChatTurn {
   message: string;
   intent: ChatIntent;
   context: ChatContext | null;
+}
+
+/** A deep-link the buddy offers so the learner can jump straight there. */
+export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook'] as const;
+export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];
+
+export interface ChatAction {
+  kind: ChatActionKind;
+  label: string;
+  tab?: ChatTab;
+  videoId?: number;
+  lessonId?: number;
+  lessonTitle?: string;
 }
 
 export type StudyStepKind = 'lesson' | 'review' | 'vocab' | 'video' | 'arena' | 'translate';
@@ -62,6 +75,8 @@ export interface StudySnapshot {
   videosCompleted: number;
   videosTotal: number;
   nextVideo: { id: number; title: string } | null;
+  ownedVideos: number;
+  ownedVideoTitles: string[];
   savedWords: number;
   translations: number;
   battlesPlayed: number;
@@ -118,4 +133,5 @@ export interface LearnerContext {
   weakTopics: Array<{ topic: string; mistakes: number }>;
   recentMistakes: Array<{ topic: string; prompt: string; answer: string }>;
   previousFeedback: Array<Pick<FeedbackRow, 'type' | 'original_text' | 'corrected_text' | 'explanation'>>;
+  reviewLessons: Array<{ title: string; practiceSeconds: number; attempts: number }>;
 }

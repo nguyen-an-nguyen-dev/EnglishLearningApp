@@ -49,8 +49,10 @@
   --ink: #0E3542;
   --ink-soft: #2F5C6B;
   --muted: #4C7383;
-  --line: #E2EEF3;
-  --line-strong: #C9DEE8;
+  /* Separators are a touch darker than the surfaces so component edges read
+     clearly on the pale canvas without becoming hard rules. */
+  --line: #C9E0EB;
+  --line-strong: #A3C9DA;
 
   --ok-50: #E9F3E6;
   --ok-600: #2E6B3E;
@@ -309,7 +311,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 .profile-icon-btn:hover { color: var(--brand-700); background: var(--brand-100); border-color: var(--line); }
-.logout-icon-btn:hover { color: var(--danger-600); background: var(--danger-50); border-color: #F5C2BE; }
+.logout-icon-btn:hover { color: var(--danger-600); background: var(--danger-50); border-color: var(--danger-600); }
 
 .app-main { min-width: 0; display: flex; flex-direction: column; }
 
@@ -505,10 +507,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   border: 1px solid var(--line-strong);
   border-radius: 7px;
 }
-/* The picker swatches must preview the real themes: warm cream / soft charcoal,
-   not the generic blue-white + navy "AI" pair. */
-.theme-swatch-light { background: linear-gradient(135deg, #FFFDF9 0 50%, #E3D3BC 50% 100%); }
-.theme-swatch-dark { background: linear-gradient(135deg, #4C4035 0 50%, #1C1917 50% 100%); }
+/* The picker swatches must preview the real themes: cyan-mist canvas /
+   slate-charcoal, matching the tokens above. */
+.theme-swatch-light { background: linear-gradient(135deg, #F2FAFD 0 50%, #C9E9F3 50% 100%); }
+.theme-swatch-dark { background: linear-gradient(135deg, #1C3443 0 50%, #0E1720 50% 100%); }
 
 /* Mobile wordmark — plain, not a bar */
 .mobile-brand-row { display: none; }
@@ -689,7 +691,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 
 .scene-prop {
-  filter: drop-shadow(0 3px 2px rgb(87 66 45 / 16%));
+  filter: drop-shadow(0 3px 2px rgb(4 33 46 / 16%));
 }
 
 /* Fog of war: stages whose lessons are all still locked stay hazy until the
@@ -703,18 +705,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 @keyframes roadmap-fog-drift {
   from { transform: translateX(-28px); }
   to { transform: translateX(28px); }
-}
-.roadmap-fog-label {
-  fill: #3F5A68;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  opacity: .72;
-}
-@media (max-width: 640px) {
-  /* The SVG is scaled down ~3x here, so a 13px SVG label becomes unreadable. */
-  .roadmap-fog-label { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .roadmap-fog-wisp { animation: none; }
@@ -1534,4 +1524,16 @@ body:has(.app-shell),
 
 @media (max-width: 720px) {
   .roadmap-card { min-width: 0; }
+}
+
+/* Thông báo làm lại câu sai trong bài học */
+.lesson-round-notice {
+  margin: 12px auto 0;
+  max-width: 640px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #FDF1E0;
+  color: #0E3542;
+  font-size: 0.95rem;
+  text-align: center;
 }

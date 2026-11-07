@@ -17,7 +17,7 @@ import {
   YoutubeLogo,
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
-import { ApiError } from '../../services/apiClient'
+import { videoImportErrorMessage } from '../../utils/videoImportErrors'
 import { PracticeView } from './PracticeView'
 import { VideoNotebookView } from './VideoNotebookView'
 import {
@@ -178,7 +178,13 @@ function VideoLessonView({
   )
 }
 
-export function VideoLearningView() {
+interface VideoLearningViewProps {
+  /** Deep-link from the buddy: open one video or the vocabulary notebook. */
+  videoRequest?: { kind: 'video' | 'notebook'; videoId?: number; nonce: number } | null
+  onVideoRequestHandled?: () => void
+}
+
+export function VideoLearningView({ videoRequest, onVideoRequestHandled }: VideoLearningViewProps) {
   const { t } = useI18n()
   const [videos, setVideos] = useState<VideoLessonSummary[]>([])
 
@@ -204,6 +210,23 @@ export function VideoLearningView() {
   const importInputRef = useRef<HTMLInputElement>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+
+  // Apply a buddy deep-link, then tell the parent it has been consumed.
+  // This is a one-shot external navigation signal (not derived state), so the
+  // setState-in-effect rule does not apply here.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!videoRequest) return
+    if (videoRequest.kind === 'notebook') {
+      setView('notebook')
+      setSelectedVideoId(null)
+    } else if (videoRequest.videoId) {
+      setView('library')
+      setSelectedVideoId(videoRequest.videoId)
+    }
+    onVideoRequestHandled?.()
+  }, [videoRequest, onVideoRequestHandled])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     let cancelled = false
@@ -249,18 +272,7 @@ export function VideoLearningView() {
   const analysisModelLabel = analysisModel === 'gemini' ? t.videoModelGemini : t.videoModelBolt
 
   function importErrorMessage(importFailure: unknown): string {
-    if (importFailure instanceof ApiError) {
-      const codes = importFailure.errors
-      if (codes.includes('INVALID_YOUTUBE_URL')) return t.videoImportInvalid
-      if (codes.includes('VIDEO_TOO_LONG')) return t.videoImportTooLong
-      if (codes.includes('VIDEO_NO_CAPTIONS')) return t.videoImportNoCaptions
-      if (codes.includes('VIDEO_UNAVAILABLE')) return t.videoImportUnavailable
-      if (codes.includes('VIDEO_ALREADY_IMPORTED')) return t.videoImportDuplicate
-      if (codes.includes('VIDEO_IMPORT_LIMIT')) return t.videoImportLimit
-      if (codes.includes('VIDEO_IMPORT_TIMEOUT')) return t.videoImportTimeout
-      if (codes.includes('VIDEO_IMPORT_UNAVAILABLE')) return t.videoImportUnavailable
-    }
-    return importFailure instanceof Error ? importFailure.message : t.videoImportError
+    return videoImportErrorMessage(importFailure, t)
   }
 
   async function handleImport(event: FormEvent<HTMLFormElement>) {
@@ -348,7 +360,7 @@ export function VideoLearningView() {
             <Plus size={15} weight="bold" />
             <span>{t.videoAddAction}</span>
           </button>
-          <button type="button" className="video-notebook-link" onClick={() => setView('notebook')}>
+          <button type="button" className="video-notebook-link" data-buddy-target="control:notebook" onClick={() => setView('notebook')}>
             <BookOpenText size={15} />
             <span>{t.videoNotebook}</span>
           </button>
@@ -524,7 +536,7 @@ export function VideoLearningView() {
               video.progress?.watched_seconds ?? 0,
             )
             return (
-              <article className={`video-card${completed ? ' is-completed' : ''}`} key={video.id}>
+              <article className={`video-card${completed ? ' is-completed' : ''}`} key={video.id} data-buddy-target={`video:${video.id}`}>
                 <button
                   type="button"
                   className="video-thumb"

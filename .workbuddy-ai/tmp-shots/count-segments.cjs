@@ -1,0 +1,15 @@
+﻿const path = require('path')
+const { createRequire } = require('module')
+const ROOT = 'C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp'
+const backendRequire = createRequire(path.join(ROOT, 'backend/package.json'))
+const mysql = backendRequire('mysql2/promise')
+const dotenv = backendRequire('dotenv')
+dotenv.config({ path: path.join(ROOT, 'backend/.env') })
+;(async () => {
+  const conn = await mysql.createConnection({ host: 'localhost', port: 3306, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'english_learning' })
+  const [t] = await conn.query('SELECT COUNT(*) n FROM video_segments')
+  console.log('DB video_segments total:', t[0].n)
+  const [per] = await conn.query('SELECT video_id, COUNT(*) n FROM video_segments GROUP BY video_id ORDER BY video_id')
+  console.log(per.map(r => `v${r.video_id}=${r.n}`).join(' '))
+  await conn.end()
+})()

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../../db/pool';
-import type { AuthUser } from './auth.types';
+import type { AuthUser, UserRole } from './auth.types';
 
 export interface UserRow extends RowDataPacket {
   id: number;
@@ -10,7 +10,10 @@ export interface UserRow extends RowDataPacket {
   password_hash: string;
   xp: number;
   streak: number;
+  role: UserRole;
 }
+
+const USER_COLUMNS = 'id, display_name, email, password_hash, xp, streak, role';
 
 function toAuthUser(row: UserRow): AuthUser {
   return {
@@ -19,12 +22,13 @@ function toAuthUser(row: UserRow): AuthUser {
     email: row.email,
     xp: row.xp,
     streak: row.streak,
+    role: row.role === 'admin' ? 'admin' : 'learner',
   };
 }
 
 export async function findByEmail(email: string): Promise<UserRow | undefined> {
   const [rows] = await pool.execute<UserRow[]>(
-    'SELECT id, display_name, email, password_hash, xp, streak FROM users WHERE email = ? LIMIT 1',
+    `SELECT ${USER_COLUMNS} FROM users WHERE email = ? LIMIT 1`,
     [email],
   );
   return rows[0];
@@ -32,7 +36,7 @@ export async function findByEmail(email: string): Promise<UserRow | undefined> {
 
 export async function findProfileById(userId: number): Promise<AuthUser | undefined> {
   const [rows] = await pool.execute<UserRow[]>(
-    'SELECT id, display_name, email, password_hash, xp, streak FROM users WHERE id = ? LIMIT 1',
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ? LIMIT 1`,
     [userId],
   );
   return rows[0] ? toAuthUser(rows[0]) : undefined;
@@ -40,10 +44,25 @@ export async function findProfileById(userId: number): Promise<AuthUser | undefi
 
 export async function findUserById(userId: number): Promise<UserRow | undefined> {
   const [rows] = await pool.execute<UserRow[]>(
-    'SELECT id, display_name, email, password_hash, xp, streak FROM users WHERE id = ? LIMIT 1',
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ? LIMIT 1`,
     [userId],
   );
   return rows[0];
+}
+
+interface RoleRow extends RowDataPacket {
+  role: UserRole;
+}
+
+/** Read fresh on every privileged request so a demoted admin loses access immediately. */
+export async function findRoleById(userId: number): Promise<UserRole | null> {
+  const [rows] = await pool.execute<RoleRow[]>(
+    'SELECT role FROM users WHERE id = ? LIMIT 1',
+    [userId],
+  );
+  const value = rows[0]?.role;
+  if (value === undefined || value === null) return null;
+  return value === 'admin' ? 'admin' : 'learner';
 }
 
 export async function createUser(name: string, email: string, passwordHash: string): Promise<AuthUser> {

@@ -120,6 +120,27 @@ export interface ImportedVideoInput {
   segments: Array<{ startMs: number; endMs: number; text: string }>;
 }
 
+/**
+ * One catalogue row, whatever its owner. `ownerUserId: null` means a shared
+ * library video every learner can open; a number means one learner's import.
+ */
+export interface CreatedVideoInput {
+  code: string;
+  title: string;
+  description: string | null;
+  topic: string;
+  cefrLevel: string;
+  provider: 'youtube' | 'file';
+  videoUrl: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number;
+  xpReward: number;
+  sortOrder: number;
+  ownerUserId: number | null;
+  subtitleEn: string | null;
+  segments: Array<{ startMs: number; endMs: number; text: string }>;
+}
+
 export interface SavedWord {
   id: number;
   video_id: number | null;
@@ -148,4 +169,39 @@ export interface SaveWordInput {
   meaningVi?: string;
   detailVi?: string;
   videoId?: number;
+}
+
+/**
+ * Public, pre-signup preview of one real lesson. Only the first few segments are
+ * sent and `text_vi` is dropped, so the landing page can host one honest
+ * dictation round without giving the whole library away.
+ */
+export interface DemoVideoSegment {
+  id: number;
+  start_ms: number;
+  end_ms: number;
+  text_en: string;
+}
+
+export interface DemoVideoVocabulary {
+  word: string;
+  ipa: string;
+  meaning_vi: string;
+  detail_vi: string;
+}
+
+export interface DemoVideo {
+  id: number;
+  code: string;
+  title: string;
+  topic: string;
+  cefr_level: string;
+  provider: 'youtube' | 'file';
+  video_url: string;
+  thumbnail_url: string | null;
+  duration_seconds: number;
+  demo_segment_limit: number;
+  total_segments: number;
+  segments: DemoVideoSegment[];
+  vocabulary: DemoVideoVocabulary[];
 }

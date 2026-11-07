@@ -1287,6 +1287,7 @@ function LessonMarker({
       className={`roadmap-marker roadmap-marker-${node.lesson.status}${isSelected ? ' is-selected' : ''}`}
       transform={`translate(0 ${node.y})`}
       data-lesson-id={node.lesson.id}
+      data-buddy-target={`lesson:${node.lesson.id}`}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
       aria-label={label}
@@ -1413,7 +1414,7 @@ export function RouteMapCard({
       if (index >= incompleteIndex) return 'is-misty'
       return ''
     })
-    return { lightStart, denseStart, wisps, sceneState, labelY: denseStart === null ? null : denseStart + 168 }
+    return { lightStart, denseStart, wisps, sceneState }
   }, [stages])
 
   const currentNode = nodes.find((node) => node.lesson.status === 'current')
@@ -1656,16 +1657,6 @@ export function RouteMapCard({
                   style={{ animationDelay: wisp.delay }}
                 />
               ))}
-              {fog.labelY !== null && (
-                <text
-                  x="64"
-                  y={fog.labelY}
-                  textAnchor="start"
-                  className="roadmap-fog-label"
-                >
-                  {lang === 'en' ? 'Unexplored stages' : 'Chặng chưa mở khoá'}
-                </text>
-              )}
             </g>
           )}
 
@@ -1680,7 +1671,7 @@ export function RouteMapCard({
           )}
         </g>
         {!fullBleed && (
-          <rect x="1" y="1" width={ROADMAP_LAYOUT.width - 2} height={height - 2} rx="19" fill="none" stroke="#DFE7EC" strokeWidth="2" />
+          <rect x="1" y="1" width={ROADMAP_LAYOUT.width - 2} height={height - 2} rx="19" fill="none" stroke="var(--line-strong)" strokeWidth="2" />
         )}
       </svg>
     </div>

@@ -28,6 +28,7 @@ interface QuestionBodyProps {
   lessonTitle: string
   isLast: boolean
   onCorrect: (answer: string) => void
+  onWrong: (answer: string) => void
 }
 
 type ExerciseKind = 'NGHE' | 'ĐỌC' | 'VIẾT'
@@ -69,6 +70,7 @@ function QuestionBody({
   lessonTitle,
   isLast,
   onCorrect,
+  onWrong,
 }: QuestionBodyProps) {
   const isOptions = ['multiple_choice', 'fill_choice', 'listen_choice'].includes(question.question_type)
   const isWordBank = (question.question_type === 'word_order' || question.question_type === 'listening')
@@ -169,8 +171,7 @@ function QuestionBody({
       return
     }
     if (feedback && !feedback.is_correct) {
-      setChecked(false)
-      setFeedback(null)
+      onWrong(answer)
       return
     }
     onCorrect(answer)
@@ -188,7 +189,7 @@ function QuestionBody({
       ? 'Kiểm tra'
       : feedback?.is_correct
         ? isLast ? 'Hoàn thành' : 'Tiếp tục'
-        : 'Thử lại'
+        : 'Tiếp tục'
 
   const prompt = isOptions && question.question_text.includes('___')
     ? question.question_text.split('___').map((part, index, parts) => (
@@ -415,11 +416,16 @@ export function LessonPlayer({
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [queue, setQueue] = useState<Question[]>([])
   const [index, setIndex] = useState(0)
+  const [wrongQueue, setWrongQueue] = useState<Question[]>([])
+  const [round, setRound] = useState<'main' | 'redo'>('main')
+  const [roundNotice, setRoundNotice] = useState<string | null>(null)
   const [answersLog, setAnswersLog] = useState<SubmittedAnswer[]>([])
   const [result, setResult] = useState<CompleteLessonResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loadKey, setLoadKey] = useState(0)
+  const startedAtRef = useRef<number>(Date.now())
 
   useEffect(() => {
     if (!token) return
@@ -428,6 +434,13 @@ export function LessonPlayer({
       .then((data) => {
         if (!active) return
         setQuestions(data)
+        setQueue(data)
+        setIndex(0)
+        setWrongQueue([])
+        setRound('main')
+        setRoundNotice(null)
+        setAnswersLog([])
+        startedAtRef.current = Date.now()
         setLoading(false)
         setError(null)
       })
@@ -449,12 +462,13 @@ export function LessonPlayer({
     }
   }, [])
 
-  const currentQuestion = questions[index]
+  const currentQuestion = queue[index]
+  const elapsedSeconds = () => Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
 
   function finish(log: SubmittedAnswer[]) {
     setSubmitting(true)
     setError(null)
-    submitLessonCompletionApi(lessonId, log)
+    submitLessonCompletionApi(lessonId, log, elapsedSeconds())
       .then((data) => {
         setResult(data)
       })
@@ -466,23 +480,49 @@ export function LessonPlayer({
       })
   }
 
-  function handleCorrect(answer: string) {
+  function handleAnswer(answer: string, isCorrect: boolean) {
     if (!currentQuestion) return
     const nextLog = [
       ...answersLog.filter((entry) => entry.questionId !== currentQuestion.id),
       { questionId: currentQuestion.id, answer },
     ]
     setAnswersLog(nextLog)
-    if (index + 1 < questions.length) {
+    const nextWrong = isCorrect ? wrongQueue : [...wrongQueue, currentQuestion]
+    setWrongQueue(nextWrong)
+    if (index + 1 < queue.length) {
       setIndex((value) => value + 1)
+      return
+    }
+    endRound(nextWrong, nextLog)
+  }
+
+  function endRound(wrong: Question[], log: SubmittedAnswer[]) {
+    if (wrong.length === 0) {
+      finish(log)
+      return
+    }
+    if (round === 'main') {
+      setQueue(wrong)
+      setIndex(0)
+      setWrongQueue([])
+      setRound('redo')
+      setRoundNotice(`Bạn còn ${wrong.length} câu sai. Hãy làm lại các câu này.`)
     } else {
-      finish(nextLog)
+      setQueue(questions)
+      setIndex(0)
+      setWrongQueue([])
+      setRound('main')
+      setRoundNotice('Vẫn còn câu sai. Bạn cần làm lại bài từ đầu.')
     }
   }
 
   function restart() {
     setResult(null)
+    setQueue(questions)
     setIndex(0)
+    setWrongQueue([])
+    setRound('main')
+    setRoundNotice(null)
     setAnswersLog([])
     setSubmitting(false)
     setError(null)
@@ -579,25 +619,30 @@ export function LessonPlayer({
       className="lesson-player"
       data-lesson-title={lessonTitle}
       data-question-prompt={currentQuestion.question_text}
-      data-question-index={`${index + 1}/${questions.length}`}
+      data-question-index={`${index + 1}/${queue.length}`}
       data-question-type={currentQuestion.question_type}
       data-question-explanation={currentQuestion.explanation || ''}
     >
       <header className="lesson-header">
         <button type="button" className="lesson-close" onClick={onClose}>Đóng</button>
-        <div className="lesson-progress" role="progressbar" aria-valuemin={1} aria-valuemax={questions.length} aria-valuenow={index + 1}>
-          <span style={{ width: `${((index + 1) / questions.length) * 100}%` }} />
+        <div className="lesson-progress" role="progressbar" aria-valuemin={1} aria-valuemax={queue.length} aria-valuenow={index + 1}>
+          <span style={{ width: `${((index + 1) / queue.length) * 100}%` }} />
         </div>
-        <span className="lesson-counter">{index + 1}/{questions.length}</span>
+        <span className="lesson-counter">{index + 1}/{queue.length}</span>
       </header>
 
+      {roundNotice && (
+        <p className="lesson-round-notice" role="status">{roundNotice}</p>
+      )}
+
       <QuestionBody
-        key={currentQuestion.id}
+        key={`${round}-${currentQuestion.id}`}
         question={currentQuestion}
         lessonId={lessonId}
         lessonTitle={lessonTitle}
-        isLast={index === questions.length - 1}
-        onCorrect={handleCorrect}
+        isLast={index === queue.length - 1}
+        onCorrect={(answer) => handleAnswer(answer, true)}
+        onWrong={(answer) => handleAnswer(answer, false)}
       />
     </div>
   )

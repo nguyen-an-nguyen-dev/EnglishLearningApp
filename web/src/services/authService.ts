@@ -151,6 +151,7 @@ export async function loginApi(payload: LoginPayload): Promise<LoginResponseData
         name,
         streak: 4,
         xp: 240,
+        role: 'learner',
       },
     };
   }
@@ -202,6 +203,7 @@ export async function registerApi(payload: RegisterPayload): Promise<RegisterRes
       name: payload.name.trim(),
       streak: 1,
       xp: 50,
+      role: 'learner',
     },
   };
 }

@@ -169,6 +169,8 @@ test('study plan steps come from real progress, weak topics and unlock order', (
     badges: 1,
     xp: 20,
     streak: 2,
+    ownedVideos: 2,
+    ownedVideoTitles: ['Video riêng A', 'Video riêng B'],
   };
   const learner: LearnerContext = {
     level: 'intermediate',
@@ -220,6 +222,8 @@ test('offline coach reply still names the real next lesson and weak topic', () =
     badges: 0,
     xp: 20,
     streak: 0,
+    ownedVideos: 0,
+    ownedVideoTitles: [],
   };
   const learner: LearnerContext = {
     level: 'beginner',
@@ -236,4 +240,52 @@ test('offline coach reply still names the real next lesson and weak topic', () =
   assert.match(reply.reply, /4 câu/);
   assert.match(reply.reply, /Bài 2/);
   assert.deepEqual(reply.feedback, []);
+  assert.equal(reply.action?.kind, 'open_lesson', 'offline answer still deep-links to the first step');
+});
+
+test('chat actions resolve only to real catalogue ids and tabs', () => {
+  const stats: StudyStats = {
+    totalLessons: 2,
+    completedLessons: 0,
+    completedLessonIds: [],
+    lessons: [
+      { id: 7, title: 'Bài 7', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 8, title: 'Bài 8', topic: 'Travel', stageTitle: 'Chặng 1' },
+    ],
+    videoCatalog: [
+      { id: 3, title: 'Viva La Vida', topic: 'Music', level: 'B1' },
+    ],
+    videosTotal: 1,
+    videosCompleted: 0,
+    nextVideo: null,
+    savedWords: 0,
+    translations: 0,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 0,
+    xp: 0,
+    streak: 0,
+    ownedVideos: 0,
+    ownedVideoTitles: [],
+  };
+
+  assert.equal(ai.resolveChatAction({ kind: 'open_video', label: '', videoId: 999 }, stats), null, 'unknown video id is dropped');
+  assert.equal(ai.resolveChatAction({ kind: 'open_lesson', label: '', lessonId: 99 }, stats), null, 'unknown lesson id is dropped');
+  assert.deepEqual(
+    ai.resolveChatAction({ kind: 'open_video', label: '', videoId: 3 }, stats),
+    { kind: 'open_video', tab: 'videos', videoId: 3, label: 'Mở video: Viva La Vida' },
+  );
+  assert.deepEqual(
+    ai.resolveChatAction({ kind: 'open_lesson', label: 'Học bài 7', lessonId: 7 }, stats),
+    { kind: 'open_lesson', tab: 'study', lessonId: 7, lessonTitle: 'Bài 7', label: 'Học bài 7' },
+  );
+  assert.deepEqual(
+    ai.resolveChatAction({ kind: 'open_tab', label: '', tab: 'compete' }, stats),
+    { kind: 'open_tab', tab: 'compete', label: 'Vào Thi Đua' },
+  );
+  assert.deepEqual(
+    ai.resolveChatAction({ kind: 'open_notebook', label: '' }, stats),
+    { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng' },
+  );
+  assert.equal(ai.resolveChatAction(null, stats), null);
 });

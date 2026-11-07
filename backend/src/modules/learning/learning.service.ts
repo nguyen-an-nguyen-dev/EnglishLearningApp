@@ -437,7 +437,7 @@ export async function completeLesson(
   const previousStageLessons = await getLessonsByStage(lesson.stage_id, userId);
   const stageWasCompleted = previousStageLessons.length > 0
     && previousStageLessons.every((stageLesson) => stageLesson.state.status === 'completed');
-  const result = await repo.completeLesson(userId, lessonId, correctCount, totalQuestions, score);
+  const result = await repo.completeLesson(userId, lessonId, correctCount, totalQuestions, score, input.practiceSeconds ?? null);
   const stageLessons = await getLessonsByStage(lesson.stage_id, userId);
   const stageCompleted = !stageWasCompleted
     && stageLessons.length > 0

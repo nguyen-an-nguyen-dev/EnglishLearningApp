@@ -93,6 +93,19 @@ export const getSavedWords: RequestHandler = async (request, response, next) => 
   }
 };
 
+/**
+ * No `authenticate` on this one: the landing page shows it to visitors who have
+ * no account yet. `video: null` means "nothing to preview", not an error.
+ */
+export const getDemoVideo: RequestHandler = async (_request, response, next) => {
+  try {
+    const video = await videoService.getDemoVideo();
+    response.json({ success: true, data: { video } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const saveWord: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUserId(request);

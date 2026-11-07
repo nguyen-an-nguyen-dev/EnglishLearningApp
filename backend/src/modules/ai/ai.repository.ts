@@ -14,11 +14,20 @@ interface ChatDbRow extends ChatRow, RowDataPacket {}
 interface MessageDbRow extends MessageRow, RowDataPacket {}
 interface FeedbackDbRow extends FeedbackRow, RowDataPacket {}
 
+export interface VideoCatalogEntry {
+  id: number;
+  title: string;
+  topic: string;
+  level: string;
+}
+
 export interface StudyStats {
   totalLessons: number;
   completedLessons: number;
   completedLessonIds: number[];
   lessons: Array<{ id: number; title: string; topic: string; stageTitle: string }>;
+  /** Every video in the catalogue, so the buddy can deep-link to a real one. */
+  videoCatalog: VideoCatalogEntry[];
   videosTotal: number;
   videosCompleted: number;
   nextVideo: { id: number; title: string } | null;
@@ -29,6 +38,9 @@ export interface StudyStats {
   badges: number;
   xp: number;
   streak: number;
+  /** Videos the learner imported themselves (owner_user_id), not the shared library. */
+  ownedVideos: number;
+  ownedVideoTitles: string[];
 }
 
 interface CountDbRow extends RowDataPacket {
@@ -52,10 +64,12 @@ interface LessonDbRow extends RowDataPacket {
 }
 interface IdDbRow extends RowDataPacket { id: number; }
 interface VideoDbRow extends RowDataPacket { id: number; title: string; }
+interface VideoCatalogDbRow extends RowDataPacket { id: number; title: string; topic: string; level: string; }
+interface CountOnlyRow extends RowDataPacket { n: number; }
 
 /** Everything the study plan needs, in four round trips. */
 export async function getStudyStats(userId: number): Promise<StudyStats> {
-  const [countRows, lessonRows, completedRows, videoRows] = await Promise.all([
+  const [countRows, lessonRows, completedRows, videoRows, ownedCountRows, ownedRows, catalogRows] = await Promise.all([
     pool.execute<CountDbRow[]>(
       `SELECT
          (SELECT COUNT(*) FROM lessons) AS total_lessons,
@@ -86,17 +100,36 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
        ORDER BY v.sort_order, v.id LIMIT 1`,
       [userId],
     ),
+    pool.execute<CountOnlyRow[]>(
+      'SELECT COUNT(*) AS n FROM video_lessons WHERE owner_user_id = ?',
+      [userId],
+    ),
+    pool.execute<VideoDbRow[]>(
+      'SELECT id, title FROM video_lessons WHERE owner_user_id = ? ORDER BY created_at DESC, id DESC LIMIT 6',
+      [userId],
+    ),
+    pool.execute<VideoCatalogDbRow[]>(
+      'SELECT id, title, topic, cefr_level AS level FROM video_lessons ORDER BY sort_order, id',
+    ),
   ]);
 
   const counts: CountDbRow | undefined = countRows[0][0];
   const lessonList = lessonRows[0];
   const completedList = completedRows[0];
   const videoList = videoRows[0];
+  const ownedList = ownedRows[0];
+  const catalogList = catalogRows[0];
   const num = (value: unknown): number => Number(value ?? 0);
   return {
     totalLessons: num(counts?.total_lessons),
     completedLessons: num(counts?.completed_lessons),
     completedLessonIds: completedList.map((row) => row.id),
+    videoCatalog: catalogList.map((row) => ({
+      id: row.id,
+      title: row.title,
+      topic: row.topic,
+      level: row.level,
+    })),
     lessons: lessonList.map((row) => ({
       id: row.id,
       title: row.title,
@@ -113,6 +146,8 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
     badges: num(counts?.badges),
     xp: num(counts?.xp),
     streak: num(counts?.streak),
+    ownedVideos: num(ownedCountRows[0][0]?.n),
+    ownedVideoTitles: ownedList.map((row) => row.title),
   };
 }
 
@@ -153,6 +188,32 @@ export async function getChat(userId: number, chatId: number): Promise<ChatRow |
     [chatId, userId],
   );
   return rows[0];
+}
+
+/**
+ * The companion UI has no visible chat thread, but every question is still
+ * stored so the buddy remembers what was already asked. One long-lived
+ * STUDY_COACH chat per learner keeps that history in one place.
+ */
+export async function ensureCoachChat(userId: number): Promise<number> {
+  const [rows] = await pool.execute<IdDbRow[]>(
+    `SELECT id FROM chats WHERE user_id = ? AND topic = 'STUDY_COACH' ORDER BY id ASC LIMIT 1`,
+    [userId],
+  );
+  if (rows[0]) return rows[0].id;
+
+  try {
+    const chat = await createChat(userId, 'STUDY_COACH');
+    return chat.id;
+  } catch (error) {
+    // A parallel first question can win the race; reuse whatever exists then.
+    const [again] = await pool.execute<IdDbRow[]>(
+      `SELECT id FROM chats WHERE user_id = ? AND topic = 'STUDY_COACH' ORDER BY id ASC LIMIT 1`,
+      [userId],
+    );
+    if (again[0]) return again[0].id;
+    throw error;
+  }
 }
 
 export async function deleteChat(userId: number, chatId: number): Promise<boolean> {
@@ -248,6 +309,16 @@ export async function getLearnerContext(userId: number): Promise<LearnerContext>
     [userId],
   );
 
+  interface ReviewRow extends RowDataPacket { title: string; practice_seconds: number | null; attempts: number; }
+  const [reviewRows] = await pool.execute<ReviewRow[]>(
+    `SELECT l.title, p.practice_seconds, p.attempts
+     FROM progress p JOIN lessons l ON l.id = p.lesson_id
+     WHERE p.user_id = ? AND p.status = 'completed'
+       AND (p.attempts > 1 OR p.practice_seconds >= 300)
+     ORDER BY p.attempts DESC, p.practice_seconds DESC LIMIT 5`,
+    [userId],
+  );
+
   return {
     level: levelRows[0]?.level ?? 'beginner',
     completedTopics: completedRows.map((row) => row.topic),
@@ -259,6 +330,11 @@ export async function getLearnerContext(userId: number): Promise<LearnerContext>
       corrected_text,
       explanation,
     })).reverse(),
+    reviewLessons: reviewRows.map((row) => ({
+      title: row.title,
+      practiceSeconds: Number(row.practice_seconds ?? 0),
+      attempts: Number(row.attempts ?? 1),
+    })),
   };
 }
 

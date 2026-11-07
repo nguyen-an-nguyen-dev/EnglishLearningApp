@@ -580,9 +580,19 @@ export function attachBattleSocket(
       throw new Error('Every Word Battle target must be a single vocabulary word.');
     }
     if (pair.cancelled) return;
+    // A socket can die while the words are loading; never start a frozen match.
+    if (pair.players.some((member) => !member.socket.connected)) {
+      pair.cancelled = true;
+      for (const member of pair.players) pendingBySocket.delete(member.socket.id);
+      releasePlayers(pair.players);
+      return;
+    }
     const matchId = await battleRepository.createMatch(pair.players[0].userId, pair.players[1].userId);
     pair.matchId = matchId;
-    if (pair.cancelled) {
+    if (pair.cancelled || pair.players.some((member) => !member.socket.connected)) {
+      pair.cancelled = true;
+      for (const member of pair.players) pendingBySocket.delete(member.socket.id);
+      releasePlayers(pair.players);
       await persistMatchEnd(matchId, 'cancelled', null);
       return;
     }
@@ -626,13 +636,56 @@ export function attachBattleSocket(
     beginRound(match);
   }
 
+  /** A user may only hold one live seat: queue, joining, pending pair, or match. */
+  function hasLivePair(userId: number): boolean {
+    for (const pair of pendingBySocket.values()) {
+      if (!pair.cancelled && pair.players.some((player) => player.userId === userId)) return true;
+    }
+    return false;
+  }
+
+  function hasLiveMatch(userId: number): boolean {
+    for (const match of matches.values()) {
+      if (match.status === 'active' && match.players.some((player) => player.userId === userId)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Pull the next waiting player who is still a valid, unclaimed opponent.
+   * Stale entries (disconnected socket, already matched, or a duplicate of the
+   * same user) are dropped instead of being paired into a frozen match.
+   */
+  function takeWaitingOpponent(userId: number): Player | undefined {
+    while (waitingPlayers.length > 0) {
+      const candidate = waitingPlayers.shift()!;
+      if (candidate.userId === userId) continue;
+      if (waitingByUser.get(candidate.userId) !== candidate) continue;
+      if (!candidate.socket.connected) continue;
+      if (activeUsers.has(candidate.userId) || hasLivePair(candidate.userId) || hasLiveMatch(candidate.userId)) continue;
+      if (pendingBySocket.has(candidate.socket.id) || matchesBySocket.has(candidate.socket.id)) continue;
+      return candidate;
+    }
+    return undefined;
+  }
+
+  /** One seat per user: drop any older entry before queueing this socket. */
+  function enqueuePlayer(player: Player): void {
+    for (let index = waitingPlayers.length - 1; index >= 0; index -= 1) {
+      if (waitingPlayers[index].userId === player.userId) waitingPlayers.splice(index, 1);
+    }
+    waitingPlayers.push(player);
+    waitingByUser.set(player.userId, player);
+  }
+
   async function joinQueue(socket: BattleSocket): Promise<void> {
     const userId = socket.data.userId;
     if (matchesBySocket.has(socket.id) || pendingBySocket.has(socket.id)) {
       emitError(socket, 'ALREADY_IN_MATCH', 'You are already in a match.');
       return;
     }
-    if (waitingByUser.has(userId) || joiningUsers.has(userId) || activeUsers.has(userId)) {
+    if (waitingByUser.has(userId) || joiningUsers.has(userId) || activeUsers.has(userId)
+      || hasLivePair(userId) || hasLiveMatch(userId)) {
       emitError(socket, 'ALREADY_QUEUED', 'You are already waiting for or playing a match.');
       return;
     }
@@ -645,11 +698,15 @@ export function attachBattleSocket(
         return;
       }
       if (!socket.connected || cancelledJoins.has(socket.id)) return;
+      // The user may have been matched while this lookup was in flight.
+      if (waitingByUser.has(userId) || activeUsers.has(userId) || hasLivePair(userId) || hasLiveMatch(userId)) {
+        emitError(socket, 'ALREADY_QUEUED', 'You are already waiting for or playing a match.');
+        return;
+      }
       const player: Player = { userId, socket, name, reconnectTimer: null };
-      const opponent = waitingPlayers.shift();
+      const opponent = takeWaitingOpponent(userId);
       if (!opponent) {
-        waitingPlayers.push(player);
-        waitingByUser.set(userId, player);
+        enqueuePlayer(player);
         return;
       }
       waitingByUser.delete(opponent.userId);

@@ -1,0 +1,9 @@
+{
+  "watch": ["src", ".env"],
+  "ext": "ts,json",
+  "ignore": ["dist", "test", "node_modules", "src/**/.*.tmpdir/**", "src/**/.*.tmpdir"],
+  "exec": "tsx src/server.ts",
+  "delay": 300,
+  "signal": "SIGTERM",
+  "verbose": false
+}

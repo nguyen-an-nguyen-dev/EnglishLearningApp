@@ -49,3 +49,34 @@ export async function requestApi<T>(
 
   return body.data
 }
+
+/**
+ * For the handful of endpoints the landing page calls before anyone signs in.
+ * Same envelope handling as `requestApi`, but it never attaches a token and
+ * never throws just because the caller has no session yet.
+ */
+export async function requestPublicApi<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+  const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
+
+  if (!response.ok || !body.success) {
+    throw new ApiError(
+      body.error || body.message || 'Không tải được dữ liệu.',
+      response.status,
+      body.errors ?? [],
+    )
+  }
+
+  // A public payload is allowed to be `null` (e.g. "no preview available yet"),
+  // so only the failure envelope is treated as an error.
+  return body.data as T
+}

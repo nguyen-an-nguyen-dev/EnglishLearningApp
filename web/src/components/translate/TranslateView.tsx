@@ -26,6 +26,8 @@ const MAX_CHARACTERS = 10_000
 const MAX_FILE_BYTES = 20 * 1024
 const HISTORY_LIMIT = 10
 const HISTORY_PAGE_SIZE = 4
+// Keep in sync with the `.translate-history-list li` min-height so a computed
+// page size never squeezes a row below the height its text needs.
 const HISTORY_ROW_MIN_HEIGHT = 44
 
 type TranslateTab = 'text' | 'file'

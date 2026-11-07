@@ -117,6 +117,7 @@ export interface SubmittedAnswer {
 
 export interface CompleteLessonInput {
   answers: SubmittedAnswer[];
+  practiceSeconds?: number;
 }
 
 export interface CheckAnswerInput {
@@ -137,4 +138,5 @@ export interface CompleteLessonResult {
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
   badges_awarded: Badge[];
+  practice_seconds?: number;
 }

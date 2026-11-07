@@ -3,6 +3,7 @@ import * as repo from './video.repository';
 import { refineSegmentsWithAi } from './video.segmentation';
 import type {
   CompleteVideoResult,
+  DemoVideo,
   SaveWordInput,
   SavedWord,
   VideoLessonDetail,
@@ -214,7 +215,7 @@ export async function importVideo(
   }
 
   const source = await fetchYouTubeImportSource(youtubeId);
-  const segments = await refineSegmentsWithAi(source.segments, analysisModel, source.cues);
+  const segments = await refineSegmentsWithAi(source.segments, analysisModel, source.aiCues);
   const subtitleEn = segments.map((segment) => segment.text).join(' ').slice(0, 500);
 
   let videoId: number;
@@ -248,6 +249,54 @@ export async function deleteVideo(videoId: number, userId: number): Promise<void
 export async function getSavedWords(userId: number): Promise<SavedWord[]> {
   const rows = await repo.getSavedWords(userId);
   return rows.map(mapSavedWord);
+}
+
+/** How many segments the no-signup landing preview plays before the gate. */
+export const DEMO_SEGMENT_LIMIT = 3;
+
+/**
+ * Public preview used by the landing page: the shortest real lesson, trimmed to
+ * its first few segments. Returns `null` when the library has nothing playable,
+ * so the caller can hide the panel instead of showing an error.
+ */
+export async function getDemoVideo(): Promise<DemoVideo | null> {
+  const video = await repo.getShortestSharedVideo();
+  if (!video) return null;
+
+  const [totalSegments, segmentRows, vocabulary] = await Promise.all([
+    repo.countSegmentsByVideo(video.id),
+    repo.getFirstSegmentsByVideo(video.id, DEMO_SEGMENT_LIMIT),
+    repo.getVocabularyByVideo(video.id),
+  ]);
+  if (segmentRows.length === 0) return null;
+
+  return {
+    id: video.id,
+    code: video.code,
+    title: video.title,
+    topic: video.topic,
+    cefr_level: video.cefr_level,
+    provider: video.provider,
+    video_url: video.video_url,
+    thumbnail_url: video.thumbnail_url,
+    duration_seconds: Number(video.duration_seconds),
+    demo_segment_limit: DEMO_SEGMENT_LIMIT,
+    total_segments: totalSegments,
+    // `text_vi` stays behind the login: the preview teaches listening, the
+    // Vietnamese translation is part of the signed-in experience.
+    segments: segmentRows.map((row) => ({
+      id: row.id,
+      start_ms: Number(row.start_ms),
+      end_ms: Number(row.end_ms),
+      text_en: row.text_en,
+    })),
+    vocabulary: vocabulary.map((entry) => ({
+      word: entry.word,
+      ipa: entry.ipa,
+      meaning_vi: entry.meaning_vi,
+      detail_vi: entry.detail_vi,
+    })),
+  };
 }
 
 export async function saveWord(userId: number, input: SaveWordInput): Promise<SavedWord> {

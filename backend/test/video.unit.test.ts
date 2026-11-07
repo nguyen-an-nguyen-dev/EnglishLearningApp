@@ -13,7 +13,10 @@ import {
   parseWatchedSeconds,
 } from '../src/modules/video/video.validation';
 import {
+  captionLanguageCodes,
+  describeCaptionLanguages,
   extractYouTubeId,
+  mapYtDlpError,
   MAX_IMPORT_DURATION_SECONDS,
   parseJson3Cues,
   parseVttCues,
@@ -238,7 +241,7 @@ test('AI sentence ends must ascend and reach the last fragment', () => {
   assert.equal(parseAiSentenceEnds({ sentence_ends: 'nope' }, 5), null);
 });
 
-test('segments stop at sentence ends and pack whole sentences only', () => {
+test('one sentence per segment, with short reactions glued to the line before', () => {
   const sentences = [
     { startMs: 0, endMs: 3000, text: 'Hello there.' },
     { startMs: 3000, endMs: 7000, text: 'How are you?' },
@@ -246,19 +249,34 @@ test('segments stop at sentence ends and pack whole sentences only', () => {
     { startMs: 20000, endMs: 23000, text: 'Then it arrived.' },
   ];
 
+  // Every real sentence keeps its own line: the previous behaviour packed them
+  // up to 12s / 200 chars, which glued four sentences into one dictation line.
   assert.deepEqual(
-    buildSegmentsFromEnds(sentences, [2, 3, 4]).map((segment) => [
+    buildSegmentsFromEnds(sentences, [1, 2, 3, 4]).map((segment) => [
       segment.startMs,
       segment.endMs,
       segment.text,
     ]),
     [
-      [0, 7000, 'Hello there How are you'],
+      [0, 3000, 'Hello there'],
+      [3000, 7000, 'How are you'],
       [7000, 20000, 'I was waiting for the bus'],
       [20000, 23000, 'Then it arrived'],
     ],
   );
 
+  // A reaction fragment is not a line of its own, so it joins what came before.
+  const withReaction = [
+    { startMs: 0, endMs: 4000, text: 'The food was amazing.' },
+    { startMs: 4000, endMs: 5200, text: 'I see.' },
+    { startMs: 5200, endMs: 9000, text: 'How was the hotel?' },
+  ];
+  assert.deepEqual(
+    buildSegmentsFromEnds(withReaction, [1, 2, 3]).map((segment) => segment.text),
+    ['The food was amazing I see', 'How was the hotel'],
+  );
+
+  // One long sentence stays on its own line instead of being force-cut.
   assert.deepEqual(
     buildSegmentsFromEnds(sentences, [4]).map((segment) => segment.text),
     ['Hello there How are you I was waiting for the bus Then it arrived'],
@@ -296,6 +314,39 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
   } finally {
     env.nvidiaApiKey = originalNvidiaKey;
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('an AI answer with unquoted keys or a fenced block is still understood', async () => {
+  const { env } = await import('../src/config/env');
+  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalFetch = globalThis.fetch;
+  const fallback = [{ startMs: 0, endMs: 9000, text: 'unused' }];
+  const cues = [
+    { startMs: 0, endMs: 3000, text: 'How was your trip' },
+    { startMs: 3000, endMs: 6000, text: 'it was really fun' },
+    { startMs: 6000, endMs: 9000, text: 'how was the weather' },
+  ];
+
+  // Small fast models drop the quotes or wrap the object in a code fence; both
+  // shapes used to be thrown away, silently falling back to size-based cuts.
+  for (const content of ['{sentence_ends:[1,2,3]}', '```json\n{"sentence_ends": [1, 2, 3]}\n```']) {
+    try {
+      env.nvidiaApiKey = 'test-only-nvidia-key';
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        choices: [{ message: { content } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+      const segments = await refineSegmentsWithAi(fallback, 'bolt', cues);
+      assert.deepEqual(
+        segments.map((segment) => segment.text),
+        ['How was your trip', 'It was really fun', 'How was the weather'],
+        `failed for ${JSON.stringify(content)}`,
+      );
+    } finally {
+      env.nvidiaApiKey = originalNvidiaKey;
+      globalThis.fetch = originalFetch;
+    }
   }
 });
 
@@ -372,4 +423,26 @@ test('WebVTT captions are parsed when the track has no json3 variant', () => {
   assert.equal(cues[0].text, 'Hey, once upon a younger year');
   assert.equal(cues[1].text, 'When all our shadows disappeared');
   assert.equal(MAX_IMPORT_DURATION_SECONDS, 300);
+});
+
+test('caption language detection lists every track YouTube advertises', () => {
+  const metadata = {
+    subtitles: { en: [], 'en-GB': [], vi: [] },
+    automatic_captions: { fr: [], 'zh-Hans': [] },
+  };
+  const codes = captionLanguageCodes(metadata);
+  assert.ok(codes.includes('en') && codes.includes('en-GB') && codes.includes('vi'));
+  assert.ok(codes.includes('fr') && codes.includes('zh-Hans'));
+  assert.deepEqual(captionLanguageCodes({}), []);
+  assert.deepEqual(describeCaptionLanguages(codes), 'tiếng Việt, tiếng Pháp, tiếng Trung');
+  assert.equal(describeCaptionLanguages(['en', 'en-US']), '');
+});
+
+test('YouTube import failures map to specific, actionable codes', () => {
+  assert.deepEqual(mapYtDlpError(new Error('There are no subtitles for the requested languages')).errors, ['VIDEO_NO_CAPTIONS']);
+  assert.deepEqual(mapYtDlpError(new Error('ERROR: HTTP Error 429: Too Many Requests')).errors, ['VIDEO_IMPORT_RATE_LIMIT']);
+  assert.deepEqual(mapYtDlpError(new Error('ERROR: Video unavailable. This video is private')).errors, ['VIDEO_PRIVATE']);
+  assert.deepEqual(mapYtDlpError(new Error('ERROR: Video unavailable')).errors, ['VIDEO_UNAVAILABLE']);
+  assert.deepEqual(mapYtDlpError(new Error('ETIMEDOUT')).errors, ['VIDEO_IMPORT_TIMEOUT']);
+  assert.deepEqual(mapYtDlpError(new Error('something else entirely')).errors, ['VIDEO_IMPORT_UNAVAILABLE']);
 });

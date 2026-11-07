@@ -13,11 +13,12 @@ viền hoá mọi thứ). Không lặp lại. `DESIGN-RULES.md` cũ đã gộp v
 - Mọi tài liệu gom trong **một** `README.md` ở gốc; không tạo plan/implement/doc/DOC_MAP nữa.
 - Mobile app (`mobile/`) là **nguồn tham chiếu cho bộ 3 màu wordmark**, không còn là nguồn nền:
   `#00C7FF` / `#7CCB86` / `#F59E0B` (dark) và bản đậm `#009ECB` / `#5CAF6B` / `#D9820B` (light).
-- **Palette web hiện tại = kem nâu ấm "latte"** (user chốt, không dùng tông xanh lạnh kiểu AI slop):
-  light nền `#F7F1E8`, giấy `#FFFDF9`, chữ `#352C24`; dark `#1C1917` / `#26221F` / `#F5EDE3`.
-  Cyan `#00C7FF` chỉ dành cho action. Token ở `:root` / `:root[data-theme="dark"]` trong
-  `web/src/index.css`; mọi trang dashboard (kể cả `data-video-mono`) **phải dùng chung** token này,
-  không redefine ramp riêng.
+- **Palette web hiện tại = cyan sương / slate lạnh** (chốt lại 06/11, thay bản "latte" cũ):
+  light nền `#F2FAFD`, giấy `#FFFFFF`, chữ `#0E3542`; dark `#0E1720` / `#152430` / `#F2FAFD`.
+  Cyan `#00C7FF` chỉ dành cho action, `#007A9E` cho chữ/tint. **Cấm** nền kem/nâu/be và gradient
+  tím–xanh. Token ở `:root` / `:root[data-theme="dark"]` trong `web/src/index.css`; mọi trang
+  dashboard (kể cả `data-video-mono`) **phải dùng chung** token này, không redefine ramp riêng.
+  `.video-detail` chỉ trỏ `--m-*` về token chung; surface media luôn tối + chữ cố định sáng.
 - **Landing là ngoại lệ có chủ đích** (user đổi 04/11): **light-only, một gam cyan nhạt**
   `#E4F7FF` nền / `#F1FBFF` giấy / `#0E3542` chữ / `#CFEDFB` CTA cuối; action vẫn `#00C7FF`.
   Bỏ nút sáng/tối ở header landing. `LandingPage.tsx` ép `data-theme=light` + `html.lp-active`

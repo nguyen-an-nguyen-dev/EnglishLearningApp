@@ -422,6 +422,40 @@ test('a refreshed client can resume the same match before the grace period ends'
   }
 });
 
+test('matchmaking keeps one live seat per user and makes the odd player wait', async () => {
+  const a = await connectClient(601);
+  const b1 = await connectClient(602);
+  const b2 = await connectClient(602); // a second socket for the same account
+  const c = await connectClient(603);
+  try {
+    await joinMatch(a, b1);
+
+    // A user who is already in a live match cannot take a second seat.
+    const secondSocketError = waitForEvent<{ code: string }>(b2, 'game:error');
+    b2.emit('match:join');
+    assert.equal((await secondSocketError).code, 'ALREADY_QUEUED');
+
+    // The third player waits instead of being paired into a live match.
+    const thirdMatched = waitForEvent(c, 'match:found', 400).catch(() => null);
+    c.emit('match:join');
+    assert.equal(await thirdMatched, null, 'the third player must not join a live match');
+
+    // When the first pair frees the seats, the waiting player pairs with the next arrival.
+    a.emit('match:leave');
+    b1.emit('match:leave');
+    const cFound = waitForEvent<{ matchId: number }>(c, 'match:found');
+    const d = await connectClient(604);
+    d.emit('match:join');
+    assert.ok((await cFound).matchId > 0, 'the waiting player is matched with the next arrival');
+    d.disconnect();
+  } finally {
+    a.disconnect();
+    b1.disconnect();
+    b2.disconnect();
+    c.disconnect();
+  }
+});
+
 test('hint schedule starts empty and reveals about 20% of the letters every 5 seconds', () => {
   const word = 'environment';
   const schedule = hintSchedule(word, 25_000);

@@ -81,6 +81,37 @@ export interface SaveWordPayload {
   videoId?: number
 }
 
+/** Public pre-signup preview: same lesson, trimmed to its first few segments. */
+export interface DemoVideoSegment {
+  id: number
+  start_ms: number
+  end_ms: number
+  text_en: string
+}
+
+export interface DemoVideoVocabulary {
+  word: string
+  ipa: string
+  meaning_vi: string
+  detail_vi: string
+}
+
+export interface DemoVideo {
+  id: number
+  code: string
+  title: string
+  topic: string
+  cefr_level: string
+  provider: 'youtube' | 'file'
+  video_url: string
+  thumbnail_url: string | null
+  duration_seconds: number
+  demo_segment_limit: number
+  total_segments: number
+  segments: DemoVideoSegment[]
+  vocabulary: DemoVideoVocabulary[]
+}
+
 export interface ArenaSummary {
   played: number
   wins: number

@@ -16,6 +16,10 @@ backend/tmp-audio/
 
 npm-debug.log*
 
+# Báo cáo / tài liệu đồ án (không commit)
+docs/
+~$*
+
 # Agent skills, planning & temporary tooling
 .agents/
 skills-lock.json
@@ -26,3 +30,4 @@ run_decor_patch.cjs
 mobile/components/map/RoadsideDecor.tsx
 DOC_MAP.md
 **/DOC_MAP.md
+backend/.yt-dlp-tmp/

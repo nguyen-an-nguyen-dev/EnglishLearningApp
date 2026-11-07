@@ -1,0 +1,17 @@
+﻿const path = require('path')
+const { createRequire } = require('module')
+const ROOT = 'C:/Users/ADMIN/Desktop/DoAn/EnglishLearningApp'
+const backendRequire = createRequire(path.join(ROOT, 'backend/package.json'))
+const mysql = backendRequire('mysql2/promise')
+const dotenv = backendRequire('dotenv')
+dotenv.config({ path: path.join(ROOT, 'backend/.env') })
+;(async () => {
+  const conn = await mysql.createConnection({ host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'english_learning' })
+  const [stages] = await conn.query('SELECT COUNT(*) AS total FROM stages')
+  const [lessons] = await conn.query('SELECT COUNT(*) AS total FROM lessons')
+  const [questions] = await conn.query('SELECT COUNT(*) AS total FROM questions')
+  const [qa] = await conn.query("SELECT id, title FROM stages WHERE title LIKE 'Chặng QA%' OR title LIKE 'Chặng Kiểm Thử%'")
+  const [users] = await conn.query("SELECT COUNT(*) AS total FROM users WHERE email LIKE 'admin-%@example.test' OR email LIKE 'learning-test-%@example.test' OR email LIKE 'video-test-%@example.test' OR email LIKE 'auth-%@example.test'")
+  console.log({ stages: stages[0].total, lessons: lessons[0].total, questions: questions[0].total, leftoverQaStages: qa, leftoverTestUsers: users[0].total })
+  await conn.end()
+})()
