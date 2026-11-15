@@ -1,0 +1,1194 @@
+/* ==========================================================================
+   GARA + ARENA RESULT — the cartoon look from the design reference.
+   Two screens only: a 2px navy ink outline, a hard offset shadow, a rotated
+   verdict ribbon and a checkered finish line. Every other view keeps the flat
+   hairline language, so these two read as "the game part" of Engorace.
+
+   Structure mirrors the reference:
+     Gara  → header pills, stall banner with awning + mascot, tabs, one section
+             per slot with an owned counter, consumables last.
+     Arena → checkered masthead, two seats + ribbon, two race lanes, three
+             reward cards, form/review panel, "Bác Turbo" coaching panel.
+
+   Tokens are local to `.gara-v2`, `.arena-view` and `.arena-result-v2` so
+   neither game screen can leak into the rest of the dashboard.
+   ========================================================================== */
+
+.gara-v2,
+.arena-view,
+.arena-result-v2 {
+  --gc-ink: #14203a;
+  --gc-paper: #ffffff;
+  --gc-canvas: #e9f6fb;
+  --gc-muted: #4a5b78;
+  --gc-soft: #e1e7f0;
+  --gc-line-soft: #9db2cf;
+  --gc-cyan: #19b6f0;
+  --gc-cyan-deep: #0e8fc2;
+  --gc-yellow: #ffd23f;
+  --gc-green: #38c98a;
+  --gc-red: #ff5a5f;
+  --gc-orange: #ff9f2e;
+  --gc-wood: #8a4a17;
+  --gc-track: #eaf2f8;
+  --gc-dash: #c9d6ea;
+  --gc-card-common: #e4eaf2;
+  --gc-card-rare: #cfe8ff;
+  --gc-card-epic: #e3d7ff;
+  --gc-card-item: #ffe6b0;
+  --gc-display: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+}
+
+:root[data-theme="dark"] .gara-v2,
+:root[data-theme="dark"] .arena-view,
+:root[data-theme="dark"] .arena-result-v2 {
+  --gc-ink: #060b16;
+  --gc-paper: #16253f;
+  --gc-canvas: #0e1830;
+  --gc-muted: #9db2cf;
+  --gc-soft: #22324f;
+  --gc-line-soft: #3a4d70;
+  --gc-track: #16253f;
+  --gc-dash: #3a4d70;
+  --gc-card-common: #243552;
+  --gc-card-rare: #1c3a63;
+  --gc-card-epic: #33285f;
+  --gc-card-item: #4d3b17;
+  --gc-wood: #4a3320;
+}
+
+/* Shared primitives ------------------------------------------------------- */
+
+.gc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 999px;
+  background: var(--gc-paper);
+  color: var(--gc-ink);
+  box-shadow: 0 3px 0 var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+:root[data-theme="dark"] .gc-pill { color: #eaf2ff; }
+.gc-pill small { color: var(--gc-muted); font-family: "Be Vietnam Pro", system-ui, sans-serif; font-size: 12.5px; font-weight: 600; }
+
+.gc-coin {
+  display: inline-block;
+  width: 21px;
+  height: 21px;
+  flex: none;
+  border: 3px solid var(--gc-ink);
+  border-radius: 50%;
+  background: var(--gc-yellow);
+}
+
+.gc-label {
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gc-muted);
+}
+
+/* Buttons: three tones, always ink-outlined with a hard drop. */
+.gc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 12px;
+  background: var(--gc-paper);
+  color: var(--gc-ink);
+  box-shadow: 0 4px 0 var(--gc-ink);
+  cursor: pointer;
+  font-family: var(--gc-display);
+  font-size: 15.5px;
+  font-weight: 800;
+  text-align: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+:root[data-theme="dark"] .gc-btn { color: #eaf2ff; }
+/* Filled tones keep ink text on their bright fill in both themes, so these
+   selectors must out-rank the dark-theme colour rule above. */
+.gc-btn.is-primary,
+:root[data-theme="dark"] .gc-btn.is-primary { background: var(--gc-cyan); color: #04222c; }
+.gc-btn.is-accent,
+:root[data-theme="dark"] .gc-btn.is-accent { background: var(--gc-yellow); color: var(--gc-ink); }
+.gc-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 0 var(--gc-ink); }
+.gc-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--gc-ink); }
+.gc-btn:focus-visible { outline: 3px solid var(--gc-cyan); outline-offset: 2px; }
+.gc-btn.is-quiet { background: var(--gc-paper); }
+.gc-btn.is-disabled,
+.gc-btn:disabled,
+:root[data-theme="dark"] .gc-btn:disabled {
+  background: var(--gc-soft);
+  border-color: var(--gc-line-soft);
+  box-shadow: 0 4px 0 var(--gc-line-soft);
+  color: var(--gc-muted);
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   GARA
+   ========================================================================== */
+
+.gara-v2 { display: grid; gap: 26px; }
+
+.gara-v2-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.gara-v2-head h1 {
+  margin: 0;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+:root[data-theme="dark"] .gara-v2-head h1 { color: #eaf2ff; }
+.gara-v2-head p { margin: 4px 0 0; color: var(--gc-muted); font-size: 14.5px; font-weight: 500; }
+.gara-v2-pills { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+
+/* Stall banner: awning stripes, mascot, speech bubble and FAQ shortcuts. */
+.gara-stall {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 92px 32px 42px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 22px;
+  box-shadow: 0 6px 0 var(--gc-ink);
+  background:
+    repeating-linear-gradient(90deg, rgba(20, 32, 58, 0.05) 0 2px, transparent 2px 72px),
+    linear-gradient(180deg, #f2fbff 0%, #e2f4fc 62%, #d3ecf8 100%);
+  overflow: hidden;
+}
+:root[data-theme="dark"] .gara-stall {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 72px),
+    linear-gradient(180deg, #172743 0%, #14223b 62%, #111d33 100%);
+}
+.gara-stall-awning {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 54px;
+  border-bottom: 3px solid var(--gc-ink);
+  background: repeating-linear-gradient(90deg, var(--gc-cyan) 0 54px, #fff 54px 108px);
+}
+.gara-stall-awning b {
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  transform: translateX(-50%);
+  padding: 2px 22px;
+  border-radius: 10px;
+  background: var(--gc-ink);
+  color: var(--gc-yellow);
+  font-family: var(--gc-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.gara-stall-speech { width: 380px; max-width: 100%; display: grid; gap: 12px; }
+.gara-bubble {
+  position: relative;
+  padding: 12px 18px 14px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 18px;
+  background: var(--gc-paper);
+  box-shadow: 0 4px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+:root[data-theme="dark"] .gara-bubble { color: #eaf2ff; }
+.gara-bubble::after {
+  content: '';
+  position: absolute;
+  right: -12px;
+  bottom: 26px;
+  width: 20px;
+  height: 20px;
+  border-right: 3px solid var(--gc-ink);
+  border-top: 3px solid var(--gc-ink);
+  background: var(--gc-paper);
+  transform: rotate(45deg);
+}
+.gara-bubble-name {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 8px;
+  background: var(--gc-yellow);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.gara-faq { display: grid; gap: 9px; }
+.gara-faq .gc-btn { min-height: 40px; justify-content: flex-start; font-size: 14px; text-align: left; }
+
+/* Pegboard shelf: the equipped set hangs off hooks on a shop backboard, so the
+   banner shows real gear instead of three floating icons. */
+.gara-shelf {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 4px;
+  width: 250px;
+  min-height: 150px;
+  flex: none;
+  padding: 12px 10px 11px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle, rgba(20, 32, 58, 0.16) 1.5px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(180deg, #ffffff 0%, #eef7fc 100%);
+  box-shadow: 0 4px 0 var(--gc-ink);
+  margin-bottom: 8px;
+}
+:root[data-theme="dark"] .gara-shelf {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.12) 1.5px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(180deg, #1c2b48 0%, #16233c 100%);
+}
+/* Each hook is a column: a peg stretched from the top rail down to the item,
+   so all three items rest on the plank at the same baseline. */
+.gara-shelf-hook {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+.gara-shelf-peg {
+  flex: 1 1 auto;
+  width: 6px;
+  min-height: 10px;
+  border: 2px solid var(--gc-ink);
+  border-radius: 3px;
+  background: var(--gc-wood);
+}
+.gara-shelf-item {
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s ease;
+}
+/* Each item tilts a touch, the way a hung object would. */
+.gara-shelf-item.is-car { transform: rotate(-3deg); }
+.gara-shelf-item.is-frame { transform: rotate(2deg); }
+.gara-shelf-item.is-plate { transform: rotate(-2deg); }
+.gara-shelf-item svg { max-width: 100%; height: auto; }
+.gara-shelf-board {
+  position: absolute;
+  inset: auto 0 0;
+  height: 11px;
+  border-top: 3px solid var(--gc-ink);
+  background: var(--gc-wood);
+}
+
+.gara-stall-mascot { position: relative; width: 168px; flex: none; align-self: flex-end; }
+.gara-stall-mascot > svg { width: 100%; height: auto; }
+/* Floating, not standing: a soft contact shadow under the body and a slow
+   bob keep him above the counter. */
+.gara-stall-mascot > .gara-stall-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 58%;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(20, 32, 58, 0.28);
+  transform: translateX(-50%);
+  filter: blur(1px);
+}
+.gara-stall-mascot > svg { position: relative; z-index: 1; animation: gara-hover 4.6s ease-in-out infinite; }
+@keyframes gara-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gara-stall-mascot > svg { animation: none; }
+}
+.gara-stall-counter {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 32px;
+  height: 30px;
+  border-top: 3px solid var(--gc-ink);
+  background: var(--gc-wood);
+  color: #fff3d6;
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 27px;
+  text-transform: uppercase;
+}
+
+/* Tabs + "đang dùng" summary */
+.gara-v2-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.gara-v2-tabs .gc-btn { min-height: 42px; padding: 6px 20px; }
+.gara-v2-tabs-note { margin-left: auto; color: var(--gc-muted); font-size: 13px; font-weight: 600; }
+.gara-v2-tabs-note strong { color: var(--gc-ink); }
+:root[data-theme="dark"] .gara-v2-tabs-note strong { color: #eaf2ff; }
+
+/* Section heading with owned counter */
+.gara-v2-section { display: grid; gap: 14px; }
+.gara-v2-section-head { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.gara-v2-section-head h2 {
+  margin: 0;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(22px, 2.6vw, 29px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+:root[data-theme="dark"] .gara-v2-section-head h2 { color: #eaf2ff; }
+.gara-v2-count {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--gc-ink);
+  color: #fff;
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+}
+.gara-v2-section-head p { margin: 0 0 0 auto; color: var(--gc-muted); font-size: 13px; font-weight: 600; }
+
+/* Card grid */
+.gara-v2-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gara-v2-card {
+  display: flex;
+  flex-direction: column;
+  border: 3px solid var(--gc-ink);
+  border-radius: 16px;
+  background: var(--gc-paper);
+  box-shadow: 0 5px 0 var(--gc-ink);
+  overflow: hidden;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+.gara-v2-card:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--gc-ink); }
+
+.gara-v2-art {
+  position: relative;
+  display: grid;
+  height: 124px;
+  place-items: center;
+  border-bottom: 3px solid var(--gc-ink);
+  background: var(--gara-art-bg, var(--gc-card-common));
+}
+.gara-v2-card.is-common { --gara-art-bg: var(--gc-card-common); }
+.gara-v2-card.is-rare { --gara-art-bg: var(--gc-card-rare); }
+.gara-v2-card.is-epic { --gara-art-bg: var(--gc-card-epic); }
+.gara-v2-card.is-booster { --gara-art-bg: var(--gc-card-item); }
+.gara-v2-art svg { max-height: 96px; }
+
+.gara-v2-rarity {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--gc-ink);
+  color: #fff;
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.gara-v2-worn {
+  position: absolute;
+  bottom: 8px;
+  padding: 1px 10px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 999px;
+  background: var(--gc-green);
+  color: var(--gc-ink);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.gara-v2-lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: rgba(20, 32, 58, 0.78);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+.gara-v2-charges {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 0 8px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 8px;
+  background: var(--gc-yellow);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.gara-v2-body { display: flex; flex: 1; flex-direction: column; gap: 6px; padding: 10px 12px 14px; }
+.gara-v2-body h3 {
+  margin: 0;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 17.5px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+:root[data-theme="dark"] .gara-v2-body h3 { color: #eaf2ff; }
+.gara-v2-body p {
+  margin: 0;
+  min-height: 36px;
+  color: var(--gc-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.gara-v2-price {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 4px;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 19px;
+  font-weight: 800;
+}
+:root[data-theme="dark"] .gara-v2-price { color: #eaf2ff; }
+.gara-v2-price.is-locked { color: var(--gc-muted); font-size: 14px; }
+.gara-v2-price.is-short { color: var(--gc-muted); }
+.gara-v2-foot { display: grid; gap: 6px; }
+.gara-v2-hint { margin: 0; color: var(--gc-muted); font-size: 11px; font-weight: 700; text-align: center; }
+.gara-v2-error { margin: 0; color: var(--gc-red); font-size: 11px; font-weight: 700; text-align: center; }
+.gara-v2-badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 2px solid var(--gc-ink);
+  border-radius: 999px;
+  background: var(--gc-cyan);
+  color: #04222c;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Nameplate swatch: the real plate colours, at card scale. */
+.gara-nameplate-swatch {
+  display: grid;
+  place-items: center;
+  min-width: 96px;
+  max-width: 140px;
+  padding: 6px 14px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 10px;
+  box-shadow: 0 4px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
+}
+
+/* Booster art glyphs (no cosmetics preview applies to consumables). */
+.gara-booster-glyph {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 50%;
+  background: var(--gc-cyan);
+  color: var(--gc-ink);
+  box-shadow: 0 4px 0 var(--gc-ink);
+  font-family: var(--gc-display);
+  font-weight: 800;
+  line-height: 1;
+}
+.gara-booster-glyph b { font-size: 25px; }
+.gara-booster-glyph small { display: block; font-size: 12px; letter-spacing: 0.04em; }
+.gara-booster-glyph.is-rc { background: var(--gc-yellow); }
+.gara-booster-glyph.is-starter { background: var(--gc-green); }
+
+/* ==========================================================================
+   ARENA RESULT
+   ========================================================================== */
+
+.arena-result-v2 { display: grid; gap: 22px; width: 100%; }
+
+.arena-v2-board {
+  position: relative;
+  border: 3px solid var(--gc-ink);
+  border-radius: 22px;
+  background: var(--gc-paper);
+  box-shadow: 0 6px 0 var(--gc-ink);
+  overflow: hidden;
+  padding-bottom: 18px;
+}
+.arena-v2-checker {
+  height: 24px;
+  border-bottom: 3px solid var(--gc-ink);
+  background: repeating-conic-gradient(var(--gc-ink) 0 25%, #fff 0 50%) 0 0 / 24px 24px;
+}
+:root[data-theme="dark"] .arena-v2-checker {
+  background: repeating-conic-gradient(var(--gc-ink) 0 25%, var(--gc-paper) 0 50%) 0 0 / 24px 24px;
+}
+
+.arena-v2-seats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 24px 34px 14px;
+}
+.arena-v2-seat { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.arena-v2-seat.is-rival { flex-direction: row-reverse; text-align: right; }
+.arena-v2-seat-copy { display: grid; gap: 2px; min-width: 0; }
+.arena-v2-tag {
+  justify-self: start;
+  padding: 0 9px;
+  border: 2.5px solid var(--gc-ink);
+  border-radius: 7px;
+  background: var(--gc-yellow);
+  color: var(--gc-ink);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.arena-v2-seat.is-rival .arena-v2-tag { justify-self: end; background: var(--gc-green); }
+.arena-v2-name {
+  overflow: hidden;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(17px, 2vw, 23px);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-theme="dark"] .arena-v2-name { color: #eaf2ff; }
+.arena-v2-score {
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(46px, 6vw, 76px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  padding: 0 12px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  justify-self: start;
+}
+:root[data-theme="dark"] .arena-v2-score { color: #eaf2ff; }
+.arena-v2-score.is-winner {
+  border-color: var(--gc-ink);
+  background: var(--gc-yellow);
+  color: var(--gc-ink);
+}
+
+.arena-v2-ribbon {
+  padding: 4px 30px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 14px;
+  background: var(--gc-red);
+  color: var(--gc-ink);
+  box-shadow: 0 6px 0 var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(34px, 5vw, 62px);
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  transform: rotate(-3deg);
+  white-space: nowrap;
+}
+.arena-result-v2.is-win .arena-v2-ribbon { background: var(--gc-green); }
+.arena-result-v2.is-draw .arena-v2-ribbon,
+.arena-result-v2.is-cancelled .arena-v2-ribbon { background: var(--gc-line-soft); }
+
+/* Two race lanes: your car sits where the score put it. */
+.arena-v2-lane {
+  position: relative;
+  height: 58px;
+  margin: 0 30px 12px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(90deg, var(--gc-dash) 0 18px, transparent 18px 36px) center / 100% 4px no-repeat,
+    var(--gc-track);
+  overflow: hidden;
+}
+.arena-v2-lane:first-of-type { margin-top: 10px; }
+.arena-v2-finish {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 24px;
+  border-left: 3px solid var(--gc-ink);
+  background: repeating-conic-gradient(var(--gc-ink) 0 25%, #fff 0 50%) 0 0 / 12px 12px;
+}
+:root[data-theme="dark"] .arena-v2-finish {
+  background: repeating-conic-gradient(var(--gc-ink) 0 25%, var(--gc-paper) 0 50%) 0 0 / 12px 12px;
+}
+.arena-v2-car {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: left 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* Reward cards: an orb, a label, a number. */
+.arena-v2-payouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arena-v2-payout {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 16px 20px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 16px;
+  background: var(--gc-paper);
+  box-shadow: 0 5px 0 var(--gc-ink);
+}
+.arena-v2-orb {
+  display: grid;
+  flex: none;
+  width: 60px;
+  height: 60px;
+  place-content: center;
+  border: 3px solid var(--gc-ink);
+  border-radius: 50%;
+  box-shadow: 0 4px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+.arena-v2-orb.is-rc { background: var(--gc-yellow); }
+.arena-v2-orb.is-xp { background: var(--gc-cyan); }
+.arena-v2-orb.is-rp { background: var(--gc-soft); }
+:root[data-theme="dark"] .arena-v2-orb.is-rp { background: var(--gc-soft); color: #eaf2ff; }
+.arena-v2-payout-body { display: grid; gap: 2px; min-width: 0; }
+.arena-v2-payout-body span {
+  color: var(--gc-muted);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.arena-v2-payout-body b {
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="dark"] .arena-v2-payout-body b { color: #eaf2ff; }
+
+.arena-v2-notes { display: grid; gap: 6px; }
+.arena-v2-note { margin: 0; color: var(--gc-muted); font-size: 12.5px; font-weight: 650; }
+.arena-v2-note.is-level { color: var(--gc-cyan-deep); font-weight: 800; }
+
+/* Lower two-panel row */
+.arena-v2-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: stretch;
+}
+.arena-v2-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 16px;
+  background: var(--gc-paper);
+  box-shadow: 0 5px 0 var(--gc-ink);
+}
+
+.arena-v2-form { display: flex; gap: 8px; margin: 2px 0 4px; }
+.arena-v2-form i {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 3px solid var(--gc-ink);
+  border-radius: 10px;
+  background: var(--gc-green);
+  box-shadow: 0 3px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 14.5px;
+  font-weight: 800;
+  font-style: normal;
+}
+.arena-v2-form i.is-loss { background: var(--gc-red); }
+.arena-v2-form-empty { margin: 2px 0 6px; color: var(--gc-muted); font-size: 12.5px; font-weight: 600; }
+
+.arena-v2-words { display: grid; margin: 0; padding: 0; list-style: none; }
+.arena-v2-words li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 3px dashed var(--gc-dash);
+}
+.arena-v2-words b {
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+:root[data-theme="dark"] .arena-v2-words b { color: #eaf2ff; }
+.arena-v2-words span { color: var(--gc-muted); font-size: 12.5px; font-weight: 600; text-align: right; }
+
+.arena-v2-next { justify-content: flex-end; }
+.arena-v2-coach { display: flex; align-items: flex-end; gap: 18px; }
+.arena-v2-coach .gara-bubble { flex: 1; }
+.arena-v2-coach .gara-stall-mascot { width: 116px; }
+.arena-v2-next h3 {
+  margin: 0;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 21px;
+  font-weight: 800;
+}
+:root[data-theme="dark"] .arena-v2-next h3 { color: #eaf2ff; }
+.arena-v2-next p { margin: 0; color: var(--gc-muted); font-size: 13px; font-weight: 550; line-height: 1.5; }
+.arena-v2-actions { display: grid; gap: 10px; }
+.arena-v2-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.arena-v2-error { margin: 0; color: var(--gc-red); font-size: 12.5px; font-weight: 700; }
+
+/* Boosters currently running, shown on the result board. */
+.arena-v2-boost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 3px 12px;
+  border: 2.5px solid var(--gc-ink);
+  border-radius: 999px;
+  background: var(--gc-card-item);
+  color: var(--gc-ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+:root[data-theme="dark"] .arena-v2-boost { color: #eaf2ff; }
+
+/* Arena header: the reference puts balance, level and the whole record into one
+   row of pills, so the headline stays a single line of stats. */
+.arena-view .arena-head { align-items: flex-start; gap: 20px; padding-bottom: 14px; }
+.arena-view .arena-head h1 {
+  font-family: var(--gc-display);
+  font-size: clamp(30px, 3.2vw, 40px);
+  letter-spacing: -0.01em;
+}
+.arena-view .arena-head p { margin-top: 7px; line-height: 1.45; }
+.arena-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+/* Keep the record compact so the lobby gets more room in a short viewport. */
+.arena-chips .gc-pill { padding: 2px 7px; font-size: 13px; gap: 4px; }
+.arena-chips .gc-pill small { font-size: 10px; }
+.arena-chips .gc-coin { width: 14px; height: 14px; border-width: 2px; }
+
+/* Lobby ------------------------------------------------------------------- */
+
+/* One arena card: checkered masthead, hero copy on the left, the versus card on
+   the right. Same ink outline + hard shadow as the result board so the lobby and
+   the result read as the same game. */
+.arena-lobby-card {
+  border: 3px solid var(--gc-ink);
+  border-radius: 22px;
+  background: var(--gc-paper);
+  box-shadow: 0 6px 0 var(--gc-ink);
+  overflow: hidden;
+}
+.arena-v2-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(380px, 1fr);
+  align-items: center;
+  gap: 22px;
+  padding: 20px 24px;
+}
+.arena-v2-hero-copy { display: grid; justify-items: start; gap: 0; }
+.arena-v2-eyebrow {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 8px;
+  background: var(--gc-ink);
+  color: var(--gc-yellow);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.arena-v2-hero h2 {
+  margin: 8px 0 0;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: clamp(30px, 3.2vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+}
+:root[data-theme="dark"] .arena-v2-hero h2 { color: #eaf2ff; }
+.arena-v2-hero-copy > p {
+  max-width: 560px;
+  margin: 7px 0 10px;
+  color: var(--gc-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.arena-v2-info { display: flex; flex-wrap: wrap; gap: 7px; }
+.arena-v2-info span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 999px;
+  background: var(--gc-paper);
+  box-shadow: 0 3px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.arena-v2-info span::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 2px solid var(--gc-ink);
+  border-radius: 50%;
+  background: var(--gc-cyan);
+}
+:root[data-theme="dark"] .arena-v2-info span { color: #eaf2ff; }
+
+/* Recent form: the latest results make the lobby useful between matches. */
+.arena-v2-history { display: grid; gap: 8px; margin: 12px 0 4px; }
+.arena-v2-history-title {
+  color: var(--gc-muted);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.arena-v2-history ol { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.arena-v2-history li {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 10px;
+  background: var(--gc-green);
+  box-shadow: 0 3px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 14px;
+  font-weight: 800;
+}
+.arena-v2-history li.is-loss { background: var(--gc-red); }
+.arena-v2-history-empty { color: var(--gc-muted); font-size: 12.5px; font-weight: 600; }
+.arena-lobby-card .arena-v2-cta { width: min(320px, 100%); min-height: 50px; padding: 8px 24px; border-radius: 14px; font-size: 19px; }
+.arena-lobby-card .arena-v2-cta.is-cancel { background: var(--gc-red); color: var(--gc-ink); }
+.arena-lobby-card.is-searching .arena-v2-cta { min-width: min(260px, 100%); }
+
+/* Versus card and matchmaking control stay together in the lobby. */
+.arena-v2-matchmaking {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  max-width: 600px;
+  margin-inline: auto;
+}
+.arena-v2-versus {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 22px 18px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fff8e4 0%, #ffeec4 100%);
+  box-shadow: 0 5px 0 var(--gc-ink);
+}
+.arena-v2-versus-players {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 14px;
+}
+:root[data-theme="dark"] .arena-v2-versus {
+  background: linear-gradient(180deg, #1d2a4a 0%, #182444 100%);
+}
+.arena-v2-versus-slot {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: center;
+}
+.arena-v2-versus-slot strong {
+  overflow: hidden;
+  max-width: 130px;
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-theme="dark"] .arena-v2-versus-slot strong { color: #eaf2ff; }
+.arena-v2-versus-slot small { color: var(--gc-muted); font-size: 12px; font-weight: 600; }
+.arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan-deep); }
+:root[data-theme="dark"] .arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan); }
+.arena-v2-search-orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 84px;
+  height: 84px;
+  border: 4px dashed var(--gc-cyan-deep);
+  border-radius: 50%;
+}
+:root[data-theme="dark"] .arena-v2-search-orb { border-color: var(--gc-cyan); }
+.arena-v2-search-orb i,
+.arena-v2-search-dots i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: arena-search-dot 1s ease-in-out infinite;
+}
+.arena-v2-search-orb i:nth-child(2),
+.arena-v2-search-dots i:nth-child(2) { animation-delay: 160ms; }
+.arena-v2-search-orb i:nth-child(3),
+.arena-v2-search-dots i:nth-child(3) { animation-delay: 320ms; }
+.arena-v2-search-orb i { width: 9px; height: 9px; color: var(--gc-cyan-deep); }
+:root[data-theme="dark"] .arena-v2-search-orb i { color: var(--gc-cyan); }
+.arena-v2-search-dots { display: inline-flex; align-items: center; gap: 5px; min-height: 12px; color: var(--gc-cyan-deep); }
+:root[data-theme="dark"] .arena-v2-search-dots { color: var(--gc-cyan); }
+@keyframes arena-search-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+.arena-v2-versus-empty {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 4px dashed var(--gc-muted);
+  border-radius: 50%;
+  color: var(--gc-muted);
+  font-family: var(--gc-display);
+  font-size: 34px;
+  font-weight: 800;
+}
+.arena-v2-versus-badge {
+  flex: none;
+  padding: 0 9px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 12px;
+  background: var(--gc-red);
+  box-shadow: 0 4px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 20px;
+  font-weight: 800;
+  transform: rotate(-4deg);
+}
+
+/* Rules: three numbered panels, the reference's "Luật chơi" strip. */
+.arena-v2-rules-block { display: grid; gap: 8px; }
+.arena-v2-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arena-v2-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 16px;
+  background: var(--gc-paper);
+  box-shadow: 0 5px 0 var(--gc-ink);
+}
+.arena-v2-rules i {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: 3px solid var(--gc-ink);
+  border-radius: 50%;
+  background: var(--gc-yellow);
+  box-shadow: 0 3px 0 var(--gc-ink);
+  color: var(--gc-ink);
+  font-family: var(--gc-display);
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+}
+.arena-v2-rules p { margin: 2px 0 0; color: var(--gc-ink); font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+:root[data-theme="dark"] .arena-v2-rules p { color: #eaf2ff; }
+
+/* Turbo's coaching tip under the rules. */
+.arena-v2-tip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 22px;
+}
+.arena-v2-tip .gara-bubble { flex: 1; max-width: 560px; }
+
+/* Responsive -------------------------------------------------------------- */
+
+@media (min-width: 961px) and (max-height: 800px) {
+  .learning-page:has(.arena-view) { padding-top: 18px; padding-bottom: 22px; }
+  .arena-v2-checker { height: 18px; background-size: 18px 18px; }
+  .arena-v2-hero { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.95fr); gap: 16px; }
+  .arena-v2-matchmaking { gap: 12px; }
+  .arena-v2-versus { padding: 16px 12px; }
+  .arena-v2-search-orb { width: 76px; height: 76px; }
+  .arena-view .arena-head { gap: 14px; padding-bottom: 10px; }
+  .arena-view .arena-head p { margin-top: 5px; font-size: 13px; }
+  .arena-v2-hero { gap: 18px; padding: 16px 20px; }
+  .arena-v2-hero h2 { font-size: clamp(28px, 2.8vw, 36px); }
+  .arena-v2-hero-copy > p { margin: 5px 0 8px; font-size: 13px; }
+  .arena-v2-info { gap: 6px; }
+  .arena-v2-info span { padding: 2px 8px; font-size: 12px; }
+  .arena-v2-history { gap: 6px; margin-top: 8px; }
+  .arena-v2-history ol { gap: 5px; }
+  .arena-v2-history li { width: 30px; height: 30px; font-size: 13px; }
+  .arena-lobby-card .arena-v2-cta { min-height: 46px; padding: 7px 20px; font-size: 18px; }
+  .arena-v2-versus { padding: 12px 10px; }
+  .arena-v2-rules li { padding: 10px; }
+  .arena-v2-rules p { font-size: 12px; }
+}
+
+@media (max-width: 1024px) {
+  .arena-v2-lower { grid-template-columns: minmax(0, 1fr); }
+  .arena-v2-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .arena-v2-matchmaking { max-width: 640px; }
+}
+
+@media (max-width: 860px) {
+  .arena-v2-seats {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 18px 10px;
+  }
+  .arena-v2-ribbon { grid-column: 1 / -1; grid-row: 2; justify-self: center; margin-top: 6px; }
+  .arena-v2-seat { gap: 10px; }
+  .arena-v2-lane { margin: 0 16px 10px; }
+  .arena-v2-lane:first-of-type { margin-top: 4px; }
+  .gara-stall { padding: 84px 20px 40px; }
+  .gara-stall-counter { padding: 0 20px; }
+  .gara-stall-mascot { width: 140px; }
+  .gara-v2-tabs-note { margin-left: 0; width: 100%; }
+  .arena-v2-hero { padding: 24px 20px; }
+  .arena-chips { justify-content: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .gara-v2-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .gara-v2-art { height: 106px; }
+  .gara-v2-body p { display: none; }
+  .gara-v2-body h3 { font-size: 15px; }
+  .gara-v2-price { font-size: 16px; }
+  .gara-stall-speech { width: 100%; }
+  .gara-stall-mascot { display: none; }
+  .gara-shelf { width: 100%; justify-content: center; }
+  .arena-v2-checker { height: 18px; background-size: 18px 18px; }
+  .arena-v2-payouts { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .arena-v2-payout { padding: 13px 16px; }
+  .arena-v2-orb { width: 50px; height: 50px; font-size: 17px; }
+  .arena-v2-payout-body b { font-size: 26px; }
+  .arena-v2-actions-row { grid-template-columns: minmax(0, 1fr); }
+  .arena-v2-coach .gara-stall-mascot { display: none; }
+  .arena-v2-hero h2 { font-size: 27px; }
+  .arena-lobby-card .arena-v2-cta { width: 100%; min-height: 52px; padding: 8px 20px; font-size: 18px; }
+  .arena-v2-history li { width: 34px; height: 34px; font-size: 14px; }
+  .arena-v2-rules { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .arena-v2-tip .gara-stall-mascot { display: none; }
+}
+
+@media (max-width: 400px) {
+  .gara-v2-grid { grid-template-columns: minmax(0, 1fr); }
+  .arena-v2-score { font-size: 42px; padding: 0 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gara-v2-card,
+  .gc-btn,
+  .arena-v2-car { transition: none; }
+  .arena-v2-search-orb i,
+  .arena-v2-search-dots i { animation: none; }
+}

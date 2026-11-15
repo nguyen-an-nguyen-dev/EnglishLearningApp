@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Clock,
   Fire,
-  Headphones,
   List,
   Sword,
   X,
@@ -545,7 +544,6 @@ export function LearningModesSection({
               <span className="lp-panel-kicker">Bài học thật trong app</span>
               <h3>Nghe câu thật. Gõ lại từng chữ.</h3>
             </div>
-            <span className="lp-panel-note"><Headphones size={15} /> Chính bài ngắn nhất trong thư viện</span>
           </div>
 
           <DemoVideoPanel onRequireAuth={() => onRequireAuth?.()} />

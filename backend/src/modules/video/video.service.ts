@@ -8,7 +8,6 @@ import type {
   SavedWord,
   VideoLessonDetail,
   VideoLessonRow,
-  VideoAnalysisModel,
   VideoLessonSummary,
   VideoProgress,
   VideoProgressRow,
@@ -152,6 +151,7 @@ export async function saveWatchProgress(
     completed: alreadyCompleted,
     already_completed: alreadyCompleted,
     xp_earned: 0,
+    rc_earned: 0,
     badges_awarded: [],
   };
 }
@@ -184,6 +184,7 @@ export async function completeVideo(
     completed: true,
     already_completed: result.alreadyCompleted,
     xp_earned: result.xpEarned,
+    rc_earned: result.rcEarned,
     badges_awarded: result.badgesAwarded,
   };
 }
@@ -191,7 +192,6 @@ export async function completeVideo(
 export async function importVideo(
   userId: number,
   rawUrl: string,
-  analysisModel: VideoAnalysisModel = 'bolt',
 ): Promise<VideoLessonDetail> {
   const youtubeId = extractYouTubeId(rawUrl);
   if (!youtubeId) {
@@ -215,7 +215,7 @@ export async function importVideo(
   }
 
   const source = await fetchYouTubeImportSource(youtubeId);
-  const segments = await refineSegmentsWithAi(source.segments, analysisModel, source.aiCues);
+  const segments = await refineSegmentsWithAi(source.segments, source.aiCues);
   const subtitleEn = segments.map((segment) => segment.text).join(' ').slice(0, 500);
 
   let videoId: number;

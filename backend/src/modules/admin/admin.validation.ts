@@ -1,5 +1,4 @@
 import { HttpError } from '../../middleware/error-handler';
-import { parseImportModel } from '../video/video.validation';
 import {
   AUDIO_QUESTION_TYPES,
   CEFR_LEVELS,
@@ -326,7 +325,7 @@ export function parseSharedVideoImport(value: unknown): SharedVideoImportInput {
   if (!url || url.length > 500) {
     throw new HttpError(422, 'Provide a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
   }
-  return { url, model: parseImportModel(body) };
+  return { url };
 }
 
 export function parseSharedVideoPatch(value: unknown): SharedVideoPatch {

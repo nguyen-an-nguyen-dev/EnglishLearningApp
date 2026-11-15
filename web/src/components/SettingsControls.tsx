@@ -1,8 +1,8 @@
 import { Check } from '@phosphor-icons/react'
 import { useI18n } from '../i18n'
 import type { Lang } from '../i18n'
-import { useTheme } from './ThemeToggle'
-import type { Theme } from './ThemeToggle'
+import { useTheme } from '../theme'
+import type { Theme } from '../theme'
 
 /** Section label with the current value on the right, like a settings block header. */
 function GroupHead({ label, value }: { label: string; value?: string }) {

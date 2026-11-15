@@ -5,7 +5,6 @@ import {
   hasWatchedEnough,
 } from '../src/modules/video/video.service';
 import {
-  parseImportModel,
   parseImportUrl,
   parseSaveWordInput,
   parseSavedWord,
@@ -99,18 +98,6 @@ test('YouTube links are reduced to a safe video id', () => {
   assert.equal(videoCodeForUser('N9B59PHIFbA', 7), 'yt_N9B59PHIFbA_u7');
   assert.equal(parseImportUrl({ url: ' https://youtu.be/N9B59PHIFbA ' }), 'https://youtu.be/N9B59PHIFbA');
   assert.throws(() => parseImportUrl({}), (error) => error instanceof HttpError && error.statusCode === 422);
-});
-
-test('video analysis model defaults to Bolt and only accepts known choices', () => {
-  assert.equal(parseImportModel({}), 'bolt');
-  assert.equal(parseImportModel({ model: 'bolt' }), 'bolt');
-  assert.equal(parseImportModel({ model: 'gemini' }), 'gemini');
-  assert.throws(
-    () => parseImportModel({ model: 'nvidia' }),
-    (error) => error instanceof HttpError
-      && error.statusCode === 422
-      && error.errors.includes('INVALID_ANALYSIS_MODEL'),
-  );
 });
 
 test('json3 captions become sentence segments', () => {
@@ -285,7 +272,8 @@ test('one sentence per segment, with short reactions glued to the line before', 
 
 test('AI sentence ends cut caption fragments at spoken sentence boundaries', async () => {
   const { env } = await import('../src/config/env');
-  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalGeminiKey = env.aiApiKey;
+  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
   const fallback = [
     { startMs: 0, endMs: 22000, text: 'The weather was beautiful how was the food the food was amazing' },
@@ -298,12 +286,13 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
   ];
 
   try {
-    env.nvidiaApiKey = 'test-only-nvidia-key';
+    env.aiApiKey = 'test-only-gemini-key';
+    env.cfAccounts = [];
     globalThis.fetch = (async () => new Response(JSON.stringify({
       choices: [{ message: { content: '{"sentence_ends":[2,4]}' } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
 
-    const segments = await refineSegmentsWithAi(fallback, 'bolt', cues);
+    const segments = await refineSegmentsWithAi(fallback, cues);
     assert.deepEqual(
       segments.map((segment) => [segment.startMs, segment.endMs, segment.text]),
       [
@@ -312,16 +301,19 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
       ],
     );
   } finally {
-    env.nvidiaApiKey = originalNvidiaKey;
+    env.aiApiKey = originalGeminiKey;
+    env.cfAccounts = originalAccounts;
     globalThis.fetch = originalFetch;
   }
 });
 
 test('an AI answer with unquoted keys or a fenced block is still understood', async () => {
   const { env } = await import('../src/config/env');
-  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalGeminiKey = env.aiApiKey;
+  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
-  const fallback = [{ startMs: 0, endMs: 9000, text: 'unused' }];
+  env.aiApiKey = 'test-only-gemini-key';
+  env.cfAccounts = [];
   const cues = [
     { startMs: 0, endMs: 3000, text: 'How was your trip' },
     { startMs: 3000, endMs: 6000, text: 'it was really fun' },
@@ -332,19 +324,19 @@ test('an AI answer with unquoted keys or a fenced block is still understood', as
   // shapes used to be thrown away, silently falling back to size-based cuts.
   for (const content of ['{sentence_ends:[1,2,3]}', '```json\n{"sentence_ends": [1, 2, 3]}\n```']) {
     try {
-      env.nvidiaApiKey = 'test-only-nvidia-key';
       globalThis.fetch = (async () => new Response(JSON.stringify({
         choices: [{ message: { content } }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
 
-      const segments = await refineSegmentsWithAi(fallback, 'bolt', cues);
+      const segments = await refineSegmentsWithAi(cues, cues);
       assert.deepEqual(
         segments.map((segment) => segment.text),
         ['How was your trip', 'It was really fun', 'How was the weather'],
         `failed for ${JSON.stringify(content)}`,
       );
     } finally {
-      env.nvidiaApiKey = originalNvidiaKey;
+      env.aiApiKey = originalGeminiKey;
+      env.cfAccounts = originalAccounts;
       globalThis.fetch = originalFetch;
     }
   }
@@ -353,7 +345,7 @@ test('an AI answer with unquoted keys or a fenced block is still understood', as
 test('AI grouping is used when the provider answers, and rule-based segments win on failure', async () => {
   const { env } = await import('../src/config/env');
   const originalAiKey = env.aiApiKey;
-  const originalNvidiaKey = env.nvidiaApiKey;
+  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
   const sentences = [
     { startMs: 0, endMs: 2000, text: 'Hello there.' },
@@ -367,7 +359,7 @@ test('AI grouping is used when the provider answers, and rule-based segments win
 
   try {
     env.aiApiKey = 'test-only-gemini-key';
-    env.nvidiaApiKey = 'test-only-nvidia-key';
+    env.cfAccounts = [];
     globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
       requestedUrl = String(input);
       return successResponse();
@@ -377,17 +369,10 @@ test('AI grouping is used when the provider answers, and rule-based segments win
       (await refineSegmentsWithAi(sentences)).map((segment) => [segment.startMs, segment.endMs, segment.text]),
       [[0, 4000, 'Hello there How are you']],
     );
-    assert.equal(requestedUrl, env.nvidiaApiUrl, 'Bolt is the default analysis model');
-
-    assert.deepEqual(
-      (await refineSegmentsWithAi(sentences, 'gemini')).map((segment) => [segment.startMs, segment.endMs, segment.text]),
-      [[0, 4000, 'Hello there How are you']],
-    );
-    assert.equal(requestedUrl, env.aiApiUrl, 'Gemini uses the Gemini endpoint');
+    assert.equal(requestedUrl, env.aiApiUrl, 'Gemini is the configured analysis endpoint');
 
     globalThis.fetch = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
     assert.deepEqual(await refineSegmentsWithAi(sentences), sentences);
-    assert.deepEqual(await refineSegmentsWithAi(sentences, 'gemini'), sentences);
 
     globalThis.fetch = (async () => new Response(JSON.stringify({
       choices: [{ message: { content: '{"sentence_ends":[1,1]}' } }],
@@ -395,7 +380,7 @@ test('AI grouping is used when the provider answers, and rule-based segments win
     assert.deepEqual(await refineSegmentsWithAi(sentences), sentences);
   } finally {
     env.aiApiKey = originalAiKey;
-    env.nvidiaApiKey = originalNvidiaKey;
+    env.cfAccounts = originalAccounts;
     globalThis.fetch = originalFetch;
   }
 });

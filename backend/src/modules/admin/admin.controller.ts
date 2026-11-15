@@ -229,3 +229,59 @@ export const moveSharedVideo: RequestHandler = async (request, response, next) =
     next(error);
   }
 };
+
+// ─── Statistics (admin console) ─────────────────────────────────────────────
+
+export const getStatsOverview: RequestHandler = async (_request, response, next) => {
+  try {
+    const overview = await adminService.getStatsOverview();
+    response.json({ success: true, data: { overview } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStatsTrend: RequestHandler = async (request, response, next) => {
+  try {
+    const raw = Number(request.query.days);
+    const days = Number.isFinite(raw) && raw > 0 ? raw : 14;
+    const trend = await adminService.getActivityTrend(days);
+    response.json({ success: true, data: { trend } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStatsLessons: RequestHandler = async (_request, response, next) => {
+  try {
+    const [stages, lessons] = await Promise.all([
+      adminService.getStageStats(),
+      adminService.getLessonStats(),
+    ]);
+    response.json({ success: true, data: { stages, lessons } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStatsContent: RequestHandler = async (_request, response, next) => {
+  try {
+    const content = await adminService.getContentStats();
+    response.json({ success: true, data: { content } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listInactiveUsers: RequestHandler = async (request, response, next) => {
+  try {
+    const rawDays = Number(request.query.days);
+    const rawLimit = Number(request.query.limit);
+    const days = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 7;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 50;
+    const users = await adminService.listInactiveUsers(days, limit);
+    response.json({ success: true, data: { users, days, limit } });
+  } catch (error) {
+    next(error);
+  }
+};

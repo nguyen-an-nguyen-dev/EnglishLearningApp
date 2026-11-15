@@ -1,8 +1,11 @@
-import { HttpError } from '../../middleware/error-handler';
 import * as repository from './battle.repository';
-import type { BattleWord } from './battle.repository';
 
-
+export interface BattleRecentResult {
+  match_id: number;
+  won: boolean;
+  opponent_name: string;
+  played_at: string;
+}
 
 export interface BattleSummary {
   played: number;
@@ -11,15 +14,8 @@ export interface BattleSummary {
   win_rate: number;
   win_streak: number;
   last_played_at: string | null;
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[swap]] = [copy[swap], copy[index]];
-  }
-  return copy;
+  /** Newest-first results for the form strip on the result screen. */
+  recent: BattleRecentResult[];
 }
 
 function escapeForRegExp(value: string): string {
@@ -42,5 +38,11 @@ export async function getBattleSummary(userId: number): Promise<BattleSummary> {
     win_rate: summary.played > 0 ? Math.round((summary.wins / summary.played) * 100) : 0,
     win_streak: summary.winStreak,
     last_played_at: summary.lastPlayedAt ? summary.lastPlayedAt.toISOString() : null,
+    recent: summary.recent.map((entry) => ({
+      match_id: entry.matchId,
+      won: entry.won,
+      opponent_name: entry.opponentName,
+      played_at: entry.playedAt.toISOString(),
+    })),
   };
 }

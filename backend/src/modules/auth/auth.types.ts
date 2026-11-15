@@ -27,6 +27,9 @@ export interface AuthUser {
   name: string;
   email: string;
   xp: number;
+  coins: number;
+  /** Derived from xp via the level curve; never stored on the row. */
+  level: number;
   streak: number;
   role: UserRole;
 }

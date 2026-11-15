@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ArrowRight,
-  Clock,
-  Flag,
   House,
   ImageSquare,
   Lightning,
-  Sword,
-  Trophy,
-  UsersThree,
   X,
 } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
+import { useWallet } from '../../context/WalletContext'
 import { useI18n } from '../../i18n'
+import { AvatarFrame } from '../cosmetics/AvatarFrame'
+import { CarBadge } from '../cosmetics/CarBadge'
+import { TurboMascot } from '../cosmetics/TurboMascot'
+import { Nameplate } from '../cosmetics/Nameplate'
+import { saveWordApi } from '../../services/videoService'
 import {
   createBattleSocket,
   getArenaSummaryApi,
 } from '../../services/battleService'
 import type { BattleSocket } from '../../services/battleService'
 import type {
+  ArenaRecentResult,
   ArenaSummary,
   BattleFinish,
   BattleOpponent,
@@ -27,6 +28,7 @@ import type {
   BattleScore,
   BattleStart,
 } from '../../types/video'
+import { formatCompact } from '../../utils/format'
 import { matchOutcome } from '../../utils/arena'
 import { setArenaLeaveGuard } from '../../utils/arenaGuard'
 import { initialOf } from '../../utils/avatar'
@@ -42,6 +44,11 @@ type DuelConnection = { mode: 'queue' | 'resume'; matchId?: number; nonce: numbe
 
 const DUEL_ROUNDS = 8
 const DUEL_SECONDS = 25
+
+/** Where a score puts its car on the lane, kept clear of both end caps. */
+function lanePercent(score: number, best: number): number {
+  return Math.min(88, Math.max(5, Math.round((score / Math.max(best, 1)) * 88)))
+}
 
 /** Three colour bands so the prompt card reads as A / B / C at a glance. */
 function levelBandOf(level: string): 'a' | 'b' | 'c' {
@@ -74,32 +81,47 @@ function PromptFrame({ src, label }: { src: string | null; label: string }) {
 
 function ArenaRecord({ summary, loading }: { summary: ArenaSummary | null; loading: boolean }) {
   const { t } = useI18n()
+  const { wallet } = useWallet()
+  const coins = wallet?.coins ?? 0
+  const level = wallet?.level ?? 1
+  // `summary === null` after loading means the request failed. Showing zeros
+  // would read as a real 0-0 record, so show a dash instead.
+  const unavailable = !loading && summary === null
+  const dash = (value: number | string) => (loading ? '...' : unavailable ? '—' : value)
   const stats = [
-    { label: t.arenaPlayed, value: summary?.played ?? 0 },
-    { label: t.arenaWins, value: summary?.wins ?? 0 },
-    { label: t.arenaWinRate, value: `${summary?.win_rate ?? 0}%` },
-    { label: t.arenaWinStreak, value: summary?.win_streak ?? 0 },
+    { label: t.arenaPlayed, value: dash(summary?.played ?? '—') },
+    { label: t.arenaWins, value: dash(summary?.wins ?? '—') },
+    { label: t.arenaWinRate, value: dash(summary ? `${summary.win_rate}%` : '—') },
+    { label: t.arenaWinStreak, value: dash(summary?.win_streak ?? '—') },
   ]
   return (
-    <dl className="arena-record">
+    <div className="arena-chips">
+      <span className="gc-pill">
+        <i className="gc-coin" aria-hidden="true" />
+        {formatCompact(coins)} RC
+      </span>
+      <span className="gc-pill">{t.walletLevel} {level}</span>
       {stats.map((stat) => (
-        <div key={stat.label}>
-          <dd>{loading ? '…' : stat.value}</dd>
-          <dt>{stat.label}</dt>
-        </div>
+        <span key={stat.label} className="gc-pill">
+          {stat.value}
+          <small>{stat.label}</small>
+        </span>
       ))}
-    </dl>
+    </div>
   )
 }
 
 interface DuelPanelProps {
   currentUserId: number
   onSummaryRefresh: () => void
+  /** Newest-first recent results, shown in the lobby and on the result screen. */
+  recent: ArenaRecentResult[]
 }
 
-function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
+function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) {
   const { t } = useI18n()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const { wallet } = useWallet()
   const [savedSession] = useState<BattleSessionSnapshot | null>(() => readBattleSession())
   const [screen, setScreen] = useState<DuelScreen>(savedSession ? 'match' : 'lobby')
   const [connection, setConnection] = useState<DuelConnection | null>(
@@ -113,6 +135,13 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
   const [wrongAnswer, setWrongAnswer] = useState(false)
   const [scores, setScores] = useState<BattleScore[]>(savedSession?.scores ?? [])
   const [finish, setFinish] = useState<BattleFinish | null>(null)
+  // Rounds the learner did not take, kept for the "words to review" list on the
+  // result screen. `translation` is captured from the question that was on
+  // screen, so the review list reads like a glossary rather than an answer key.
+  const [missedWords, setMissedWords] = useState<Array<{ answer: string; translation: string }>>([])
+  // The round-end event carries the word but not its meaning, so the current
+  // question's translation is stashed here while the round is live.
+  const questionTranslationRef = useRef('')
   const [error, setError] = useState<string | null>(null)
   const [answer, setAnswer] = useState('')
   const [opponentAttempt, setOpponentAttempt] = useState('')
@@ -184,6 +213,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
     clearWrongFlash()
     setScores([])
     setFinish(null)
+    setMissedWords([])
     setError(null)
     setAnswer('')
     setElapsedMs(0)
@@ -199,9 +229,23 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
     clearBattleSession()
     setError(null)
     setResuming(false)
+    setOpponent(null)
     setScreen('queue')
     setConnection({ mode: 'queue', nonce: Date.now() })
   }, [disconnectSocket, t.arenaLoginRequired, token])
+
+  /**
+   * "Ôn lại từ sai" from the result screen: push this match's missed words into
+   * the saved-vocabulary list, then drop back to the lobby. Saving is
+   * best-effort — a failure must not trap the learner on the result screen.
+   */
+  const reviewMissed = useCallback(() => {
+    const words = missedWords
+    resetDuel()
+    for (const word of words) {
+      void saveWordApi({ word: word.answer, meaningVi: word.translation }).catch(() => undefined)
+    }
+  }, [missedWords, resetDuel])
 
   useEffect(() => {
     if (!connection || !token) return
@@ -230,6 +274,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
     })
     socket.on('game:question', (nextQuestion) => {
       setQuestion(nextQuestion)
+      questionTranslationRef.current = nextQuestion.translation
       questionStartedRef.current = Date.now()
       setSecondsLeft(Math.ceil(nextQuestion.durationMs / 1000))
       setElapsedMs(0)
@@ -264,6 +309,15 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
       clearOpponentAttempt()
       setOpponentAway(false)
       setScores(result.scores)
+      // A round the learner did not win is vocabulary worth revisiting.
+      if (result.winnerUserId !== currentUserId) {
+        const translation = questionTranslationRef.current
+        setMissedWords((prev) => (
+          prev.some((word) => word.answer === result.answer)
+            ? prev
+            : [...prev, { answer: result.answer, translation }]
+        ))
+      }
     })
     socket.on('game:resume', (resumed) => {
       setOpponent(resumed.opponent)
@@ -345,7 +399,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
       socket.disconnect()
       if (socketRef.current === socket) socketRef.current = null
     }
-  }, [clearOpponentAttempt, clearWrongFlash, connection, onSummaryRefresh, t, token])
+  }, [clearOpponentAttempt, clearWrongFlash, connection, currentUserId, onSummaryRefresh, t, token])
 
   useEffect(() => {
     if (screen !== 'match') return
@@ -403,22 +457,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
   const scoreFor = (userId: number) => scores.find((entry) => entry.userId === userId)?.score ?? 0
   const opponentId = opponent?.userId ?? game?.players.find((player) => player.userId !== currentUserId)?.userId ?? 0
   const outcome = finish ? matchOutcome(finish.winnerUserId, currentUserId) : null
-
-  if (screen === 'queue') {
-    return (
-      <section className="arena-queue">
-        <div className="arena-queue-rings" aria-hidden="true">
-          <span /><span /><span />
-        </div>
-        <h2>{t.arenaQueueTitle}</h2>
-        <p>{opponent ? t.arenaQueueOpponent(opponent.name) : t.arenaQueueDesc}</p>
-        {error && <p className="arena-error">{error}</p>}
-        <button type="button" className="arena-link" onClick={resetDuel}>
-          <X size={15} /> {t.arenaCancel}
-        </button>
-      </section>
-    )
-  }
+  const isSearching = screen === 'queue'
 
   if (screen === 'match' && resuming) {
     return (
@@ -474,9 +513,15 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
 
         <div className="arena-scoreboard">
           <div className="arena-side">
-            <span className="arena-avatar" aria-hidden="true">{initialOf(player?.name ?? t.arenaYou)}</span>
+            <AvatarFrame
+              name={player?.name ?? t.arenaYou}
+              visualKey={wallet?.equipment.frame?.visual_key ?? null}
+              size={44}
+            />
             <div className="arena-side-copy">
-              <span className="arena-side-name">{player?.name ?? t.arenaYou}</span>
+              <Nameplate visualKey={wallet?.equipment.nameplate?.visual_key ?? null} dense>
+                {player?.name ?? t.arenaYou}
+              </Nameplate>
               <strong className="arena-side-score">{scoreFor(currentUserId)}</strong>
               <small>{t.arenaRoundWins}</small>
             </div>
@@ -598,90 +643,306 @@ function DuelPanel({ currentUserId, onSummaryRefresh }: DuelPanelProps) {
 
   if (screen === 'result' && finish) {
     const isCancelled = finish.status === 'cancelled'
-    const isForfeit = !isCancelled
-      && (finish.reason === 'left' || finish.reason === 'opponent_disconnected')
-    return (
-      <section className={`arena-verdict is-${outcome ?? 'draw'}${isCancelled ? ' is-cancelled' : ''}`}>
-        <div className="arena-verdict-hero">
-          <span className="arena-verdict-icon" aria-hidden="true">
-            {isCancelled
-              ? <Flag size={30} weight="regular" />
-              : outcome === 'win' ? <Trophy size={30} weight="fill" /> : <Sword size={30} weight="regular" />}
-          </span>
+    const reward = finish.rewards?.[currentUserId] ?? null
+    const leveledUp = Boolean(reward && reward.level_after > reward.level_before)
+    const myScore = scoreFor(currentUserId)
+    // `opponentPlayer` lives in the match branch, so read the rival from the
+    // finished scoreboard instead.
+    const rivalEntry = finish.scores.find((entry) => entry.userId !== currentUserId)
+    const rivalScore = rivalEntry?.score ?? 0
+    const myEntry = finish.scores.find((entry) => entry.userId === currentUserId)
+    const myName = myEntry?.name ?? t.arenaYou
+    const best = Math.max(myScore, rivalScore, 1)
+    const verdict = isCancelled
+      ? t.arenaMatchCancelled
+      : outcome === 'win' ? t.arenaMatchWin : outcome === 'lose' ? t.arenaMatchLose : t.arenaMatchDraw
 
-          <div className="arena-verdict-copy">
-            <span className="arena-kicker">{t.arenaResultKicker}</span>
-            <h2>
-              {isCancelled
-                ? t.arenaMatchCancelled
-                : outcome === 'win'
-                  ? t.arenaMatchWin
-                  : outcome === 'lose'
-                    ? t.arenaMatchLose
-                    : t.arenaMatchDraw}
-            </h2>
-            <p>
-              {isCancelled
-                ? t.arenaMatchCancelledDesc
-                : isForfeit
-                  ? outcome === 'win' ? t.arenaForfeitWin : t.arenaForfeitLoss
-                  : t.arenaMatchScore(finish.scores, currentUserId)}
-            </p>
+    return (
+      <section className={`arena-result-v2 is-${outcome ?? 'draw'}${isCancelled ? ' is-cancelled' : ''}`}>
+        {/* The reference layout: a checkered masthead, the two drivers facing a
+            rotated verdict, two lanes showing how far each one got, then the
+            payout as three cards. Kept as one board so the result reads as a
+            single race, not a stack of panels. */}
+        <div className="arena-v2-board">
+          <div className="arena-v2-checker" aria-hidden="true" />
+
+          <div className="arena-v2-seats">
+            <div className="arena-v2-seat is-you">
+              <AvatarFrame
+                name={myName}
+                visualKey={wallet?.equipment.frame?.visual_key ?? null}
+                size={64}
+              />
+              <div className="arena-v2-seat-copy">
+                <span className="arena-v2-tag">{t.arenaYou}</span>
+                <span className="arena-v2-name">{myName}</span>
+                <strong className={`arena-v2-score${outcome === 'win' ? ' is-winner' : ''}`}>{myScore}</strong>
+              </div>
+            </div>
+
+            <div className="arena-v2-ribbon">{verdict}</div>
+
+            <div className="arena-v2-seat is-rival">
+              <AvatarFrame name={rivalEntry?.name ?? null} visualKey={null} size={64} />
+              <div className="arena-v2-seat-copy">
+                <span className="arena-v2-tag">
+                  {!isCancelled && finish.winnerUserId === rivalEntry?.userId ? t.arenaWinnerTag : t.arenaOpponent}
+                </span>
+                <span className="arena-v2-name">{rivalEntry?.name ?? t.arenaOpponent}</span>
+                <strong className={`arena-v2-score${outcome === 'lose' ? ' is-winner' : ''}`}>{rivalScore}</strong>
+              </div>
+            </div>
           </div>
 
-          <ul className="arena-verdict-scores">
-            {finish.scores.map((entry) => (
-              <li className={entry.userId === currentUserId ? 'is-you' : ''} key={entry.userId}>
-                <span className="arena-verdict-name">{entry.name}</span>
-                {!isCancelled && finish.winnerUserId === entry.userId && (
-                  <span className="arena-verdict-tag">{t.arenaWinnerTag}</span>
-                )}
-                <strong>{entry.score}</strong>
-              </li>
-            ))}
-          </ul>
+          {/* Each car sits where its score put it on the track. */}
+          <div className="arena-v2-lane" aria-hidden="true">
+            <span className="arena-v2-car" style={{ left: `${lanePercent(myScore, best)}%` }}>
+              <CarBadge visualKey={wallet?.equipment.car?.visual_key ?? null} size={40} />
+            </span>
+            <span className="arena-v2-finish" />
+          </div>
+          <div className="arena-v2-lane" aria-hidden="true">
+            <span className="arena-v2-car" style={{ left: `${lanePercent(rivalScore, best)}%` }}>
+              <CarBadge visualKey={null} size={40} />
+            </span>
+            <span className="arena-v2-finish" />
+          </div>
         </div>
 
-        {error && <p className="arena-error">{error}</p>}
-        <div className="arena-verdict-actions">
-          <button type="button" className="arena-cta is-compact" onClick={findOpponent}>
-            <Lightning size={16} weight="fill" /> {t.arenaPlayAgain}
-          </button>
-          <button type="button" className="arena-cta is-compact is-ghost" onClick={resetDuel}>
-            <House size={16} weight="bold" /> {t.arenaBackToLobby}
-          </button>
+        {/* Reward next: this is what the round was for. */}
+        {!isCancelled && reward && (
+          <ul className="arena-v2-payouts" aria-label={t.arenaRewardTitle}>
+            <li className="arena-v2-payout">
+              <span className="arena-v2-orb is-rc" aria-hidden="true">RC</span>
+              <span className="arena-v2-payout-body">
+                <span>Race Coin</span>
+                <b>{reward.rc > 0 ? `+${reward.rc}` : '0'}</b>
+              </span>
+            </li>
+            <li className="arena-v2-payout">
+              <span className="arena-v2-orb is-xp" aria-hidden="true">XP</span>
+              <span className="arena-v2-payout-body">
+                <span>XP</span>
+                <b>{reward.xp > 0 ? `+${reward.xp}` : '0'}</b>
+              </span>
+            </li>
+            <li className="arena-v2-payout">
+              <span className="arena-v2-orb is-rp" aria-hidden="true">★</span>
+              <span className="arena-v2-payout-body">
+                <span>Điểm đua</span>
+                <b>{reward.rp > 0 ? `+${reward.rp}` : '0'}</b>
+              </span>
+            </li>
+          </ul>
+        )}
+
+        {!isCancelled && reward && !reward.counted && (
+          <div className="arena-v2-notes">
+            <p className="arena-v2-note">Trận này không tính thưởng — bạn đã đạt giới hạn đấu có thưởng trong ngày.</p>
+          </div>
+        )}
+        {!isCancelled && leveledUp && (
+          <div className="arena-v2-notes">
+            <p className="arena-v2-note is-level">
+              Lên cấp {reward!.level_after}! Mở Gara để xem vật phẩm vừa mở khoá.
+            </p>
+          </div>
+        )}
+
+        <div className="arena-v2-lower">
+          <section className="arena-v2-panel">
+            <span className="gc-label">5 trận gần nhất</span>
+            {recent.length === 0 ? (
+              <p className="arena-v2-form-empty">Chưa có trận nào trước đây.</p>
+            ) : (
+              <div className="arena-v2-form">
+                {recent.map((entry) => (
+                  <i
+                    key={entry.match_id}
+                    className={entry.won ? '' : 'is-loss'}
+                    title={`${entry.won ? 'Thắng' : 'Thua'} · ${entry.opponent_name}`}
+                  >
+                    {entry.won ? 'T' : 'B'}
+                  </i>
+                ))}
+              </div>
+            )}
+
+            {missedWords.length > 0 && (
+              <>
+                <span className="gc-label">Từ cần ôn lại</span>
+                {/* Capped at four: a full 0-8 loss would otherwise push the
+                    next-step panel off-screen. */}
+                <ul className="arena-v2-words">
+                  {missedWords.slice(0, 4).map((word) => (
+                    <li key={word.answer}>
+                      <b>{word.answer}</b>
+                      <span>{word.translation}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+
+          <section className="arena-v2-panel arena-v2-next">
+            <div className="arena-v2-coach">
+              <div className="gara-bubble">
+                <span className="gara-bubble-name">Bác Turbo</span>
+                <br />
+                {outcome === 'win'
+                  ? 'Thắng rồi! Nối thêm một trận nữa để chuỗi dài hơn, điểm đua tuần này cũng dày hơn.'
+                  : 'Thua một trận thôi, đừng nản! Ôn mấy từ bên cạnh rồi gỡ lại ngay nhé.'}
+              </div>
+              <div className="gara-stall-mascot">
+                <TurboMascot />
+              </div>
+            </div>
+
+            <h3>{outcome === 'win' ? 'Giữ chuỗi thắng?' : 'Gỡ lại ngay?'}</h3>
+            <p>
+              {outcome === 'win'
+                ? 'Đấu thêm một trận để nối chuỗi và cộng thêm điểm đua cho tuần này.'
+                : 'Mỗi trận vẫn trả Race Coin, nên đấu lại là cách nhanh nhất để lấy lại điểm.'}
+            </p>
+            {error && <p className="arena-v2-error">{error}</p>}
+            <div className="arena-v2-actions">
+              <button type="button" className="gc-btn is-primary" onClick={findOpponent}>
+                <Lightning size={16} weight="fill" /> {t.arenaPlayAgain}
+              </button>
+              <div className="arena-v2-actions-row">
+                <button type="button" className="gc-btn is-quiet" onClick={reviewMissed}>
+                  Ôn lại từ sai
+                </button>
+                <button type="button" className="gc-btn is-quiet" onClick={resetDuel}>
+                  <House size={15} weight="bold" /> {t.arenaBackToLobby}
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     )
   }
 
   return (
-    <section className="arena-lobby">
-      <div className="arena-lobby-copy">
-        <span className="arena-kicker">01 · {t.arenaDuelTab}</span>
-        <h2>{t.arenaDuelTitle}</h2>
-        <p>{t.arenaDuelDesc}</p>
-        <ul className="arena-facts">
-          <li><UsersThree size={16} /><span>{t.arenaLiveQueue}</span></li>
-          <li><Clock size={16} /><span>{t.arenaSecondsEach(DUEL_SECONDS)}</span></li>
-          <li><Trophy size={16} /><span>{t.arenaRounds(DUEL_ROUNDS)}</span></li>
-        </ul>
-        {error && <p className="arena-error">{error}</p>}
-        <button type="button" className="arena-cta" data-buddy-target="control:arena-start" onClick={findOpponent}>
-          <span>{t.arenaFindOpponent}</span>
-          <ArrowRight size={18} weight="bold" />
-        </button>
-      </div>
+    <>
+      {/* The lobby pairs a recent-results strip with the versus card; matchmaking
+          stays in this card so learners can cancel without leaving the lobby. */}
+      <section className={`arena-lobby-card${isSearching ? ' is-searching' : ''}`}>
+        <div className="arena-v2-checker" aria-hidden="true" />
 
-      <aside className="arena-rules">
-        <span className="arena-rules-label">{t.arenaRulesTitle}</span>
-        <ol>
-          <li><span>01</span><p>{t.arenaRuleOne}</p></li>
-          <li><span>02</span><p>{t.arenaRuleTwo}</p></li>
-          <li><span>03</span><p>{t.arenaRuleThree}</p></li>
+        <div className="arena-v2-hero">
+          <div className="arena-v2-hero-copy">
+            <span className="arena-v2-eyebrow">01 · {t.arenaDuelTab}</span>
+            <h2>{t.arenaDuelTitle}</h2>
+            <p>{t.arenaDuelDesc}</p>
+
+            <div className="arena-v2-info">
+              <span>{t.arenaLiveQueue}</span>
+              <span>{t.arenaSecondsEach(DUEL_SECONDS)}</span>
+              <span>{t.arenaRounds(DUEL_ROUNDS)}</span>
+            </div>
+
+            <div className="arena-v2-history" role="group" aria-label={t.arenaRecentMatches}>
+              <span className="arena-v2-history-title">{t.arenaRecentMatches}</span>
+              {recent.length === 0 ? (
+                <span className="arena-v2-history-empty">{t.arenaNoRecentMatches}</span>
+              ) : (
+                <ol>
+                  {recent.slice(0, 8).map((entry) => (
+                    <li
+                      key={entry.match_id}
+                      className={entry.won ? 'is-win' : 'is-loss'}
+                      title={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
+                      aria-label={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
+                    >
+                      {entry.won ? t.arenaWinShort : t.arenaLossShort}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            {error && <p className="arena-error">{error}</p>}
+
+          </div>
+
+          <div className="arena-v2-matchmaking">
+            <div className="arena-v2-versus">
+              <div className="arena-v2-versus-players">
+                <div className="arena-v2-versus-slot">
+                  <AvatarFrame
+                    name={user?.name ?? null}
+                    visualKey={wallet?.equipment.frame?.visual_key ?? null}
+                    size={92}
+                  />
+                  <strong>{user?.name ?? t.arenaYou}</strong>
+                  <small>{t.walletLevel} {wallet?.level ?? 1}</small>
+                </div>
+                <div className="arena-v2-versus-badge">VS</div>
+                <div className={`arena-v2-versus-slot is-empty${isSearching ? ' is-searching' : ''}`}>
+                  {isSearching ? (
+                    <span className="arena-v2-search-orb" aria-hidden="true">
+                      <i /><i /><i />
+                    </span>
+                  ) : (
+                    <span className="arena-v2-versus-empty">?</span>
+                  )}
+                  <strong>{isSearching && opponent ? t.arenaQueueOpponent(opponent.name) : isSearching ? t.arenaSearching : t.arenaWaitingSeat}</strong>
+                  <small>
+                    {isSearching ? (
+                      <span className="arena-v2-search-dots" role="status" aria-label={t.arenaSearching}>
+                        <i /><i /><i />
+                      </span>
+                    ) : t.arenaWaitingSeatHint}
+                  </small>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`gc-btn arena-v2-cta${isSearching ? ' is-cancel' : ' is-primary'}`}
+                data-buddy-target="control:arena-start"
+                aria-label={isSearching ? t.arenaCancel : t.arenaFindOpponent}
+                onClick={isSearching ? resetDuel : findOpponent}
+              >
+                {isSearching ? t.arenaCancel : t.arenaFindOpponent}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="arena-v2-rules-block">
+        <span className="gc-label">{t.arenaRulesTitle}</span>
+        <ol className="arena-v2-rules">
+          <li>
+            <i>1</i>
+            <p>{t.arenaRuleOne}</p>
+          </li>
+          <li>
+            <i>2</i>
+            <p>{t.arenaRuleTwo}</p>
+          </li>
+          <li>
+            <i>3</i>
+            <p>{t.arenaRuleThree}</p>
+          </li>
         </ol>
-      </aside>
-    </section>
+      </section>
+
+      <section className="arena-v2-tip">
+        <div className="gara-bubble">
+          <span className="gara-bubble-name">Bác Turbo</span>
+          <br />
+          {t.arenaLobbyTip}
+        </div>
+        <div className="gara-stall-mascot">
+          <TurboMascot />
+          <span className="gara-stall-shadow" aria-hidden="true" />
+        </div>
+      </section>
+    </>
   )
 }
 
@@ -726,8 +987,11 @@ export function ArenaView() {
           <p>{t.arenaDesc}</p>
         </div>
         <ArenaRecord summary={summary} loading={summaryLoading} />
-      </header>
-      <DuelPanel currentUserId={user?.id ?? 0} onSummaryRefresh={refreshSummary} />
+      </header>      <DuelPanel
+        currentUserId={user?.id ?? 0}
+        onSummaryRefresh={refreshSummary}
+        recent={summary?.recent ?? []}
+      />
     </div>
   )
 }

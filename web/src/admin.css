@@ -11,18 +11,18 @@
    ========================================================================== */
 
 .admin-page {
-  --admin-radius-lg: 16px;
-  --admin-radius-md: 12px;
-  --admin-radius-sm: 8px;
+  --admin-radius-lg: 8px;
+  --admin-radius-md: 6px;
+  --admin-radius-sm: 5px;
   --admin-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
   --admin-fast: 140ms;
   --admin-mid: 220ms;
-  --admin-shadow: 0 20px 46px -30px color-mix(in srgb, var(--ink) 55%, transparent);
-  --admin-shadow-sm: 0 2px 6px -4px color-mix(in srgb, var(--ink) 40%, transparent);
+  --admin-shadow: 0 18px 40px -24px rgb(16 42 51 / 35%);
+  --admin-shadow-sm: 0 1px 2px rgb(16 42 51 / 8%);
 
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -62,7 +62,7 @@
 .admin-switch-option.is-active {
   background: var(--paper);
   color: var(--ink);
-  font-weight: 800;
+  font-weight: 650;
   box-shadow: var(--admin-shadow-sm);
 }
 
@@ -88,7 +88,7 @@
   margin: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: -0.01em;
 }
 .admin-toolbar-copy p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
@@ -137,23 +137,18 @@
 .admin-column-label {
   flex: 1 1 auto;
   min-width: 0;
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .admin-column-count {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 750;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 550;
   font-variant-numeric: tabular-nums;
 }
 
@@ -294,28 +289,31 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
-/* --- Chips -------------------------------------------------------------- */
+/* --- Row metadata ------------------------------------------------------- */
 
+/* Plain text metadata, separated by dots; no tinted pills. */
 .admin-chip {
-  justify-self: start;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
   color: var(--ink-soft);
-  font-size: 10.5px;
-  font-weight: 750;
-  letter-spacing: 0.01em;
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
 }
 
-.admin-chip.is-warn { background: var(--warn-50); color: var(--warn-600); }
-.admin-chip.is-xp { background: var(--warn-50); color: var(--warn-600); font-variant-numeric: tabular-nums; }
+.admin-chip.is-warn { color: var(--warn-600); font-weight: 600; }
+.admin-chip.is-xp { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 .admin-row-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
   min-width: 0;
+}
+
+.admin-row-meta > * { white-space: nowrap; }
+.admin-row-meta > * + *::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--line-strong);
 }
 
 .admin-row-meta-text {
@@ -552,11 +550,9 @@
 
 .admin-section-title {
   margin: 0;
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* --- Form fields -------------------------------------------------------- */
@@ -618,6 +614,7 @@
 }
 
 .admin-input {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -629,7 +626,7 @@
   transition: border-color var(--admin-fast) var(--admin-ease), box-shadow var(--admin-fast) var(--admin-ease);
 }
 
-.admin-input input { border: 0; padding: 10px 0; background: none; box-shadow: none; }
+.admin-input input { border: 0; padding: 10px 34px 10px 0; background: none; box-shadow: none; }
 .admin-input input:focus { box-shadow: none; }
 .admin-input:focus-within {
   border-color: var(--brand-500);

@@ -562,3 +562,406 @@ export async function moveSharedVideo(
     connection.release();
   }
 }
+
+// --- Statistics -----------------------------------------------------------
+//
+// Activity = a study event with (user_id, timestamp). The UNION below is
+// the single source of truth for "active learner on day X". Keep it in one
+// helper so overview / trend / inactive never disagree with each other.
+
+export interface NumberValueRow extends RowDataPacket {
+  value: number | null;
+}
+
+type DbValue = string | number | null | Date | Buffer;
+
+async function scalar(sql: string, params: DbValue[] = []): Promise<number> {
+  const [rows] = await pool.execute<NumberValueRow[]>(sql, [...params] as never[]);
+  return Number(rows[0]?.value ?? 0);
+}
+
+function activeUnion(dateExpr: string): string {
+  return `(
+    SELECT user_id AS uid FROM progress WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
+    UNION SELECT user_id FROM video_progress WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
+    UNION SELECT user_id FROM learning_answer_attempts WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
+    UNION SELECT player_one_id FROM matches WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
+    UNION SELECT player_two_id FROM matches WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
+    UNION SELECT user_id FROM translations WHERE user_id IS NOT NULL AND ${dateExpr.replaceAll('__TS__', 'created_at')}
+    UNION SELECT user_id FROM chats WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
+    UNION SELECT user_id FROM saved_words WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
+  )`;
+}
+
+export async function countLearners(): Promise<number> {
+  return scalar("SELECT COUNT(*) AS value FROM users WHERE role = 'learner'");
+}
+
+export async function countAdmins(): Promise<number> {
+  return scalar("SELECT COUNT(*) AS value FROM users WHERE role = 'admin'");
+}
+
+export async function countNewUsers(range: 'today' | 'yesterday' | 'week' | 'month'): Promise<number> {
+  const expr =
+    range === 'today'
+      ? 'DATE(created_at) = CURDATE()'
+      : range === 'yesterday'
+        ? 'DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)'
+        : range === 'week'
+          ? 'created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)'
+          : 'created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+  return scalar(`SELECT COUNT(*) AS value FROM users WHERE role = 'learner' AND ${expr}`);
+}
+
+export async function countActiveOnDate(offsetDays: number): Promise<number> {
+  const when =
+    offsetDays === 0
+      ? 'DATE(__TS__) = CURDATE()'
+      : `DATE(__TS__) = DATE_SUB(CURDATE(), INTERVAL ${offsetDays} DAY)`;
+  return scalar(
+    `SELECT COUNT(DISTINCT s.uid) AS value FROM ${activeUnion(when)} s
+     JOIN users u ON u.id = s.uid AND u.role = 'learner'`,
+  );
+}
+
+export async function countActiveWithin(days: number): Promise<number> {
+  const when = `__TS__ >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`;
+  return scalar(
+    `SELECT COUNT(DISTINCT s.uid) AS value FROM ${activeUnion(when)} s
+     JOIN users u ON u.id = s.uid AND u.role = 'learner'`,
+  );
+}
+
+export async function countReturningToday(): Promise<number> {
+  // Active today but registered before today.
+  return scalar(
+    `SELECT COUNT(DISTINCT s.uid) AS value FROM ${activeUnion('DATE(__TS__) = CURDATE()')} s
+     JOIN users u ON u.id = s.uid AND u.role = 'learner' AND DATE(u.created_at) < CURDATE()`,
+  );
+}
+
+export async function countNeverActive(): Promise<number> {
+  return scalar(
+    `SELECT COUNT(*) AS value FROM users u WHERE u.role = 'learner'
+     AND NOT EXISTS (
+       SELECT 1 FROM progress p WHERE p.user_id = u.id
+       UNION ALL SELECT 1 FROM video_progress vp WHERE vp.user_id = u.id
+       UNION ALL SELECT 1 FROM learning_answer_attempts la WHERE la.user_id = u.id
+       UNION ALL SELECT 1 FROM translations t WHERE t.user_id = u.id
+       UNION ALL SELECT 1 FROM chats c WHERE c.user_id = u.id
+       UNION ALL SELECT 1 FROM saved_words sw WHERE sw.user_id = u.id
+       UNION ALL SELECT 1 FROM matches m WHERE m.player_one_id = u.id OR m.player_two_id = u.id
+     )`,
+  );
+}
+
+export async function getUserAggregates(): Promise<{
+  avgXp: number;
+  totalXp: number;
+  avgStreak: number;
+  maxStreak: number;
+}> {
+  const [rows] = await pool.execute<
+    Array<RowDataPacket & { avg_xp: number | null; total_xp: number | null; avg_streak: number | null; max_streak: number | null }>
+  >(
+    `SELECT AVG(xp) AS avg_xp, COALESCE(SUM(xp), 0) AS total_xp,
+            AVG(streak) AS avg_streak, COALESCE(MAX(streak), 0) AS max_streak
+     FROM users WHERE role = 'learner'`,
+  );
+  const row = rows[0];
+  return {
+    avgXp: Number(row?.avg_xp ?? 0),
+    totalXp: Number(row?.total_xp ?? 0),
+    avgStreak: Number(row?.avg_streak ?? 0),
+    maxStreak: Number(row?.max_streak ?? 0),
+  };
+}
+
+export async function getLessonAggregates(): Promise<{
+  completed: number;
+  inProgress: number;
+  totalProgressRows: number;
+}> {
+  const [rows] = await pool.execute<
+    Array<RowDataPacket & { completed: number; in_progress: number; total_rows: number }>
+  >(
+    `SELECT
+       (SELECT COUNT(*) FROM progress WHERE status = 'completed') AS completed,
+       (SELECT COUNT(*) FROM progress WHERE status = 'in_progress') AS in_progress,
+       (SELECT COUNT(*) FROM progress) AS total_rows`,
+  );
+  const row = rows[0];
+  return {
+    completed: Number(row?.completed ?? 0),
+    inProgress: Number(row?.in_progress ?? 0),
+    totalProgressRows: Number(row?.total_rows ?? 0),
+  };
+}
+
+export async function getVideoAggregates(): Promise<{ shared: number; completed: number; total: number }> {
+  const [rows] = await pool.execute<
+    Array<RowDataPacket & { shared: number; completed: number; total: number }>
+  >(
+    `SELECT
+       (SELECT COUNT(*) FROM video_lessons WHERE owner_user_id IS NULL) AS shared,
+       (SELECT COUNT(*) FROM video_progress WHERE completed = 1) AS completed,
+       (SELECT COUNT(*) FROM video_progress) AS total`,
+  );
+  const row = rows[0];
+  return {
+    shared: Number(row?.shared ?? 0),
+    completed: Number(row?.completed ?? 0),
+    total: Number(row?.total ?? 0),
+  };
+}
+
+export async function getEngagementAggregates(): Promise<{
+  matchesTotal: number;
+  matchesToday: number;
+  translationsTotal: number;
+  answersTotal: number;
+  answersCorrect: number;
+  savedWordsTotal: number;
+}> {
+  const [rows] = await pool.execute<
+    Array<
+      RowDataPacket & {
+        matches_total: number;
+        matches_today: number;
+        translations_total: number;
+        answers_total: number;
+        answers_correct: number;
+        saved_words_total: number;
+      }
+    >
+  >(
+    `SELECT
+       (SELECT COUNT(*) FROM matches) AS matches_total,
+       (SELECT COUNT(*) FROM matches WHERE DATE(created_at) = CURDATE()) AS matches_today,
+       (SELECT COUNT(*) FROM translations) AS translations_total,
+       (SELECT COUNT(*) FROM learning_answer_attempts) AS answers_total,
+       (SELECT COUNT(*) FROM learning_answer_attempts WHERE is_correct = 1) AS answers_correct,
+       (SELECT COUNT(*) FROM saved_words) AS saved_words_total`,
+  );
+  const row = rows[0];
+  return {
+    matchesTotal: Number(row?.matches_total ?? 0),
+    matchesToday: Number(row?.matches_today ?? 0),
+    translationsTotal: Number(row?.translations_total ?? 0),
+    answersTotal: Number(row?.answers_total ?? 0),
+    answersCorrect: Number(row?.answers_correct ?? 0),
+    savedWordsTotal: Number(row?.saved_words_total ?? 0),
+  };
+}
+
+export async function getDayCounts(offsetDays: number): Promise<{
+  newUsers: number;
+  lessonsCompleted: number;
+  lessonsStarted: number;
+  videosCompleted: number;
+  attempts: number;
+  matchesStarted: number;
+  translations: number;
+}> {
+  const day = offsetDays === 0 ? 'CURDATE()' : `DATE_SUB(CURDATE(), INTERVAL ${offsetDays} DAY)`;
+  const [rows] = await pool.execute<
+    Array<
+      RowDataPacket & {
+        new_users: number;
+        lessons_completed: number;
+        lessons_started: number;
+        videos_completed: number;
+        attempts: number;
+        matches_started: number;
+        translations: number;
+      }
+    >
+  >(
+    `SELECT
+       (SELECT COUNT(*) FROM users WHERE role = 'learner' AND DATE(created_at) = ${day}) AS new_users,
+       (SELECT COUNT(*) FROM progress WHERE status = 'completed' AND DATE(completed_at) = ${day}) AS lessons_completed,
+       (SELECT COUNT(*) FROM progress WHERE DATE(started_at) = ${day}) AS lessons_started,
+       (SELECT COUNT(*) FROM video_progress WHERE completed = 1 AND DATE(completed_at) = ${day}) AS videos_completed,
+       (SELECT COUNT(*) FROM learning_answer_attempts WHERE DATE(created_at) = ${day}) AS attempts,
+       (SELECT COUNT(*) FROM matches WHERE DATE(created_at) = ${day}) AS matches_started,
+       (SELECT COUNT(*) FROM translations WHERE DATE(created_at) = ${day}) AS translations`,
+  );
+  const row = rows[0];
+  return {
+    newUsers: Number(row?.new_users ?? 0),
+    lessonsCompleted: Number(row?.lessons_completed ?? 0),
+    lessonsStarted: Number(row?.lessons_started ?? 0),
+    videosCompleted: Number(row?.videos_completed ?? 0),
+    attempts: Number(row?.attempts ?? 0),
+    matchesStarted: Number(row?.matches_started ?? 0),
+    translations: Number(row?.translations ?? 0),
+  };
+}
+
+export interface DayLabelRow extends RowDataPacket {
+  day: string;
+}
+
+export async function getDayLabels(days: number): Promise<string[]> {
+  const [rows] = await pool.execute<DayLabelRow[]>(
+    `SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL n DAY), '%Y-%m-%d') AS day
+     FROM (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+           UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9
+           UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13
+           UNION ALL SELECT 14 UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18
+           UNION ALL SELECT 19 UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23
+           UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27 UNION ALL SELECT 28
+           UNION ALL SELECT 29) t WHERE n < ? ORDER BY n DESC`,
+    [days],
+  );
+  return rows.map((row) => String(row.day));
+}
+
+export interface StageStatRow extends RowDataPacket {
+  stage_id: number;
+  stage_title: string;
+  sort_order: number;
+  lesson_count: number;
+  learners_started: number;
+  completions: number;
+  avg_score: number | null;
+}
+
+export async function getStageStats(): Promise<StageStatRow[]> {
+  const [rows] = await pool.execute<StageStatRow[]>(
+    `SELECT s.id AS stage_id, s.title AS stage_title, s.sort_order,
+            (SELECT COUNT(*) FROM lessons l WHERE l.stage_id = s.id) AS lesson_count,
+            (SELECT COUNT(DISTINCT p.user_id) FROM progress p JOIN lessons l ON l.id = p.lesson_id WHERE l.stage_id = s.id) AS learners_started,
+            (SELECT COUNT(*) FROM progress p JOIN lessons l ON l.id = p.lesson_id WHERE l.stage_id = s.id AND p.status = 'completed') AS completions,
+            (SELECT AVG(p.score) FROM progress p JOIN lessons l ON l.id = p.lesson_id WHERE l.stage_id = s.id AND p.score IS NOT NULL) AS avg_score
+     FROM stages s ORDER BY s.sort_order ASC`,
+  );
+  return rows;
+}
+
+export interface LessonStatRow extends RowDataPacket {
+  lesson_id: number;
+  stage_id: number;
+  stage_title: string;
+  title: string;
+  topic: string;
+  question_count: number;
+  learners_started: number;
+  completions: number;
+  avg_score: number | null;
+}
+
+export async function getLessonStats(): Promise<LessonStatRow[]> {
+  const [rows] = await pool.execute<LessonStatRow[]>(
+    `SELECT l.id AS lesson_id, l.stage_id, s.title AS stage_title,
+            l.title, l.topic,
+            (SELECT COUNT(*) FROM questions q WHERE q.lesson_id = l.id) AS question_count,
+            (SELECT COUNT(DISTINCT p.user_id) FROM progress p WHERE p.lesson_id = l.id) AS learners_started,
+            (SELECT COUNT(*) FROM progress p WHERE p.lesson_id = l.id AND p.status = 'completed') AS completions,
+            (SELECT AVG(p.score) FROM progress p WHERE p.lesson_id = l.id AND p.score IS NOT NULL) AS avg_score
+     FROM lessons l JOIN stages s ON s.id = l.stage_id
+     ORDER BY s.sort_order ASC, l.sort_order ASC`,
+  );
+  return rows;
+}
+
+export async function getContentCounts(): Promise<{
+  stages: number;
+  lessons: number;
+  questions: number;
+  answers: number;
+  sharedVideos: number;
+  videoSegments: number;
+  personalVideos: number;
+  battleWords: number;
+  badges: number;
+  translationsTotal: number;
+  chatsTotal: number;
+}> {
+  const [rows] = await pool.execute<
+    Array<
+      RowDataPacket & {
+        stages: number;
+        lessons: number;
+        questions: number;
+        answers: number;
+        shared_videos: number;
+        video_segments: number;
+        personal_videos: number;
+        battle_words: number;
+        badges: number;
+        translations_total: number;
+        chats_total: number;
+      }
+    >
+  >(
+    `SELECT
+       (SELECT COUNT(*) FROM stages) AS stages,
+       (SELECT COUNT(*) FROM lessons) AS lessons,
+       (SELECT COUNT(*) FROM questions) AS questions,
+       (SELECT COUNT(*) FROM answers) AS answers,
+       (SELECT COUNT(*) FROM video_lessons WHERE owner_user_id IS NULL) AS shared_videos,
+       (SELECT COUNT(*) FROM video_segments) AS video_segments,
+       (SELECT COUNT(*) FROM video_lessons WHERE owner_user_id IS NOT NULL) AS personal_videos,
+       (SELECT COUNT(*) FROM battle_words) AS battle_words,
+       (SELECT COUNT(*) FROM badges) AS badges,
+       (SELECT COUNT(*) FROM translations) AS translations_total,
+       (SELECT COUNT(*) FROM chats) AS chats_total`,
+  );
+  const row = rows[0];
+  return {
+    stages: Number(row?.stages ?? 0),
+    lessons: Number(row?.lessons ?? 0),
+    questions: Number(row?.questions ?? 0),
+    answers: Number(row?.answers ?? 0),
+    sharedVideos: Number(row?.shared_videos ?? 0),
+    videoSegments: Number(row?.video_segments ?? 0),
+    personalVideos: Number(row?.personal_videos ?? 0),
+    battleWords: Number(row?.battle_words ?? 0),
+    badges: Number(row?.badges ?? 0),
+    translationsTotal: Number(row?.translations_total ?? 0),
+    chatsTotal: Number(row?.chats_total ?? 0),
+  };
+}
+
+export interface InactiveUserDbRow extends RowDataPacket {
+  id: number;
+  display_name: string;
+  email: string;
+  xp: number;
+  streak: number;
+  created_at: Date;
+  last_activity_at: Date | null;
+  lessons_completed: number;
+}
+
+export async function listInactiveUsers(minDays: number, limit: number): Promise<InactiveUserDbRow[]> {
+  const [rows] = await pool.execute<InactiveUserDbRow[]>(
+    `SELECT u.id, u.display_name, u.email, u.xp, u.streak, u.created_at,
+            a.last_activity_at,
+            (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id AND p.status = 'completed') AS lessons_completed
+     FROM users u
+     LEFT JOIN (
+       SELECT user_id, MAX(ts) AS last_activity_at
+       FROM (
+         SELECT user_id, updated_at AS ts FROM progress
+         UNION ALL SELECT user_id, updated_at FROM video_progress
+         UNION ALL SELECT user_id, created_at FROM learning_answer_attempts
+         UNION ALL SELECT user_id, created_at FROM translations WHERE user_id IS NOT NULL
+         UNION ALL SELECT user_id, updated_at FROM chats
+         UNION ALL SELECT user_id, created_at FROM saved_words
+         UNION ALL SELECT player_one_id AS user_id, created_at AS ts FROM matches
+         UNION ALL SELECT player_two_id, created_at FROM matches
+       ) ev GROUP BY user_id
+     ) a ON a.user_id = u.id
+     WHERE u.role = 'learner'
+       AND (
+         a.last_activity_at IS NULL
+         OR a.last_activity_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+       )
+     ORDER BY COALESCE(a.last_activity_at, u.created_at) ASC
+     LIMIT ?`,
+    [minDays, limit],
+  );
+  return rows;
+}

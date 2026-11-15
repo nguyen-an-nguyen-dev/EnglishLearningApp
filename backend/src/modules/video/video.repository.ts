@@ -2,6 +2,12 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { pool } from '../../db/pool';
 import { awardEligibleBadges } from '../badges/badges.repository';
 import type { Badge } from '../badges/badges.types';
+import {
+  bumpStandingCounter,
+  grantInTx,
+  recordActivityInTx,
+} from '../gamification/gamification.repository';
+import { REWARDS } from '../gamification/gamification.rewards';
 import type {
   CreatedVideoInput,
   ImportedVideoInput,
@@ -32,6 +38,58 @@ export async function getVideoById(videoId: number): Promise<VideoLessonRow | un
     [videoId],
   );
   return rows[0];
+}
+
+/** Every YouTube video in the catalogue (admin shared + learner imports). */
+export async function listYouTubeVideos(): Promise<Array<{
+  id: number;
+  code: string;
+  title: string;
+  video_url: string;
+  owner_user_id: number | null;
+}>> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT id, code, title, video_url, owner_user_id
+     FROM video_lessons WHERE provider = 'youtube' ORDER BY id ASC`,
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    code: String(row.code),
+    title: String(row.title),
+    video_url: String(row.video_url),
+    owner_user_id: row.owner_user_id === null ? null : Number(row.owner_user_id),
+  }));
+}
+
+/**
+ * Replace the caption segments of a video and refresh its English subtitle
+ * rollup in one transaction. `text_vi` is expected to be NULL (imported
+ * lessons carry no Vietnamese caption layer yet), matching insertVideoRow.
+ */
+export async function replaceSegments(
+  videoId: number,
+  segments: Array<{ startMs: number; endMs: number; text: string }>,
+  subtitleEn: string,
+): Promise<void> {
+  const connection: PoolConnection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute('DELETE FROM video_segments WHERE video_id = ?', [videoId]);
+    for (const [index, segment] of segments.entries()) {
+      await connection.execute(
+        `INSERT INTO video_segments (video_id, start_ms, end_ms, text_en, text_vi, sort_order)
+         VALUES (?, ?, ?, ?, NULL, ?)`,
+        [videoId, segment.startMs, segment.endMs, segment.text, index + 1],
+      );
+    }
+    await connection.execute('UPDATE video_lessons SET subtitle_en = ? WHERE id = ?', [subtitleEn, videoId]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 /**
@@ -248,6 +306,7 @@ export interface VideoCompletionData {
   watchedSeconds: number;
   completedAt: Date;
   xpEarned: number;
+  rcEarned: number;
   alreadyCompleted: boolean;
   badgesAwarded: Badge[];
 }
@@ -294,8 +353,18 @@ export async function completeVideo(
     }
 
     const xpEarned = alreadyCompleted ? 0 : xpReward;
-    if (xpEarned > 0) {
-      await connection.execute('UPDATE users SET xp = xp + ? WHERE id = ?', [xpEarned, userId]);
+    // Everything is keyed by video id, so replaying a finished video is a no-op.
+    const outcome = alreadyCompleted
+      ? { rcEarned: 0, xpEarned: 0 }
+      : await grantInTx(connection, userId, [
+          { currency: 'xp', amount: xpReward, sourceType: 'video', sourceId: String(videoId) },
+          { currency: 'rc', amount: REWARDS.videoRc, sourceType: 'video', sourceId: String(videoId) },
+          { currency: 'rp', amount: REWARDS.rpVideo, sourceType: 'video', sourceId: String(videoId) },
+        ]);
+
+    if (!alreadyCompleted) {
+      await recordActivityInTx(connection, userId, 'video', String(videoId));
+      await bumpStandingCounter(connection, userId, 'videos');
     }
 
     const [completedRows] = await connection.execute<CompletedCountRow[]>(
@@ -303,7 +372,7 @@ export async function completeVideo(
        FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100`,
       [userId],
     );
-    const totalXp = Number(userRows[0].xp) + xpEarned;
+    const totalXp = Number(userRows[0].xp) + outcome.xpEarned;
     const badgesAwarded = await awardEligibleBadges(
       connection,
       userId,
@@ -311,11 +380,25 @@ export async function completeVideo(
       totalXp,
     );
 
+    if (badgesAwarded.length > 0) {
+      await grantInTx(
+        connection,
+        userId,
+        badgesAwarded.map((badge) => ({
+          currency: 'rc' as const,
+          amount: REWARDS.badgeRc,
+          sourceType: 'badge',
+          sourceId: badge.code,
+        })),
+      );
+    }
+
     await connection.commit();
     return {
       watchedSeconds,
       completedAt: now,
-      xpEarned,
+      xpEarned: outcome.xpEarned,
+      rcEarned: outcome.rcEarned,
       alreadyCompleted,
       badgesAwarded,
     };

@@ -5,6 +5,10 @@ export interface AuthUser {
   name: string;
   email: string;
   xp: number;
+  /** Race Coin balance, spendable in the shop. */
+  coins: number;
+  /** Career level derived from xp on the server. */
+  level: number;
   streak: number;
   /** `admin` unlocks the content console tab; everything else is a normal learner. */
   role: UserRole;

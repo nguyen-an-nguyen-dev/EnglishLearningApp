@@ -15,12 +15,10 @@ export function SettingsPanel({ anchor, onClose }: SettingsPanelProps) {
   const { t } = useI18n()
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [positionedAnchor, setPositionedAnchor] = useState<HTMLElement | null>(null)
 
   useLayoutEffect(() => {
-    if (!anchor) {
-      setPos(null)
-      return
-    }
+    if (!anchor) return
 
     const place = () => {
       const panel = panelRef.current
@@ -34,6 +32,7 @@ export function SettingsPanel({ anchor, onClose }: SettingsPanelProps) {
       const left = a.width < 120 ? a.right - width : a.left
       const clamped = Math.min(Math.max(left, EDGE), window.innerWidth - width - EDGE)
       setPos({ top, left: clamped })
+      setPositionedAnchor(anchor)
     }
 
     place()
@@ -72,7 +71,7 @@ export function SettingsPanel({ anchor, onClose }: SettingsPanelProps) {
       style={{
         top: pos?.top ?? 0,
         left: pos?.left ?? 0,
-        visibility: pos ? 'visible' : 'hidden',
+        visibility: pos && positionedAnchor === anchor ? 'visible' : 'hidden',
       }}
     >
       <LanguagePicker />

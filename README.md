@@ -36,17 +36,23 @@ JWT_SECRET=...
 JWT_EXPIRES_IN=7d
 CORS_ORIGINS=http://localhost:5173
 
-# AI provider (OpenAI-compatible chat) — đang dùng Gemini
+# AI sinh câu trả lời — Sea-Lion (Workers AI) là chính, Gemini 3.5 Flash là fallback
 AI_API_KEY=...
 AI_API_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
-AI_MODEL=gemini-flash-lite-latest
 AI_FALLBACK_MODEL=gemini-3.5-flash
 AI_TIMEOUT_MS=40000
+AI_TURN_BUDGET_MS=30000
 
-# NVIDIA NIM — model phân tích video mặc định
-NVIDIA_API_KEY=nvapi-...
-NVIDIA_API_URL=https://integrate.api.nvidia.com/v1/chat/completions
-NVIDIA_MODEL=nvidia/nemotron-3.5-bolt-e4b
+# Cloudflare Workers AI — model chính, xoay vòng nhiều account nếu có
+CF_API_KEYS=key-1,key-2
+CF_API_URLS=https://api.cloudflare.com/client/v4/accounts/<account-1>/ai/v1/chat/completions,https://api.cloudflare.com/client/v4/accounts/<account-2>/ai/v1/chat/completions
+CF_MODEL=@cf/aisingapore/gemma-sea-lion-v4-27b-it
+
+# Gemini Decision 1 — chấm điểm đóng: phân loại intent + duyệt câu trả lời
+AI_DECISION_ENABLED=true
+AI_DECISION_URL=https://generativelanguage.googleapis.com/v1beta/decisions
+AI_DECISION_MODEL=gemini-decision-1
+AI_DECISION_TIMEOUT_MS=8000
 
 # Supabase Storage — audio bài nghe
 SUPABASE_URL=https://your-project.supabase.co
@@ -57,17 +63,25 @@ GOOGLE_CLIENT_ID=...          # để trống = nút báo "chưa cấu hình"
 FACEBOOK_APP_ID=...
 ```
 
-`AI_API_URL`, `AI_MODEL`, `AI_FALLBACK_MODEL`, `AI_TIMEOUT_MS` là tuỳ chọn. Có thể đổi sang provider
-OpenAI-compatible khác; mặc định trong code là Gemini. Khi import video, người dùng chọn model phân
-tích trên web: **Nemotron Bolt** (mặc định, nhanh) hoặc **Gemini Flash** (chất lượng). `SUPABASE_SECRET_KEY`
-luôn giữ ở backend; client chỉ nhận public Storage URL. URL project kết thúc `/rest/v1/` được
-chuẩn hoá tự động.
+Các biến trên đều là tuỳ chọn. Backend chỉ dùng **đúng hai model sinh văn bản**, theo thứ tự:
+`@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Cloudflare Workers AI, thử mọi `CF_API_KEYS` trước) rồi
+`gemini-3.5-flash` (fallback). Tutor, dịch tài liệu và chia đoạn video dùng chung chuỗi này.
+
+Một lượt chat đi qua 3 tầng (`backend/src/modules/ai/ai.pipeline.ts`): **định tuyến intent** (Gemini
+Decision 1) → **sinh câu trả lời** (Sea-Lion/Gemini) → **duyệt câu trả lời** (Gemini Decision 1 chấm
+`ship` / `repair` / `reject` + mức "có căn cứ" so với dữ liệu học tập). Câu bị `repair` được viết lại
+một lần rồi duyệt lại; câu bị `reject` được thay bằng câu trả lời deterministic dựng từ dữ liệu thật
+(`ai.study.ts`), nên frontend không bao giờ nhận một câu bịa. Cả lượt có trần thời gian
+`AI_TURN_BUDGET_MS`, và nếu Decision API lỗi thì câu trả lời vẫn được trả về như trước.
+
+`SUPABASE_SECRET_KEY` luôn giữ ở backend; client chỉ nhận public Storage URL. URL project kết thúc
+`/rest/v1/` được chuẩn hoá tự động.
 
 ### Tài khoản test
 
 | Email | Mật khẩu | User id | Quyền |
 | --- | --- | --- | --- |
-| `test@test.com` | `123456` | 10 | **admin** — thấy tab Quản trị |
+| `test@test.com` | `123456` | 10 | **admin** — truy cập `/admin` |
 | `temp@engorace.dev` | `temp123456` | 9 | learner |
 
 ---
@@ -75,31 +89,25 @@ chuẩn hoá tự động.
 ## 2. Cơ sở dữ liệu
 
 **Chỉ còn một file: `backend/database/final.sql`.** Toàn bộ migration / seed / script SQL cũ đã được
-gộp vào đây và xoá khỏi `backend/database/`. File sinh trực tiếp từ DB thật, chứa **23 bảng** (sắp
-theo thứ tự khoá ngoại) + **2392 dòng dữ liệu** — schema lẫn dữ liệu đều là trạng thái cuối cùng,
-không còn bảng tạm, không còn câu `UPDATE` chồng chéo. Bảng thứ 23 là `study_reminders` (nhắc học của
-En Buddy), thêm tay vào dump và **cố ý rỗng**.
+gộp vào đây và xoá khỏi `backend/database/`. File hiện định nghĩa **33 bảng**, bao gồm các bảng học tập,
+quản trị, gamification và nhắc học; số lượng bảng được đếm từ các câu `CREATE TABLE` trong file.
 
-```bash
-mysql -u root -p < backend/database/final.sql
-```
+⚠️ **Không nạp file này vào DB dev hoặc bất kỳ DB nào có dữ liệu cần giữ.** File bắt đầu bằng
+`DROP DATABASE IF EXISTS english_learning` rồi `CREATE` lại từ đầu. Trước đây các dòng
+`video_segments` bị trùng đã làm hỏng bootstrap cho đến khi được dedupe; chỉ khởi tạo DB disposable,
+được tạo riêng cho việc này, sau khi xác minh backup và đích đến. Không chạy lệnh nạp dưới đây như một
+cách cập nhật DB hiện có. Tối ưu nạp: `FOREIGN_KEY_CHECKS=0`, `UNIQUE_CHECKS=0`, `INSERT` gộp nhiều
+ dòng (≤400 KB mỗi câu) và **một transaction duy nhất cho phần dữ liệu**; DDL đứng ngoài transaction
+vì MySQL tự commit.
 
-⚠️ File bắt đầu bằng `DROP DATABASE IF EXISTS english_learning` rồi `CREATE` lại từ đầu: chỉ chạy
-trên DB mới / DB dev, **không** chạy trên DB đang có dữ liệu thật cần giữ. Tối ưu nạp:
-`FOREIGN_KEY_CHECKS=0`, `UNIQUE_CHECKS=0`, `INSERT` gộp nhiều dòng (≤400 KB mỗi câu) và **một
-transaction duy nhất cho phần dữ liệu**; DDL đứng ngoài transaction vì MySQL tự commit. Đã verify
-bằng cách nạp vào DB tạm rồi so số dòng từng bảng với DB thật: khớp 100% (`image_url` 100/100,
-4 video, 114 segment).
-
-Khi cần đổi schema/dữ liệu: sửa DB dev rồi sinh lại `final.sql` bằng
-`.workbuddy-ai/tmp-shots/dump-final-sql.cjs`, **không tạo file migration mới**. Bản sao các file cũ
-để phòng hồi phục nằm ở
+Khi cần đổi schema/dữ liệu: sửa DB dev rồi sinh lại `final.sql` bằng quy trình dump đã xác minh,
+**không tạo file migration mới**. Bản sao các file cũ để phòng hồi phục nằm ở
 `C:/Users/ADMIN/AppData/Local/Temp/engorace-database-backup-20261104-184202/`.
 
-**`users.role`** (`learner` | `admin`, mặc định `learner`) là cột duy nhất thêm cho bảng quản trị
-nội dung. DB dev đã `ALTER` xong và `final.sql` đã có cột này (dòng id 10 = `'admin'`), nên nạp lại
-`final.sql` vẫn ra đúng tài khoản admin; đợt này sửa tay `final.sql` thay vì regenerate để không kéo
-thêm dữ liệu QA (`matches`, `translations`, `video_lessons`). Cấp quyền admin cho tài khoản khác:
+**`users.role`** (`learner` | `admin`, mặc định `learner`) dùng để bảo vệ console nội dung. DB dev
+đã `ALTER` xong và `final.sql` đã có cột này (dòng id 10 = `'admin'`), nên nạp lại `final.sql` vẫn ra
+đúng tài khoản admin; đợt này sửa tay `final.sql` thay vì regenerate để không kéo thêm dữ liệu QA
+(`matches`, `translations`, `video_lessons`). Cấp quyền admin cho tài khoản khác:
 `UPDATE users SET role = 'admin' WHERE email = '...';` — backend đọc role từ DB ở **mỗi** request
 `/api/admin/*`, nên không cần đăng nhập lại và hạ quyền cũng có hiệu lực ngay.
 
@@ -120,16 +128,14 @@ UPDATE users SET role = 'admin' WHERE id = 10 AND email = 'test@test.com';
 
 Bảng từ vựng đấu trường là **`battle_words`** (`word_en`, `translation_vi`, `cefr_level`,
 `part_of_speech`, `example_en`, `example_vi`, `image_url`), không phải `words`. Cả 100 dòng đã có
-ảnh minh hoạ ngay trong `final.sql`. File nằm trong `web/public/arena/<word>.jpg` — **100 file
-JPEG**, đã resize tối đa 960px + nén lại (~12 MB cả bộ, từ ~30 MB ảnh gốc), `image_url` trỏ tới
-`/arena/<word>.jpg`. Ảnh lấy từ Openverse / Wikimedia Commons, chỉ bản **CC0 / public domain** nên
-không cần ghi credit. Từ trừu tượng dùng một truy vấn hình ảnh ẩn dụ cụ thể
-(vd `tenacity` → rock climber), khai báo trong `.workbuddy-ai/tmp-shots/arena-downloader.mjs`;
-`arena-retry.mjs` xử lý 4 từ rớt mạng, `arena-finalize.mjs` nén ảnh và sinh manifest.
+ảnh minh hoạ ngay trong `final.sql`. File nằm trong `web/public/arena/` — **100 file JPEG**, đã
+resize tối đa 960px + nén lại (~12 MB cả bộ, từ ~30 MB ảnh gốc), `image_url` trỏ tới `/arena/w-N.jpg`
+theo ID từ vựng. Ảnh lấy từ Openverse / Wikimedia Commons, chỉ bản **CC0 / public domain** nên
+không cần ghi credit. Từ trừu tượng dùng truy vấn hình ảnh ẩn dụ cụ thể (vd `tenacity` → rock climber).
 
 ```sql
--- Ví dụ cập nhật 1 từ nếu thay ảnh (không cần migration riêng)
-UPDATE battle_words SET image_url = '/arena/apple.jpg' WHERE word_en = 'apple';
+-- Ví dụ cập nhật ảnh cho apple (từ vựng id 1)
+UPDATE battle_words SET image_url = '/arena/w-1.jpg' WHERE word_en = 'apple';
 ```
 
 URL tuyệt đối cũng dùng được. `PromptFrame` trong `ArenaView.tsx` vẫn giữ khung 16:9 nét đứt +
@@ -255,15 +261,15 @@ lịch từng là *"How was your trip it was really fun how was the weather the 
 vì caption gốc không có dấu câu nên đường dự phòng còn **cắt giữa câu**
 (`…the weather was` | `Beautiful it was warm…`). Luật mới: **mỗi câu một đoạn**, chỉ gộp khi là mảnh
 cảm thán ngắn (`FRAGMENT_MS = 1.8s` hoặc `< 3` từ); trần 12s/200 ký tự vẫn là chốt chặn, câu dài hơn
-trần đứng riêng chứ không bị cắt vụn. `video.unit.test.ts` canh cả 3 nhánh.
+trần đứng riêng chứ không bị cắt vụn.
 
 Song song đó, ba lỗi trong đường AI làm việc tách câu thất bại âm thầm và rơi về đường theo kích
 thước:
 
 1. **Request thiếu JSON mode.** `requestSentenceEnds()` không gửi `response_format`, nên với
    transcript dài (131–208 cue) model trả `{sentence_ends:[…]}` **thiếu dấu nháy** và bị vứt bỏ.
-   Đã thêm `response_format: { type: 'json_object' }` cho provider OpenAI-compatible (Gemini;
-   `jsonMode: true` trong `providerFor`).
+   Đã thêm `response_format: { type: 'json_object' }` cho cả hai provider OpenAI-compatible
+   (Sea-Lion/Workers AI và Gemini).
 2. **Parser quá nghiêm.** `parseJsonContent()` giờ có thêm nhánh đọc danh sách số sau khoá
    `sentence_ends` kể cả khi khoá không được quote — `parseAiSentenceEnds()` vẫn kiểm tra tăng dần và
    phải chạm fragment cuối, nên không thể nhận dữ liệu rác.
@@ -285,32 +291,12 @@ gitignore). Mỗi lần thử đặt `TEMP`/`TMP`/`TMPDIR` cho tiến trình con
 mục đó trước khi xoá**. Lỗi thuộc nhóm quyền/temp được retry; lỗi khác (video private, hết hạn mức…)
 vẫn đi thẳng ra `mapYtDlpError()`.
 
-### Nhập lại caption cho video đã có
+### Phân đoạn caption
 
-`.workbuddy-ai/tmp-shots/reimport-captions.ts` — lấy lại caption gốc và tạo lại segment cho **đúng
-các hàng `video_lessons` đang có** (không tạo bài trùng):
-
-```bash
-npx tsx .workbuddy-ai/tmp-shots/reimport-captions.ts                    # xem trước
-npx tsx .workbuddy-ai/tmp-shots/reimport-captions.ts --write            # áp dụng, cả 4 bài
-npx tsx .workbuddy-ai/tmp-shots/reimport-captions.ts --only=10 --model=bolt
-```
-
-Script **chỉ ghi khi kết quả tốt hơn thực sự** (`isImprovement`: ít dòng > 9 từ hơn, hoà thì xét
-từ/dòng trung bình), nên chạy lại nhiều lần chỉ có thể cải thiện chứ không thể làm hỏng — mỗi lượt
-gọi AI là một lần "tung xúc xắc" khác nhau và đã có lần video 12 tệ đi thật. Nó cũng bỏ qua khi AI
-không trả lời (nhận biết bằng identity: `refineSegmentsWithAi` trả về **đúng mảng đầu vào** khi mọi
-provider lỗi). Khi so chuỗi từ phải dùng đúng `stripPunctuation()` của pipeline, nếu không thì
-`don't` → `dont` bị coi là mất chữ và script chặn nhầm cả 4 bài.
-
-`aiCues`: `fetchYouTubeImportSource()` trả thêm trường này — cue mức **từng từ** cho AI, kể cả với
-video nhạc. `cues` (mức dòng) vẫn dành cho đường dự phòng `segmentCaptionCues()` để không chẻ lời
-bài hát thành từng từ. Nhờ vậy Viva La Vida đi từ 13 từ/dòng xuống 7.
-
-Kết quả: 53 → 114 dòng. `final.sql` được vá riêng khối `video_segments` bằng
-`.workbuddy-ai/tmp-shots/patch-final-sql-segments.cjs` (regenerate cả file sẽ kéo theo dữ liệu QA mà
-dump cố tình không mang). Script cũ `resegment-videos.ts` (tách lại từ text **đã bị cắt sai**, mốc
-thời gian chia theo độ dài từ) chỉ còn là phương án dự phòng khi `yt-dlp` không chạy được.
+`fetchYouTubeImportSource()` cung cấp `aiCues` ở mức **từng từ** cho AI, kể cả với video nhạc;
+`cues` ở mức dòng vẫn dành cho đường dự phòng `segmentCaptionCues()` để không chẻ lời bài hát
+thành từng từ. Quy trình chuẩn hóa dữ liệu đã tăng số `video_segments` từ 53 lên 114; `final.sql`
+chứa dữ liệu hiện tại. Không chạy script bảo trì cũ hoặc nạp `final.sql` vào DB cần bảo toàn.
 
 `video.youtube.ts` ưu tiên caption `json3`, nhưng **có fallback đọc `.vtt`** — vài track (đặc biệt
 video nhạc) chỉ phát hành WebVTT dù đã yêu cầu `json3`; thiếu fallback thì video báo
@@ -322,8 +308,7 @@ video nhạc) chỉ phát hành WebVTT dù đã yêu cầu `json3`; thiếu fall
 `automatic_captions` rồi `describeCaptionLanguages()` ghi ra danh sách ngôn ngữ có thật),
 `VIDEO_PRIVATE`, `VIDEO_LIVE`, `VIDEO_NO_DURATION`, `VIDEO_UNREADABLE`, `VIDEO_IMPORT_RATE_LIMIT`,
 `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `VIDEO_IMPORT_TIMEOUT`, `VIDEO_ALREADY_IMPORTED`,
-`VIDEO_IMPORT_LIMIT`. `mapYtDlpError()` phân loại theo thông báo của yt-dlp; có unit test trong
-`video.unit.test.ts`.
+`VIDEO_IMPORT_LIMIT`. `mapYtDlpError()` phân loại theo thông báo của yt-dlp.
 
 Đấu 1v1 chạy trên cùng server Socket.IO. Các event quan trọng: `game:opponentAttempt` (bắn 1 lần
 khi đối phương **bấm trả lời**, không bắn theo từng ký tự), `game:opponentAway` (đối phương rời
@@ -376,12 +361,12 @@ cạnh cùng học**, và ưu tiên *nói đúng việc* hơn là *nói nhiều*
 `ai.service.ts` cấm rõ: không chào hỏi, không "cố lên nhé / bạn làm tốt lắm / kiên trì sẽ thành
 công", không khen chung chung, tối đa 3 câu, và **mỗi câu trả lời phải có ít nhất một chi tiết chỉ
 đúng người này** (tên bài, con số, từ cụ thể, câu họ vừa viết) — không có dữ liệu thì phải hỏi một
-câu ngắn thay vì nói chung chung. `buddy.unit.test.ts` và `buddy.test.ts` canh đúng điều đó: nudge
+câu ngắn thay vì nói chung chung: nudge
 phải chứa số thật và không khớp regex câu động viên sáo rỗng.
 
 **Trả lời offline cũng không sáo rỗng.** Khi cả hai provider lỗi, `buildOfflineCoachReply()` trả
 đúng dữ liệu ("Việc tiếp theo: Học bài … (12 phút)…", "Chủ đề yếu nhất: Masterclass: 7 câu sai gần
-đây."), không còn câu xin lỗi hay "hỏi lại mình tí nữa nhé" — `ai.test.ts` canh việc này.
+đây."), không còn câu xin lỗi hay "hỏi lại mình tí nữa nhé".
 
 **Nhắc học khi tab đóng thì không bắn được**, nên có hai lớp: `Notification` của trình duyệt (chỉ
 khi người học bấm "Bật thông báo máy"; chỉ bắn lúc tab đang mở nhưng bị che) và thẻ nhắc trong app
@@ -400,10 +385,9 @@ lý một hình dạng duy nhất `{ tab, lessonId?, videoId?, highlight? }` cho
 
 Đã bỏ: tab Chat/Kế hoạch/Lịch sử, thread bong bóng, composer bar, `.buddy-launcher` cũ và ~700 dòng
 CSS đi kèm. `buddy.css` viết lại theo đúng ngôn ngữ sổ tay + chú xe, một viền mỗi khối, cyan chỉ cho
-hành động. QA: `.workbuddy-ai/tmp-shots/qa-buddy-companion.cjs` (1440 + 390: bubble cụ thể, panel
-không tràn, CTA đổi tab **và** `spotlights: 1`, spotlight tự tắt, `answerCard: 1` mà
-`answerThreadBubbles: 0`, đặt được nhắc). Các script `buddy-qa.cjs` / `buddy-flow-qa.cjs` /
-`buddy-motion-qa.cjs` / `buddy-check.cjs` của drawer cũ **đã lỗi thời** — đừng dùng nữa.
+action. Script QA companion đã được dùng để kiểm tra bubble, panel, CTA, spotlight và nhắc học;
+các script của drawer cũ không còn áp dụng.
+
 
 ### Học thử trên landing page (`GET /api/demo/video`)
 
@@ -425,14 +409,14 @@ không token):
   `.lp-demo-strip` hiện "Xem thử 3/7 đoạn" + CEFR · chủ đề · thời lượng.
 - `requestPublicApi()` trong `apiClient.ts` là bản không gắn token của `requestApi`; nó chấp nhận
   `data: null` nên endpoint công khai không cần envelope đặc biệt.
-- QA: `.workbuddy-ai/tmp-shots/qa-landing-demo.cjs` — 1440 + 390, gõ đúng chính tả từng đoạn để mở
-  hết từ, kiểm tra gate, gate mở dialog đăng ký, bấm từ cũng mở dialog, và `panelOverflow: []`.
+- QA đã kiểm tra ở 1440 + 390: gõ đúng chính tả từng đoạn để mở hết từ, gate mở dialog đăng ký,
+  bấm từ cũng mở dialog, và không có panel overflow.
 
 ### Khoá trình phát YouTube (luyện nghe)
 
 `web/src/utils/videoPlayback.ts` định nghĩa `YOUTUBE_LOCKED_VARS` — `controls=0`, `disablekb=1`,
 `fs=0`, `cc_load_policy=0`, `iv_load_policy=3`, `rel=0`, `modestbranding=1`, `vq=hd720`.
-`youtubeEmbedUrl()` dựng query từ chính hằng số đó (test canh chuỗi trong `videoPlayback.test.ts`).
+`youtubeEmbedUrl()` dựng query từ chính hằng số đó.
 
 **Phụ đề không thể tắt tin cậy bằng query string.** `cc_load_policy=0` chỉ có nghĩa "đừng bật
 phụ đề", YouTube vẫn chiếu caption theo preference của tài khoản; captions / "Video khác" /
@@ -510,9 +494,7 @@ không viết lại hàng loạt.
      - `IntersectionObserver` dừng hẳn vòng `requestAnimationFrame` khi hero ra khỏi màn hình.
      - Bỏ qua theo dõi con trỏ trên thiết bị cảm ứng (`(hover: none)`), tắt hoàn toàn khi
        `prefers-reduced-motion` (giữ transform tĩnh trong CSS).
-     QA: `.workbuddy-ai/tmp-shots/qa-hero-motion.cjs` kiểm `floats`, `reactsToPointer`,
-     `intermediateFrame`; `qa-hero3d.cjs` đo `cardInsidePanel` + `scrollWidth === viewport` ở 1440 và
-     390.
+     QA ở 1440 và 390 xác nhận hero có chuyển động mượt, card nằm trong panel và không tràn viewport.
    - **Ngoại lệ landing page** (user chốt 04/11): landing **chỉ có light**, một gam cyan nhạt gần
      `#00C7FF` nhưng phai đi để không chói như trắng: nền `#E4F7FF`, giấy `#F1FBFF`, chữ
      `#0E3542`, CTA cuối `#CFEDFB`, nút action vẫn `#00C7FF`. Header landing **không có nút
@@ -596,17 +578,15 @@ không bắt đầu trận nếu một socket đã ngắt — nên không còn c
   Nhãn chữ trong sương (“Chặng chưa mở khoá” / “Unexplored stages”) **đã bỏ theo yêu cầu 06/11**
   (`.roadmap-fog-label` xoá khỏi TSX + CSS) — sương tự nói lên điều đó, không cần chú thích.
   `prefers-reduced-motion` tắt trôi mây.
-  QA: `.workbuddy-ai/tmp-shots/roadmap-fog-qa.cjs` (4 case: tài khoản mới 5 chặng mờ / tài khoản
-  35-36 bài chỉ 1 lớp mỏng / dark / 390px).
+  QA đã kiểm tra 4 trường hợp: tài khoản mới, chặng gần hoàn tất, dark mode và viewport 390px.
 
 ---
 
 ## 5. Quản trị nội dung (admin)
 
-Tab **Quản trị** (`web/src/components/admin/AdminView.tsx` + `admin.css`) chỉ xuất hiện khi
-`user.role === 'admin'`; `App.tsx` tính `effectiveTab` nên một tab `'admin'` còn lưu trong
-`sessionStorage` tự rơi về `'study'` với tài khoản thường (QA `qa-admin.cjs` canh đúng case này).
-Hai phần trong tab:
+Console quản trị là shell riêng ở `/admin`, không phải tab trong learner dashboard. `AdminApp` chỉ mở
+`AdminLayout` khi người dùng đăng nhập và `user.role === 'admin'`; route này có các view Tổng quan,
+Nội dung, Video chung và Thống kê. `AdminLessonsPanel` quản lý cấu trúc Chặng → Bài → Câu hỏi.
 
 - **Bài học** — 3 cột đúng cấp bậc **Chặng → Bài → Câu hỏi**:
   - Chặng: title/description/`theme_key` (6 theme của `STAGE_VISUALS`; `accent_color` **tự sinh**
@@ -639,27 +619,10 @@ Hai phần trong tab:
 Backend tương ứng: `backend/src/modules/admin/*` mount tại `/api/admin`, `requireAdmin`
 (`middleware/authorize.ts`) đọc role tươi từ DB mỗi request.
 
-**Giao diện (`admin.css`, đợt làm lại 07/11):**
-- Dialog là `<dialog>` thật nhưng **phải khai báo `position: fixed; inset: 0; margin: auto`**:
-  reset toàn cục của app bỏ `margin` của UA nên trước đó form dính góc trái trên thay vì giữa
-  màn hình (QA `qa-admin.cjs` đo `centeredX` / `centeredY`). Header / body / footer tách rời, chỉ
-  body cuộn nên nút Lưu luôn thấy; `data-autofocus` đánh dấu field chính để focus vào đúng ô thay
-  vì nút X; Esc hoặc bấm nền đóng. Dưới 560px dialog thành **bottom sheet** (`inset: auto 0 0 0`,
-  cao tối đa `92dvh`, bo trên, chừa `safe-area-inset-bottom`), `prefers-reduced-motion` tắt
-  animation vào.
-- 3 cột Chặng / Bài / Câu hỏi: header có nhãn + số lượng + nút thêm; thân cột tự cuộn khi ≥821px
-  với mask mờ ở đáy và spacer 24px để hàng cuối không bị fade. Hàng hover đổi nền, hàng đang chọn
-  có vạch cyan 3px bên trái; 4 nút hành động chỉ rõ khi hover/focus-within (thiết bị cảm ứng
-  `@media (hover: none)` luôn hiện).
-- Trạng thái: skeleton đúng hình dạng hàng khi tải, empty state có icon + nút CTA ("Thêm chặng" /
-  "Thêm bài" / "Thêm câu hỏi"), toast lưu nổi góc phải phía trên chú xe En Buddy. Form chia
-  `.admin-section` bằng hairline, theme chặng là lưới 3 cột có dấu check, đáp án là radio + hàng
-  được tô màu nhạt cho đáp án đúng, kèm dòng gợi ý "Chọn đúng một đáp án đúng."
-- `admin.css` và `admin.repository.ts` giữ **ASCII-only**, comment ngăn mục viết bằng ASCII
-  (`/* --- Ten --- */` trong CSS, `// --- Ten ---` trong TS): sửa file bằng PowerShell
-  (`Get-Content -Raw` / `Set-Content`) từng làm hỏng ký tự box-drawing ở đây thành mojibake. Toàn bộ
-  màu vẫn lấy từ token trong `index.css`; cyan chỉ dùng cho hành động + vạch chọn, hổ phách chỉ cho
-  chip XP, đỏ chỉ cho xoá.
+**Giao diện quản trị:** dialog có header / body / footer tách rời, body cuộn độc lập và focus vào
+field chính; dưới 560px chuyển thành bottom sheet có safe-area. Bảng nội dung hiển thị các cấp Chặng /
+Bài / Câu hỏi, có skeleton, empty state, validation và thao tác sắp xếp. Màu sắc dùng chung token của
+`index.css`; trạng thái và CTA có phân cấp màu rõ ràng.
 
 ---
 
@@ -668,61 +631,17 @@ Backend tương ứng: `backend/src/modules/admin/*` mount tại `/api/admin`, `
 ```bash
 cd web
 npx tsc --noEmit
-npm test                       # 51 tests
 npx vite build
 npx eslint src --max-warnings 0
 
 cd ../backend
 npm run build
-npm test                       # 95 tests
 ```
 
-Lưu ý khi build lại lần 2+: `dist/arena/` có 100 file, nên bước dọn `dist/` của Vite bị chặn
-bởi guard xoá hàng loạt (>50 file) trong môi trường WorkBuddy. Cách đơn giản: chuyển
-`dist/arena/` ra thư mục tạm ngoài project rồi chạy `npx vite build`, Vite sẽ copy lại từ
-`public/arena/`. Không sửa tay file trong `dist/`.
+QA giao diện đã được kiểm tra bằng Playwright ở desktop và mobile, gồm theme light/dark, overflow,
+luồng admin, landing demo, arena và trạng thái responsive. Các script và screenshots kiểm thử là
+artefact local trong `.workbuddy-ai/tmp-shots/`, không phải source cần commit.
 
-Chụp màn hình bằng Playwright: binary
-`C:/Users/ADMIN/AppData/Local/ms-playwright/chromium-1248/chrome-win64/chrome.exe`, chạy với
-`NODE_PATH=C:/Users/ADMIN/AppData/Local/npm-cache/_npx/9833c18b2d85bc59/node_modules`.
-Đăng nhập test qua `POST /api/auth/login` rồi inject `englearn_token`, `englearn_user`,
-`engorace_theme` bằng `addInitScript`. Script QA nằm trong `.workbuddy-ai/tmp-shots/`:
-`qa-final.cjs` (14 ảnh light/dark + probe màu wordmark), `qa-wordmark.cjs` (so màu logo 10 màn
-hình), `qa-video-overflow.cjs` (video hiện đủ khung / không còn veil-blur / `cc_load_policy=0`
-+ đo nút `Trả lời` không tràn card ở 11 độ rộng), `qa-overflow.cjs` (probe thô),
-`qa-arena-socket.cjs` (2 account vào trận, kiểm tra `game:question.imageUrl`),
-`qa-arena-duel.cjs` (ảnh thật trong khung câu hỏi), `qa-landing-pale-cyan.cjs` (landing light-only:
-probe nền/footer/CTA ở 1440 + 390 với cả 2 theme đã lưu, kiểm tra không còn `.theme-toggle` và
-dashboard lấy lại đúng theme tối). Script cũ `qa-practice.cjs` kiểm tra lớp mờ đã lỗi thời —
-không dùng nữa.
-
-Bảng quản trị có 3 script riêng: `qa-admin.cjs` (9 case: admin ở 1440 + 390 cả light/dark cho tab Bài
-học lẫn Video chung, learner còn `sessionStorage` tab `admin` phải rơi về Học Tập; mỗi case đo
-`.admin-row` không tràn card, `scrollWidth === viewport`, mở dialog câu hỏi / chặng / sửa video /
-thêm video và kiểm tra dialog **căn giữa** (`centeredX`/`centeredY`) + focus vào đúng field),
-`qa-admin-empty.cjs` (stub API trả rỗng để chụp empty state light/dark) và `admin-flow.cjs` (tạo
-Chặng → Bài → Câu hỏi qua UI thật, reload để chắc dữ liệu còn, rồi xoá dọn bằng API). Ảnh nằm trong
-`.workbuddy-ai/tmp-shots/qa-admin/`.
-
-Landing có thêm `qa-landing-demo.cjs` (bài học thử thật: gõ đúng từng đoạn → gate → dialog đăng ký,
-ở 1440 + 390; ảnh trong `.workbuddy-ai/tmp-shots/qa-landing-demo/`), `qa-hero3d.cjs` (chụp hero 1440 +
-390, đo `cardInsidePanel`, `scrollWidth === viewport`) và `qa-hero-motion.cjs` (di chuột vào thẻ rồi
-đo transform để chắc thẻ trôi, nghiêng theo con trỏ, và **có frame trung gian** = mượt chứ không
-snap).
-
-⚠️ **Watcher của Vite/nodemon hay chết vì `EBUSY`**: công cụ sửa file của DSH tạo thư mục tạm
-`.<tên file>.tmpdir` **ngay trong `src/`**, và watcher cố theo dõi chúng rồi bỏ cuộc. Khi đó server
-vẫn "running" nhưng cổng không phục vụ nữa → phải `Stop-Process` đúng PID đang giữ cổng
-(`Get-NetTCPConnection -LocalPort 5173`) rồi chạy lại. Backend còn có thể để lại tiến trình mồ côi
-giữ port 3000 làm `npm run dev` mới chết với `EADDRINUSE` (lúc đó `tsx` cũ vẫn chạy code cũ, nên
-route mới báo "Route not found").
-
-Lưu ý eslint vẫn còn các finding **có sẵn** ở những file không thuộc đợt này (đợt admin: 12
-problem, 0 ở file mới): `SettingsPanel.tsx`, `ThemeToggle.tsx`, `AuthModal.tsx`
-(`react-hooks/refs`, `set-state-in-effect`), `StudyBuddy.tsx`
-(`react-refresh/only-export-components` + 1 biến `_tabLabel` chưa dùng), `LessonPlayer.tsx`
-(`react-hooks/purity` — `Date.now()` trong `useRef`), `AuthContext.tsx` (`exhaustive-deps`),
-`i18n.tsx` (`react-refresh/only-export-components`).
 
 ---
 
@@ -731,7 +650,7 @@ problem, 0 ở file mới): `SettingsPanel.tsx`, `ThemeToggle.tsx`, `AuthModal.t
 - Social login Google/Facebook chưa có backend OAuth — cần client ID / App ID thật.
 - Ảnh đấu trường là ảnh CC0 tải về (`web/public/arena/`): nếu deploy tách riêng `web/` và API,
   nhớ copy cả thư mục `arena/` lên server tĩnh hoặc đổi `image_url` sang URL tuyệt đối.
-- Admin panel chưa có: upload file MP4 (mới chỉ link YouTube), xem trước video trước khi ghi vào
+- Admin console chưa có: upload file MP4 (mới chỉ link YouTube), xem trước video trước khi ghi vào
   DB (import là một bước), xoá mềm/khôi phục bài học, log ai sửa gì, và rate-limit cho `/api/admin/*`.
   Video chung vẫn dùng hạn mức < 5 phút của học viên; muốn nâng thì đổi `MAX_IMPORT_DURATION_SECONDS`
   và kiểm lại cách tách segment.

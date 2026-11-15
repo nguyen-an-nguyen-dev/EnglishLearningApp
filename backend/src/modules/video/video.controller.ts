@@ -2,7 +2,6 @@ import type { RequestHandler } from 'express';
 import { HttpError } from '../../middleware/error-handler';
 import * as videoService from './video.service';
 import {
-  parseImportModel,
   parseImportUrl,
   parseSaveWordInput,
   parseSavedWord,
@@ -40,8 +39,7 @@ export const importVideo: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUserId(request);
     const url = parseImportUrl(request.body);
-    const model = parseImportModel(request.body);
-    const video = await videoService.importVideo(userId, url, model);
+    const video = await videoService.importVideo(userId, url);
     response.status(201).json({ success: true, data: { video } });
   } catch (error) {
     next(error);

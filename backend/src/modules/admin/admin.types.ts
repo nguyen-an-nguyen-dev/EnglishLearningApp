@@ -1,5 +1,4 @@
 import type { RowDataPacket } from 'mysql2';
-import type { VideoAnalysisModel } from '../video/video.types';
 
 export const STAGE_THEME_KEYS = ['forest', 'river', 'autumn', 'alpine', 'coast', 'sakura'] as const;
 export type StageThemeKey = (typeof STAGE_THEME_KEYS)[number];
@@ -204,7 +203,6 @@ export interface QuestionInput {
 
 export interface SharedVideoImportInput {
   url: string;
-  model: VideoAnalysisModel;
 }
 
 export interface SharedVideoPatch {
@@ -213,4 +211,107 @@ export interface SharedVideoPatch {
   topic?: string;
   cefrLevel?: CefrLevel;
   xpReward?: number;
+}
+
+// --- Statistics (admin console) -------------------------------------------
+// "Activity" = any observable study event in a table that has a user +
+// timestamp: progress, video_progress, learning_answer_attempts, matches
+// (both players), translations, chats, saved_words. There is no login-log
+// table, so last-seen is derived from the most recent of these events.
+
+export interface StatsOverview {
+  totalLearners: number;
+  totalAdmins: number;
+  newToday: number;
+  newYesterday: number;
+  newThisWeek: number;
+  newThisMonth: number;
+  activeToday: number;
+  activeYesterday: number;
+  active7d: number;
+  active30d: number;
+  inactive7d: number;
+  inactive14d: number;
+  inactive30d: number;
+  neverActive: number;
+  returningToday: number;
+  retentionTodayVsYesterdayPct: number | null;
+  avgXp: number;
+  totalXp: number;
+  avgStreak: number;
+  maxStreak: number;
+  lessonsCompletedTotal: number;
+  lessonsInProgressActive: number;
+  lessonCompletionRatePct: number;
+  videosSharedCount: number;
+  videosCompletedTotal: number;
+  videoCompletionRatePct: number;
+  matchesTotal: number;
+  matchesToday: number;
+  translationsTotal: number;
+  answersTotal: number;
+  answerCorrectRatePct: number;
+  savedWordsTotal: number;
+}
+
+export interface DayTrend {
+  date: string; // YYYY-MM-DD
+  newUsers: number;
+  activeUsers: number;
+  lessonsCompleted: number;
+  lessonsStarted: number;
+  videosCompleted: number;
+  attempts: number;
+  matchesStarted: number;
+  translations: number;
+}
+
+export interface StageStat {
+  stageId: number;
+  stageTitle: string;
+  sortOrder: number;
+  lessonCount: number;
+  learnersStarted: number;
+  completions: number;
+  completionRatePct: number;
+  avgScore: number | null;
+}
+
+export interface LessonStat {
+  lessonId: number;
+  stageId: number;
+  stageTitle: string;
+  title: string;
+  topic: string;
+  questionCount: number;
+  learnersStarted: number;
+  completions: number;
+  abandonRatePct: number;
+  avgScore: number | null;
+}
+
+export interface ContentStats {
+  stages: number;
+  lessons: number;
+  questions: number;
+  answers: number;
+  sharedVideos: number;
+  videoSegments: number;
+  personalVideos: number;
+  battleWords: number;
+  badges: number;
+  translationsTotal: number;
+  chatsTotal: number;
+}
+
+export interface InactiveUserRow {
+  id: number;
+  displayName: string;
+  email: string;
+  xp: number;
+  streak: number;
+  createdAt: string;
+  lastActivityAt: string | null;
+  daysInactive: number;
+  lessonsCompleted: number;
 }

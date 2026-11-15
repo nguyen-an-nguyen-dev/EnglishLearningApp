@@ -1,8 +1,6 @@
 import type { RowDataPacket } from 'mysql2';
 import type { Badge } from '../badges/badges.types';
 
-export type VideoAnalysisModel = 'bolt' | 'gemini';
-
 export interface VideoLessonRow extends RowDataPacket {
   id: number;
   code: string;
@@ -151,15 +149,12 @@ export interface SavedWord {
   created_at: string;
 }
 
-export interface SaveProgressInput {
-  watchedSeconds: number;
-}
-
 export interface CompleteVideoResult {
   progress: VideoProgress;
   completed: boolean;
   already_completed: boolean;
   xp_earned: number;
+  rc_earned: number;
   badges_awarded: Badge[];
 }
 

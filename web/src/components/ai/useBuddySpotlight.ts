@@ -40,14 +40,37 @@ export function useBuddySpotlight(token: string | null, enabled: boolean): Spotl
 
     let stopped = false
     let attempts = 0
+    let measureFrame: number | null = null
 
     const measure = () => {
       const element = targetRef.current
       if (!element || stopped) return
       const box = element.getBoundingClientRect()
-      setSpot({
-        token,
-        rect: { top: box.top, left: box.left, width: box.width, height: box.height },
+      setSpot((previous) => {
+        if (
+          previous &&
+          previous.token === token &&
+          previous.rect.top === box.top &&
+          previous.rect.left === box.left &&
+          previous.rect.width === box.width &&
+          previous.rect.height === box.height
+        ) {
+          return previous
+        }
+        return {
+          token,
+          rect: { top: box.top, left: box.left, width: box.width, height: box.height },
+        }
+      })
+    }
+
+    // Scroll and resize can fire several times per frame; measuring once per
+    // frame avoids repeated layout reads and redundant React renders.
+    const scheduleMeasure = () => {
+      if (measureFrame !== null || stopped) return
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = null
+        measure()
       })
     }
 
@@ -66,8 +89,8 @@ export function useBuddySpotlight(token: string | null, enabled: boolean): Spotl
     }
 
     find()
-    window.addEventListener('resize', measure)
-    window.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', scheduleMeasure)
+    window.addEventListener('scroll', scheduleMeasure, { passive: true })
     const clear = window.setTimeout(() => {
       stopped = true
       setSpot(null)
@@ -78,8 +101,9 @@ export function useBuddySpotlight(token: string | null, enabled: boolean): Spotl
       stopped = true
       window.clearTimeout(clear)
       if (frame.current !== null) window.cancelAnimationFrame(frame.current)
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', measure)
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
+      window.removeEventListener('resize', scheduleMeasure)
+      window.removeEventListener('scroll', scheduleMeasure)
     }
   }, [token, enabled])
 

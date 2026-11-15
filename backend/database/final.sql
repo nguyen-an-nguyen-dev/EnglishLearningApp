@@ -83,7 +83,9 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `display_name` varchar(100) NOT NULL,
   `xp` int(10) unsigned NOT NULL DEFAULT 0,
+  `coins` int(10) unsigned NOT NULL DEFAULT 0,
   `streak` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `last_activity_date` date DEFAULT NULL,
   `role` enum('learner','admin') NOT NULL DEFAULT 'learner',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -396,6 +398,156 @@ CREATE TABLE `match_answers` (
   CONSTRAINT `fk_match_answers_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- shop_items
+CREATE TABLE `shop_items` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(60) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `description` varchar(500) NOT NULL,
+  `slot` enum('car','frame','nameplate','booster') NOT NULL,
+  `rarity` enum('common','rare','epic','legendary') NOT NULL DEFAULT 'common',
+  `price` int(10) unsigned NOT NULL DEFAULT 0,
+  `unlock_type` enum('default','level','stage','league','achievement') NOT NULL DEFAULT 'default',
+  `unlock_value` varchar(60) DEFAULT NULL,
+  `visual_key` varchar(60) NOT NULL,
+  `style_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`style_json`)),
+  `sort_order` int(10) unsigned NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_shop_items_code` (`code`),
+  KEY `idx_shop_items_slot` (`slot`,`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- user_inventory
+CREATE TABLE `user_inventory` (
+  `user_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `acquired_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`user_id`,`item_id`),
+  KEY `idx_user_inventory_item` (`item_id`),
+  CONSTRAINT `fk_user_inventory_item` FOREIGN KEY (`item_id`) REFERENCES `shop_items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_user_inventory_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- user_equipment
+CREATE TABLE `user_equipment` (
+  `user_id` bigint(20) unsigned NOT NULL,
+  `slot` enum('car','frame','nameplate') NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`user_id`,`slot`),
+  KEY `idx_user_equipment_item` (`item_id`),
+  CONSTRAINT `fk_user_equipment_item` FOREIGN KEY (`item_id`) REFERENCES `shop_items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_user_equipment_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- user_boosters: consumables held by a learner. `charges` are spent on a future
+-- event (streak shield, RC card); `expires_at` drives timed effects (XP card).
+CREATE TABLE `user_boosters` (
+  `user_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `kind` enum('streak_shield','xp_multiplier','rc_multiplier') NOT NULL,
+  `charges` int(10) unsigned NOT NULL DEFAULT 0,
+  `expires_at` datetime DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`user_id`,`item_id`),
+  KEY `idx_user_boosters_kind` (`user_id`,`kind`),
+  CONSTRAINT `fk_user_boosters_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_user_boosters_item` FOREIGN KEY (`item_id`) REFERENCES `shop_items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- economy_ledger
+CREATE TABLE `economy_ledger` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `currency` enum('rc','xp','rp') NOT NULL,
+  `amount` int(11) NOT NULL,
+  `source_type` varchar(40) NOT NULL,
+  `source_id` varchar(120) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ledger_entry` (`user_id`,`currency`,`source_type`,`source_id`),
+  KEY `idx_ledger_user_created` (`user_id`,`created_at`),
+  CONSTRAINT `fk_ledger_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- activity_events
+CREATE TABLE `activity_events` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `kind` enum('lesson','video','duel_win','duel_play','answers','saved_word','login') NOT NULL,
+  `ref_id` varchar(120) DEFAULT NULL,
+  `amount` int(10) unsigned NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_activity_once` (`user_id`,`kind`,`ref_id`),
+  KEY `idx_activity_user_kind_created` (`user_id`,`kind`,`created_at`),
+  CONSTRAINT `fk_activity_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- seasons
+CREATE TABLE `seasons` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(10) NOT NULL,
+  `starts_at` datetime NOT NULL,
+  `ends_at` datetime NOT NULL,
+  `status` enum('active','closed','paid') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_seasons_code` (`code`),
+  KEY `idx_seasons_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- season_standings
+CREATE TABLE `season_standings` (
+  `season_id` bigint(20) unsigned NOT NULL,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `race_points` int(10) unsigned NOT NULL DEFAULT 0,
+  `lessons` int(10) unsigned NOT NULL DEFAULT 0,
+  `videos` int(10) unsigned NOT NULL DEFAULT 0,
+  `duel_wins` int(10) unsigned NOT NULL DEFAULT 0,
+  `tier` enum('bronze','silver','gold','diamond') NOT NULL DEFAULT 'bronze',
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`season_id`,`user_id`),
+  KEY `idx_standings_season_points` (`season_id`,`race_points`),
+  CONSTRAINT `fk_standings_season` FOREIGN KEY (`season_id`) REFERENCES `seasons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_standings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- season_payouts
+CREATE TABLE `season_payouts` (
+  `season_id` bigint(20) unsigned NOT NULL,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `tier` enum('bronze','silver','gold','diamond') NOT NULL,
+  `rank` int(10) unsigned NOT NULL,
+  `race_points` int(10) unsigned NOT NULL,
+  `rc_awarded` int(10) unsigned NOT NULL,
+  `xp_awarded` int(10) unsigned NOT NULL,
+  `paid_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`season_id`,`user_id`),
+  CONSTRAINT `fk_payouts_season` FOREIGN KEY (`season_id`) REFERENCES `seasons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_payouts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- quests
+CREATE TABLE `quests` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(60) NOT NULL,
+  `kind` enum('daily','weekly') NOT NULL,
+  `title` varchar(140) NOT NULL,
+  `description` varchar(400) NOT NULL,
+  `metric` enum('lesson','video','duel_win','answers','saved_word','login') NOT NULL,
+  `target` int(10) unsigned NOT NULL,
+  `rc_reward` int(10) unsigned NOT NULL,
+  `xp_reward` int(10) unsigned NOT NULL,
+  `rp_reward` int(10) unsigned NOT NULL,
+  `sort_order` int(10) unsigned NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_quests_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ---------------------------------------------------------------------------
 -- 2. DỮ LIỆU (INSERT gộp nhiều dòng / bảng, một transaction duy nhất)
 -- ---------------------------------------------------------------------------
@@ -408,7 +560,6 @@ INSERT INTO `badges` (`id`, `code`, `name`, `description`, `icon`, `created_at`)
 (2,'lessons_10','10 Lessons Completed','Complete 10 lessons.','workspace_premium','2026-10-27 15:28:12.000'),
 (3,'xp_100','100 XP','Earn 100 XP.','bolt','2026-10-27 15:28:12.000'),
 (4,'xp_500','500 XP','Earn 500 XP.','military_tech','2026-10-27 15:28:12.000');
-
 -- battle_questions: 20 dòng
 INSERT INTO `battle_questions` (`id`, `prompt_vi`, `answer_en`, `sort_order`) VALUES
 (1,'mèo','cat',1),
@@ -431,110 +582,108 @@ INSERT INTO `battle_questions` (`id`, `prompt_vi`, `answer_en`, `sort_order`) VA
 (18,'nhỏ','small',18),
 (19,'lạnh','cold',19),
 (20,'nóng','hot',20);
-
 -- battle_words: 100 dòng
 INSERT INTO `battle_words` (`id`, `word_en`, `translation_vi`, `part_of_speech`, `cefr_level`, `explanation_vi`, `example_en`, `example_vi`, `image_url`, `sort_order`) VALUES
-(1,'apple','quả táo','noun','A1','Trái cây tròn vị ngọt, thường có vỏ màu đỏ hoặc xanh lá.','She puts an apple in her lunch box every morning.','Cô ấy đặt một quả táo vào hộp cơm mỗi sáng.','/arena/apple.jpg',1),
-(2,'water','nước','noun','A1','Chất lỏng không màu không mùi mà con người cần uống để sống.','Drink a glass of water before breakfast.','Hãy uống một ly nước trước bữa sáng.','/arena/water.jpg',2),
-(3,'house','ngôi nhà','noun','A1','Công trình xây dựng để ở, có tường và mái.','Their house has a small garden at the back.','Nhà của họ có một khu vườn nhỏ phía sau.','/arena/house.jpg',3),
-(4,'friend','người bạn','noun','A1','Người mà bạn tin tưởng và muốn ở cùng.','My best friend lives next door.','Bạn thân nhất của tôi sống ngay cạnh nhà.','/arena/friend.jpg',4),
-(5,'book','quyển sách','noun','A1','Tập giấy có in chữ, dùng để đọc và học.','I finished a book about ancient cities.','Tôi vừa đọc xong một cuốn sách về các thành phố cổ.','/arena/book.jpg',5),
-(6,'school','trường học','noun','A1','Nơi học sinh tới học và gặp giáo viên.','School starts at eight in the morning.','Trường bắt đầu lúc tám giờ sáng.','/arena/school.jpg',6),
-(7,'mother','người mẹ','noun','A1','Người phụ nữ sinh ra và nuôi dưỡng mình.','My mother cooks the best noodle soup.','Mẹ tôi nấu bún ngon nhất.','/arena/mother.jpg',7),
-(8,'dog','con chó','noun','A1','Động vật bốn chân nuôi trong nhà, rất trung thành.','The dog barks when someone rings the bell.','Con chó sủa khi có người nhấn chuông.','/arena/dog.jpg',8),
-(9,'red','màu đỏ','adjective','A1','Màu của máu hoặc lửa, nổi bật và dễ nhìn thấy.','She wore a red coat to the party.','Cô ấy mặc chiếc áo khoác đỏ tới bữa tiệc.','/arena/red.jpg',9),
-(10,'big','to lớn','adjective','A1','Có kích thước hoặc mức độ vượt hơn bình thường.','They live in a big apartment near the park.','Họ sống trong một căn hộ lớn gần công viên.','/arena/big.jpg',10),
-(11,'small','nhỏ','adjective','A1','Chiếm ít diện tích hoặc ít hơn mức bình thường.','A small cat slept under the table.','Một con mèo nhỏ ngủ dưới gầm bàn.','/arena/small.jpg',11),
-(12,'eat','ăn','verb','A1','Đưa thức ăn vào miệng rồi nhai và nuốt.','We eat dinner together at seven.','Chúng tôi ăn tối cùng nhau lúc bảy giờ.','/arena/eat.jpg',12),
-(13,'drink','uống','verb','A1','Nuốt chất lỏng để giải khát.','He likes to drink tea after lunch.','Anh ấy thích uống trà sau bữa trưa.','/arena/drink.jpg',13),
-(14,'sleep','ngủ','verb','A1','Nghỉ ngơi trong trạng thái nhắm mắt và không tỉnh táo.','Babies sleep for sixteen hours a day.','Trẻ sơ sinh ngủ tới mười sáu tiếng mỗi ngày.','/arena/sleep.jpg',14),
-(15,'run','chạy','verb','A1','Di chuyển nhanh hơn đi bộ bằng cả hai chân.','She runs in the park every sunrise.','Cô ấy chạy trong công viên mỗi lúc bình minh.','/arena/run.jpg',15),
-(16,'weather','thời tiết','noun','A2','Tình trạng nắng, mưa, nóng, lạnh của một ngày ở một nơi.','The weather is warm and sunny today.','Hôm nay thời tiết ấm áp và có nắng.','/arena/weather.jpg',16),
-(17,'ticket','tấm vé','noun','A2','Tờ giấy hoặc mã cho phép bạn đi tàu, xe hoặc vào xem.','I bought a train ticket online.','Tôi đã mua một vé tàu trực tuyến.','/arena/ticket.jpg',17),
-(18,'holiday','kỳ nghỉ','noun','A2','Khoảng thời gian bạn nghỉ làm hoặc nghỉ học để thư giãn.','We are planning a holiday on the island.','Chúng tôi đang lên kế hoạch cho một kỳ nghỉ trên đảo.','/arena/holiday.jpg',18),
-(19,'bridge','cây cầu','noun','A2','Công trình bắc ngang qua sông, đường hoặc thung lũng.','The old bridge connects two small villages.','Cây cầu cũ nối hai ngôi làng nhỏ.','/arena/bridge.jpg',19),
-(20,'crowded','đông đúc','adjective','A2','Có quá nhiều người hoặc xe trong cùng một không gian.','The market is crowded on weekend mornings.','Chợ rất đông đúc vào các buổi sáng cuối tuần.','/arena/crowded.jpg',20),
-(21,'expensive','đắt đỏ','adjective','A2','Tốn nhiều tiền hơn mức bạn muốn chi trả.','That restaurant is too expensive for us.','Nhà hàng đó quá đắt so với chúng tôi.','/arena/expensive.jpg',21),
-(22,'cheap','rẻ','adjective','A2','Có giá thấp hơn mức bình thường.','These shoes were cheap but very comfortable.','Đôi giày này rẻ nhưng đi rất êm.','/arena/cheap.jpg',22),
-(23,'borrow','mượn','verb','A2','Dùng đồ của người khác trong một thời gian rồi trả lại.','Can I borrow your pen for a minute?','Tôi có thể mượn bút của bạn một phút không?','/arena/borrow.jpg',23),
-(24,'travel','đi du lịch','verb','A2','Di chuyển tới một thành phố hay quốc gia khác.','They travel by train across the country.','Họ đi tàu hỏa xuyên khắp đất nước.','/arena/travel.jpg',24),
-(25,'listen','lắng nghe','verb','A2','Chú ý dùng tai để thu nhận âm thanh.','Listen to the teacher and repeat the sentence.','Hãy nghe cô giáo rồi lặp lại câu đó.','/arena/listen.jpg',25),
-(26,'early','sớm','adverb','A2','Xảy ra trước hoặc ngay lúc bắt đầu khoảng thời gian dự kiến.','She gets up early to catch the bus.','Cô ấy dậy sớm để kịp chuyến xe buýt.','/arena/early.jpg',26),
-(27,'usually','thường thường','adverb','A2','Diễn ra theo thói quen, phần lớn thời gian đều như vậy.','I usually walk to work in the morning.','Buổi sáng tôi thường đi bộ tới chỗ làm.','/arena/usually.jpg',27),
-(28,'money','tiền bạc','noun','A2','Giấy hoặc đồng tiền dùng để mua bán hàng hóa.','He saves a little money every month.','Anh ấy tiết kiệm một ít tiền mỗi tháng.','/arena/money.jpg',28),
-(29,'window','cửa sổ','noun','A2','Phần kính mở được trên tường để ánh sáng vào phòng.','Rain hit the window all night.','Mưa gõ lên cửa sổ suốt cả đêm.','/arena/window.jpg',29),
-(30,'happy','vui vẻ','adjective','A2','Cảm thấy hài lòng, thích thú và không buồn.','The children were happy to see the snow.','Lũ trẻ rất vui khi nhìn thấy tuyết.','/arena/happy.jpg',30),
-(31,'advice','lời khuyên','noun','B1','Điều bạn nói để ai đó biết nên làm gì.','She gave me useful advice about job interviews.','Cô ấy cho tôi lời khuyên hữu ích về phỏng vấn xin việc.','/arena/advice.jpg',31),
-(32,'habit','thói quen','noun','B1','Việc bạn lặp đi lặp lại nhiều lần đến mức thành phản xạ.','Reading before bed is a good habit.','Đọc sách trước khi ngủ là một thói quen tốt.','/arena/habit.jpg',32),
-(33,'journey','chuyến đi','noun','B1','Quãng đường dài bạn đi từ nơi này tới nơi khác.','The train journey took six hours.','Chuyến đi bằng tàu mất sáu tiếng.','/arena/journey.jpg',33),
-(34,'opportunity','cơ hội','noun','B1','Thời điểm thuận lợi để làm điều bạn vẫn mong muốn.','Studying abroad was a great opportunity for him.','Du học là một cơ hội tuyệt vời cho anh ấy.','/arena/opportunity.jpg',34),
-(35,'confident','tự tin','adjective','B1','Tin tưởng vào khả năng của chính mình.','She sounds confident when she speaks in public.','Cô ấy rất tự tin khi nói trước đám đông.','/arena/confident.jpg',35),
-(36,'dangerous','nguy hiểm','adjective','B1','Có thể gây thương tích hoặc thiệt hại.','It is dangerous to swim in this river.','Bơi trên con sông này rất nguy hiểm.','/arena/dangerous.jpg',36),
-(37,'popular','phổ biến','adjective','B1','Được nhiều người yêu thích hoặc sử dụng.','This app is popular among students.','Ứng dụng này rất phổ biến trong học sinh.','/arena/popular.jpg',37),
-(38,'improve','cải thiện','verb','B1','Làm cho một thứ tốt hơn so với trước đây.','He practices daily to improve his pronunciation.','Anh ấy luyện tập mỗi ngày để cải thiện phát âm.','/arena/improve.jpg',38),
-(39,'arrange','sắp xếp','verb','B1','Đặt các thứ vào đúng vị trí hoặc lên kế hoạch cho việc gì đó.','Let me arrange the chairs before the guests arrive.','Để tôi sắp xếp ghế trước khi khách tới.','/arena/arrange.jpg',39),
-(40,'refuse','từ chối','verb','B1','Không đồng ý làm điều người khác yêu cầu.','They refused to answer the last question.','Họ từ chối trả lời câu hỏi cuối cùng.','/arena/refuse.jpg',40),
-(41,'agree','đồng ý','verb','B1','Có chung ý kiến với ai đó.','I agree with your idea about the plan.','Tôi đồng ý với ý tưởng của bạn về kế hoạch.','/arena/agree.jpg',41),
-(42,'recently','gần đây','adverb','B1','Xảy ra trong một thời gian ngắn trước hiện tại.','We recently moved to a new neighborhood.','Gần đây chúng tôi chuyển tới khu phố mới.','/arena/recently.jpg',42),
-(43,'carefully','một cách cẩn thận','adverb','B1','Làm với sự chú ý cao để không mắc sai lầm.','Read the instructions carefully before you start.','Hãy đọc kỹ hướng dẫn trước khi bắt đầu.','/arena/carefully.jpg',43),
-(44,'environment','môi trường','noun','B1','Những thứ xung quanh con người, gồm thiên nhiên và xã hội.','Plastic waste harms the environment.','Rác thải nhựa gây hại cho môi trường.','/arena/environment.jpg',44),
-(45,'knowledge','kiến thức','noun','B1','Hiểu biết bạn có được nhờ học hỏi và trải nghiệm.','Her knowledge of history impresses everyone.','Kiến thức lịch sử của cô ấy khiến mọi người ngưỡng mộ.','/arena/knowledge.jpg',45),
-(46,'experience','kinh nghiệm','noun','B1','Hiểu biết có được do đã từng làm việc đó.','He has ten years of experience in teaching.','Thầy ấy có mười năm kinh nghiệm giảng dạy.','/arena/experience.jpg',46),
-(47,'achieve','đạt được','verb','B1','Làm thành công điều mình đã cố gắng hướng tới.','She worked hard to achieve her goals.','Cô ấy làm việc chăm chỉ để đạt được mục tiêu.','/arena/achieve.jpg',47),
-(48,'compare','so sánh','verb','B1','Xem hai hay nhiều thứ giống và khác nhau thế nào.','Do not compare yourself with other learners.','Đừng so sánh bản thân với những người học khác.','/arena/compare.jpg',48),
-(49,'decide','quyết định','verb','B1','Suy nghĩ kỹ để chọn một hướng đi.','We need to decide before Friday.','Chúng ta cần quyết định trước thứ Sáu.','/arena/decide.jpg',49),
-(50,'patient','kiên nhẫn','adjective','B1','Bình tĩnh chờ đợi mà không bực bội.','A teacher must be patient with beginners.','Giáo viên phải kiên nhẫn với người mới học.','/arena/patient.jpg',50),
-(51,'behavior','hành vi','noun','B2','Cách một người cư xử và phản ứng với người khác.','His behavior in class improved a lot.','Hành vi của cậu ấy trong lớp đã tiến bộ nhiều.','/arena/behavior.jpg',51),
-(52,'consequence','hậu quả','noun','B2','Kết quả tự nhiên xảy ra từ một hành động.','Skipping practice has serious consequences for your score.','Bỏ tập luyện gây hậu quả nghiêm trọng cho điểm số.','/arena/consequence.jpg',52),
-(53,'pressure','áp lực','noun','B2','Sức ép tinh thần khi phải làm điều khó khăn.','Many students feel pressure before exams.','Nhiều học sinh cảm thấy áp lực trước kỳ thi.','/arena/pressure.jpg',53),
-(54,'achievement','thành tựu','noun','B2','Điều quan trọng bạn đạt được sau nỗ lực lớn.','Finishing the project was a real achievement.','Hoàn thành dự án là một thành tựu thực sự.','/arena/achievement.jpg',54),
-(55,'responsible','có trách nhiệm','adjective','B2','Sẵn sàng chịu trách nhiệm về việc mình làm.','She is responsible for the weekly report.','Cô ấy chịu trách nhiệm cho báo cáo hằng tuần.','/arena/responsible.jpg',55),
-(56,'significant','đáng kể','adjective','B2','Đủ lớn hoặc quan trọng để tạo ra sự khác biệt.','There was a significant change in his writing.','Có sự thay đổi đáng kể trong bài viết của cậu ấy.','/arena/significant.jpg',56),
-(57,'reluctant','miễn cưỡng','adjective','B2','Không muốn làm điều gì đó nên hay do dự.','He was reluctant to speak in front of strangers.','Cậu ấy miễn cưỡng khi phải nói trước người lạ.','/arena/reluctant.jpg',57),
-(58,'accurate','chính xác','adjective','B2','Đúng với thực tế, không có sai số.','The translation must be accurate and natural.','Bản dịch phải chính xác và tự nhiên.','/arena/accurate.jpg',58),
-(59,'persuade','thuyết phục','verb','B2','Khiến ai đó đồng ý bằng lý lẽ hoặc cảm xúc.','They persuaded us to join the club.','Họ đã thuyết phục chúng tôi tham gia câu lạc bộ.','/arena/persuade.jpg',59),
-(60,'postpone','trì hoãn','verb','B2','Dời việc gì đó sang thời điểm muộn hơn.','We had to postpone the meeting until Monday.','Chúng tôi phải hoãn cuộc họp tới thứ Hai.','/arena/postpone.jpg',60),
-(61,'evaluate','đánh giá','verb','B2','Xem xét kỹ để đưa ra nhận định về chất lượng.','Teachers evaluate each essay against clear criteria.','Giáo viên đánh giá từng bài viết theo tiêu chí rõ ràng.','/arena/evaluate.jpg',61),
-(62,'maintain','duy trì','verb','B2','Giữ cho một trạng thái tiếp tục tồn tại.','It is hard to maintain focus for three hours.','Rất khó để duy trì sự tập trung suốt ba tiếng.','/arena/maintain.jpg',62),
-(63,'occasionally','thỉnh thoảng','adverb','B2','Xảy ra đôi khi nhưng không thường xuyên.','We occasionally eat out on Friday nights.','Chúng tôi thỉnh thoảng ăn ngoài vào tối thứ Sáu.','/arena/occasionally.jpg',63),
-(64,'apparently','dường như','adverb','B2','Theo những gì bạn nghe hoặc thấy, chưa chắc đã đúng.','Apparently the library closes earlier on Sunday.','Dường như thư viện đóng cửa sớm hơn vào Chủ nhật.','/arena/apparently.jpg',64),
-(65,'budget','ngân sách','noun','B2','Số tiền bạn dự tính chi cho một việc.','We kept the trip within a small budget.','Chúng tôi giữ chuyến đi trong một ngân sách nhỏ.','/arena/budget.jpg',65),
-(66,'colleague','đồng nghiệp','noun','B2','Người làm cùng bạn tại một cơ quan.','My colleague helped me finish the report.','Đồng nghiệp của tôi đã giúp tôi hoàn thành báo cáo.','/arena/colleague.jpg',66),
-(67,'equipment','trang thiết bị','noun','B2','Đồ dùng và máy móc cần có cho một công việc.','The lab has new equipment for testing.','Phòng thí nghiệm có trang thiết bị mới để thử nghiệm.','/arena/equipment.jpg',67),
-(68,'purpose','mục đích','noun','B2','Lý do bạn làm một việc gì đó.','The purpose of this lesson is to build vocabulary.','Mục đích của bài học này là mở rộng vốn từ.','/arena/purpose.jpg',68),
-(69,'complain','phàn nàn','verb','B2','Nói ra rằng bạn không hài lòng về điều gì.','Guests often complain about the noise.','Khách thường phàn nàn về tiếng ồn.','/arena/complain.jpg',69),
-(70,'recommend','khuyên dùng','verb','B2','Nói rằng một thứ đáng để thử hoặc nên dùng.','Can you recommend a good dictionary app?','Bạn có thể giới thiệu một ứng dụng từ điển tốt không?','/arena/recommend.jpg',70),
-(71,'ambiguity','sự mơ hồ','noun','C1','Việc một câu hoặc tình huống có thể bị hiểu theo nhiều nghĩa.','The instructions were written without ambiguity.','Hướng dẫn được viết mà không có sự mơ hồ.','/arena/ambiguity.jpg',71),
-(72,'constraint','ràng buộc','noun','C1','Giới hạn về thời gian hoặc tiền bạc khiến việc gì đó khó làm.','We designed the course under a tight budget constraint.','Chúng tôi thiết kế khóa học trong ràng buộc ngân sách chặt chẽ.','/arena/constraint.jpg',72),
-(73,'incentive','động lực khuyến khích','noun','C1','Thứ được đưa ra để thúc đẩy ai đó hành động.','The company offers an incentive for every new idea.','Công ty trao phần thưởng khuyến khích cho mỗi ý tưởng mới.','/arena/incentive.jpg',73),
-(74,'criterion','tiêu chí','noun','C1','Chuẩn mực dùng để đánh giá hoặc ra quyết định.','Fluency is not the only criterion for a good speaker.','Trôi chảy không phải tiêu chí duy nhất của người nói giỏi.','/arena/criterion.jpg',74),
-(75,'comprehensive','toàn diện','adjective','C1','Bao quát hầu hết mọi phần của một vấn đề.','The school prepared a comprehensive study plan.','Nhà trường chuẩn bị một kế hoạch học tập toàn diện.','/arena/comprehensive.jpg',75),
-(76,'controversial','gây tranh cãi','adjective','C1','Khiến nhiều người bất đồng và phản đối.','The new rule remains controversial among parents.','Quy định mới vẫn gây tranh cãi trong phụ huynh.','/arena/controversial.jpg',76),
-(77,'inevitable','không thể tránh khỏi','adjective','C1','Chắc chắn sẽ xảy ra cho dù bạn làm gì.','Making mistakes is inevitable when learning a language.','Mắc lỗi là điều không thể tránh khỏi khi học ngoại ngữ.','/arena/inevitable.jpg',77),
-(78,'subtle','tinh tế','adjective','C1','Rất nhỏ hoặc nhẹ nên khó nhận ra.','There is a subtle difference between these two words.','Có sự khác biệt tinh tế giữa hai từ này.','/arena/subtle.jpg',78),
-(79,'accumulate','tích lũy','verb','C1','Gom lại nhiều hơn dần theo thời gian.','Dust accumulates on books that nobody reads.','Bụi tích tụ trên những cuốn sách không ai đọc.','/arena/accumulate.jpg',79),
-(80,'diminish','suy giảm','verb','C1','Trở nên nhỏ hơn hoặc ít quan trọng hơn.','Regular practice diminishes the fear of speaking.','Luyện tập thường xuyên làm giảm nỗi sợ khi nói.','/arena/diminish.jpg',80),
-(81,'facilitate','tạo điều kiện','verb','C1','Làm cho một quá trình diễn ra dễ dàng hơn.','Good lighting facilitates focused study.','Ánh sáng tốt tạo điều kiện cho việc học tập trung.','/arena/facilitate.jpg',81),
-(82,'undermine','làm suy yếu','verb','C1','Từ từ phá hỏng niềm tin hoặc hiệu quả của điều gì.','Constant criticism can undermine a learner\'s confidence.','Chỉ trích liên tục có thể làm suy yếu sự tự tin của người học.','/arena/undermine.jpg',82),
-(83,'explicitly','một cách rõ ràng','adverb','C1','Nói thẳng ra, không để người khác phải đoán.','The teacher explained the rules explicitly.','Thầy giáo giải thích nội quy một cách rõ ràng.','/arena/explicitly.jpg',83),
-(84,'reluctantly','một cách miễn cưỡng','adverb','C1','Làm điều gì dù trong lòng không muốn.','He reluctantly agreed to redo the exercise.','Cậu ấy miễn cưỡng đồng ý làm lại bài tập.','/arena/reluctantly.jpg',84),
-(85,'threshold','ngưỡng','noun','C1','Điểm mà tại đó một sự thay đổi bắt đầu xảy ra.','She crossed the speaking threshold after one month.','Cô ấy vượt qua ngưỡng nói sau một tháng.','/arena/threshold.jpg',85),
-(86,'meticulous','tỉ mỉ','adjective','C2','Chú ý đến từng chi tiết nhỏ nhất.','His meticulous notes helped the whole group.','Những ghi chép tỉ mỉ của cậu ấy giúp cả nhóm.','/arena/meticulous.jpg',86),
-(87,'ubiquitous','có mặt khắp nơi','adjective','C2','Xuất hiện ở mọi nơi vào cùng một thời điểm.','Smartphones are ubiquitous in classrooms now.','Điện thoại thông minh giờ có mặt khắp nơi trong lớp học.','/arena/ubiquitous.jpg',87),
-(88,'eloquent','hùng biện','adjective','C2','Diễn đạt trôi chảy và có sức thuyết phục.','Her eloquent speech moved the whole audience.','Bài nói hùng biện của cô ấy làm cả khán phòng xúc động.','/arena/eloquent.jpg',88),
-(89,'pragmatic','thực dụng','adjective','C2','Tập trung vào điều khả thi thay vì ý tưởng đẹp đẽ.','We need a pragmatic plan for the next term.','Chúng ta cần một kế hoạch thực dụng cho học kỳ tới.','/arena/pragmatic.jpg',89),
-(90,'resilient','kiên cường','adjective','C2','Vượt qua khó khăn và nhanh chóng phục hồi.','Children are often more resilient than adults expect.','Trẻ em thường kiên cường hơn người lớn tưởng.','/arena/resilient.jpg',90),
-(91,'alleviate','làm dịu','verb','C2','Khiến nỗi đau hoặc vấn đề trở nên nhẹ hơn.','Short breaks alleviate eye strain during study.','Nghỉ giải lao ngắn giúp giảm mỏi mắt khi học.','/arena/alleviate.jpg',91),
-(92,'exacerbate','làm trầm trọng thêm','verb','C2','Khiến một vấn đề vốn đã xấu trở nên tệ hơn.','Cramming the night before can exacerbate anxiety.','Học nhồi tối hôm trước có thể làm tăng thêm sự lo âu.','/arena/exacerbate.jpg',92),
-(93,'scrutinize','xem xét kỹ lưỡng','verb','C2','Kiểm tra rất chi tiết để tìm ra lỗi.','Editors scrutinize every sentence before publication.','Biên tập viên xem xét kỹ từng câu trước khi xuất bản.','/arena/scrutinize.jpg',93),
-(94,'hypothesize','giả định','verb','C2','Đưa ra điều chưa được chứng minh để tiếp tục nghiên cứu.','Researchers hypothesize that sleep improves memory.','Các nhà nghiên cứu giả định rằng giấc ngủ cải thiện trí nhớ.','/arena/hypothesize.jpg',94),
-(95,'speculate','suy đoán','verb','C2','Đoán về điều gì khi chưa có đủ thông tin.','Commentators speculate about the reasons for the change.','Các bình luận viên suy đoán về lý do của sự thay đổi.','/arena/speculate.jpg',95),
-(96,'consensus','sự đồng thuận','noun','C2','Ý kiến chung mà cả nhóm cùng chấp nhận.','The team reached consensus after a long discussion.','Cả nhóm đạt được sự đồng thuận sau một hồi thảo luận dài.','/arena/consensus.jpg',96),
-(97,'dilemma','tình thế lưỡng nan','noun','C2','Hoàn cảnh phải chọn giữa hai phương án đều khó.','She faced the dilemma of working abroad or staying home.','Cô ấy đối mặt tình thế lưỡng nan giữa đi làm nước ngoài hay ở nhà.','/arena/dilemma.jpg',97),
-(98,'paradigm','hệ hình','noun','C2','Mô hình hoặc cách nhìn nhận chi phối cả một lĩnh vực.','The internet changed the paradigm of language learning.','Internet đã thay đổi hệ hình của việc học ngôn ngữ.','/arena/paradigm.jpg',98),
-(99,'tenacity','sự kiên định','noun','C2','Kiên trì giữ mục tiêu dù gặp nhiều trở ngại.','Her tenacity turned a weak start into a strong finish.','Sự kiên định của cô ấy biến khởi đầu yếu thành kết quả tốt.','/arena/tenacity.jpg',99),
-(100,'nostalgia','nỗi nhớ quá khứ','noun','C2','Cảm giác ngọt ngào khi nhớ về một thời đã qua.','Old songs often fill listeners with nostalgia.','Những bài hát cũ thường gợi cho người nghe nỗi nhớ quá khứ.','/arena/nostalgia.jpg',100);
-
+(1,'apple','quả táo','noun','A1','Trái cây tròn vị ngọt, thường có vỏ màu đỏ hoặc xanh lá.','She puts an apple in her lunch box every morning.','Cô ấy đặt một quả táo vào hộp cơm mỗi sáng.','/arena/w-1.jpg',1),
+(2,'water','nước','noun','A1','Chất lỏng không màu không mùi mà con người cần uống để sống.','Drink a glass of water before breakfast.','Hãy uống một ly nước trước bữa sáng.','/arena/w-2.jpg',2),
+(3,'house','ngôi nhà','noun','A1','Công trình xây dựng để ở, có tường và mái.','Their house has a small garden at the back.','Nhà của họ có một khu vườn nhỏ phía sau.','/arena/w-3.jpg',3),
+(4,'friend','người bạn','noun','A1','Người mà bạn tin tưởng và muốn ở cùng.','My best friend lives next door.','Bạn thân nhất của tôi sống ngay cạnh nhà.','/arena/w-4.jpg',4),
+(5,'book','quyển sách','noun','A1','Tập giấy có in chữ, dùng để đọc và học.','I finished a book about ancient cities.','Tôi vừa đọc xong một cuốn sách về các thành phố cổ.','/arena/w-5.jpg',5),
+(6,'school','trường học','noun','A1','Nơi học sinh tới học và gặp giáo viên.','School starts at eight in the morning.','Trường bắt đầu lúc tám giờ sáng.','/arena/w-6.jpg',6),
+(7,'mother','người mẹ','noun','A1','Người phụ nữ sinh ra và nuôi dưỡng mình.','My mother cooks the best noodle soup.','Mẹ tôi nấu bún ngon nhất.','/arena/w-7.jpg',7),
+(8,'dog','con chó','noun','A1','Động vật bốn chân nuôi trong nhà, rất trung thành.','The dog barks when someone rings the bell.','Con chó sủa khi có người nhấn chuông.','/arena/w-8.jpg',8),
+(9,'red','màu đỏ','adjective','A1','Màu của máu hoặc lửa, nổi bật và dễ nhìn thấy.','She wore a red coat to the party.','Cô ấy mặc chiếc áo khoác đỏ tới bữa tiệc.','/arena/w-9.jpg',9),
+(10,'big','to lớn','adjective','A1','Có kích thước hoặc mức độ vượt hơn bình thường.','They live in a big apartment near the park.','Họ sống trong một căn hộ lớn gần công viên.','/arena/w-10.jpg',10),
+(11,'small','nhỏ','adjective','A1','Chiếm ít diện tích hoặc ít hơn mức bình thường.','A small cat slept under the table.','Một con mèo nhỏ ngủ dưới gầm bàn.','/arena/w-11.jpg',11),
+(12,'eat','ăn','verb','A1','Đưa thức ăn vào miệng rồi nhai và nuốt.','We eat dinner together at seven.','Chúng tôi ăn tối cùng nhau lúc bảy giờ.','/arena/w-12.jpg',12),
+(13,'drink','uống','verb','A1','Nuốt chất lỏng để giải khát.','He likes to drink tea after lunch.','Anh ấy thích uống trà sau bữa trưa.','/arena/w-13.jpg',13),
+(14,'sleep','ngủ','verb','A1','Nghỉ ngơi trong trạng thái nhắm mắt và không tỉnh táo.','Babies sleep for sixteen hours a day.','Trẻ sơ sinh ngủ tới mười sáu tiếng mỗi ngày.','/arena/w-14.jpg',14),
+(15,'run','chạy','verb','A1','Di chuyển nhanh hơn đi bộ bằng cả hai chân.','She runs in the park every sunrise.','Cô ấy chạy trong công viên mỗi lúc bình minh.','/arena/w-15.jpg',15),
+(16,'weather','thời tiết','noun','A2','Tình trạng nắng, mưa, nóng, lạnh của một ngày ở một nơi.','The weather is warm and sunny today.','Hôm nay thời tiết ấm áp và có nắng.','/arena/w-16.jpg',16),
+(17,'ticket','tấm vé','noun','A2','Tờ giấy hoặc mã cho phép bạn đi tàu, xe hoặc vào xem.','I bought a train ticket online.','Tôi đã mua một vé tàu trực tuyến.','/arena/w-17.jpg',17),
+(18,'holiday','kỳ nghỉ','noun','A2','Khoảng thời gian bạn nghỉ làm hoặc nghỉ học để thư giãn.','We are planning a holiday on the island.','Chúng tôi đang lên kế hoạch cho một kỳ nghỉ trên đảo.','/arena/w-18.jpg',18),
+(19,'bridge','cây cầu','noun','A2','Công trình bắc ngang qua sông, đường hoặc thung lũng.','The old bridge connects two small villages.','Cây cầu cũ nối hai ngôi làng nhỏ.','/arena/w-19.jpg',19),
+(20,'crowded','đông đúc','adjective','A2','Có quá nhiều người hoặc xe trong cùng một không gian.','The market is crowded on weekend mornings.','Chợ rất đông đúc vào các buổi sáng cuối tuần.','/arena/w-20.jpg',20),
+(21,'expensive','đắt đỏ','adjective','A2','Tốn nhiều tiền hơn mức bạn muốn chi trả.','That restaurant is too expensive for us.','Nhà hàng đó quá đắt so với chúng tôi.','/arena/w-21.jpg',21),
+(22,'cheap','rẻ','adjective','A2','Có giá thấp hơn mức bình thường.','These shoes were cheap but very comfortable.','Đôi giày này rẻ nhưng đi rất êm.','/arena/w-22.jpg',22),
+(23,'borrow','mượn','verb','A2','Dùng đồ của người khác trong một thời gian rồi trả lại.','Can I borrow your pen for a minute?','Tôi có thể mượn bút của bạn một phút không?','/arena/w-23.jpg',23),
+(24,'travel','đi du lịch','verb','A2','Di chuyển tới một thành phố hay quốc gia khác.','They travel by train across the country.','Họ đi tàu hỏa xuyên khắp đất nước.','/arena/w-24.jpg',24),
+(25,'listen','lắng nghe','verb','A2','Chú ý dùng tai để thu nhận âm thanh.','Listen to the teacher and repeat the sentence.','Hãy nghe cô giáo rồi lặp lại câu đó.','/arena/w-25.jpg',25),
+(26,'early','sớm','adverb','A2','Xảy ra trước hoặc ngay lúc bắt đầu khoảng thời gian dự kiến.','She gets up early to catch the bus.','Cô ấy dậy sớm để kịp chuyến xe buýt.','/arena/w-26.jpg',26),
+(27,'usually','thường thường','adverb','A2','Diễn ra theo thói quen, phần lớn thời gian đều như vậy.','I usually walk to work in the morning.','Buổi sáng tôi thường đi bộ tới chỗ làm.','/arena/w-27.jpg',27),
+(28,'money','tiền bạc','noun','A2','Giấy hoặc đồng tiền dùng để mua bán hàng hóa.','He saves a little money every month.','Anh ấy tiết kiệm một ít tiền mỗi tháng.','/arena/w-28.jpg',28),
+(29,'window','cửa sổ','noun','A2','Phần kính mở được trên tường để ánh sáng vào phòng.','Rain hit the window all night.','Mưa gõ lên cửa sổ suốt cả đêm.','/arena/w-29.jpg',29),
+(30,'happy','vui vẻ','adjective','A2','Cảm thấy hài lòng, thích thú và không buồn.','The children were happy to see the snow.','Lũ trẻ rất vui khi nhìn thấy tuyết.','/arena/w-30.jpg',30),
+(31,'advice','lời khuyên','noun','B1','Điều bạn nói để ai đó biết nên làm gì.','She gave me useful advice about job interviews.','Cô ấy cho tôi lời khuyên hữu ích về phỏng vấn xin việc.','/arena/w-31.jpg',31),
+(32,'habit','thói quen','noun','B1','Việc bạn lặp đi lặp lại nhiều lần đến mức thành phản xạ.','Reading before bed is a good habit.','Đọc sách trước khi ngủ là một thói quen tốt.','/arena/w-32.jpg',32),
+(33,'journey','chuyến đi','noun','B1','Quãng đường dài bạn đi từ nơi này tới nơi khác.','The train journey took six hours.','Chuyến đi bằng tàu mất sáu tiếng.','/arena/w-33.jpg',33),
+(34,'opportunity','cơ hội','noun','B1','Thời điểm thuận lợi để làm điều bạn vẫn mong muốn.','Studying abroad was a great opportunity for him.','Du học là một cơ hội tuyệt vời cho anh ấy.','/arena/w-34.jpg',34),
+(35,'confident','tự tin','adjective','B1','Tin tưởng vào khả năng của chính mình.','She sounds confident when she speaks in public.','Cô ấy rất tự tin khi nói trước đám đông.','/arena/w-35.jpg',35),
+(36,'dangerous','nguy hiểm','adjective','B1','Có thể gây thương tích hoặc thiệt hại.','It is dangerous to swim in this river.','Bơi trên con sông này rất nguy hiểm.','/arena/w-36.jpg',36),
+(37,'popular','phổ biến','adjective','B1','Được nhiều người yêu thích hoặc sử dụng.','This app is popular among students.','Ứng dụng này rất phổ biến trong học sinh.','/arena/w-37.jpg',37),
+(38,'improve','cải thiện','verb','B1','Làm cho một thứ tốt hơn so với trước đây.','He practices daily to improve his pronunciation.','Anh ấy luyện tập mỗi ngày để cải thiện phát âm.','/arena/w-38.jpg',38),
+(39,'arrange','sắp xếp','verb','B1','Đặt các thứ vào đúng vị trí hoặc lên kế hoạch cho việc gì đó.','Let me arrange the chairs before the guests arrive.','Để tôi sắp xếp ghế trước khi khách tới.','/arena/w-39.jpg',39),
+(40,'refuse','từ chối','verb','B1','Không đồng ý làm điều người khác yêu cầu.','They refused to answer the last question.','Họ từ chối trả lời câu hỏi cuối cùng.','/arena/w-40.jpg',40),
+(41,'agree','đồng ý','verb','B1','Có chung ý kiến với ai đó.','I agree with your idea about the plan.','Tôi đồng ý với ý tưởng của bạn về kế hoạch.','/arena/w-41.jpg',41),
+(42,'recently','gần đây','adverb','B1','Xảy ra trong một thời gian ngắn trước hiện tại.','We recently moved to a new neighborhood.','Gần đây chúng tôi chuyển tới khu phố mới.','/arena/w-42.jpg',42),
+(43,'carefully','một cách cẩn thận','adverb','B1','Làm với sự chú ý cao để không mắc sai lầm.','Read the instructions carefully before you start.','Hãy đọc kỹ hướng dẫn trước khi bắt đầu.','/arena/w-43.jpg',43),
+(44,'environment','môi trường','noun','B1','Những thứ xung quanh con người, gồm thiên nhiên và xã hội.','Plastic waste harms the environment.','Rác thải nhựa gây hại cho môi trường.','/arena/w-44.jpg',44),
+(45,'knowledge','kiến thức','noun','B1','Hiểu biết bạn có được nhờ học hỏi và trải nghiệm.','Her knowledge of history impresses everyone.','Kiến thức lịch sử của cô ấy khiến mọi người ngưỡng mộ.','/arena/w-45.jpg',45),
+(46,'experience','kinh nghiệm','noun','B1','Hiểu biết có được do đã từng làm việc đó.','He has ten years of experience in teaching.','Thầy ấy có mười năm kinh nghiệm giảng dạy.','/arena/w-46.jpg',46),
+(47,'achieve','đạt được','verb','B1','Làm thành công điều mình đã cố gắng hướng tới.','She worked hard to achieve her goals.','Cô ấy làm việc chăm chỉ để đạt được mục tiêu.','/arena/w-47.jpg',47),
+(48,'compare','so sánh','verb','B1','Xem hai hay nhiều thứ giống và khác nhau thế nào.','Do not compare yourself with other learners.','Đừng so sánh bản thân với những người học khác.','/arena/w-48.jpg',48),
+(49,'decide','quyết định','verb','B1','Suy nghĩ kỹ để chọn một hướng đi.','We need to decide before Friday.','Chúng ta cần quyết định trước thứ Sáu.','/arena/w-49.jpg',49),
+(50,'patient','kiên nhẫn','adjective','B1','Bình tĩnh chờ đợi mà không bực bội.','A teacher must be patient with beginners.','Giáo viên phải kiên nhẫn với người mới học.','/arena/w-50.jpg',50),
+(51,'behavior','hành vi','noun','B2','Cách một người cư xử và phản ứng với người khác.','His behavior in class improved a lot.','Hành vi của cậu ấy trong lớp đã tiến bộ nhiều.','/arena/w-51.jpg',51),
+(52,'consequence','hậu quả','noun','B2','Kết quả tự nhiên xảy ra từ một hành động.','Skipping practice has serious consequences for your score.','Bỏ tập luyện gây hậu quả nghiêm trọng cho điểm số.','/arena/w-52.jpg',52),
+(53,'pressure','áp lực','noun','B2','Sức ép tinh thần khi phải làm điều khó khăn.','Many students feel pressure before exams.','Nhiều học sinh cảm thấy áp lực trước kỳ thi.','/arena/w-53.jpg',53),
+(54,'achievement','thành tựu','noun','B2','Điều quan trọng bạn đạt được sau nỗ lực lớn.','Finishing the project was a real achievement.','Hoàn thành dự án là một thành tựu thực sự.','/arena/w-54.jpg',54),
+(55,'responsible','có trách nhiệm','adjective','B2','Sẵn sàng chịu trách nhiệm về việc mình làm.','She is responsible for the weekly report.','Cô ấy chịu trách nhiệm cho báo cáo hằng tuần.','/arena/w-55.jpg',55),
+(56,'significant','đáng kể','adjective','B2','Đủ lớn hoặc quan trọng để tạo ra sự khác biệt.','There was a significant change in his writing.','Có sự thay đổi đáng kể trong bài viết của cậu ấy.','/arena/w-56.jpg',56),
+(57,'reluctant','miễn cưỡng','adjective','B2','Không muốn làm điều gì đó nên hay do dự.','He was reluctant to speak in front of strangers.','Cậu ấy miễn cưỡng khi phải nói trước người lạ.','/arena/w-57.jpg',57),
+(58,'accurate','chính xác','adjective','B2','Đúng với thực tế, không có sai số.','The translation must be accurate and natural.','Bản dịch phải chính xác và tự nhiên.','/arena/w-58.jpg',58),
+(59,'persuade','thuyết phục','verb','B2','Khiến ai đó đồng ý bằng lý lẽ hoặc cảm xúc.','They persuaded us to join the club.','Họ đã thuyết phục chúng tôi tham gia câu lạc bộ.','/arena/w-59.jpg',59),
+(60,'postpone','trì hoãn','verb','B2','Dời việc gì đó sang thời điểm muộn hơn.','We had to postpone the meeting until Monday.','Chúng tôi phải hoãn cuộc họp tới thứ Hai.','/arena/w-60.jpg',60),
+(61,'evaluate','đánh giá','verb','B2','Xem xét kỹ để đưa ra nhận định về chất lượng.','Teachers evaluate each essay against clear criteria.','Giáo viên đánh giá từng bài viết theo tiêu chí rõ ràng.','/arena/w-61.jpg',61),
+(62,'maintain','duy trì','verb','B2','Giữ cho một trạng thái tiếp tục tồn tại.','It is hard to maintain focus for three hours.','Rất khó để duy trì sự tập trung suốt ba tiếng.','/arena/w-62.jpg',62),
+(63,'occasionally','thỉnh thoảng','adverb','B2','Xảy ra đôi khi nhưng không thường xuyên.','We occasionally eat out on Friday nights.','Chúng tôi thỉnh thoảng ăn ngoài vào tối thứ Sáu.','/arena/w-63.jpg',63),
+(64,'apparently','dường như','adverb','B2','Theo những gì bạn nghe hoặc thấy, chưa chắc đã đúng.','Apparently the library closes earlier on Sunday.','Dường như thư viện đóng cửa sớm hơn vào Chủ nhật.','/arena/w-64.jpg',64),
+(65,'budget','ngân sách','noun','B2','Số tiền bạn dự tính chi cho một việc.','We kept the trip within a small budget.','Chúng tôi giữ chuyến đi trong một ngân sách nhỏ.','/arena/w-65.jpg',65),
+(66,'colleague','đồng nghiệp','noun','B2','Người làm cùng bạn tại một cơ quan.','My colleague helped me finish the report.','Đồng nghiệp của tôi đã giúp tôi hoàn thành báo cáo.','/arena/w-66.jpg',66),
+(67,'equipment','trang thiết bị','noun','B2','Đồ dùng và máy móc cần có cho một công việc.','The lab has new equipment for testing.','Phòng thí nghiệm có trang thiết bị mới để thử nghiệm.','/arena/w-67.jpg',67),
+(68,'purpose','mục đích','noun','B2','Lý do bạn làm một việc gì đó.','The purpose of this lesson is to build vocabulary.','Mục đích của bài học này là mở rộng vốn từ.','/arena/w-68.jpg',68),
+(69,'complain','phàn nàn','verb','B2','Nói ra rằng bạn không hài lòng về điều gì.','Guests often complain about the noise.','Khách thường phàn nàn về tiếng ồn.','/arena/w-69.jpg',69),
+(70,'recommend','khuyên dùng','verb','B2','Nói rằng một thứ đáng để thử hoặc nên dùng.','Can you recommend a good dictionary app?','Bạn có thể giới thiệu một ứng dụng từ điển tốt không?','/arena/w-70.jpg',70),
+(71,'ambiguity','sự mơ hồ','noun','C1','Việc một câu hoặc tình huống có thể bị hiểu theo nhiều nghĩa.','The instructions were written without ambiguity.','Hướng dẫn được viết mà không có sự mơ hồ.','/arena/w-71.jpg',71),
+(72,'constraint','ràng buộc','noun','C1','Giới hạn về thời gian hoặc tiền bạc khiến việc gì đó khó làm.','We designed the course under a tight budget constraint.','Chúng tôi thiết kế khóa học trong ràng buộc ngân sách chặt chẽ.','/arena/w-72.jpg',72),
+(73,'incentive','động lực khuyến khích','noun','C1','Thứ được đưa ra để thúc đẩy ai đó hành động.','The company offers an incentive for every new idea.','Công ty trao phần thưởng khuyến khích cho mỗi ý tưởng mới.','/arena/w-73.jpg',73),
+(74,'criterion','tiêu chí','noun','C1','Chuẩn mực dùng để đánh giá hoặc ra quyết định.','Fluency is not the only criterion for a good speaker.','Trôi chảy không phải tiêu chí duy nhất của người nói giỏi.','/arena/w-74.jpg',74),
+(75,'comprehensive','toàn diện','adjective','C1','Bao quát hầu hết mọi phần của một vấn đề.','The school prepared a comprehensive study plan.','Nhà trường chuẩn bị một kế hoạch học tập toàn diện.','/arena/w-75.jpg',75),
+(76,'controversial','gây tranh cãi','adjective','C1','Khiến nhiều người bất đồng và phản đối.','The new rule remains controversial among parents.','Quy định mới vẫn gây tranh cãi trong phụ huynh.','/arena/w-76.jpg',76),
+(77,'inevitable','không thể tránh khỏi','adjective','C1','Chắc chắn sẽ xảy ra cho dù bạn làm gì.','Making mistakes is inevitable when learning a language.','Mắc lỗi là điều không thể tránh khỏi khi học ngoại ngữ.','/arena/w-77.jpg',77),
+(78,'subtle','tinh tế','adjective','C1','Rất nhỏ hoặc nhẹ nên khó nhận ra.','There is a subtle difference between these two words.','Có sự khác biệt tinh tế giữa hai từ này.','/arena/w-78.jpg',78),
+(79,'accumulate','tích lũy','verb','C1','Gom lại nhiều hơn dần theo thời gian.','Dust accumulates on books that nobody reads.','Bụi tích tụ trên những cuốn sách không ai đọc.','/arena/w-79.jpg',79),
+(80,'diminish','suy giảm','verb','C1','Trở nên nhỏ hơn hoặc ít quan trọng hơn.','Regular practice diminishes the fear of speaking.','Luyện tập thường xuyên làm giảm nỗi sợ khi nói.','/arena/w-80.jpg',80),
+(81,'facilitate','tạo điều kiện','verb','C1','Làm cho một quá trình diễn ra dễ dàng hơn.','Good lighting facilitates focused study.','Ánh sáng tốt tạo điều kiện cho việc học tập trung.','/arena/w-81.jpg',81),
+(82,'undermine','làm suy yếu','verb','C1','Từ từ phá hỏng niềm tin hoặc hiệu quả của điều gì.','Constant criticism can undermine a learner\'s confidence.','Chỉ trích liên tục có thể làm suy yếu sự tự tin của người học.','/arena/w-82.jpg',82),
+(83,'explicitly','một cách rõ ràng','adverb','C1','Nói thẳng ra, không để người khác phải đoán.','The teacher explained the rules explicitly.','Thầy giáo giải thích nội quy một cách rõ ràng.','/arena/w-83.jpg',83),
+(84,'reluctantly','một cách miễn cưỡng','adverb','C1','Làm điều gì dù trong lòng không muốn.','He reluctantly agreed to redo the exercise.','Cậu ấy miễn cưỡng đồng ý làm lại bài tập.','/arena/w-84.jpg',84),
+(85,'threshold','ngưỡng','noun','C1','Điểm mà tại đó một sự thay đổi bắt đầu xảy ra.','She crossed the speaking threshold after one month.','Cô ấy vượt qua ngưỡng nói sau một tháng.','/arena/w-85.jpg',85),
+(86,'meticulous','tỉ mỉ','adjective','C2','Chú ý đến từng chi tiết nhỏ nhất.','His meticulous notes helped the whole group.','Những ghi chép tỉ mỉ của cậu ấy giúp cả nhóm.','/arena/w-86.jpg',86),
+(87,'ubiquitous','có mặt khắp nơi','adjective','C2','Xuất hiện ở mọi nơi vào cùng một thời điểm.','Smartphones are ubiquitous in classrooms now.','Điện thoại thông minh giờ có mặt khắp nơi trong lớp học.','/arena/w-87.jpg',87),
+(88,'eloquent','hùng biện','adjective','C2','Diễn đạt trôi chảy và có sức thuyết phục.','Her eloquent speech moved the whole audience.','Bài nói hùng biện của cô ấy làm cả khán phòng xúc động.','/arena/w-88.jpg',88),
+(89,'pragmatic','thực dụng','adjective','C2','Tập trung vào điều khả thi thay vì ý tưởng đẹp đẽ.','We need a pragmatic plan for the next term.','Chúng ta cần một kế hoạch thực dụng cho học kỳ tới.','/arena/w-89.jpg',89),
+(90,'resilient','kiên cường','adjective','C2','Vượt qua khó khăn và nhanh chóng phục hồi.','Children are often more resilient than adults expect.','Trẻ em thường kiên cường hơn người lớn tưởng.','/arena/w-90.jpg',90),
+(91,'alleviate','làm dịu','verb','C2','Khiến nỗi đau hoặc vấn đề trở nên nhẹ hơn.','Short breaks alleviate eye strain during study.','Nghỉ giải lao ngắn giúp giảm mỏi mắt khi học.','/arena/w-91.jpg',91),
+(92,'exacerbate','làm trầm trọng thêm','verb','C2','Khiến một vấn đề vốn đã xấu trở nên tệ hơn.','Cramming the night before can exacerbate anxiety.','Học nhồi tối hôm trước có thể làm tăng thêm sự lo âu.','/arena/w-92.jpg',92),
+(93,'scrutinize','xem xét kỹ lưỡng','verb','C2','Kiểm tra rất chi tiết để tìm ra lỗi.','Editors scrutinize every sentence before publication.','Biên tập viên xem xét kỹ từng câu trước khi xuất bản.','/arena/w-93.jpg',93),
+(94,'hypothesize','giả định','verb','C2','Đưa ra điều chưa được chứng minh để tiếp tục nghiên cứu.','Researchers hypothesize that sleep improves memory.','Các nhà nghiên cứu giả định rằng giấc ngủ cải thiện trí nhớ.','/arena/w-94.jpg',94),
+(95,'speculate','suy đoán','verb','C2','Đoán về điều gì khi chưa có đủ thông tin.','Commentators speculate about the reasons for the change.','Các bình luận viên suy đoán về lý do của sự thay đổi.','/arena/w-95.jpg',95),
+(96,'consensus','sự đồng thuận','noun','C2','Ý kiến chung mà cả nhóm cùng chấp nhận.','The team reached consensus after a long discussion.','Cả nhóm đạt được sự đồng thuận sau một hồi thảo luận dài.','/arena/w-96.jpg',96),
+(97,'dilemma','tình thế lưỡng nan','noun','C2','Hoàn cảnh phải chọn giữa hai phương án đều khó.','She faced the dilemma of working abroad or staying home.','Cô ấy đối mặt tình thế lưỡng nan giữa đi làm nước ngoài hay ở nhà.','/arena/w-97.jpg',97),
+(98,'paradigm','hệ hình','noun','C2','Mô hình hoặc cách nhìn nhận chi phối cả một lĩnh vực.','The internet changed the paradigm of language learning.','Internet đã thay đổi hệ hình của việc học ngôn ngữ.','/arena/w-98.jpg',98),
+(99,'tenacity','sự kiên định','noun','C2','Kiên trì giữ mục tiêu dù gặp nhiều trở ngại.','Her tenacity turned a weak start into a strong finish.','Sự kiên định của cô ấy biến khởi đầu yếu thành kết quả tốt.','/arena/w-99.jpg',99),
+(100,'nostalgia','nỗi nhớ quá khứ','noun','C2','Cảm giác ngọt ngào khi nhớ về một thời đã qua.','Old songs often fill listeners with nostalgia.','Những bài hát cũ thường gợi cho người nghe nỗi nhớ quá khứ.','/arena/w-100.jpg',100);
 -- stages: 6 dòng
 INSERT INTO `stages` (`id`, `code`, `title`, `description`, `theme_key`, `accent_color`, `sort_order`, `created_at`) VALUES
 (1,'stage-1','A1 Beginner Basics','Xây dựng nền tảng từ vựng và câu giao tiếp căn bản hàng ngày.','forest','#3E9B5F',1,'2026-10-27 15:28:12.000'),
@@ -543,31 +692,28 @@ INSERT INTO `stages` (`id`, `code`, `title`, `description`, `theme_key`, `accent
 (4,'stage-4','B2 Upper-Intermediate Business','Làm chủ tiếng Anh công sở, cuộc họp, email và đàm phán.','alpine','#2E7DA8',4,'2026-10-27 15:28:12.000'),
 (5,'stage-5','C1 Advanced Fluency','Bày tỏ quan điểm sâu sắc, kể chuyện và diễn đạt ý tưởng phức tạp.','coast','#2A9D8F',5,'2026-10-27 15:28:12.000'),
 (6,'stage-6','C2 Mastery & Proficiency','Thành thạo như người bản xứ, làm chủ thành ngữ và văn phong học thuật.','sakura','#D65A86',6,'2026-10-27 15:28:12.000');
-
 -- users: 14 dòng
-INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `display_name`, `xp`, `streak`, `role`, `created_at`, `updated_at`) VALUES
-(1,'user-3ae1e1ee-8dbf-4f09-877d-76a3c75ccea2','nssnsnjs@gmail.com','$2b$12$yeNYIOmEijPedALiNV02T.BMi0Pj74iKb2XxPHfqnSh3kkUWkTrSS','nxnznzkzk',240,0,'learner','2026-10-27 15:45:01.000','2026-10-27 17:20:11.000'),
-(2,'user-73349449-3b06-4111-8acc-4bc83aeb96d1','1@gmail.com','$2b$12$XU7GXH1ELrw7Gmn92dgjjelS1K2UZhExSCEOet9MtNXCshr8DS7N2','1',0,0,'learner','2026-10-27 17:05:01.000','2026-10-27 17:05:01.000'),
-(5,'user-6d491199-5022-4957-8e1e-cb02c4271bdf','kxjxkxkxk@gmail.com','$2b$12$jA0lI4IpbP3RpQQNNnGtguUal7e19XxXAyoxRI/8J7eQ4OTQEnuBW','jdjdjsj',0,0,'learner','2026-10-27 18:38:20.000','2026-10-27 18:38:20.000'),
-(6,'user-97c2b82e-6861-44c6-9661-4092b5aa2af5','linhhuong703@gmail.com','$2b$12$iXL/ATEG60inHTH3rjNT9eN2MAXji5iCjNaxKJrp0L1Vd8fwwWmQC','nahn',40,0,'learner','2026-10-27 18:39:06.000','2026-10-27 18:44:07.000'),
-(8,'user-0d314ba2-b3b3-4e70-a695-ea7db39c494d','jwefne@gmail.com','$2b$12$shrjqXtM03bSvPj/hLNo2ex.BqZSIQo5juVUTJBp54liU9aTJPLZ.','hay quas',0,0,'learner','2026-10-27 19:12:01.000','2026-10-27 19:12:01.000'),
-(9,'user-b27babf7-7243-4ead-bd1b-df64457c2273','temp@engorace.dev','$2b$12$5DVUihtLW2TuZmO1A1sare.E75ot4JIHWXYdjsb5tqkrb9t8UT5JS','Temp Reviewer',1240,12,'learner','2026-11-03 01:59:02.000','2026-11-03 01:59:30.000'),
-(10,'user-67e09ef4-d2aa-47e2-8e0e-c0b8ffe9d5f5','test@test.com','$2b$12$bEkq/bnSQEA1xReciHM74OkZtvOPIhDVuAiIpsPyIxhMlpNdFPuPi','Test User',900,7,'admin','2026-11-03 03:15:17.000','2026-11-04 02:59:08.000'),
-(33,'test_full_engorace','test.full@engorace.dev','$2b$10$fuo3.LG0e4wxgz04IBGIJeZHBl5yZgK8ZQ2nCzbV1B2uxF7z3KN3y','Test Full',720,12,'learner','2026-11-03 18:36:14.000','2026-11-04 02:56:46.000'),
-(51,'user-ae4c7d50-a748-4a6b-83d3-7a3650e05dae','tinhminhvt246@gmail.com','$2b$12$JhoMlwqIP1DJ7y6B9zw0MeBGDajyHJEKaEPyVKuoTSVfMJqDJQFZe','conmek123',60,0,'learner','2026-11-04 03:16:35.000','2026-11-04 14:42:13.000'),
-(90,'user-5564c060-6bbc-45f9-a20e-741668a706c5','arena.bot.1793742120932@engorace.dev','$2b$12$0vj.s2qP5/prx.HQfhAU/OOmmlVhYHFkOuqYapOv6mPxa.tv0Zgv6','Arena Bot',0,0,'learner','2026-11-04 04:42:01.000','2026-11-04 04:42:01.000'),
-(91,'user-b254b70c-4777-4d7c-b1d3-c2064792a814','arena.bot.1793742156167@engorace.dev','$2b$12$3JwMUKPt8y5hteK1twD59.e0zGkeh1WWMEY3uku1wU1vaYiy1Xjoi','Arena Bot',0,0,'learner','2026-11-04 04:42:36.000','2026-11-04 04:42:36.000'),
-(104,'user-e41c2da0-5504-4fff-a541-3297babcd6ac','arena.bot.1793742356505@engorace.dev','$2b$12$wfeQqnv2UraWnmlqwdFyve0fUjOFiupJjiBiA1WPFsGmTNxPSql42','Arena Bot',0,0,'learner','2026-11-04 04:45:56.000','2026-11-04 04:45:56.000'),
-(117,'user-e050cc73-5a7f-41c3-b59c-cb811e0b53ba','arena.bot.1793742651060@engorace.dev','$2b$12$zkhUv0snpfxn3wb4jQd85.RRY4w7liSfcSYGAlywzBPo5P060twim','Arena Bot',0,0,'learner','2026-11-04 04:50:51.000','2026-11-04 04:50:51.000'),
-(130,'user-5fd670bd-6aa9-4634-9ff1-218c40cdc608','arena.bot.1793743006923@engorace.dev','$2b$12$cIAtL08CzeJ6wKzpQ6L.7ORey.Uobch/MQPZ/cOQ4XNouRG9DTkJy','Arena Bot',0,0,'learner','2026-11-04 04:56:47.000','2026-11-04 04:56:47.000');
-
+INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `display_name`, `xp`, `coins`, `streak`, `last_activity_date`, `role`, `created_at`, `updated_at`) VALUES
+(1,'user-3ae1e1ee-8dbf-4f09-877d-76a3c75ccea2','nssnsnjs@gmail.com','$2b$12$yeNYIOmEijPedALiNV02T.BMi0Pj74iKb2XxPHfqnSh3kkUWkTrSS','nxnznzkzk',240,20,0,NULL,'learner','2026-10-27 15:45:01.000','2026-10-27 17:20:11.000'),
+(2,'user-73349449-3b06-4111-8acc-4bc83aeb96d1','1@gmail.com','$2b$12$XU7GXH1ELrw7Gmn92dgjjelS1K2UZhExSCEOet9MtNXCshr8DS7N2','1',0,0,0,NULL,'learner','2026-10-27 17:05:01.000','2026-10-27 17:05:01.000'),
+(5,'user-6d491199-5022-4957-8e1e-cb02c4271bdf','kxjxkxkxk@gmail.com','$2b$12$jA0lI4IpbP3RpQQNNnGtguUal7e19XxXAyoxRI/8J7eQ4OTQEnuBW','jdjdjsj',0,0,0,NULL,'learner','2026-10-27 18:38:20.000','2026-10-27 18:38:20.000'),
+(6,'user-97c2b82e-6861-44c6-9661-4092b5aa2af5','linhhuong703@gmail.com','$2b$12$iXL/ATEG60inHTH3rjNT9eN2MAXji5iCjNaxKJrp0L1Vd8fwwWmQC','nahn',40,0,0,NULL,'learner','2026-10-27 18:39:06.000','2026-10-27 18:44:07.000'),
+(8,'user-0d314ba2-b3b3-4e70-a695-ea7db39c494d','jwefne@gmail.com','$2b$12$shrjqXtM03bSvPj/hLNo2ex.BqZSIQo5juVUTJBp54liU9aTJPLZ.','hay quas',0,0,0,NULL,'learner','2026-10-27 19:12:01.000','2026-10-27 19:12:01.000'),
+(9,'user-b27babf7-7243-4ead-bd1b-df64457c2273','temp@engorace.dev','$2b$12$5DVUihtLW2TuZmO1A1sare.E75ot4JIHWXYdjsb5tqkrb9t8UT5JS','Temp Reviewer',1240,640,12,'2026-11-13','learner','2026-11-03 01:59:02.000','2026-11-13 22:30:02.000'),
+(10,'user-67e09ef4-d2aa-47e2-8e0e-c0b8ffe9d5f5','test@test.com','$2b$12$bEkq/bnSQEA1xReciHM74OkZtvOPIhDVuAiIpsPyIxhMlpNdFPuPi','Test User',900,300,7,'2026-11-13','admin','2026-11-03 03:15:17.000','2026-11-13 21:07:12.000'),
+(33,'test_full_engorace','test.full@engorace.dev','$2b$10$fuo3.LG0e4wxgz04IBGIJeZHBl5yZgK8ZQ2nCzbV1B2uxF7z3KN3y','Test Full',720,180,12,'2026-11-12','learner','2026-11-03 18:36:14.000','2026-11-12 02:56:46.000'),
+(51,'user-ae4c7d50-a748-4a6b-83d3-7a3650e05dae','tinhminhvt246@gmail.com','$2b$12$JhoMlwqIP1DJ7y6B9zw0MeBGDajyHJEKaEPyVKuoTSVfMJqDJQFZe','conmek123',60,10,0,NULL,'learner','2026-11-04 03:16:35.000','2026-11-04 14:42:13.000'),
+(90,'user-5564c060-6bbc-45f9-a20e-741668a706c5','arena.bot.1793742120932@engorace.dev','$2b$12$0vj.s2qP5/prx.HQfhAU/OOmmlVhYHFkOuqYapOv6mPxa.tv0Zgv6','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:42:01.000','2026-11-04 04:42:01.000'),
+(91,'user-b254b70c-4777-4d7c-b1d3-c2064792a814','arena.bot.1793742156167@engorace.dev','$2b$12$3JwMUKPt8y5hteK1twD59.e0zGkeh1WWMEY3uku1wU1vaYiy1Xjoi','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:42:36.000','2026-11-04 04:42:36.000'),
+(104,'user-e41c2da0-5504-4fff-a541-3297babcd6ac','arena.bot.1793742356505@engorace.dev','$2b$12$wfeQqnv2UraWnmlqwdFyve0fUjOFiupJjiBiA1WPFsGmTNxPSql42','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:45:56.000','2026-11-04 04:45:56.000'),
+(117,'user-e050cc73-5a7f-41c3-b59c-cb811e0b53ba','arena.bot.1793742651060@engorace.dev','$2b$12$zkhUv0snpfxn3wb4jQd85.RRY4w7liSfcSYGAlywzBPo5P060twim','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:50:51.000','2026-11-04 04:50:51.000'),
+(130,'user-5fd670bd-6aa9-4634-9ff1-218c40cdc608','arena.bot.1793743006923@engorace.dev','$2b$12$cIAtL08CzeJ6wKzpQ6L.7ORey.Uobch/MQPZ/cOQ4XNouRG9DTkJy','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:56:47.000','2026-11-04 04:56:47.000');
 -- chats: 4 dòng
 INSERT INTO `chats` (`id`, `user_id`, `topic`, `title`, `created_at`, `updated_at`) VALUES
 (1,1,'DAILY_CONVERSATION','hello','2026-10-27 15:54:04.000','2026-10-27 15:54:37.000'),
 (2,1,'TRAVEL','vc','2026-10-27 16:21:07.000','2026-10-27 16:22:50.000'),
 (3,2,'FAMILY','hello','2026-10-27 19:05:27.000','2026-10-27 19:05:44.000'),
 (4,8,'TRAVEL','TRAVEL','2026-10-27 19:12:14.000','2026-10-27 19:12:14.000');
-
 -- lessons: 36 dòng
 INSERT INTO `lessons` (`id`, `stage_id`, `code`, `title`, `topic`, `sort_order`, `created_at`) VALUES
 (1,1,'s1-greetings','Chào hỏi & Phép lịch sự','Greetings',1,'2026-10-27 15:28:12.000'),
@@ -606,7 +752,6 @@ INSERT INTO `lessons` (`id`, `stage_id`, `code`, `title`, `topic`, `sort_order`,
 (34,4,'s4-presentations','Thuyết trình & Trình bày','Presentations',6,'2026-11-03 17:24:07.000'),
 (35,5,'s5-media','Truyền thông & Xã hội','Media & Society',6,'2026-11-03 17:24:07.000'),
 (36,6,'s6-literature','Văn học & Phê bình','Literature',6,'2026-11-03 17:24:07.000');
-
 -- matches: 44 dòng
 INSERT INTO `matches` (`id`, `player_one_id`, `player_two_id`, `stage_id`, `status`, `winner_user_id`, `started_at`, `completed_at`, `finished_at`, `created_at`) VALUES
 (1,2,1,NULL,'completed',2,'2026-10-27 17:21:37.000','2026-10-27 17:22:41.000','2026-10-27 17:22:41.000','2026-10-27 17:21:37.000'),
@@ -653,7 +798,6 @@ INSERT INTO `matches` (`id`, `player_one_id`, `player_two_id`, `stage_id`, `stat
 (42,9,10,NULL,'cancelled',NULL,'2026-11-04 18:37:48.000','2026-11-04 18:37:58.000','2026-11-04 18:37:58.000','2026-11-04 18:37:48.000'),
 (43,9,10,NULL,'cancelled',NULL,'2026-11-04 18:38:11.000','2026-11-04 18:38:22.000','2026-11-04 18:38:22.000','2026-11-04 18:38:11.000'),
 (44,10,9,NULL,'cancelled',NULL,'2026-11-04 18:38:35.000','2026-11-04 18:38:45.000','2026-11-04 18:38:45.000','2026-11-04 18:38:35.000');
-
 -- translations: 17 dòng
 INSERT INTO `translations` (`id`, `user_id`, `file_name`, `original_text`, `source_language`, `translated_text`, `target_language`, `provider`, `created_at`) VALUES
 (1,1,NULL,'cat','en','con mèo','vi','Gemini','2026-10-27 15:54:53.000'),
@@ -673,7 +817,6 @@ INSERT INTO `translations` (`id`, `user_id`, `file_name`, `original_text`, `sour
 (70,33,NULL,'tricky','en','lắt léo','vi','Gemini','2026-11-04 03:35:49.000'),
 (126,33,NULL,'tricky','en','lắt léo','vi','Gemini','2026-11-04 05:04:55.000'),
 (127,33,NULL,'phil','en','Phil','vi','Gemini','2026-11-04 05:09:14.000');
-
 -- user_badges: 13 dòng
 INSERT INTO `user_badges` (`user_id`, `badge_id`, `awarded_at`) VALUES
 (1,1,'2026-10-27 15:47:56.000'),
@@ -689,14 +832,12 @@ INSERT INTO `user_badges` (`user_id`, `badge_id`, `awarded_at`) VALUES
 (33,3,'2026-11-04 02:55:32.000'),
 (33,4,'2026-11-04 02:55:32.000'),
 (51,1,'2026-11-04 03:26:16.000');
-
 -- video_lessons: 4 dòng
 INSERT INTO `video_lessons` (`id`, `code`, `title`, `description`, `topic`, `cefr_level`, `provider`, `video_url`, `thumbnail_url`, `duration_seconds`, `xp_reward`, `sort_order`, `owner_user_id`, `subtitle_en`, `subtitle_vi`, `created_at`) VALUES
 (9,'video-small-talk','Small Talk | Everyday English','Small talk ở chỗ làm: hỏi thăm công việc mới, khen đồng nghiệp và trò chuyện về giờ giấc linh hoạt.','Giao tiếp hằng ngày','A2','youtube','https://www.youtube.com/watch?v=ry9SYnV3svc','https://i.ytimg.com/vi_webp/ry9SYnV3svc/maxresdefault.webp',133,20,1,NULL,'So what\'s new mark how is your new job going to be honest i can\'t complain i really love the company that i am',NULL,'2026-11-04 16:09:48.000'),
 (10,'video-past-trip','Talking about a Trip using the Past Simple | An English Conversation about a Past Trip','Kể lại chuyến đi bằng thì quá khứ đơn: thời tiết, đồ ăn và những tình huống bất ngờ.','Du lịch','A2','youtube','https://www.youtube.com/watch?v=mngiqrT44Pk','https://i.ytimg.com/vi_webp/mngiqrT44Pk/maxresdefault.webp',75,20,2,NULL,'How was your trip it was really fun how was the weather the weather was',NULL,'2026-11-04 16:09:48.000'),
 (11,'video-viva-la-vida','Coldplay - Viva La Vida (Official Video)','Nghe trọn \"Viva La Vida\" và gõ lại từng câu — luyện nghe qua giai điệu quen thuộc.','Âm nhạc','B1','youtube','https://www.youtube.com/watch?v=dvgZkm1xWPE','https://i.ytimg.com/vi_webp/dvgZkm1xWPE/maxresdefault.webp',242,20,3,NULL,'I used to rule the world Seas would rise when I gave the word',NULL,'2026-11-04 16:09:48.000'),
 (12,'video-the-nights','Avicii - The Nights','Luyện nghe lời bài hát \"The Nights\": chuyện tuổi trẻ và lời khuyên của người cha.','Âm nhạc','B1','youtube','https://www.youtube.com/watch?v=UtF6Jej8yb4','https://i.ytimg.com/vi/UtF6Jej8yb4/maxresdefault.jpg',191,20,4,NULL,'Hey, once upon a younger year When all our shadows disappeared The animals inside came out to play Hey, when face to face with all our fears',NULL,'2026-11-04 16:09:48.000');
-
 -- messages: 12 dòng
 INSERT INTO `messages` (`id`, `chat_id`, `role`, `content`, `created_at`) VALUES
 (1,1,'USER','hello','2026-10-27 15:54:10.000'),
@@ -711,7 +852,6 @@ INSERT INTO `messages` (`id`, `chat_id`, `role`, `content`, `created_at`) VALUES
 (10,2,'AI','Haha, do you like dogs? We are talking about travel! Do you like to visit other countries?','2026-10-27 16:22:50.000'),
 (11,3,'USER','hello','2026-10-27 19:05:44.000'),
 (12,3,'AI','Hello! It\'s so nice to talk to you again. How are you and your family today?','2026-10-27 19:05:44.000');
-
 -- progress: 115 dòng
 INSERT INTO `progress` (`id`, `user_id`, `lesson_id`, `status`, `score`, `started_at`, `completed_at`, `updated_at`) VALUES
 (1,1,1,'completed','100.00','2026-10-27 15:47:56.000','2026-10-27 15:47:56.000','2026-10-27 15:47:56.000'),
@@ -829,7 +969,6 @@ INSERT INTO `progress` (`id`, `user_id`, `lesson_id`, `status`, `score`, `starte
 (241,33,30,'completed','100.00','2026-11-04 02:55:32.000','2026-11-04 02:55:32.000','2026-11-04 02:55:32.000'),
 (276,51,1,'completed','100.00','2026-11-04 03:26:16.000','2026-11-04 03:26:16.000','2026-11-04 03:26:16.000'),
 (464,51,2,'completed','100.00','2026-11-04 14:42:13.000','2026-11-04 14:42:13.000','2026-11-04 14:42:13.000');
-
 -- questions: 360 dòng
 INSERT INTO `questions` (`id`, `lesson_id`, `question_text`, `question_type`, `explanation`, `audio_url`, `word_bank`, `difficulty`, `sort_order`, `created_at`) VALUES
 (1,4,'Mẹ của mẹ bạn trong tiếng Anh gọi là gì?','multiple_choice',NULL,NULL,NULL,'beginner',1,'2026-10-27 15:28:12.000'),
@@ -1192,7 +1331,6 @@ INSERT INTO `questions` (`id`, `lesson_id`, `question_text`, `question_type`, `e
 (468,36,'Từ \"symbolism\" liên quan đến điều gì?','multiple_choice','Symbolism là việc dùng biểu tượng trong tác phẩm.',NULL,NULL,'advanced',8,'2026-11-03 17:24:07.000'),
 (469,36,'Chọn giới từ đúng: \"The novel explores themes ___ identity and loss.\"','multiple_choice','Cụm \"themes of\" là cách nói đúng.',NULL,NULL,'advanced',9,'2026-11-03 17:24:07.000'),
 (470,36,'Dịch \"critical analysis\" sang tiếng Việt.','multiple_choice','\"Critical analysis\" là phân tích phê bình.',NULL,NULL,'advanced',10,'2026-11-03 17:24:07.000');
-
 -- saved_words: 0 dòng
 
 -- video_progress: 0 dòng
@@ -1259,7 +1397,6 @@ INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`,
 (861,11,209376,212540,'For some reason I cant explain',NULL,37),
 (862,11,212540,216000,'I know St Peter wont call my name',NULL,38),
 (863,11,216000,218663,'Never an honest word',NULL,39);
-
 INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`, `text_vi`, `sort_order`) VALUES
 (864,11,218663,223228,'But that was when I ruled the world',NULL,40),
 (906,9,12400,14880,'So whats new mark',NULL,1),
@@ -1315,7 +1452,6 @@ INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`,
 (982,12,131039,134460,'These are the nights that never die',NULL,24),
 (983,12,134543,149604,'My father told me These are the night that never die',NULL,25),
 (984,12,149687,154193,'My father told me Hey hey',NULL,26);
-
 INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`, `text_vi`, `sort_order`) VALUES
 (622,11,55320,56565,'One minute',NULL,9),
 (623,11,56565,59962,'I held the key next the walls',NULL,10),
@@ -1377,12 +1513,10 @@ INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`,
 (679,12,119566,123817,'He said one day youll leave this world behind',NULL,24),
 (680,12,123817,126867,'So live a life you will remember',NULL,25),
 (681,12,127201,130869,'My father told me when i was just a child',NULL,26);
-
 INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`, `text_vi`, `sort_order`) VALUES
 (682,12,130869,135586,'These are the nights that never die my father told me',NULL,27),
 (683,12,146266,150814,'These are the night that never die',NULL,28),
 (684,12,150814,154193,'My father told me hey hey',NULL,29);
-
 INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`, `text_vi`, `sort_order`) VALUES
 (590,9,123415,129840,'Maybe i will try to go to bed a little earlier tonight',NULL,29),
 (591,10,5450,7575,'How was your trip',NULL,1),
@@ -1415,44 +1549,7 @@ INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`,
 (618,11,40920,43954,'I used to roll the dice',NULL,5),
 (619,11,43954,48000,'Feel the fear in my enemys eyes',NULL,6),
 (620,11,48440,51303,'Listened as the crowd would sing',NULL,7),
-(621,11,51303,55120,'Now the old king is dead long live the king',NULL,8),
-(622,11,55320,56565,'One minute',NULL,9),
-(623,11,56565,59962,'I held the key next the walls',NULL,10),
-(624,11,59962,62000,'Were closed on me',NULL,11),
-(625,11,62200,69290,'And i discovered that my castles stand upon pillars of salt and pillars of sand',NULL,12),
-(626,11,69680,73075,'I hear jerusalem bells a ringing',NULL,13),
-(627,11,73075,76470,'Roman cavalry choirs are singing',NULL,14),
-(628,11,76470,80390,'Be my mirror my sword and shield',NULL,15),
-(629,11,80390,84080,'Missionaries in a foreign field',NULL,16),
-(630,11,84280,87140,'For some reason i cant explain',NULL,17),
-(631,11,87140,93744,'Once youd gone there was never never an honest word',NULL,18),
-(632,11,93744,98316,'And that was when i ruled the world',NULL,19),
-(633,11,110488,113866,'It was a wicked and wild wind',NULL,20),
-(634,11,113866,117582,'Blew down the doors to let me in',NULL,21),
-(635,11,117582,121040,'Shattered windows and the sound of drums',NULL,22),
-(636,11,121040,124414,'People couldnt believe what id become',NULL,23),
-(637,11,124414,131049,'Revolutionaries wait for my head on a silver plate',NULL,24),
-(638,11,131049,135160,'Just a puppet on a lonely string',NULL,25),
-(639,11,135160,139520,'Oh who would ever want to be king',NULL,26),
-(640,11,139520,142560,'I hear jerusalem bells a ringing',NULL,27),
-(641,11,142560,145600,'Roman cavalry choirs are singing',NULL,28),
-(642,11,146600,149793,'Be my mirror my sword and shield',NULL,29),
-(643,11,149793,153080,'My missionaries in a foreign field',NULL,30),
-(644,11,153520,156690,'For some reason i cant explain',NULL,31),
-(645,11,156690,160157,'I know st peter wont call my name',NULL,32),
-(646,11,160157,162559,'Never an honest word',NULL,33),
-(647,11,162559,166676,'But that was when i ruled the world',NULL,34),
-(648,11,195672,198880,'Hear jerusalem bells a ringing',NULL,35),
-(649,11,198880,202294,'Roman cavalry choirs are singing',NULL,36);
-
-INSERT INTO `video_segments` (`id`, `video_id`, `start_ms`, `end_ms`, `text_en`, `text_vi`, `sort_order`) VALUES
-(650,11,202294,205784,'Be my mirror my sword and shield',NULL,37),
-(651,11,205784,209376,'My missionaries in a foreign field',NULL,38),
-(652,11,209376,212540,'For some reason i cant explain',NULL,39),
-(653,11,212540,216000,'I know st peter wont call my name',NULL,40),
-(654,11,216000,218663,'Never an honest word',NULL,41),
-(655,11,218663,223228,'But that was when i ruled the world',NULL,42);
-
+(621,11,51303,55120,'Now the old king is dead long live the king',NULL,8);
 -- video_vocabulary: 0 dòng
 
 -- ai_feedback: 4 dòng
@@ -1461,7 +1558,6 @@ INSERT INTO `ai_feedback` (`id`, `message_id`, `type`, `original_text`, `correct
 (2,5,'OTHER','vc','Hello','Ký tự này hình như không có nghĩa. Bạn hãy chào bằng tiếng Anh nhé.',NULL,'2026-10-27 16:22:32.000'),
 (3,7,'VOCABULARY','cho ai','Who','Bạn hãy dùng tiếng Anh nhé. \'Cho ai\' có thể dịch là \'Who\' hoặc \'Who for\'.',NULL,'2026-10-27 16:22:39.000'),
 (4,9,'VOCABULARY','chó ai','Who','Bạn hãy dùng tiếng Anh nhé. \'Ai\' trong tiếng Anh là \'Who\'.',NULL,'2026-10-27 16:22:50.000');
-
 -- answers: 930 dòng
 INSERT INTO `answers` (`id`, `question_id`, `answer_text`, `is_correct`, `sort_order`) VALUES
 (1,1,'grandmother',1,1),
@@ -2394,7 +2490,6 @@ INSERT INTO `answers` (`id`, `question_id`, `answer_text`, `is_correct`, `sort_o
 (1030,468,'Ngữ pháp câu',0,3),
 (1031,469,'by',0,3),
 (1032,470,'Đánh giá thể thao',0,3);
-
 -- learning_answer_attempts: 546 dòng
 INSERT INTO `learning_answer_attempts` (`id`, `user_id`, `question_id`, `submitted_answer`, `is_correct`, `created_at`) VALUES
 (1,1,11,'31',1,'2026-10-27 15:45:33.000'),
@@ -2943,7 +3038,6 @@ INSERT INTO `learning_answer_attempts` (`id`, `user_id`, `question_id`, `submitt
 (622,10,12,'32',1,'2026-11-04 15:52:07.000'),
 (623,10,260,'How are you?',1,'2026-11-04 15:52:08.000'),
 (624,10,261,'It is nice to see you again.',1,'2026-11-04 15:52:10.000');
-
 -- match_answers: 110 dòng
 INSERT INTO `match_answers` (`id`, `match_id`, `user_id`, `question_id`, `round`, `answer_id`, `answer_text`, `is_correct`, `response_time_ms`, `answered_at`) VALUES
 (1,1,2,NULL,1,NULL,'fast',1,4746,'2026-10-27 17:21:42.000'),
@@ -3056,13 +3150,79 @@ INSERT INTO `match_answers` (`id`, `match_id`, `user_id`, `question_id`, `round`
 (108,36,51,NULL,2,NULL,'avoitable',0,7896,'2026-11-04 18:17:54.000'),
 (109,36,10,NULL,3,NULL,'',0,23468,'2026-11-04 18:18:21.000'),
 (110,36,51,NULL,3,NULL,'environment',1,23468,'2026-11-04 18:18:21.000');
-
+-- shop_items: 22 dòng (6 xe · 6 khung · 6 biển tên · 4 vật phẩm hỗ trợ; 4 độ hiếm; 5 kiểu mở khoá)
+INSERT INTO `shop_items` (`id`, `code`, `name`, `description`, `slot`, `rarity`, `price`, `unlock_type`, `unlock_value`, `visual_key`, `style_json`, `sort_order`, `active`, `created_at`) VALUES
+(1,'car_default','Xe vàng kinh điển','Chiếc xe đầu tiên của mọi tay đua Engorace.','car','common',0,'default',NULL,'car_classic_yellow','{"body":"#F2B544","bodyDark":"#D39A2A","trim":"#A96E13","glass":"#5D8497","glassLight":"#83A8B8","wheel":"#42586B","light":"#FFF4C7","trail":"#F2B544"}',10,1,'2026-11-15 09:00:00.000'),
+(2,'car_sport_red','Xe đua lửa','Thân xe đỏ rực, tem đua kéo dài tới đuôi.','car','rare',220,'level','3','car_sport_red','{"body":"#E5484D","bodyDark":"#B32D31","trim":"#7F1D1F","glass":"#45566B","glassLight":"#7C90A8","wheel":"#2B3442","light":"#FFE9A8","trail":"#FF7A5C"}',20,1,'2026-11-15 09:00:00.000'),
+(3,'car_mint','Xe bạc hà','Bạc hà mát lạnh, nổi bật trên nền sương.','car','rare',300,'level','5','car_mint','{"body":"#6FD3B8","bodyDark":"#3FA994","trim":"#1F7A6B","glass":"#4A6C7C","glassLight":"#8FB6C4","wheel":"#33474F","light":"#EAFFF8","trail":"#8BEFD4"}',30,1,'2026-11-15 09:00:00.000'),
+(4,'car_navy','Xe navy đêm','Xanh navy sâu, chỉ dành cho người qua chặng 3.','car','epic',420,'stage','3','car_navy','{"body":"#2F4B7C","bodyDark":"#20355A","trim":"#141F38","glass":"#5B7691","glassLight":"#93AEC6","wheel":"#1B2534","light":"#DCE9FF","trail":"#6C9BE8"}',40,1,'2026-11-15 09:00:00.000'),
+(5,'car_aurora','Xe cực quang','Dải cực quang xanh tím chạy dọc thân xe.','car','epic',600,'league','silver','car_aurora','{"body":"#6E7BE8","bodyDark":"#4A55B8","trim":"#2E3593","glass":"#4C5F8C","glassLight":"#96A6E0","wheel":"#2C3350","light":"#E4E7FF","trail":"#8CE0F0"}',50,1,'2026-11-15 09:00:00.000'),
+(6,'car_gold','Xe hoàng kim','Toàn thân vàng kim, của những tay đua cấp 9.','car','legendary',900,'level','9','car_gold','{"body":"#E8BE55","bodyDark":"#C2963A","trim":"#8A6A1F","glass":"#6C6252","glassLight":"#C0B296","wheel":"#4B4438","light":"#FFF6D6","trail":"#FFDE8A"}',60,1,'2026-11-15 09:00:00.000'),
+(7,'frame_default','Khung mặc định','Khung tròn đơn giản, ai cũng có.','frame','common',0,'default',NULL,'frame_plain','{"ring":"#C9E0EB","ringDark":"#A3C9DA","accent":null}',110,1,'2026-11-15 09:00:00.000'),
+(8,'frame_bronze','Khung đồng','Viền đồng ấm cho học viên chăm chỉ.','frame','rare',160,'level','2','frame_bronze','{"ring":"#C98A55","ringDark":"#9A6236","accent":"#E9BE93"}',120,1,'2026-11-15 09:00:00.000'),
+(9,'frame_silver','Khung bạc','Viền bạc sáng bóng.','frame','rare',240,'level','4','frame_silver','{"ring":"#B8C4CE","ringDark":"#8A98A6","accent":"#E6EDF2"}',130,1,'2026-11-15 09:00:00.000'),
+(10,'frame_gold','Khung vàng','Viền vàng cho người hoàn thành 10 bài.','frame','epic',380,'achievement','lessons_10','frame_gold','{"ring":"#E0B34A","ringDark":"#AE8420","accent":"#FFE9A8"}',140,1,'2026-11-15 09:00:00.000'),
+(11,'frame_violet','Khung tím','Viền tím mảnh, mở khi xong chặng 4.','frame','epic',520,'stage','4','frame_violet','{"ring":"#9A7BE0","ringDark":"#6E52B4","accent":"#D9CBFF"}',150,1,'2026-11-15 09:00:00.000'),
+(12,'frame_prism','Khung thủy tinh','Viền nhiều sắc, phần thưởng hạng Vàng.','frame','legendary',600,'league','gold','frame_prism','{"ring":"#7FD8E8","ringDark":"#4E9FB5","accent":"#E7C6F7"}',160,1,'2026-11-15 09:00:00.000'),
+(13,'nameplate_default','Biển tên mặc định','Dải tên trơn theo màu chữ.','nameplate','common',0,'default',NULL,'plate_plain','{"bg":"transparent","fg":null,"edge":null}',210,1,'2026-11-15 09:00:00.000'),
+(14,'nameplate_slate','Biển tên xám','Dải xám lạnh, chữ trắng.','nameplate','common',120,'level','1','plate_slate','{"bg":"#42586B","fg":"#F2FAFD","edge":"#2B3B49"}',220,1,'2026-11-15 09:00:00.000'),
+(15,'nameplate_cyan','Biển tên cyan','Dải cyan của thương hiệu Engorace.','nameplate','rare',200,'level','3','plate_cyan','{"bg":"linear-gradient(90deg,#00C7FF,#007A9E)","fg":"#04222C","edge":"#00688A"}',230,1,'2026-11-15 09:00:00.000'),
+(16,'nameplate_sunset','Biển tên hoàng hôn','Chuyển sắc cam hồng ấm.','nameplate','epic',320,'stage','2','plate_sunset','{"bg":"linear-gradient(90deg,#F7A46B,#E2567E)","fg":"#3A1020","edge":"#B93A5F"}',240,1,'2026-11-15 09:00:00.000'),
+(17,'nameplate_forest','Biển tên rừng','Xanh lá trầm, mở cùng huy hiệu 500 XP.','nameplate','epic',420,'achievement','xp_500','plate_forest','{"bg":"linear-gradient(90deg,#3E9B5F,#1F7A6B)","fg":"#08281C","edge":"#1B5E43"}',250,1,'2026-11-15 09:00:00.000'),
+(18,'nameplate_royal','Biển tên hoàng gia','Dải đen viền vàng, dành cho Kim Cương.','nameplate','legendary',500,'league','diamond','plate_royal','{"bg":"linear-gradient(90deg,#161B22,#3A2F14)","fg":"#F5D98B","edge":"#C9A227"}',260,1,'2026-11-15 09:00:00.000'),
+-- boosters: consumables, never owned permanently (charges / timed effects)
+(19,'booster_streak_shield','Bảo vệ chuỗi','Thua một trận vẫn giữ nguyên chuỗi thắng.','booster','common',60,'default',NULL,'booster_shield',NULL,310,1,'2026-11-15 09:00:00.000'),
+(20,'booster_xp2','Nhân đôi XP','Nhân đôi XP nhận được trong 30 phút.','booster','rare',80,'default',NULL,'booster_xp',NULL,320,1,'2026-11-15 09:00:00.000'),
+(21,'booster_rc2','Nhân đôi Race Coin','Nhân đôi Race Coin ở trận đấu tiếp theo.','booster','rare',90,'default',NULL,'booster_rc',NULL,330,1,'2026-11-15 09:00:00.000'),
+(22,'booster_starter','Gói khởi động','3 Bảo vệ chuỗi và 1 thẻ nhân đôi XP.','booster','epic',220,'default',NULL,'booster_starter',NULL,340,1,'2026-11-15 09:00:00.000');
+-- quests: 7 dòng (4 daily · 3 weekly)
+INSERT INTO `quests` (`id`, `code`, `kind`, `title`, `description`, `metric`, `target`, `rc_reward`, `xp_reward`, `rp_reward`, `sort_order`, `active`) VALUES
+(1,'daily_answers_20','daily','Luyện 20 câu','Trả lời 20 câu hỏi trong ngày.','answers',20,20,10,15,10,1),
+(2,'daily_video_1','daily','Nghe trọn 1 video','Hoàn thành ít nhất một bài luyện nghe.','video',1,20,10,15,20,1),
+(3,'daily_duel_1','daily','Thắng 1 trận đấu','Thắng một trận Word Battle.','duel_win',1,20,10,15,30,1),
+(4,'daily_words_3','daily','Lưu 3 từ mới','Lưu ba từ vào sổ tay từ vựng.','saved_word',3,20,10,15,40,1),
+(5,'weekly_lessons_5','weekly','5 bài hoàn hảo','Hoàn thành 5 bài học với điểm tuyệt đối.','lesson',5,60,40,40,110,1),
+(6,'weekly_answers_60','weekly','60 câu trong tuần','Trả lời 60 câu hỏi trong tuần này.','answers',60,60,40,40,120,1),
+(7,'weekly_duel_3','weekly','3 trận thắng tuần','Thắng ba trận Word Battle trong tuần.','duel_win',3,60,40,40,130,1);
+-- user_inventory: mọi tài khoản sở hữu 3 món mặc định
+INSERT INTO `user_inventory` (`user_id`, `item_id`, `acquired_at`) VALUES
+(1,1,'2026-11-15 09:00:00.000'),(1,7,'2026-11-15 09:00:00.000'),(1,13,'2026-11-15 09:00:00.000'),
+(2,1,'2026-11-15 09:00:00.000'),(2,7,'2026-11-15 09:00:00.000'),(2,13,'2026-11-15 09:00:00.000'),
+(5,1,'2026-11-15 09:00:00.000'),(5,7,'2026-11-15 09:00:00.000'),(5,13,'2026-11-15 09:00:00.000'),
+(6,1,'2026-11-15 09:00:00.000'),(6,7,'2026-11-15 09:00:00.000'),(6,13,'2026-11-15 09:00:00.000'),
+(8,1,'2026-11-15 09:00:00.000'),(8,7,'2026-11-15 09:00:00.000'),(8,13,'2026-11-15 09:00:00.000'),
+(9,1,'2026-11-15 09:00:00.000'),(9,7,'2026-11-15 09:00:00.000'),(9,13,'2026-11-15 09:00:00.000'),
+(9,2,'2026-11-13 20:43:03.000'),(9,8,'2026-11-13 21:33:44.000'),(9,15,'2026-11-13 22:30:02.000'),
+(10,1,'2026-11-15 09:00:00.000'),(10,7,'2026-11-15 09:00:00.000'),(10,13,'2026-11-15 09:00:00.000'),
+(33,1,'2026-11-15 09:00:00.000'),(33,7,'2026-11-15 09:00:00.000'),(33,13,'2026-11-15 09:00:00.000'),
+(51,1,'2026-11-15 09:00:00.000'),(51,7,'2026-11-15 09:00:00.000'),(51,13,'2026-11-15 09:00:00.000'),
+(90,1,'2026-11-15 09:00:00.000'),(90,7,'2026-11-15 09:00:00.000'),(90,13,'2026-11-15 09:00:00.000'),
+(91,1,'2026-11-15 09:00:00.000'),(91,7,'2026-11-15 09:00:00.000'),(91,13,'2026-11-15 09:00:00.000'),
+(104,1,'2026-11-15 09:00:00.000'),(104,7,'2026-11-15 09:00:00.000'),(104,13,'2026-11-15 09:00:00.000'),
+(117,1,'2026-11-15 09:00:00.000'),(117,7,'2026-11-15 09:00:00.000'),(117,13,'2026-11-15 09:00:00.000'),
+(130,1,'2026-11-15 09:00:00.000'),(130,7,'2026-11-15 09:00:00.000'),(130,13,'2026-11-15 09:00:00.000');
+-- user_equipment: mặc định 3 slot; user 9 đang dùng xe đỏ + khung đồng + biển tím
+INSERT INTO `user_equipment` (`user_id`, `slot`, `item_id`, `updated_at`) VALUES
+(1,'car',1,'2026-11-15 09:00:00.000'),(1,'frame',7,'2026-11-15 09:00:00.000'),(1,'nameplate',13,'2026-11-15 09:00:00.000'),
+(2,'car',1,'2026-11-15 09:00:00.000'),(2,'frame',7,'2026-11-15 09:00:00.000'),(2,'nameplate',13,'2026-11-15 09:00:00.000'),
+(5,'car',1,'2026-11-15 09:00:00.000'),(5,'frame',7,'2026-11-15 09:00:00.000'),(5,'nameplate',13,'2026-11-15 09:00:00.000'),
+(6,'car',1,'2026-11-15 09:00:00.000'),(6,'frame',7,'2026-11-15 09:00:00.000'),(6,'nameplate',13,'2026-11-15 09:00:00.000'),
+(8,'car',1,'2026-11-15 09:00:00.000'),(8,'frame',7,'2026-11-15 09:00:00.000'),(8,'nameplate',13,'2026-11-15 09:00:00.000'),
+(9,'car',2,'2026-11-13 20:43:03.000'),(9,'frame',8,'2026-11-13 20:51:33.000'),(9,'nameplate',15,'2026-11-13 22:30:02.000'),
+(10,'car',1,'2026-11-15 09:00:00.000'),(10,'frame',7,'2026-11-15 09:00:00.000'),(10,'nameplate',13,'2026-11-15 09:00:00.000'),
+(33,'car',1,'2026-11-15 09:00:00.000'),(33,'frame',7,'2026-11-15 09:00:00.000'),(33,'nameplate',13,'2026-11-15 09:00:00.000'),
+(51,'car',1,'2026-11-15 09:00:00.000'),(51,'frame',7,'2026-11-15 09:00:00.000'),(51,'nameplate',13,'2026-11-15 09:00:00.000'),
+(90,'car',1,'2026-11-15 09:00:00.000'),(90,'frame',7,'2026-11-15 09:00:00.000'),(90,'nameplate',13,'2026-11-15 09:00:00.000'),
+(91,'car',1,'2026-11-15 09:00:00.000'),(91,'frame',7,'2026-11-15 09:00:00.000'),(91,'nameplate',13,'2026-11-15 09:00:00.000'),
+(104,'car',1,'2026-11-15 09:00:00.000'),(104,'frame',7,'2026-11-15 09:00:00.000'),(104,'nameplate',13,'2026-11-15 09:00:00.000'),
+(117,'car',1,'2026-11-15 09:00:00.000'),(117,'frame',7,'2026-11-15 09:00:00.000'),(117,'nameplate',13,'2026-11-15 09:00:00.000'),
+(130,'car',1,'2026-11-15 09:00:00.000'),(130,'frame',7,'2026-11-15 09:00:00.000'),(130,'nameplate',13,'2026-11-15 09:00:00.000');
 COMMIT;
 SET FOREIGN_KEY_CHECKS = 1;
 SET UNIQUE_CHECKS = 1;
 
 -- ---------------------------------------------------------------------------
--- TỔNG: 22 bảng / 2392 dòng
+-- TỔNG: 32 bảng / 2479 dòng
 --   badges                     4
 --   battle_questions           20
 --   battle_words               100
@@ -3079,10 +3239,20 @@ SET UNIQUE_CHECKS = 1;
 --   questions                  360
 --   saved_words                0
 --   video_progress             0
---   video_segments             53
+--   video_segments             209
 --   video_vocabulary           0
 --   ai_feedback                4
 --   answers                    930
 --   learning_answer_attempts   546
 --   match_answers              110
+--   -- Gara Engorace (shop · reward loop) --
+--   shop_items                 18
+--   quests                     7
+--   user_inventory             46
+--   user_equipment             42
+--   economy_ledger             0
+--   activity_events            0
+--   seasons                    0  (mùa hiện tại được tạo lazy khi gọi API)
+--   season_standings           0
+--   season_payouts             0
 -- ---------------------------------------------------------------------------

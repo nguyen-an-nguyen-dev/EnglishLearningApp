@@ -84,11 +84,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [socialError, setSocialError] = useState<string | null>(null)
 
   const loginRef = useRef(loginWithProvider)
-  loginRef.current = loginWithProvider
   const onSuccessRef = useRef(onSuccess)
-  onSuccessRef.current = onSuccess
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+
+  useEffect(() => {
+    loginRef.current = loginWithProvider
+    onSuccessRef.current = onSuccess
+    onCloseRef.current = onClose
+  }, [loginWithProvider, onSuccess, onClose])
 
   const finishSocial = useCallback(async (provider: 'google' | 'facebook', token: string) => {
     setSocialError(null)
@@ -124,7 +127,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return
-    setSocialError(null)
     let cancelled = false
     getProvidersApi().then((config) => {
       if (!cancelled) setProviders(config)
@@ -154,7 +156,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           shape: 'circle',
         })
       })
-      .catch(() => setSocialError('Không tải được Google SDK. Kiểm tra kết nối mạng.'))
+      .catch(() => {
+        setSocialError('Không tải được Google SDK. Kiểm tra kết nối mạng.')
+      })
 
     return () => {
       cancelled = true
@@ -185,6 +189,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   }
 
   function handleDialogClose() {
+    setSocialError(null)
     if (isOpen) onClose()
     const target = returnFocusRef.current
     if (target?.isConnected) {
@@ -194,7 +199,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   function closeDialog() {
     if (dialogRef.current?.open) dialogRef.current.close()
-    else onClose()
+    else {
+      setSocialError(null)
+      onClose()
+    }
   }
 
   const googleReady = Boolean(providers?.google && providers.googleClientId)

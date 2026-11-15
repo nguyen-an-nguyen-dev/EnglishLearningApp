@@ -135,8 +135,13 @@ export interface CompleteLessonResult {
   correct_answers: number;
   total_questions: number;
   xp_earned: number;
+  rc_earned: number;
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
+  /** Race Coin + XP paid for finishing the whole stage in this completion. */
+  stage_reward: { rc: number; xp: number } | null;
+  level_before: number;
+  level_after: number;
   badges_awarded: Badge[];
   practice_seconds?: number;
 }

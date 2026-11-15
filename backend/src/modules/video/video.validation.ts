@@ -1,5 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
-import type { SaveWordInput, VideoAnalysisModel } from './video.types';
+import type { SaveWordInput } from './video.types';
 
 function asObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -26,14 +26,6 @@ export function parseImportUrl(value: unknown): string {
     throw new HttpError(422, 'Provide a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
   }
   return url;
-}
-
-export function parseImportModel(value: unknown): VideoAnalysisModel {
-  const body = asObject(value);
-  const model = body.model ?? body.analysisModel ?? body.analysis_model;
-  if (model === undefined || model === null || model === '') return 'bolt';
-  if (model === 'bolt' || model === 'gemini') return model;
-  throw new HttpError(422, 'Invalid analysis model.', ['INVALID_ANALYSIS_MODEL']);
 }
 
 export function parseWatchedSeconds(value: unknown): number {
@@ -85,7 +77,16 @@ export function parseSaveWordInput(value: unknown): SaveWordInput {
 export function parseSavedWord(value: unknown): string {
   const word = Array.isArray(value) ? value[0] : value;
   if (typeof word !== 'string') throw new HttpError(400, 'Invalid word.');
-  const decoded = decodeURIComponent(word).trim();
+  // Express already URL-decodes route params, so the raw value is normally the
+  // real word. A bare `%` (e.g. "100%") makes decodeURIComponent throw, which
+  // previously surfaced as a 500; only decode when it is actually valid.
+  let normalized = word;
+  try {
+    normalized = decodeURIComponent(word);
+  } catch {
+    normalized = word;
+  }
+  const decoded = normalized.trim();
   if (decoded.length === 0 || decoded.length > 80) throw new HttpError(400, 'Invalid word.');
   return decoded;
 }

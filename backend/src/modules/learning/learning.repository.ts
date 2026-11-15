@@ -2,6 +2,14 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { pool } from '../../db/pool';
 import { awardEligibleBadges } from '../badges/badges.repository';
 import type { Badge } from '../badges/badges.types';
+import {
+  bumpStandingCounter,
+  grantInTx,
+  recordActivityInTx,
+} from '../gamification/gamification.repository';
+import { levelForXp } from '../gamification/gamification.levels';
+import { REWARDS } from '../gamification/gamification.rewards';
+import type { LedgerEntry } from '../gamification/gamification.types';
 import type {
   AnswerRow,
   LessonRow,
@@ -48,23 +56,6 @@ export async function getLessonsByStage(stageId: number): Promise<LessonRow[]> {
 export async function getLessonById(lessonId: number): Promise<LessonRow | undefined> {
   const [rows] = await pool.execute<LessonRow[]>(
     'SELECT id, stage_id, code, title, topic, sort_order FROM lessons WHERE id = ? LIMIT 1',
-    [lessonId],
-  );
-  return rows[0];
-}
-
-export async function getLessonByIdWithStage(lessonId: number): Promise<
-  (LessonRow & { stage_sort_order: number }) | undefined
-> {
-  interface Row extends LessonRow {
-    stage_sort_order: number;
-  }
-  const [rows] = await pool.execute<Row[]>(
-    `SELECT l.id, l.stage_id, l.code, l.title, l.topic, l.sort_order,
-            s.sort_order AS stage_sort_order
-     FROM lessons l
-     JOIN stages s ON s.id = l.stage_id
-     WHERE l.id = ? LIMIT 1`,
     [lessonId],
   );
   return rows[0];
@@ -121,45 +112,6 @@ export async function getPreviousLesson(lessonId: number): Promise<LessonRow | u
     [prevStageId],
   );
   return prevStageLast[0];
-}
-
-// Next lesson within the same stage, or first lesson of next stage
-export async function getNextLesson(lessonId: number): Promise<LessonRow | undefined> {
-  interface Row extends LessonRow {
-    stage_sort_order: number;
-  }
-  const [currentRows] = await pool.execute<Row[]>(
-    `SELECT l.id, l.stage_id, l.code, l.title, l.topic, l.sort_order,
-            s.sort_order AS stage_sort_order
-     FROM lessons l JOIN stages s ON s.id = l.stage_id
-     WHERE l.id = ? LIMIT 1`,
-    [lessonId],
-  );
-  const current = currentRows[0];
-  if (!current) return undefined;
-
-  // Try same-stage next
-  const [sameStageNext] = await pool.execute<LessonRow[]>(
-    `SELECT id, stage_id, code, title, topic, sort_order
-     FROM lessons WHERE stage_id = ? AND sort_order > ? ORDER BY sort_order ASC LIMIT 1`,
-    [current.stage_id, current.sort_order],
-  );
-  if (sameStageNext[0]) return sameStageNext[0];
-
-  // Try next stage first lesson
-  const [nextStageRows] = await pool.execute<StageRow[]>(
-    `SELECT id FROM stages WHERE sort_order > ? ORDER BY sort_order ASC LIMIT 1`,
-    [current.stage_sort_order],
-  );
-  if (!nextStageRows[0]) return undefined;
-
-  const nextStageId = nextStageRows[0].id;
-  const [nextStageFirst] = await pool.execute<LessonRow[]>(
-    `SELECT id, stage_id, code, title, topic, sort_order
-     FROM lessons WHERE stage_id = ? ORDER BY sort_order ASC LIMIT 1`,
-    [nextStageId],
-  );
-  return nextStageFirst[0];
 }
 
 // ─── Questions & Answers ──────────────────────────────────────────────────────
@@ -219,18 +171,6 @@ export async function getUserProgress(userId: number): Promise<ProgressRow[]> {
   return rows;
 }
 
-export async function getProgressForLesson(
-  userId: number,
-  lessonId: number,
-): Promise<ProgressRow | undefined> {
-  const [rows] = await pool.execute<ProgressRow[]>(
-    `SELECT id, user_id, lesson_id, status, score, started_at, completed_at, updated_at
-     FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1`,
-    [userId, lessonId],
-  );
-  return rows[0];
-}
-
 // ─── Completion Transaction ───────────────────────────────────────────────────
 
 export interface CompletionData {
@@ -238,9 +178,14 @@ export interface CompletionData {
   totalQuestions: number;
   score: number;
   xpEarned: number;
+  rcEarned: number;
   isFirstCompletion: boolean;
   badgesAwarded: Badge[];
   practiceSeconds: number | null;
+  stageCompleted: boolean;
+  stageReward: { rc: number; xp: number } | null;
+  levelBefore: number;
+  levelAfter: number;
 }
 
 export async function completeLesson(
@@ -251,7 +196,6 @@ export async function completeLesson(
   score: number,
   practiceSeconds: number | null = null,
 ): Promise<CompletionData> {
-  const XP_PER_COMPLETION = 20;
   const connection: PoolConnection = await pool.getConnection();
 
   try {
@@ -266,6 +210,7 @@ export async function completeLesson(
       [userId],
     );
     if (!userRows[0]) throw new Error('User not found while completing lesson.');
+    const levelBefore = levelForXp(Number(userRows[0].xp));
 
     // 1. Check existing progress
     const [progressRows] = await connection.execute<ProgressRow[]>(
@@ -296,13 +241,51 @@ export async function completeLesson(
       );
     }
 
-    // 2. Award XP only on first completion
-    const xpEarned = isFirstCompletion ? XP_PER_COMPLETION : 0;
-    if (xpEarned > 0) {
-      await connection.execute(
-        `UPDATE users SET xp = xp + ? WHERE id = ?`,
-        [xpEarned, userId],
-      );
+    // 2. Every currency goes through the ledger so a replay is a no-op. The
+    //    lesson's own XP/RC are keyed by lesson id; the stage bonus by stage id.
+    const [stageRows] = await connection.execute<Array<RowDataPacket & { stage_id: number }>>(
+      'SELECT stage_id FROM lessons WHERE id = ? LIMIT 1',
+      [lessonId],
+    );
+    const stageId = Number(stageRows[0]?.stage_id ?? 0);
+
+    const lessonRewards: LedgerEntry[] = isFirstCompletion
+      ? [
+          { currency: 'xp', amount: REWARDS.lessonXp, sourceType: 'lesson', sourceId: String(lessonId) },
+          { currency: 'rc', amount: REWARDS.lessonRc, sourceType: 'lesson', sourceId: String(lessonId) },
+          { currency: 'rp', amount: REWARDS.rpLesson, sourceType: 'lesson', sourceId: String(lessonId) },
+        ]
+      : [];
+
+    // 3. Stage completion is decided inside the transaction: the previous
+    //    out-of-transaction check could see a stale, half-committed stage.
+    const [stageProgress] = await connection.execute<Array<RowDataPacket & {
+      total: number; done: number;
+    }>>(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(p.status = 'completed' AND p.score = 100), 0) AS done
+       FROM lessons l
+       LEFT JOIN progress p ON p.lesson_id = l.id AND p.user_id = ?
+       WHERE l.stage_id = ?`,
+      [userId, stageId],
+    );
+    const stageTotal = Number(stageProgress[0]?.total ?? 0);
+    const stageDone = Number(stageProgress[0]?.done ?? 0);
+    const stageCompleted = stageTotal > 0 && stageDone === stageTotal;
+
+    const stageRewards: LedgerEntry[] = stageCompleted
+      ? [
+          { currency: 'rc', amount: REWARDS.stageRc, sourceType: 'stage', sourceId: String(stageId) },
+          { currency: 'xp', amount: REWARDS.stageXp, sourceType: 'stage', sourceId: String(stageId) },
+        ]
+      : [];
+
+    const outcome = await grantInTx(connection, userId, [...lessonRewards, ...stageRewards]);
+
+    if (isFirstCompletion) {
+      await recordActivityInTx(connection, userId, 'lesson', String(lessonId));
+      await recordActivityInTx(connection, userId, 'answers', null, totalQuestions);
+      await bumpStandingCounter(connection, userId, 'lessons');
     }
 
     interface CompletedCountRow extends RowDataPacket {
@@ -313,7 +296,7 @@ export async function completeLesson(
        FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100`,
       [userId],
     );
-    const totalXp = Number(userRows[0].xp) + xpEarned;
+    const totalXp = Number(userRows[0].xp) + outcome.xpEarned;
     const badgesAwarded = await awardEligibleBadges(
       connection,
       userId,
@@ -321,9 +304,39 @@ export async function completeLesson(
       totalXp,
     );
 
+    // A new badge pays a small RC bonus, keyed by badge code so it is paid once.
+    if (badgesAwarded.length > 0) {
+      await grantInTx(
+        connection,
+        userId,
+        badgesAwarded.map((badge) => ({
+          currency: 'rc' as const,
+          amount: REWARDS.badgeRc,
+          sourceType: 'badge',
+          sourceId: badge.code,
+        })),
+      );
+    }
+
     await connection.commit();
 
-    return { correctAnswers, totalQuestions, score, xpEarned, isFirstCompletion, badgesAwarded, practiceSeconds };
+    const stageRewardPaid = stageRewards.length > 0
+      && outcome.granted.some((entry) => entry.sourceType === 'stage');
+
+    return {
+      correctAnswers,
+      totalQuestions,
+      score,
+      xpEarned: outcome.xpEarned,
+      rcEarned: outcome.rcEarned,
+      isFirstCompletion,
+      badgesAwarded,
+      practiceSeconds,
+      stageCompleted: stageRewardPaid,
+      stageReward: stageRewardPaid ? { rc: REWARDS.stageRc, xp: REWARDS.stageXp } : null,
+      levelBefore,
+      levelAfter: levelForXp(totalXp),
+    };
   } catch (error) {
     await connection.rollback();
     throw error;

@@ -1,5 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { createContext, useContext } from 'react'
 
 export type Lang = 'vi' | 'en'
 
@@ -14,7 +13,13 @@ const vi = {
   navCompete: 'Thi Đua',
   navRankings: 'Bảng Xếp Hạng',
   navRankingsShort: 'Xếp Hạng',
+  navShop: 'Gara Engorace',
+  navShopShort: 'Gara',
   navProfile: 'Profile',
+  walletCoins: 'Race Coin',
+  walletLevel: 'Cấp',
+  walletLevelNext: 'tới cấp sau',
+  walletLevelMax: 'Cấp tối đa',
   navAria: 'Điều hướng chính',
   mobileNavAria: 'Điều hướng trên điện thoại',
   brandHome: 'Engorace trang chủ',
@@ -41,6 +46,8 @@ const vi = {
   stopLocked: 'Cần mở khóa',
   stopReview: 'Học lại',
   stopContinue: 'Học tiếp',
+  stopLessonLabel: 'Bài',
+  stopQuestionLabel: 'câu hỏi',
   mapAria: 'Bản đồ lộ trình học tiếng Anh',
   roadmapLoading: 'Đang tải lộ trình…',
   roadmapEmpty: 'Chưa có dữ liệu lộ trình.',
@@ -50,6 +57,14 @@ const vi = {
   rankEyebrow: 'BẢNG XẾP HẠNG',
   rankTitle: 'Bảng xếp hạng',
   rankDesc: 'Xếp theo tổng điểm XP của toàn bộ học viên. Mở lại trang để cập nhật.',
+  rankLeagueEyebrow: 'LEAGUE TUẦN',
+  rankLeagueTitle: 'League tuần này',
+  rankLeagueDesc: 'Xếp theo điểm đua (RP) kiếm được trong tuần. Cuối tuần, thứ hạng được chốt và trả thưởng Race Coin.',
+  rankLeagueTab: 'League tuần',
+  rankCareerTab: 'Sự nghiệp',
+  rankRacePoints: 'Điểm đua',
+  rankLeagueEmpty: 'Chưa ai ghi điểm tuần này. Hoàn thành một bài học để mở màn.',
+  arenaRewardTitle: 'Phần thưởng trận đấu',
   rankStanding: 'Vị trí của bạn',
   rankOutOf: (total: number) => `trong ${total} học viên`,
   rankXp: 'Điểm XP',
@@ -70,7 +85,9 @@ const vi = {
   statXpLabel: 'Điểm XP',
   statLessonsLabel: 'Bài đã xong',
   pathKicker: 'LỘ TRÌNH',
-  pathTitle: (stage: number) => `Đang ở chặng ${String(stage).padStart(2, '0')}`,
+  pathTitle: (stage: number, percent: number) => percent >= 100
+    ? 'Hoàn thành lộ trình'
+    : `Đang ở chặng ${String(stage).padStart(2, '0')}`,
   pathAria: (percent: number) => `Đã hoàn thành ${percent} phần trăm lộ trình`,
   pathTotal: (done: number, total: number) => `${done}/${total} bài`,
   statusDone: 'Xong',
@@ -132,13 +149,10 @@ const vi = {
   videoImportPlaceholder: 'https://www.youtube.com/watch?v=...',
   videoImportAction: 'Phân tích',
   videoImporting: 'Đang phân tích…',
-  videoModelLabel: 'Model phân tích',
-  videoModelBolt: 'Nemotron Bolt',
-  videoModelBoltHint: 'Nhanh',
-  videoModelGemini: 'Gemini Flash',
-  videoModelGeminiHint: 'Chất lượng',
-  videoAnalyzing: 'Đang phân tích video',
-  videoAnalyzingHint: (model: string) => `Tải phụ đề → ${model} chia đoạn`,
+  videoImportStepExtract: 'Đang trích xuất phụ đề…',
+  videoImportStepSegment: 'AI đang chia đoạn…',
+  videoImportDone: (title: string) => `Đã thêm “${title}” vào thư viện.`,
+  videoImportClear: 'Xóa link',
   videoImportInvalid: 'Link YouTube chưa hợp lệ. Bạn dán lại giúp mình nhé.',
   videoImportTooLong: 'Video từ 5 phút trở lên. Chọn video ngắn hơn để dễ luyện nhé.',
   videoImportNoCaptions: 'Video này không có phụ đề nào (kể cả phụ đề tự động), nên chưa tách câu được.',
@@ -153,7 +167,7 @@ const vi = {
   videoImportLimit: 'Bạn đã lưu tối đa 20 video. Xóa bớt một video rồi thêm tiếp nhé.',
   videoImportTimeout: 'YouTube phản hồi hơi lâu. Bạn thử lại sau ít phút nhé.',
   videoImportError: 'Chưa thêm được video. Thử lại nhé.',
-  videoOwned: 'Video của bạn',
+  videoOwnedBadge: 'Của bạn',
   videoPractice: 'Luyện tập',
   videoDelete: 'Xóa video',
   videoDeleteConfirm: (title: string) => `Xóa "${title}" khỏi thư viện của bạn?`,
@@ -208,23 +222,31 @@ const vi = {
   practiceDoneEyebrow: 'Đã nghe hết video',
   practiceDoneTitle: 'Hoàn thành luyện nghe!',
   practiceDoneDesc: (count: number) => `Bạn đã nghe đúng trọn ${count} đoạn của video này.`,
+  practiceDoneXp: (xp: number) => `+${xp} XP đã được ghi nhận`,
+  practiceDoneXpAgain: 'Video này đã hoàn thành trước đó — không có XP mới.',
+  practiceDoneXpFailed: 'Không lưu được tiến trình — thử luyện lại hoặc tải lại trang.',
   practiceRestart: 'Luyện lại',
   practiceBackToLibrary: 'Về thư viện video',
 
   /* vocabulary arena */
   arenaEyebrow: 'ĐẤU TRƯỜNG TỪ VỰNG',
   arenaTitle: 'Thi đua',
-  arenaDesc: 'So tài 1v1 trực tuyến hoặc luyện phản xạ một mình với kho từ vựng A1–B2.',
+  arenaDesc: 'So tài 1v1 trực tuyến với người học khác trên kho từ vựng A1–B2.',
   arenaDuelTab: 'Đấu 1v1',
   arenaDuelTitle: 'Đối thủ thật, thắng bằng phản xạ.',
   arenaDuelDesc: 'Đọc nghĩa tiếng Việt, gõ đúng từ tiếng Anh trước đối thủ. Mỗi trận 8 vòng, mỗi vòng 25 giây.',
   arenaPlayed: 'Số trận',
   arenaWins: 'Thắng',
+  arenaRecentMatches: 'Lịch sử trận đấu',
+  arenaNoRecentMatches: 'Chưa có lịch sử trận đấu.',
+  arenaWinShort: 'T',
+  arenaLossShort: 'B',
   arenaWinRate: 'Tỉ lệ thắng',
   arenaWinStreak: 'Chuỗi thắng',
   arenaRulesTitle: 'Luật chơi',
   arenaResultKicker: 'Kết quả',
   arenaQueueTitle: 'Đang tìm đối thủ…',
+  arenaSearching: 'Đang tìm đối thủ',
   arenaQueueDesc: 'Giữ kết nối này, trận đấu sẽ bắt đầu ngay khi có người cùng trình độ.',
   arenaQueueOpponent: (name: string) => `Sắp gặp ${name}…`,
   arenaCancel: 'Hủy tìm trận',
@@ -259,7 +281,7 @@ const vi = {
   arenaForfeitLoss: 'Bạn đã rời trận — đối thủ thắng.',
   arenaMatchWin: 'Chiến thắng!',
   arenaWinnerTag: 'Thắng',
-  arenaMatchLose: 'Thua sát nút!',
+  arenaMatchLose: 'Thua!',
   arenaMatchDraw: 'Hòa!',
   arenaMatchScore: (scores: Array<{ userId: number; name: string; score: number }>, currentUserId: number) => {
     const you = scores.find((entry) => entry.userId === currentUserId)
@@ -274,6 +296,9 @@ const vi = {
   arenaRuleOne: 'Đọc nghĩa tiếng Việt, gõ đúng từ tiếng Anh trước đối thủ.',
   arenaRuleTwo: 'Mỗi vòng có 25 giây; cứ 5 giây gợi ý mở thêm 20% chữ cái trong ô đáp án.',
   arenaRuleThree: 'Ai thắng nhiều vòng hơn sau 8 vòng sẽ thắng trận.',
+  arenaWaitingSeat: 'Đang chờ',
+  arenaWaitingSeatHint: 'chưa ghép trận',
+  arenaLobbyTip: 'Cứ 5 giây là gợi ý lại hiện thêm chữ cái. Gõ nhanh là thắng, đừng đợi gợi ý nha!',
 
   /* translate */
   translateKicker: 'Dịch thuật',
@@ -486,6 +511,27 @@ const vi = {
   adminDeleteQuestionConfirm: 'Xoá câu hỏi này?',
   adminStageNotEmpty: 'Chặng còn bài học nên chưa xoá được. Xoá các bài bên trong trước.',
 
+  /* admin console (separate shell) */
+  consoleTitle: 'Quản trị hệ thống',
+  consoleLoginTitle: 'Đăng nhập quản trị',
+  consoleLoginDesc: 'Khu vực quản trị Engorace — quản lý nội dung và theo dõi số liệu vận hành.',
+  consolePassword: 'Mật khẩu',
+  consoleBackToLearner: 'Về trang học viên',
+  consoleLogout: 'Đăng xuất',
+  consoleViewLearner: 'Xem giao diện học viên',
+  consoleNavOverview: 'Tổng quan',
+  consoleNavContent: 'Nội dung học',
+  consoleNavVideos: 'Thư viện video',
+  consoleNavStats: 'Thống kê',
+  consoleNoAccessTitle: 'Không có quyền truy cập',
+  consoleNoAccessDesc: 'Tài khoản này không phải quản trị viên. Hãy đăng xuất và đăng nhập bằng tài khoản admin.',
+  consoleOverviewHi: 'Xin chào',
+  consoleOverviewDesc: 'Tổng quan vận hành Engorace — người học, nội dung và mức độ gắn kết.',
+  consoleToday: 'Hôm nay',
+  consoleRefresh: 'Làm mới',
+  consoleStatsError: 'Không tải được số liệu thống kê.',
+  consoleLoading: 'Đang tải...',
+
   /* landing demo — real shortest lesson, gated after a few segments */
   demoLoading: 'Đang mở bài học thử...',
   demoLoadError: 'Không mở được bài học thử.',
@@ -535,7 +581,13 @@ const en: typeof vi = {
   navCompete: 'Compete',
   navRankings: 'Leaderboard',
   navRankingsShort: 'Ranks',
+  navShop: 'Gara Engorace',
+  navShopShort: 'Gara',
   navProfile: 'Profile',
+  walletCoins: 'Race Coin',
+  walletLevel: 'Level',
+  walletLevelNext: 'to next level',
+  walletLevelMax: 'Max level',
   navAria: 'Main navigation',
   mobileNavAria: 'Mobile navigation',
   brandHome: 'Engorace home',
@@ -560,6 +612,8 @@ const en: typeof vi = {
   stopLocked: 'Locked',
   stopReview: 'Review',
   stopContinue: 'Continue',
+  stopLessonLabel: 'Lesson',
+  stopQuestionLabel: 'questions',
   mapAria: 'English learning roadmap',
   roadmapLoading: 'Loading your roadmap…',
   roadmapEmpty: 'No roadmap data yet.',
@@ -568,6 +622,14 @@ const en: typeof vi = {
   rankEyebrow: 'LEADERBOARD',
   rankTitle: 'Leaderboard',
   rankDesc: 'Ranked by total XP across every learner. Reload the page to refresh.',
+  rankLeagueEyebrow: 'WEEKLY LEAGUE',
+  rankLeagueTitle: 'This week’s league',
+  rankLeagueDesc: 'Ranked by Race Points (RP) earned this week. At week’s end the standings lock and payout Race Coin.',
+  rankLeagueTab: 'Weekly league',
+  rankCareerTab: 'Career',
+  rankRacePoints: 'Race Points',
+  rankLeagueEmpty: 'Nobody has scored this week yet. Finish a lesson to open the board.',
+  arenaRewardTitle: 'Match reward',
   rankStanding: 'Your position',
   rankOutOf: (total: number) => `of ${total} learners`,
   rankXp: 'XP',
@@ -587,7 +649,9 @@ const en: typeof vi = {
   statXpLabel: 'Total XP',
   statLessonsLabel: 'Lessons done',
   pathKicker: 'YOUR PATH',
-  pathTitle: (stage: number) => `Now at stage ${String(stage).padStart(2, '0')}`,
+  pathTitle: (stage: number, percent: number) => percent >= 100
+    ? 'Journey complete'
+    : `Now at stage ${String(stage).padStart(2, '0')}`,
   pathAria: (percent: number) => `${percent} percent of the path completed`,
   pathTotal: (done: number, total: number) => `${done}/${total} lessons`,
   statusDone: 'Done',
@@ -649,13 +713,10 @@ const en: typeof vi = {
   videoImportPlaceholder: 'https://www.youtube.com/watch?v=...',
   videoImportAction: 'Analyze',
   videoImporting: 'Analyzing…',
-  videoModelLabel: 'Analysis model',
-  videoModelBolt: 'Nemotron Bolt',
-  videoModelBoltHint: 'Fast',
-  videoModelGemini: 'Gemini Flash',
-  videoModelGeminiHint: 'Quality',
-  videoAnalyzing: 'Analyzing video',
-  videoAnalyzingHint: (model: string) => `Fetching captions → ${model} splits sentences`,
+  videoImportStepExtract: 'Extracting captions…',
+  videoImportStepSegment: 'AI is splitting segments…',
+  videoImportDone: (title: string) => `Added “${title}” to your library.`,
+  videoImportClear: 'Clear link',
   videoImportInvalid: 'That YouTube link does not look right. Please paste it again.',
   videoImportTooLong: 'This video is 5 minutes or longer. Pick a shorter clip for easier practice.',
   videoImportNoCaptions: 'This video has no captions at all (including auto-captions), so there is nothing to split yet.',
@@ -670,7 +731,7 @@ const en: typeof vi = {
   videoImportLimit: 'You have reached 20 saved videos. Delete one before adding another.',
   videoImportTimeout: 'YouTube is taking too long to respond. Please try again shortly.',
   videoImportError: 'Could not add the video. Please try again.',
-  videoOwned: 'Your video',
+  videoOwnedBadge: 'Yours',
   videoPractice: 'Practice',
   videoDelete: 'Delete video',
   videoDeleteConfirm: (title: string) => `Delete "${title}" from your library?`,
@@ -725,23 +786,31 @@ const en: typeof vi = {
   practiceDoneEyebrow: 'VIDEO COMPLETE',
   practiceDoneTitle: 'Listening practice complete!',
   practiceDoneDesc: (count: number) => `You listened through all ${count} segments of this video.`,
+  practiceDoneXp: (xp: number) => `+${xp} XP recorded`,
+  practiceDoneXpAgain: 'This video was already completed — no new XP.',
+  practiceDoneXpFailed: 'Could not save progress — try practicing again or reload the page.',
   practiceRestart: 'Practice again',
   practiceBackToLibrary: 'Back to video library',
 
   /* vocabulary arena */
   arenaEyebrow: 'VOCABULARY ARENA',
   arenaTitle: 'Compete',
-  arenaDesc: 'Challenge a real rival in a 1v1 duel or sharpen your reflexes solo with the A1–B2 vocabulary bank.',
+  arenaDesc: 'Duel another learner 1v1 online over the A1–B2 vocabulary bank.',
   arenaDuelTab: '1v1 duel',
   arenaDuelTitle: 'A real rival, beaten on reflex.',
   arenaDuelDesc: 'Read the meaning and type the English word before your rival. 8 rounds, 25 seconds each.',
   arenaPlayed: 'Matches',
   arenaWins: 'Wins',
+  arenaRecentMatches: 'Match history',
+  arenaNoRecentMatches: 'No match history yet.',
+  arenaWinShort: 'W',
+  arenaLossShort: 'L',
   arenaWinRate: 'Win rate',
   arenaWinStreak: 'Win streak',
   arenaRulesTitle: 'How it works',
   arenaResultKicker: 'Result',
   arenaQueueTitle: 'Finding an opponent…',
+  arenaSearching: 'Finding an opponent',
   arenaQueueDesc: 'Keep this tab open. The match starts as soon as another learner joins the queue.',
   arenaQueueOpponent: (name: string) => `About to meet ${name}…`,
   arenaCancel: 'Cancel matchmaking',
@@ -776,7 +845,7 @@ const en: typeof vi = {
   arenaForfeitLoss: 'You left — your rival wins.',
   arenaMatchWin: 'Victory!',
   arenaWinnerTag: 'Winner',
-  arenaMatchLose: 'So close!',
+  arenaMatchLose: 'Defeat!',
   arenaMatchDraw: 'Draw!',
   arenaMatchScore: (scores: Array<{ userId: number; name: string; score: number }>, currentUserId: number) => {
     const you = scores.find((entry) => entry.userId === currentUserId)
@@ -791,6 +860,9 @@ const en: typeof vi = {
   arenaRuleOne: 'Read the Vietnamese meaning and type the English word before your rival.',
   arenaRuleTwo: 'Each round lasts 25 seconds; every 5 seconds another 20% of the letters appears in the answer tiles.',
   arenaRuleThree: 'Whoever wins more rounds across 8 rounds wins the match.',
+  arenaWaitingSeat: 'Waiting',
+  arenaWaitingSeatHint: 'no match yet',
+  arenaLobbyTip: 'A hint reveals more letters every 5 seconds. Type fast and win — do not wait for the hints!',
 
   /* translate */
   translateKicker: 'Translation',
@@ -1003,6 +1075,27 @@ const en: typeof vi = {
   adminDeleteQuestionConfirm: 'Delete this question?',
   adminStageNotEmpty: 'This stage still has lessons. Delete them first.',
 
+  /* admin console (separate shell) */
+  consoleTitle: 'Admin Console',
+  consoleLoginTitle: 'Admin sign-in',
+  consoleLoginDesc: 'Engorace admin area — manage content and watch operations.',
+  consolePassword: 'Password',
+  consoleBackToLearner: 'Back to learner site',
+  consoleLogout: 'Sign out',
+  consoleViewLearner: 'View learner UI',
+  consoleNavOverview: 'Overview',
+  consoleNavContent: 'Learning content',
+  consoleNavVideos: 'Video library',
+  consoleNavStats: 'Statistics',
+  consoleNoAccessTitle: 'No access',
+  consoleNoAccessDesc: 'This account is not an administrator. Please sign out and sign in with an admin account.',
+  consoleOverviewHi: 'Hello',
+  consoleOverviewDesc: 'Engorace operations at a glance — learners, content and engagement.',
+  consoleToday: 'Today',
+  consoleRefresh: 'Refresh',
+  consoleStatsError: 'Could not load statistics.',
+  consoleLoading: 'Loading...',
+
   /* landing demo — real shortest lesson, gated after a few segments */
   demoLoading: 'Opening the sample lesson...',
   demoLoadError: 'Could not open the sample lesson.',
@@ -1044,7 +1137,7 @@ const en: typeof vi = {
 
 export type Dict = typeof vi
 
-const DICTS: Record<Lang, Dict> = { vi, en }
+export const DICTS: Record<Lang, Dict> = { vi, en }
 
 interface LanguageContextValue {
   lang: Lang
@@ -1052,41 +1145,11 @@ interface LanguageContextValue {
   t: Dict
 }
 
-const LanguageContext = createContext<LanguageContextValue>({
+export const LanguageContext = createContext<LanguageContextValue>({
   lang: 'vi',
   setLang: () => {},
   t: vi,
 })
-
-function readLang(): Lang {
-  if (typeof window === 'undefined') return 'vi'
-  try {
-    return window.localStorage.getItem(LANG_STORAGE_KEY) === 'en' ? 'en' : 'vi'
-  } catch {
-    return 'vi'
-  }
-}
-
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(readLang)
-
-  useEffect(() => {
-    document.documentElement.lang = lang
-  }, [lang])
-
-  const setLang = useCallback((next: Lang) => {
-    setLangState(next)
-    try {
-      window.localStorage.setItem(LANG_STORAGE_KEY, next)
-    } catch {
-      /* storage blocked — the switch still applies for this session */
-    }
-  }, [])
-
-  const value = useMemo(() => ({ lang, setLang, t: DICTS[lang] }), [lang, setLang])
-
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
-}
 
 export function useI18n() {
   return useContext(LanguageContext)

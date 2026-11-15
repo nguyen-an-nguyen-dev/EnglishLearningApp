@@ -1,5 +1,3 @@
-export type VideoAnalysisModel = 'bolt' | 'gemini'
-
 export interface VideoProgress {
   watched_seconds: number
   completed: boolean
@@ -70,6 +68,7 @@ export interface CompleteVideoResult {
   completed: boolean
   already_completed: boolean
   xp_earned: number
+  rc_earned: number
   badges_awarded: Array<{ code: string; name: string; description: string; icon: string | null }>
 }
 
@@ -112,6 +111,13 @@ export interface DemoVideo {
   vocabulary: DemoVideoVocabulary[]
 }
 
+export interface ArenaRecentResult {
+  match_id: number
+  won: boolean
+  opponent_name: string
+  played_at: string
+}
+
 export interface ArenaSummary {
   played: number
   wins: number
@@ -119,6 +125,7 @@ export interface ArenaSummary {
   win_rate: number
   win_streak: number
   last_played_at: string | null
+  recent: ArenaRecentResult[]
 }
 
 
@@ -187,6 +194,16 @@ export interface BattleRoundEnd {
   scores: BattleScore[]
 }
 
+export interface BattleFinishReward {
+  rc: number
+  xp: number
+  rp: number
+  counted: boolean
+  won: boolean
+  level_before: number
+  level_after: number
+}
+
 export interface BattleFinish {
   matchId: number
   status: 'completed' | 'cancelled'
@@ -194,6 +211,8 @@ export interface BattleFinish {
   scores: BattleScore[]
   totalRounds: number
   reason?: 'opponent_disconnected' | 'left' | 'server_error'
+  /** Per-user reward lines keyed by user id; absent when nothing was settled. */
+  rewards?: Record<number, BattleFinishReward>
 }
 
 export interface BattleResume {

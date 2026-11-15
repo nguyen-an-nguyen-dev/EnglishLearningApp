@@ -44,11 +44,10 @@
 .buddy-dock:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 4px; border-radius: 14px; }
 
 .buddy-dock-car {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
+  /* The badge keeps the roadmap car's tall aspect ratio, so size by height. */
+  width: auto;
+  height: 52px;
   filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--ink) 26%, transparent));
-  animation: buddy-idle 5.6s var(--buddy-soft) infinite;
 }
 
 @keyframes buddy-idle {
@@ -136,7 +135,7 @@
 }
 
 .buddy-panel-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.buddy-panel-car { width: 36px; height: 36px; object-fit: contain; flex: none; }
+.buddy-panel-car { width: auto; height: 40px; flex: none; }
 
 .buddy-panel-identity strong {
   display: block;
@@ -480,7 +479,7 @@
 
 @media (max-width: 720px) {
   .buddy-dock { right: 10px; bottom: 84px; width: 56px; height: 56px; }
-  .buddy-dock-car { width: 50px; height: 50px; }
+  .buddy-dock-car { height: 46px; width: auto; }
   .buddy-nudge-bubble { right: 76px; bottom: 96px; max-width: calc(100vw - 100px); font-size: 12px; }
   .buddy-panel {
     right: 8px;

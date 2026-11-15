@@ -4,7 +4,11 @@ import { Server, type Socket } from 'socket.io';
 import { env } from '../../config/env';
 import { getVerifiedJwtSecret } from '../auth/auth.service';
 import * as repository from './battle.repository';
-import type { BattleWord } from './battle.repository';
+import type {
+  BattleParticipant,
+  BattleSettlement,
+  BattleWord,
+} from './battle.repository';
 
 type ClientEvents = {
   'match:join': () => void;
@@ -21,6 +25,7 @@ type ServerEvents = {
   'game:answerResult': (payload: AnswerResultPayload) => void;
   'game:opponentAttempt': (payload: { text: string }) => void;
   'game:opponentAway': (payload: { away: boolean }) => void;
+  'game:hint': (payload: HintRevealPayload) => void;
   'game:roundEnd': (payload: RoundEndPayload) => void;
   'game:finish': (payload: GameFinishPayload) => void;
   'game:resume': (payload: GameResumePayload) => void;
@@ -37,6 +42,13 @@ export interface BattleRepository {
   createMatch(playerOneId: number, playerTwoId: number): Promise<number>;
   recordAnswer(matchId: number, userId: number, round: number, answer: string, isCorrect: boolean, responseTimeMs: number): Promise<void>;
   finishMatch(matchId: number, status: 'completed' | 'cancelled', winnerUserId: number | null): Promise<void>;
+  settleMatch(
+    matchId: number,
+    status: 'completed' | 'cancelled',
+    winnerUserId: number | null,
+    participants: BattleParticipant[],
+    rated: boolean,
+  ): Promise<BattleSettlement>;
 }
 
 interface Player {
@@ -69,6 +81,8 @@ interface MatchState {
   status: 'active' | 'completed' | 'cancelled';
   resolving: boolean;
   timer: NodeJS.Timeout | null;
+  /** Per-step hint timers; cleared whenever the round ends or is interrupted. */
+  hintTimers: NodeJS.Timeout[];
   question: GameQuestionPayload | null;
   roundEnd: RoundEndPayload | null;
   roundStartedAt: number;
@@ -110,9 +124,18 @@ interface GameQuestionPayload {
   exampleVi: string;
   letterCount: number;
   letterHints: HintLetter[];
-  hintSchedule: HintStep[];
+  /** Hint steps already revealed when a match resumes mid-round. */
+  revealedSteps: number;
   imageUrl: string | null;
   durationMs: number;
+}
+
+/** One hint step, emitted on its own timer so the answer never ships up front. */
+interface HintRevealPayload {
+  matchId: number;
+  round: number;
+  step: number;
+  letters: HintLetter[];
 }
 
 interface AnswerResultPayload {
@@ -141,6 +164,19 @@ interface GameFinishPayload {
   scores: Array<{ userId: number; name: string; score: number }>;
   totalRounds: number;
   reason?: 'opponent_disconnected' | 'left' | 'server_error';
+  /** Per-user reward lines keyed by user id; omitted when nothing was settled. */
+  rewards?: Record<number, BattleFinishReward>;
+}
+
+interface BattleFinishReward {
+  rc: number;
+  xp: number;
+  rp: number;
+  /** False when the match was forfeited and paid nothing. */
+  counted: boolean;
+  won: boolean;
+  level_before: number;
+  level_after: number;
 }
 
 interface GameResumePayload {
@@ -216,22 +252,29 @@ function spreadPositions(length: number): number[] {
   return order;
 }
 
-// 0 hints at kick-off, then ~20% of the letters every 5 seconds (capped near 80%).
-export function hintSchedule(word: string, roundMs: number): Array<{ atMs: number; letters: Array<{ position: number; letter: string }> }> {
-  const order = spreadPositions(word.length);
-  const steps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
-  const schedule: Array<{ atMs: number; letters: Array<{ position: number; letter: string }> }> = [];
-  for (let step = 1; step <= steps; step += 1) {
-    const count = Math.min(word.length, Math.max(1, Math.round(word.length * 0.2 * step)));
-    schedule.push({
-      atMs: step * BATTLE_HINT_STEP_MS,
-      letters: order
-        .slice(0, count)
-        .sort((a, b) => a - b)
-        .map((position) => ({ position, letter: word[position] })),
-    });
-  }
-  return schedule;
+/**
+ * Letters revealed at one hint step (~20% more each step).
+ *
+ * The full schedule is deliberately NOT sent to the client: a duel now pays
+ * Race Coin, and shipping every step up front let a player read the whole
+ * answer out of the payload. The server emits each step on its own timer
+ * instead, so a round can never be solved from the wire.
+ */
+export function hintLettersAtStep(word: string, step: number, roundMs: number): HintLetter[] {
+  const totalSteps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
+  if (step < 1 || step > totalSteps) return [];
+  const count = Math.min(word.length, Math.max(1, Math.round(word.length * 0.2 * step)));
+  return spreadPositions(word.length)
+    .slice(0, count)
+    .sort((a, b) => a - b)
+    .map((position) => ({ position, letter: word[position] }));
+}
+
+/** How many hint steps have fired `elapsedMs` into the round. */
+export function hintStepsElapsed(roundMs: number, elapsedMs: number): number {
+  const totalSteps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
+  const reached = Math.floor(elapsedMs / BATTLE_HINT_STEP_MS);
+  return Math.max(0, Math.min(totalSteps, reached));
 }
 
 function shuffleWords(words: BattleWord[]): BattleWord[] {
@@ -314,6 +357,7 @@ export function attachBattleSocket(
   }
 
   function clearRoundTimer(match: MatchState): void {
+    clearHintTimers(match);
     if (!match.timer) return;
     clearTimeout(match.timer);
     match.timer = null;
@@ -332,6 +376,11 @@ export function attachBattleSocket(
     const remainingMs = match.roundEnd
       ? Math.max(0, (match.revealUntil ?? Date.now()) - Date.now())
       : Math.max(0, timing.roundMs - (Date.now() - match.roundStartedAt));
+    // A resumed round must show the hints that already elapsed, so the client is
+    // told how many steps passed rather than being handed the steps themselves.
+    const question = match.roundEnd || match.status !== 'active'
+      ? match.question
+      : questionPayload(match, hintStepsElapsed(timing.roundMs, Date.now() - match.roundStartedAt));
     return {
       matchId: match.id,
       game: {
@@ -341,19 +390,60 @@ export function attachBattleSocket(
         roundDurationMs: timing.roundMs,
       },
       opponent: { userId: opponent.userId, name: opponent.name },
-      question: match.question,
+      question,
       roundEnd: match.roundEnd,
       scores: scoresFor(match),
       remainingMs,
     };
   }
 
+  /**
+   * Persist the match result and pay out both players.
+   *
+   * `rated` is false for forfeits, disconnects and server errors: the result is
+   * still recorded, but no Race Coin/XP is granted, so a player cannot farm the
+   * Arena by quitting and re-queueing.
+   */
   async function persistMatchEnd(
-    matchId: number,
+    match: MatchState,
     status: 'completed' | 'cancelled',
     winnerUserId: number | null,
-  ): Promise<void> {
-    await battleRepository.finishMatch(matchId, status, winnerUserId);
+    rated: boolean,
+  ): Promise<BattleSettlement | null> {
+    await battleRepository.finishMatch(match.id, status, winnerUserId);
+    if (status !== 'completed') return null;
+    return battleRepository.settleMatch(
+      match.id,
+      status,
+      winnerUserId,
+      match.players.map((player) => ({
+        userId: player.userId,
+        score: match.scores.get(player.userId) ?? 0,
+      })),
+      rated,
+    );
+  }
+
+  /** Build the per-player reward lines that ride along on `game:finish`. */
+  function finishRewards(
+    match: MatchState,
+    settlement: BattleSettlement | null,
+    winnerUserId: number | null,
+  ): Record<number, BattleFinishReward> {
+    const rewards: Record<number, BattleFinishReward> = {};
+    for (const player of match.players) {
+      const line = settlement?.rewards[player.userId];
+      rewards[player.userId] = {
+        rc: line?.rc ?? 0,
+        xp: line?.xp ?? 0,
+        rp: line?.rp ?? 0,
+        counted: line?.counted ?? false,
+        won: winnerUserId === player.userId,
+        level_before: settlement?.levelBefore[player.userId] ?? 0,
+        level_after: settlement?.levelAfter[player.userId] ?? 0,
+      };
+    }
+    return rewards;
   }
 
   async function cancelMatch(
@@ -374,8 +464,10 @@ export function attachBattleSocket(
     matches.delete(match.id);
     releasePlayers(match.players);
     for (const player of match.players) matchesBySocket.delete(player.socket.id);
+    // A forfeit still records the result but never pays: quitting must not be
+    // a faster route to Race Coin than actually playing the duel out.
     try {
-      await persistMatchEnd(match.id, status, winnerUserId);
+      await persistMatchEnd(match, status, winnerUserId, false);
     } catch (error) {
       console.error('Failed to persist interrupted Word Battle match:', error);
       for (const player of match.players) emitError(player.socket, 'PERSISTENCE_ERROR', 'The match could not be saved. Please try again.');
@@ -415,7 +507,7 @@ export function attachBattleSocket(
     }
     if (pair.matchId) {
       try {
-        await persistMatchEnd(pair.matchId, 'cancelled', null);
+        await battleRepository.finishMatch(pair.matchId, 'cancelled', null);
       } catch (error) {
         console.error('Failed to persist interrupted Word Battle match:', error);
         if (other?.socket.connected) emitError(other.socket, 'PERSISTENCE_ERROR', 'The match could not be saved. Please try again.');
@@ -423,7 +515,7 @@ export function attachBattleSocket(
     }
   }
 
-  function questionPayload(match: MatchState): GameQuestionPayload {
+  function questionPayload(match: MatchState, revealedSteps = 0): GameQuestionPayload {
     const word = match.words[match.round - 1];
     return {
       matchId: match.id,
@@ -438,10 +530,39 @@ export function attachBattleSocket(
       exampleVi: word.exampleVi,
       letterCount: word.word.length,
       letterHints: letterHints(word.word),
-      hintSchedule: hintSchedule(word.word, timing.roundMs),
+      revealedSteps,
       imageUrl: word.imageUrl,
       durationMs: timing.roundMs,
     };
+  }
+
+  /** Schedule each hint step on its own timer for the current round. */
+  function scheduleHints(match: MatchState): void {
+    for (const timer of match.hintTimers) clearTimeout(timer);
+    match.hintTimers = [];
+    const word = match.words[match.round - 1];
+    const total = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(timing.roundMs / BATTLE_HINT_STEP_MS) - 1));
+    const roundSnapshot = match.round;
+    for (let step = 1; step <= total; step += 1) {
+      const timer = setTimeout(() => {
+        if (match.status !== 'active' || match.round !== roundSnapshot || match.resolving) return;
+        const letters = hintLettersAtStep(word.word, step, timing.roundMs);
+        if (letters.length === 0) return;
+        const payload: HintRevealPayload = {
+          matchId: match.id,
+          round: roundSnapshot,
+          step,
+          letters,
+        };
+        for (const player of match.players) player.socket.emit('game:hint', payload);
+      }, step * BATTLE_HINT_STEP_MS);
+      match.hintTimers.push(timer);
+    }
+  }
+
+  function clearHintTimers(match: MatchState): void {
+    for (const timer of match.hintTimers) clearTimeout(timer);
+    match.hintTimers = [];
   }
 
   function beginRound(match: MatchState): void {
@@ -458,6 +579,7 @@ export function attachBattleSocket(
       match.timer = null;
       expireRound(match);
     }, timing.roundMs);
+    scheduleHints(match);
     for (const player of match.players) player.socket.emit('game:question', payload);
   }
 
@@ -545,8 +667,9 @@ export function attachBattleSocket(
       clearReconnectTimers(match);
       releasePlayers(match.players);
       for (const player of match.players) matchesBySocket.delete(player.socket.id);
+      let settlement: BattleSettlement | null = null;
       try {
-        await persistMatchEnd(match.id, 'completed', winnerUserId);
+        settlement = await persistMatchEnd(match, 'completed', winnerUserId, true);
       } catch (error) {
         console.error('Failed to persist completed Word Battle match:', error);
         for (const player of match.players) emitError(player.socket, 'PERSISTENCE_ERROR', 'The match result could not be saved.');
@@ -557,6 +680,7 @@ export function attachBattleSocket(
         winnerUserId,
         scores: scoresFor(match),
         totalRounds: match.words.length,
+        rewards: finishRewards(match, settlement, winnerUserId),
       };
       for (const player of match.players) player.socket.emit('game:finish', finishPayload);
       return;
@@ -593,7 +717,8 @@ export function attachBattleSocket(
       pair.cancelled = true;
       for (const member of pair.players) pendingBySocket.delete(member.socket.id);
       releasePlayers(pair.players);
-      await persistMatchEnd(matchId, 'cancelled', null);
+      // Never started: just mark it cancelled, there is nothing to settle.
+      await battleRepository.finishMatch(matchId, 'cancelled', null);
       return;
     }
     const match: MatchState = {
@@ -607,6 +732,7 @@ export function attachBattleSocket(
       status: 'active',
       resolving: false,
       timer: null,
+      hintTimers: [],
       question: null,
       roundEnd: null,
       roundStartedAt: 0,
@@ -728,7 +854,7 @@ export function attachBattleSocket(
               for (const member of match.players) matchesBySocket.delete(member.socket.id);
             }
             try {
-              await persistMatchEnd(pair.matchId, 'cancelled', null);
+              await battleRepository.finishMatch(pair.matchId, 'cancelled', null);
             } catch (persistenceError) {
               console.error('Failed to persist interrupted Word Battle match:', persistenceError);
             }

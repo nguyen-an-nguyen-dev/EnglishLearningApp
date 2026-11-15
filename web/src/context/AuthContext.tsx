@@ -15,6 +15,7 @@ import {
   updateProfileApi,
   authStorage,
 } from '../services/authService';
+import { SESSION_EXPIRED_EVENT } from '../services/apiClient';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -106,17 +107,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const changePassword = async (payload: { currentPassword: string; newPassword: string }) => {
+  const changePassword = useCallback(async (payload: { currentPassword: string; newPassword: string }) => {
     if (!token) throw new Error('Bạn cần đăng nhập lại.');
     await changePasswordApi(token, payload);
-  };
+  }, [token]);
 
-  const updateProfile = async (payload: { name: string; email: string }) => {
+  const updateProfile = useCallback(async (payload: { name: string; email: string }) => {
     if (!token) throw new Error('Bạn cần đăng nhập lại.');
     const updated = await updateProfileApi(token, payload);
     setUser(updated);
     authStorage.setUser(updated);
-  };
+  }, [token]);
 
   const refreshUser = useCallback(async () => {
     const savedToken = authStorage.getToken();
@@ -136,6 +137,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
+  // Any 401 from the API means the stored token is no longer accepted (expired,
+  // or invalidated by a restart that rotated the signing secret). Drop the
+  // session so the UI stops showing a signed-in shell that cannot load data.
+  useEffect(() => {
+    const onExpired = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -150,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshUser,
       logout,
     }),
-    [user, token, isLoading, refreshUser],
+    [user, token, isLoading, refreshUser, changePassword, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

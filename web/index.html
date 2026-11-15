@@ -17,18 +17,43 @@
     <meta name="twitter:description" content="Luyện tiếng Anh qua tình huống đời thường, từng bài ngắn có ngữ cảnh và cách dùng rõ ràng." />
     <meta name="twitter:image" content="/logo.png" />
     <title>Engorace | Học mọi nơi, chơi mọi lúc</title>
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement
+          var stored = localStorage.getItem('engorace_theme')
+          var signedIn = false
+          try {
+            signedIn = !!(localStorage.getItem('englearn_token') && localStorage.getItem('englearn_user'))
+          } catch (e) {}
+          // The public landing is light-only; only the signed-in dashboard may
+          // use a dark canvas. Deciding this before first paint stops F5 from
+          // flashing a dark page/frame before React mounts.
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          var theme = 'light'
+          if (signedIn) {
+            theme = stored === 'dark' || stored === 'light'
+              ? stored
+              : (prefersDark ? 'dark' : 'light')
+          }
+          root.dataset.theme = theme
+          root.style.colorScheme = theme
+          root.style.background = theme === 'dark' ? '#0E1720' : '#F2FAFD'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0E1720' : '#F2FAFD')
+        } catch (e) {}
+      })()
+    </script>
+    <style>
+      /* Critical pre-CSS rules: kill the UA 8px body margin and paint the
+         canvas/body immediately, otherwise a reload shows a dark frame around
+         the shifted page until the bundled CSS arrives. */
+      html, body { margin: 0; padding: 0; }
+      html, body { background: #F2FAFD; }
+      html[data-theme="dark"], html[data-theme="dark"] body { background: #0E1720; }
+    </style>
   </head>
   <body>
-    <script>
-      try {
-        var stored = localStorage.getItem('engorace_theme')
-        var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        document.documentElement.dataset.theme = theme
-        document.documentElement.style.colorScheme = theme
-        var meta = document.querySelector('meta[name="theme-color"]')
-        if (meta) meta.setAttribute('content', theme === 'dark' ? '#0E1720' : '#F2FAFD')
-      } catch (e) {}
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

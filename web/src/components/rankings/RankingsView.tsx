@@ -2,14 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ArrowClockwise, Crown, Trophy } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
+import { useWallet } from '../../context/WalletContext'
 import { useI18n } from '../../i18n'
 import { getRankingApi } from '../../services/communityService'
 import type { RankingBoard, RankingEntry } from '../../types/community'
-import { initialOf } from '../../utils/avatar'
+import { AvatarFrame } from '../cosmetics/AvatarFrame'
+import { Nameplate } from '../cosmetics/Nameplate'
+import { tierMeta } from '../../cosmetics'
 import { formatCompact } from '../../utils/format'
 
 const VISIBLE_ROWS = 20
 const HUE_COUNT = 5
+
+type Board = 'league' | 'career'
 
 /** A stable hue per learner so the board reads as a crowd, not a spreadsheet. */
 function hueOf(name: string): number {
@@ -24,49 +29,63 @@ function hueVars(name: string): CSSProperties {
   return { '--hue': `var(--rank-hue-${hueOf(name)})` } as CSSProperties
 }
 
+/** League rows are scored on Race Points; career rows on XP. */
+function scoreOf(entry: RankingEntry, board: Board): number {
+  return board === 'league' ? entry.race_points ?? 0 : entry.xp
+}
+
 function PodiumStep({
   entry,
   place,
   isMe,
+  board,
 }: {
   entry: RankingEntry
   place: 1 | 2 | 3
   isMe: boolean
+  board: Board
 }) {
   const { t } = useI18n()
+  const tier = tierMeta(entry.tier)
   return (
     <li className={`rank-step is-${place}${isMe ? ' is-you' : ''}`} style={hueVars(entry.name)}>
-      <span className="rank-step-avatar" aria-hidden="true">
-        {place === 1 ? <Crown size={20} weight="fill" /> : initialOf(entry.name)}
+      <span className="rank-step-avatar">
+        {place === 1 && board === 'league'
+          ? <Crown size={20} weight="fill" />
+          : <AvatarFrame name={entry.name} visualKey={entry.frame_key ?? null} size={place === 1 ? 62 : 52} />}
       </span>
-      <span className="rank-step-name">
+      <Nameplate visualKey={entry.nameplate_key ?? null} dense>
         {entry.name}
         {isMe && <em>{t.you}</em>}
-      </span>
+      </Nameplate>
       <span className="rank-step-xp">
-        {formatCompact(entry.xp)}<i>XP</i>
+        {formatCompact(scoreOf(entry, board))}
+        <i>{board === 'league' ? 'RP' : 'XP'}</i>
       </span>
+      {board === 'league' && <span className="rank-tier" style={{ color: tier.color }}>{tier.label}</span>}
       <span className="rank-step-base" aria-hidden="true">{place}</span>
     </li>
   )
 }
 
-function Lane({ entry, isMe, share }: { entry: RankingEntry; isMe: boolean; share: number }) {
+function Lane({ entry, isMe, share, board }: { entry: RankingEntry; isMe: boolean; share: number; board: Board }) {
   const { t } = useI18n()
+  const tier = tierMeta(entry.tier)
   return (
     <li
       className={`rank-row${isMe ? ' is-you' : ''}`}
       style={{ ...hueVars(entry.name), '--share': `${share}%` } as CSSProperties}
     >
       <span className="rank-index">{String(entry.rank).padStart(2, '0')}</span>
-      <span className="rank-avatar" aria-hidden="true">{initialOf(entry.name)}</span>
-      <span className="rank-name">
+      <AvatarFrame name={entry.name} visualKey={entry.frame_key ?? null} size={38} />
+      <Nameplate visualKey={entry.nameplate_key ?? null} dense>
         {entry.name}
         {isMe && <em>{t.you}</em>}
-      </span>
+      </Nameplate>
       <span className="rank-bar" aria-hidden="true"><i /></span>
+      {board === 'league' && <span className="rank-tier" style={{ color: tier.color }}>{tier.label}</span>}
       <span className="rank-xp">
-        {formatCompact(entry.xp)}<i>XP</i>
+        {formatCompact(scoreOf(entry, board))}<i>{board === 'league' ? 'RP' : 'XP'}</i>
       </span>
     </li>
   )
@@ -75,7 +94,9 @@ function Lane({ entry, isMe, share }: { entry: RankingEntry; isMe: boolean; shar
 export function RankingsView() {
   const { t } = useI18n()
   const { user } = useAuth()
+  const { league } = useWallet()
   const [board, setBoard] = useState<RankingBoard | null>(null)
+  const [tab, setTab] = useState<Board>('league')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -103,12 +124,16 @@ export function RankingsView() {
     setReloadKey((key) => key + 1)
   }
 
-  const entries = useMemo(() => board?.leaderboard ?? [], [board])
+  const isLeague = tab === 'league'
+  const entries = useMemo(
+    () => (isLeague ? board?.league ?? [] : board?.leaderboard ?? []),
+    [board, isLeague],
+  )
   const leader = entries[0]
-  const myRank = board?.current_user_rank ?? null
+  const myRank = isLeague ? board?.current_user_league_rank ?? null : board?.current_user_rank ?? null
   const me = useMemo(() => entries.find((entry) => entry.userId === user?.id), [entries, user?.id])
   const third = entries[2]
-  const gapToTop3 = third && me ? Math.max(0, third.xp - me.xp) : null
+  const gapToTop3 = third && me ? Math.max(0, scoreOf(third, tab) - scoreOf(me, tab)) : null
   const podium = entries.slice(0, 3)
   const rest = useMemo(() => {
     if (entries.length <= VISIBLE_ROWS) return entries.slice(3)
@@ -117,33 +142,57 @@ export function RankingsView() {
     return tail
   }, [entries, me])
 
-  const share = (xp: number) => (leader && leader.xp > 0 ? Math.round((xp / leader.xp) * 100) : 0)
+  const share = (value: number) => (leader && scoreOf(leader, tab) > 0 ? Math.round((value / scoreOf(leader, tab)) * 100) : 0)
   const myIndex = entries.findIndex((entry) => entry.userId === user?.id)
   const above = myIndex > 0 ? entries[myIndex - 1] : null
   const below = myIndex >= 0 && myIndex < entries.length - 1 ? entries[myIndex + 1] : null
+  const tier = tierMeta(league?.tier)
 
   return (
     <div
       className="tab-view-container rank-view"
+      data-board={tab}
       data-my-rank={myRank ?? ''}
       data-total-users={entries.length}
-      data-my-xp={me?.xp ?? user?.xp ?? 0}
+      data-my-score={me ? scoreOf(me, tab) : 0}
       data-leader-name={leader?.name ?? ''}
-      data-leader-xp={leader?.xp ?? 0}
+      data-leader-score={leader ? scoreOf(leader, tab) : 0}
       data-above-name={above?.name ?? ''}
       data-above-rank={above?.rank ?? ''}
-      data-above-xp={above?.xp ?? ''}
       data-below-name={below?.name ?? ''}
       data-below-rank={below?.rank ?? ''}
-      data-below-xp={below?.xp ?? ''}
     >
       <header className="page-heading rank-head">
         <div>
-          <span className="page-eyebrow">{t.rankEyebrow}</span>
-          <h1>{t.rankTitle}</h1>
-          <p>{t.rankDesc}</p>
+          <span className="page-eyebrow">{isLeague ? t.rankLeagueEyebrow : t.rankEyebrow}</span>
+          <h1>{isLeague ? t.rankLeagueTitle : t.rankTitle}</h1>
+          <p>{isLeague ? t.rankLeagueDesc : t.rankDesc}</p>
         </div>
+        {isLeague && league?.season && (
+          <div className="rank-season">
+            <span className="arena-label">{league.season.code}</span>
+            <strong style={{ color: tier.color }}>{tier.label}</strong>
+            <span className="rank-season-rp">{formatCompact(league.race_points)} RP</span>
+          </div>
+        )}
       </header>
+
+      <nav className="rank-tabs" aria-label={t.rankTitle}>
+        <button
+          type="button"
+          className={`rank-tab${isLeague ? ' is-active' : ''}`}
+          onClick={() => setTab('league')}
+        >
+          {t.rankLeagueTab}
+        </button>
+        <button
+          type="button"
+          className={`rank-tab${!isLeague ? ' is-active' : ''}`}
+          onClick={() => setTab('career')}
+        >
+          {t.rankCareerTab}
+        </button>
+      </nav>
 
       {loading && (
         <div className="rank-state">
@@ -164,16 +213,16 @@ export function RankingsView() {
       {!loading && !error && entries.length === 0 && (
         <div className="rank-state">
           <Trophy size={30} weight="regular" />
-          <p>{t.rankEmpty}</p>
+          <p>{isLeague ? t.rankLeagueEmpty : t.rankEmpty}</p>
         </div>
       )}
 
       {!loading && !error && entries.length > 0 && (
         <>
           <ol className="rank-podium" aria-label={t.rankTop}>
-            {podium[1] && <PodiumStep entry={podium[1]} place={2} isMe={podium[1].userId === user?.id} />}
-            {podium[0] && <PodiumStep entry={podium[0]} place={1} isMe={podium[0].userId === user?.id} />}
-            {podium[2] && <PodiumStep entry={podium[2]} place={3} isMe={podium[2].userId === user?.id} />}
+            {podium[1] && <PodiumStep entry={podium[1]} place={2} isMe={podium[1].userId === user?.id} board={tab} />}
+            {podium[0] && <PodiumStep entry={podium[0]} place={1} isMe={podium[0].userId === user?.id} board={tab} />}
+            {podium[2] && <PodiumStep entry={podium[2]} place={3} isMe={podium[2].userId === user?.id} board={tab} />}
           </ol>
 
           <section className="rank-you" aria-label={t.rankStanding}>
@@ -184,12 +233,12 @@ export function RankingsView() {
             </div>
             <dl className="rank-facts">
               <div>
-                <dt>{t.rankXp}</dt>
-                <dd>{formatCompact(me?.xp ?? user?.xp ?? 0)}</dd>
+                <dt>{isLeague ? t.rankRacePoints : t.rankXp}</dt>
+                <dd>{formatCompact(me ? scoreOf(me, tab) : 0)}</dd>
               </div>
               <div>
                 <dt>{t.rankGapTop3}</dt>
-                <dd>{gapToTop3 === null ? '—' : gapToTop3 === 0 ? t.rankReached : `${formatCompact(gapToTop3)} XP`}</dd>
+                <dd>{gapToTop3 === null ? '—' : gapToTop3 === 0 ? t.rankReached : `${formatCompact(gapToTop3)} ${isLeague ? 'RP' : 'XP'}`}</dd>
               </div>
               <div>
                 <dt>{t.rankTop}</dt>
@@ -205,7 +254,8 @@ export function RankingsView() {
                   key={entry.userId}
                   entry={entry}
                   isMe={entry.userId === user?.id}
-                  share={share(entry.xp)}
+                  share={share(scoreOf(entry, tab))}
+                  board={tab}
                 />
               ))}
             </ol>

@@ -4,6 +4,7 @@ import {
   ArrowClockwise,
   CaretDown,
   CaretUp,
+  Check,
   CheckCircle,
   LinkSimple,
   PencilSimple,
@@ -22,7 +23,7 @@ import {
   moveAdminVideoApi,
   updateAdminVideoApi,
 } from '../../services/adminService'
-import type { AdminSharedVideo, CefrLevel, VideoAnalysisModel } from '../../types/admin'
+import type { AdminSharedVideo, CefrLevel } from '../../types/admin'
 import { CEFR_LEVELS } from '../../types/admin'
 import { videoImportErrorMessage } from '../../utils/videoImportErrors'
 import { formatClock, youtubeThumbnailUrl } from '../../utils/videoPlayback'
@@ -60,7 +61,7 @@ export function AdminVideoPanel() {
 
   const [importOpen, setImportOpen] = useState(false)
   const [importUrl, setImportUrl] = useState('')
-  const [analysisModel, setAnalysisModel] = useState<VideoAnalysisModel>('bolt')
+  const [importStage, setImportStage] = useState<'extract' | 'segment'>('extract')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
 
@@ -92,6 +93,14 @@ export function AdminVideoPanel() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
+  // The server can't report which pipeline stage it is in; the timeline is
+  // honest enough to show "captions" first, then "AI splitting".
+  useEffect(() => {
+    if (!importing) return
+    const timer = window.setTimeout(() => setImportStage('segment'), 1800)
+    return () => window.clearTimeout(timer)
+  }, [importing])
+
   function reload() {
     setLoading(true)
     setReloadKey((key) => key + 1)
@@ -102,9 +111,10 @@ export function AdminVideoPanel() {
     const url = importUrl.trim()
     if (!url || importing) return
     setImporting(true)
+    setImportStage('extract')
     setImportError(null)
     try {
-      const video = await importAdminVideoApi(url, analysisModel)
+      const video = await importAdminVideoApi(url)
       setImportUrl('')
       setImportOpen(false)
       setNotice({ tone: 'ok', text: t.adminVideoAdded(video.title) })
@@ -113,6 +123,7 @@ export function AdminVideoPanel() {
       setImportError(videoImportErrorMessage(error, t))
     } finally {
       setImporting(false)
+      setImportStage('extract')
     }
   }
 
@@ -184,11 +195,6 @@ export function AdminVideoPanel() {
     }
   }
 
-  const analysisModels: Array<{ id: VideoAnalysisModel; label: string; hint: string }> = [
-    { id: 'bolt', label: t.videoModelBolt, hint: t.videoModelBoltHint },
-    { id: 'gemini', label: t.videoModelGemini, hint: t.videoModelGeminiHint },
-  ]
-
   return (
     <section className="admin-panel" aria-labelledby="admin-videos-title">
       <div className="admin-toolbar">
@@ -255,7 +261,7 @@ export function AdminVideoPanel() {
             return (
               <li className="admin-row" key={video.id}>
                 <span className="admin-row-thumb">
-                  {thumb ? <img src={thumb} alt="" loading="lazy" /> : <span className="admin-row-thumb-fallback" />}
+                  {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" /> : <span className="admin-row-thumb-fallback" />}
                 </span>
                 <div className="admin-row-main">
                   <strong>{video.title}</strong>
@@ -341,52 +347,45 @@ export function AdminVideoPanel() {
         )}
       >
         <form id="admin-video-import-form" className="admin-form" onSubmit={(event) => void handleImport(event)}>
-          <label className="admin-field">
-            <span>{t.videoImportTitle}</span>
-            <span className="admin-input">
-              <LinkSimple size={16} />
-              <input
-                type="url"
-                data-autofocus
-                value={importUrl}
-                onChange={(event) => setImportUrl(event.target.value)}
-                placeholder={t.videoImportPlaceholder}
-                disabled={importing}
-              />
-            </span>
-          </label>
-
-          <div className="admin-field">
-            <span>{t.videoModelLabel}</span>
-            <div className="video-model-switch" role="radiogroup" aria-label={t.videoModelLabel}>
-              {analysisModels.map((model) => (
-                <button
-                  key={model.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={analysisModel === model.id}
-                  className={`video-model-option${analysisModel === model.id ? ' is-active' : ''}`}
-                  onClick={() => setAnalysisModel(model.id)}
-                  disabled={importing}
-                >
-                  <span className="video-model-radio" aria-hidden="true" />
-                  <span className="video-model-copy">
-                    <strong>{model.label}</strong>
-                    <small>{model.hint}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {importing && (
-            <div className="video-import-status" role="status" aria-live="polite">
-              <span className="video-spinner" aria-hidden="true" />
-              <div className="video-import-status-copy">
-                <strong>{t.videoAnalyzing}</strong>
-                <small>{t.videoAnalyzingHint(analysisModel === 'gemini' ? t.videoModelGemini : t.videoModelBolt)}</small>
-              </div>
-            </div>
+          {importing ? (
+            <ol className="video-import-steps" role="status" aria-live="polite">
+              <li className={`video-import-step${importStage === 'segment' ? ' is-done' : ' is-active'}`}>
+                <span className="video-import-step-dot" aria-hidden="true">
+                  {importStage === 'segment' ? <Check size={11} weight="bold" /> : <span className="video-spinner is-tiny" />}
+                </span>
+                <span className="video-import-step-text">{t.videoImportStepExtract}</span>
+              </li>
+              <li className={`video-import-step${importStage === 'segment' ? ' is-active' : ''}`}>
+                <span className="video-import-step-dot" aria-hidden="true">
+                  {importStage === 'segment' ? <span className="video-spinner is-tiny" /> : null}
+                </span>
+                <span className="video-import-step-text">{t.videoImportStepSegment}</span>
+              </li>
+            </ol>
+          ) : (
+            <label className="admin-field">
+              <span>{t.videoImportTitle}</span>
+              <span className="admin-input">
+                <LinkSimple size={16} />
+                <input
+                  type="url"
+                  data-autofocus
+                  value={importUrl}
+                  onChange={(event) => setImportUrl(event.target.value)}
+                  placeholder={t.videoImportPlaceholder}
+                />
+                {importUrl.trim() !== '' && (
+                  <button
+                    type="button"
+                    className="video-import-field-clear"
+                    onClick={() => setImportUrl('')}
+                    aria-label={t.videoImportClear}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </span>
+            </label>
           )}
 
           {importError && <p className="video-import-error" role="alert">{importError}</p>}

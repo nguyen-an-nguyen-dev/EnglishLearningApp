@@ -208,90 +208,53 @@
   font-size: 14px;
 }
 .video-import-field input::placeholder { color: var(--muted); }
-.video-import-model-section { display: grid; gap: 10px; }
-.video-import-options-label {
-  display: inline-flex;
+.video-import-steps {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding: 4px 2px;
+  list-style: none;
+}
+.video-import-step {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 650;
 }
-.video-import-options-label svg { color: var(--brand-600); }
-.video-model-switch { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
-.video-model-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper-muted);
-  color: var(--ink-soft);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease;
-}
-.video-model-radio {
-  position: relative;
-  width: 16px;
-  height: 16px;
+.video-import-step-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   flex: none;
-  border: 2px solid var(--line-strong);
+  border: 1.5px solid var(--line-strong);
   border-radius: 50%;
-  background: var(--paper);
-  transition: border-color 150ms ease;
+  color: transparent;
 }
-.video-model-copy { display: grid; gap: 1px; min-width: 0; }
-.video-model-option strong { font-size: 12px; font-weight: 800; }
-.video-model-option small { color: var(--muted); font-size: 10.5px; font-weight: 650; }
-.video-model-option:hover:not(:disabled) { border-color: var(--brand-300); background: var(--paper); color: var(--ink); }
-.video-model-option.is-active {
-  border-color: var(--brand-500);
-  background: color-mix(in srgb, var(--brand-500) 9%, var(--paper));
-  color: var(--ink);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 12%, transparent);
-}
-.video-model-option.is-active .video-model-radio { border-color: var(--brand-600); }
-.video-model-option.is-active .video-model-radio::after {
-  content: "";
+.video-import-step.is-active { color: var(--ink); }
+.video-import-step.is-active .video-import-step-dot { border-color: var(--brand-500); }
+.video-import-step.is-done { color: var(--muted); }
+.video-import-step.is-done .video-import-step-dot { border-color: var(--brand-500); background: var(--brand-500); color: #FFFFFF; }
+.video-spinner.is-tiny { width: 20px; height: 20px; border-width: 2.5px; border-color: var(--brand-200); border-top-color: var(--brand-600); }
+.video-import-field.is-dialog { position: relative; }
+.video-import-field-clear {
   position: absolute;
-  inset: 2px;
+  top: 50%;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
   border-radius: 50%;
-  background: var(--brand-600);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  translate: 0 -50%;
 }
-.video-model-option.is-active small { color: var(--brand-700); }
-.video-model-option:disabled { cursor: wait; opacity: 0.65; }
-.video-import-status {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  padding: 10px 12px 14px;
-  border: 1px solid var(--brand-200);
-  border-radius: 11px;
-  background: var(--brand-50);
-}
-.video-import-status .video-spinner { flex: none; width: 18px; height: 18px; border-width: 2px; }
-.video-import-status-copy { display: grid; gap: 1px; min-width: 0; }
-.video-import-status-copy strong { color: var(--ink); font-size: 12px; font-weight: 800; }
-.video-import-status-copy small { color: var(--muted); font-size: 10.5px; font-weight: 650; }
-.video-import-status-line { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: var(--brand-100); }
-.video-import-status-line > span {
-  display: block;
-  width: 45%;
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, var(--brand-500), var(--brand-700));
-  animation: video-import-scan 1.5s ease-in-out infinite;
-}
-@keyframes video-import-scan {
-  0% { transform: translateX(-110%); }
-  100% { transform: translateX(330%); }
-}
+.video-import-field-clear:hover { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
 .video-import-dialog-footer {
   margin: 4px -26px -26px;
   padding: 14px 26px;
@@ -332,6 +295,10 @@
   transform: translateY(-3px);
   border-color: var(--brand-200);
   box-shadow: var(--shadow-float);
+}
+.video-card.is-owned {
+  border-color: var(--brand-300);
+  box-shadow: var(--shadow-card), 0 0 0 2px color-mix(in srgb, var(--brand-500) 22%, transparent);
 }
 .video-card-delete {
   position: absolute;
@@ -420,6 +387,24 @@
   background: rgb(9 19 26 / 88%);
   color: #FFFFFF;
 }
+.video-thumb-owned {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--brand-600);
+  color: #FFFFFF;
+  backdrop-filter: blur(6px);
+}
+.video-card.is-owned .video-thumb-done { top: 38px; }
 .video-thumb-progress {
   position: absolute;
   right: 0;
@@ -550,7 +535,7 @@
   justify-items: center;
   gap: 12px;
   padding: 56px 24px;
-  border: 1px dashed var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--paper);
   color: var(--muted);
@@ -565,8 +550,40 @@
   border-radius: 50%;
   animation: video-spin 800ms linear infinite;
 }
-.video-spinner.is-small { width: 15px; height: 15px; border-width: 2px; border-color: rgb(255 255 255 / 35%); border-top-color: #FFFFFF; }
+.video-spinner.is-small { width: 18px; height: 18px; border-width: 2.5px; border-color: rgb(255 255 255 / 35%); border-top-color: #FFFFFF; }
 @keyframes video-spin { to { transform: rotate(360deg); } }
+
+/* A static ring reads as "stuck", not "working". Keep the import spinners
+   turning even when the OS asks for reduced motion: the rotation is small,
+   local, and it is the only progress signal in the dialog. */
+@media (prefers-reduced-motion: reduce) {
+  .video-spinner,
+  .practice-save-spinner {
+    animation: video-spin 1.2s linear infinite !important;
+  }
+}
+
+/* Skeleton placeholders to prevent the dashed "flash" during reload/first load */
+.video-skeleton-grid { pointer-events: none; }
+.video-skeleton-card { pointer-events: none; }
+.video-skeleton-thumb {
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+  background: linear-gradient(100deg, var(--paper-muted) 20%, var(--brand-50) 40%, var(--paper-muted) 60%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+.video-card.video-skeleton-card:hover { transform: none; border-color: var(--line); box-shadow: var(--shadow-card); }
+.video-skeleton-chips { display: flex; gap: 6px; }
+.video-skeleton-chip { height: 18px; border-radius: 99px; background: var(--paper-muted); width: 50px; }
+.video-skeleton-chip:nth-child(2) { width: 84px; }
+.video-skeleton-line { height: 13px; border-radius: 6px; background: var(--paper-muted); width: 100%; }
+.video-skeleton-line-strong { height: 17px; width: 82%; }
+.video-skeleton-line-short { width: 58%; }
+.video-skeleton-footer { display: flex; justify-content: space-between; margin-top: auto; }
+.video-skeleton-foot-l, .video-skeleton-foot-r { height: 12px; width: 58px; border-radius: 6px; background: var(--paper-muted); }
+.video-skeleton-foot-r { width: 66px; }
+@keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* Video detail */
 .video-detail { display: grid; gap: 18px; }
@@ -1249,6 +1266,20 @@
   letter-spacing: -0.035em;
 }
 .practice-done p { max-width: 460px; margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.65; }
+.practice-done-xp {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.practice-done-badges {
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
 .practice-done-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 10px; }
 
 /* End of the no-signup preview: an invitation instead of a trophy. */
@@ -1687,7 +1718,7 @@
   .practice-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 960px) {
-  .mobile-nav { grid-template-columns: repeat(6, 1fr); }
+  .mobile-nav { grid-template-columns: repeat(7, 1fr); }
 }
 @media (max-width: 420px) {
   .video-import-dialog-actions { flex-direction: column-reverse; }
@@ -1701,7 +1732,6 @@
   .video-import-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); border-radius: 20px; }
   .video-import-dialog-panel { gap: 16px; padding: 20px 18px; border-radius: 20px; }
   .video-import-dialog-footer { margin: 2px -18px -18px; padding: 12px 18px; }
-  .video-model-switch { width: 100%; }
   .video-heading-actions { align-items: flex-start; flex-direction: column; }
   .video-notebook-grid { grid-template-columns: 1fr; }
   .notebook-hero { flex-direction: column; gap: 20px; padding: 22px 20px; }

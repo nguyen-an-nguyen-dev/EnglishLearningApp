@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
+import { cfAccountTargets } from '../../utils/cf-rotate';
 import * as repository from './translations.repository';
 import {
   isSingleWord,
@@ -114,6 +115,36 @@ function promptForTranslation(
   ].join('\n');
 }
 
+interface TranslationTarget {
+  name: 'Cloudflare Workers AI' | 'Gemini';
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+  /** Env var named in operator-facing errors so the bad setting is findable. */
+  keyHint: string;
+  modelHint: string;
+}
+
+/** Same chain as the chat answers: Sea-Lion on Workers AI, then Gemini Flash. */
+function translationTargets(): TranslationTarget[] {
+  return [
+    ...cfAccountTargets<Omit<TranslationTarget, 'apiKey' | 'apiUrl'>>({
+      name: 'Cloudflare Workers AI',
+      model: env.cfModel,
+      keyHint: 'CF_API_KEYS',
+      modelHint: 'CF_MODEL',
+    }),
+    {
+      name: 'Gemini',
+      apiUrl: env.aiApiUrl,
+      apiKey: env.aiApiKey,
+      model: env.aiFallbackModel,
+      keyHint: 'AI_API_KEY',
+      modelHint: 'AI_FALLBACK_MODEL',
+    },
+  ];
+}
+
 class ProviderAttemptError extends Error {
   constructor(readonly httpError: HttpError, readonly retryable: boolean) {
     super(httpError.message);
@@ -121,18 +152,22 @@ class ProviderAttemptError extends Error {
 }
 
 async function requestProvider(
-  model: string,
+  target: TranslationTarget,
   prompt: string,
   word: string | null,
   maxTokens: number,
   timeoutMs: number,
 ): Promise<string> {
+  const { name, apiUrl, apiKey, model } = target;
+  if (!apiKey.trim()) {
+    throw new ProviderAttemptError(new HttpError(503, `The ${name} provider is not configured.`), true);
+  }
   let response: Response;
   try {
-    response = await fetch(env.aiApiUrl, {
+    response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        Authorization: 'Bearer ' + env.aiApiKey,
+        Authorization: 'Bearer ' + apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -156,8 +191,8 @@ async function requestProvider(
 
   if (response.status === 401 || response.status === 403) {
     throw new ProviderAttemptError(
-      new HttpError(503, 'The AI provider rejected the backend API key or its permissions. Check backend AI_API_KEY.'),
-      false,
+      new HttpError(503, `The ${name} provider rejected the backend API key or its permissions. Check the backend ${target.keyHint}.`),
+      true,
     );
   }
   if (response.status === 429 || response.status >= 500) {
@@ -168,7 +203,7 @@ async function requestProvider(
   }
   if (response.status === 400 || response.status === 404) {
     throw new ProviderAttemptError(
-      new HttpError(503, 'The AI provider rejected the model or request. Check backend AI_MODEL.'),
+      new HttpError(503, `The ${name} provider rejected the model or request. Check the backend ${target.modelHint}.`),
       true,
     );
   }
@@ -216,15 +251,14 @@ async function requestWithModelFallback(
   word: string | null,
   maxTokens: number,
 ): Promise<string> {
-  const models = [env.aiModel, env.aiFallbackModel].filter((model, index, all) => model && all.indexOf(model) === index);
+  const targets = translationTargets();
   let lastError = new HttpError(503, 'The translation service is temporarily unavailable.');
-  for (const model of models) {
+  for (const target of targets) {
     try {
-      return await requestProvider(model, prompt, word, maxTokens, env.aiTimeoutMs);
+      return await requestProvider(target, prompt, word, maxTokens, env.aiTimeoutMs);
     } catch (error) {
       if (!(error instanceof ProviderAttemptError)) throw error;
       lastError = error.httpError;
-      if (!error.retryable) throw lastError;
     }
   }
   throw lastError;
@@ -244,7 +278,8 @@ async function translateWithGemini(
   const contents = await mapWithConcurrency(chunks, PROVIDER_CONCURRENCY, (chunk) => requestWithModelFallback(
     promptForTranslation(chunk, sourceLanguage, targetLanguage, word),
     word,
-    Math.min(8192, Math.max(512, Math.ceil(chunk.length * 0.6) + 128)),
+    // Reasoning tokens eat out of this budget; keep headroom above the translation length.
+    Math.min(8192, Math.max(2048, Math.ceil(chunk.length * 1.2) + 256)),
   ));
 
   if (word) return parseProviderResult(contents[0], word);

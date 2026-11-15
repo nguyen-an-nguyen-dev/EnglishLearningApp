@@ -4,8 +4,7 @@ import * as controller from './reminders.controller';
 
 export const remindersRouter = Router();
 
-remindersRouter.use(authenticate);
-remindersRouter.get('/reminders', controller.listReminders);
-remindersRouter.post('/reminders', controller.createReminder);
-remindersRouter.post('/reminders/:reminderId/acknowledge', controller.acknowledgeReminder);
-remindersRouter.delete('/reminders/:reminderId', controller.dismissReminder);
+remindersRouter.get('/reminders', authenticate, controller.listReminders);
+remindersRouter.post('/reminders', authenticate, controller.createReminder);
+remindersRouter.post('/reminders/:reminderId/acknowledge', authenticate, controller.acknowledgeReminder);
+remindersRouter.delete('/reminders/:reminderId', authenticate, controller.dismissReminder);

@@ -1,5 +1,5 @@
 import * as aiRepository from '../ai/ai.repository';
-import { pickNextLesson } from '../ai/ai.service';
+import { pickNextLesson } from '../ai/ai.study';
 import type { StudyStats } from '../ai/ai.repository';
 import * as remindersRepository from '../reminders/reminders.repository';
 import * as remindersService from '../reminders/reminders.service';

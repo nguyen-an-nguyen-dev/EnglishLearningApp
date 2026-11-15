@@ -107,105 +107,71 @@ export function loginWithFacebookApi(accessToken: string): Promise<LoginResponse
   return socialLogin('/api/auth/facebook', { accessToken }, 'Đăng nhập Facebook thất bại.');
 }
 
+async function readAuthResponse<T>(response: Response): Promise<Partial<ApiResponse<T>>> {
+  const body: unknown = await response.json().catch(() => null);
+  return body && typeof body === 'object' && !Array.isArray(body)
+    ? body as Partial<ApiResponse<T>>
+    : {};
+}
+
+function authErrorMessage(body: Partial<ApiResponse<unknown>>, fallback: string): string {
+  if (typeof body.error === 'string' && body.error) return body.error;
+  if (typeof body.message === 'string' && body.message) return body.message;
+  return fallback;
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Partial<AuthUser>;
+  const numberFields = [user.id, user.xp, user.streak];
+  // coins/level are newer columns: accept a missing value (legacy cached user)
+  // so a stale localStorage entry cannot lock the learner out of their session.
+  const optionalNumeric = [user.coins, user.level].every(
+    (field) => field === undefined || typeof field === 'number',
+  );
+  return numberFields.every((field) => typeof field === 'number')
+    && optionalNumeric
+    && typeof user.name === 'string'
+    && typeof user.email === 'string'
+    && (user.role === 'learner' || user.role === 'admin');
+}
+
 export async function loginApi(payload: LoginPayload): Promise<LoginResponseData> {
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) {
-      const body = (await response.json().catch(() => ({}))) as ApiResponse<LoginResponseData>;
-      if (body.success && body.data) {
-        return body.data;
-      }
-    } else if (response.status >= 500) {
-      // Backend or dev proxy is unreachable (e.g. HTTP 502 from Vite when the API server is down).
-      // Fall through to the local demo fallback below instead of surfacing a login error.
-      console.info('Backend unavailable (HTTP ' + response.status + '). Using local auth fallback for testing.');
-    } else {
-      const body = (await response.json().catch(() => ({}))) as ApiResponse<LoginResponseData>;
-      const errorMsg = body.error || body.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.';
-      throw new Error(errorMsg);
-    }
-  } catch (err) {
-    if (err instanceof Error && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
-      throw err;
-    }
-    // Fallback for offline development or demo account
-    console.info('Backend unavailable or network error. Using local auth fallback for testing.');
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body = await readAuthResponse<LoginResponseData>(response);
+  if (response.ok && body.success === true && typeof body.data?.token === 'string'
+    && body.data.token.trim() && isAuthUser(body.data.user)) {
+    return body.data;
   }
 
-  // Demo fallback
-  if (payload.email === 'demo@englearn.com' || payload.password.length >= 6) {
-    const namePart = payload.email.split('@')[0];
-    const name = namePart === 'demo' ? 'An Nguyễn' : namePart.charAt(0).toUpperCase() + namePart.slice(1);
-    return {
-      token: 'demo_token_' + Date.now(),
-      user: {
-        id: Date.now(),
-        email: payload.email,
-        name,
-        streak: 4,
-        xp: 240,
-        role: 'learner',
-      },
-    };
-  }
-
-  throw new Error('Đăng nhập không thành công. Vui lòng kiểm tra lại email và mật khẩu.');
+  const fallback = response.status >= 500 && response.status < 600
+    ? `Không thể đăng nhập. Máy chủ không khả dụng (HTTP ${response.status}).`
+    : 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.';
+  throw new Error(authErrorMessage(body, fallback));
 }
 
 export async function registerApi(payload: RegisterPayload): Promise<RegisterResponseData> {
-  try {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) {
-      const body = (await response.json().catch(() => ({}))) as ApiResponse<RegisterResponseData>;
-      if (body.success && body.data) {
-        return body.data;
-      }
-    } else if (response.status >= 500) {
-      // Backend or dev proxy is unreachable (e.g. HTTP 502 from Vite when the API server is down).
-      // Fall through to the local register fallback below instead of surfacing an error.
-      console.info('Backend unavailable (HTTP ' + response.status + '). Using local register fallback.');
-    } else {
-      let errorMsg = 'Đăng ký không thành công.';
-      if (response.status === 409) {
-        errorMsg = 'Email này đã được sử dụng. Vui lòng chọn email khác.';
-      } else {
-        const body = (await response.json().catch(() => ({}))) as ApiResponse<RegisterResponseData>;
-        errorMsg = body.error || body.message || errorMsg;
-      }
-      throw new Error(errorMsg);
-    }
-  } catch (err) {
-    if (err instanceof Error && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
-      throw err;
-    }
-    // Fallback for offline development
-    console.info('Backend unavailable or network error. Using local register fallback.');
+  const response = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body = await readAuthResponse<RegisterResponseData>(response);
+  if (response.ok && body.success === true && isAuthUser(body.data?.user)) {
+    return body.data!;
   }
 
-  return {
-    user: {
-      id: Date.now(),
-      email: payload.email,
-      name: payload.name.trim(),
-      streak: 1,
-      xp: 50,
-      role: 'learner',
-    },
-  };
+  if (response.status === 409) {
+    throw new Error('Email này đã được sử dụng. Vui lòng chọn email khác.');
+  }
+  const fallback = response.status >= 500 && response.status < 600
+    ? `Không thể đăng ký. Máy chủ không khả dụng (HTTP ${response.status}).`
+    : 'Đăng ký không thành công.';
+  throw new Error(authErrorMessage(body, fallback));
 }
 
 export async function changePasswordApi(
@@ -245,29 +211,40 @@ export async function updateProfileApi(
   return body.data.user;
 }
 
+function getCachedUserForToken(token: string): AuthUser | null {
+  if (!token || authStorage.getToken() !== token) return null;
+  const cachedUser = authStorage.getUser();
+  return isAuthUser(cachedUser) ? cachedUser : null;
+}
+
 export async function getCurrentUserApi(token: string): Promise<AuthUser> {
+  let response: Response;
   try {
-    const response = await fetch('/api/auth/me', {
+    response = await fetch('/api/auth/me', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-
-    if (response.ok) {
-      const body = (await response.json().catch(() => ({}))) as ApiResponse<{ user: AuthUser }>;
-      if (body.success && body.data?.user) {
-        return body.data.user;
-      }
-    }
-  } catch {
-    // If backend is unreachable but token exists in localStorage, maintain session
+  } catch (error) {
+    // Only a matching existing session may be used while the network is unavailable.
+    const cachedUser = getCachedUserForToken(token);
+    if (cachedUser) return cachedUser;
+    throw error;
   }
 
-  const cachedUser = authStorage.getUser();
-  if (cachedUser) {
-    return cachedUser;
+  if (response.status >= 500 && response.status < 600) {
+    const cachedUser = getCachedUserForToken(token);
+    if (cachedUser) return cachedUser;
   }
 
-  throw new Error('Phiên đăng nhập đã hết hạn.');
+  const body = await readAuthResponse<{ user: AuthUser }>(response);
+  if (response.ok && body.success === true && isAuthUser(body.data?.user)) {
+    return body.data!.user;
+  }
+
+  const fallback = response.status >= 500 && response.status < 600
+    ? `Không thể xác minh phiên đăng nhập (HTTP ${response.status}).`
+    : 'Phiên đăng nhập đã hết hạn.';
+  throw new Error(authErrorMessage(body, fallback));
 }

@@ -1,21 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Medal, ShieldCheck, SignOut } from '@phosphor-icons/react'
+import { Medal, ShieldCheck, SignOut, Storefront } from '@phosphor-icons/react'
 import { AccountActions } from '../AccountActions'
 import { useAuth } from '../../context/AuthContext'
 import { useLearning } from '../../context/LearningContext'
+import { useWallet } from '../../context/WalletContext'
 import { useI18n } from '../../i18n'
 import { getMyBadgesApi } from '../../services/communityService'
 import { flattenLessons } from '../../roadmap'
 import type { EarnedBadge } from '../../types/community'
-import { initialOf } from '../../utils/avatar'
+import { AvatarFrame } from '../cosmetics/AvatarFrame'
+import { Nameplate } from '../cosmetics/Nameplate'
+import { CosmeticPreview } from '../shop/CosmeticPreview'
 import { formatCompact } from '../../utils/format'
 
 type StageState = 'done' | 'current' | 'locked'
 
-export function ProfileView({ onLogout }: { onLogout: () => void }) {
+export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; onOpenShop?: () => void }) {
   const { t } = useI18n()
   const { user } = useAuth()
   const { stages, loading } = useLearning()
+  const { wallet } = useWallet()
   const [badges, setBadges] = useState<EarnedBadge[]>([])
 
   useEffect(() => {
@@ -36,10 +40,12 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
   const currentStage = stages.find((stage) => stage.lessons.some((lesson) => lesson.status === 'current'))
     ?? stages.find((stage) => stage.completedCount < stage.totalCount)
     ?? stages[0]
-  const initial = initialOf(user?.name)
   const displayName = user?.name || 'An Nguyễn'
   const streak = user?.streak ?? 0
   const xp = user?.xp ?? 0
+  const coins = wallet?.coins ?? user?.coins ?? 0
+  const level = wallet?.level ?? user?.level ?? 1
+  const equipment = wallet?.equipment
 
   function stageState(index: number): StageState {
     const stage = stages[index]
@@ -67,6 +73,8 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
       data-progress-percent={percent}
       data-current-stage={currentStage?.title || ''}
       data-badges-count={badges.length}
+      data-user-coins={coins}
+      data-user-level={level}
     >
       <header className="page-heading">
         <span className="page-eyebrow">{t.profileEyebrow}</span>
@@ -77,9 +85,11 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
       <div className="profile-grid">
         <section className="profile-identity">
           <div className="profile-identity-head">
-            <span className="profile-avatar">{initial}</span>
+            <AvatarFrame name={displayName} visualKey={equipment?.frame?.visual_key ?? null} size={64} />
             <div className="profile-identity-copy">
-              <h2>{displayName}</h2>
+              <h2>
+                <Nameplate visualKey={equipment?.nameplate?.visual_key ?? null}>{displayName}</Nameplate>
+              </h2>
               <p>{user?.email}</p>
               <span className="profile-role">
                 <ShieldCheck size={15} weight="regular" />
@@ -87,6 +97,33 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
               </span>
             </div>
           </div>
+
+          {/* Wallet card: balance and career level in one block, matching the
+              reference. The sidebar no longer repeats these. */}
+          <button
+            type="button"
+            className={`profile-wallet-card${onOpenShop ? ' is-clickable' : ''}`}
+            onClick={onOpenShop}
+            disabled={!onOpenShop}
+            aria-label={`${formatCompact(coins)} Race Coin. ${t.walletLevel} ${level}. ${formatCompact(wallet?.level_progress.xp_to_next_level ?? 0)} XP ${t.walletLevelNext}`}
+          >
+            <span className="profile-wallet-top">
+              <span className="profile-wallet-amount">
+                <i className="profile-wallet-coin" aria-hidden="true" />
+                <strong>{formatCompact(coins)}</strong>
+                <span>RC</span>
+              </span>
+              <span className="profile-wallet-level">{t.walletLevel} {level}</span>
+            </span>
+            <span className="profile-wallet-meter" aria-hidden="true">
+              <span style={{ width: `${Math.round((wallet?.level_progress.progress_ratio ?? 0) * 100)}%` }} />
+            </span>
+            <span className="profile-wallet-hint">
+              {wallet?.level_progress.xp_to_next_level !== null && wallet?.level_progress.xp_to_next_level !== undefined
+                ? `${formatCompact(wallet.level_progress.xp_to_next_level)} XP ${t.walletLevelNext}`
+                : t.walletLevelMax}
+            </span>
+          </button>
 
           <dl className="profile-numbers">
             <div>
@@ -98,16 +135,48 @@ export function ProfileView({ onLogout }: { onLogout: () => void }) {
               <dt>{t.statXpLabel}</dt>
             </div>
             <div>
-              <dd>{loading ? '…' : `${done}/${lessons.length}`}</dd>
+              <dd>{loading ? '...' : `${done}/${lessons.length}`}</dd>
               <dt>{t.statLessonsLabel}</dt>
             </div>
           </dl>
+
+          {equipment && (
+            <section className="profile-loadout">
+              <header>
+                <span className="arena-label">Trang bị đang dùng</span>
+                {onOpenShop && (
+                  <button type="button" className="profile-shop-link" onClick={onOpenShop}>
+                    <Storefront size={14} weight="bold" /> Mở Gara
+                  </button>
+                )}
+              </header>
+              {/* Visual previews live here now that the Gara tab is shop-only. */}
+              <div className="profile-loadout-row">
+                <div className="profile-loadout-slot">
+                  <CosmeticPreview slot="car" visualKey={equipment.car?.visual_key ?? 'car_classic_yellow'} size={84} />
+                  <small>{equipment.car?.name ?? 'Xe mặc định'}</small>
+                </div>
+                <div className="profile-loadout-slot">
+                  <AvatarFrame name={displayName} visualKey={equipment.frame?.visual_key ?? null} size={52} />
+                  <small>{equipment.frame?.name ?? 'Khung mặc định'}</small>
+                </div>
+                <div className="profile-loadout-slot">
+                  <Nameplate visualKey={equipment.nameplate?.visual_key ?? null}>Engorace</Nameplate>
+                  <small>{equipment.nameplate?.name ?? 'Biển tên mặc định'}</small>
+                </div>
+                <div className="profile-loadout-slot">
+                  <strong className="profile-loadout-count">{wallet?.owned_count ?? 0}</strong>
+                  <small>vật phẩm đã sở hữu</small>
+                </div>
+              </div>
+            </section>
+          )}
 
           <section className="profile-path">
             <header>
               <div>
                 <span className="arena-label">{t.pathKicker}</span>
-                <h3>{t.pathTitle(currentStage?.sortOrder ?? 1)}</h3>
+                <h3>{t.pathTitle(currentStage?.sortOrder ?? 1, percent)}</h3>
               </div>
               <strong>{percent}%</strong>
             </header>

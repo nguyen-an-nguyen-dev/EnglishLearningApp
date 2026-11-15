@@ -1,32 +1,38 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
+  ArrowRight,
   BookOpenText,
   Gear,
   Lightning,
-  ShieldCheck,
   SignOut,
+  Storefront,
   Translate,
   Trophy,
   UserCircle,
   YoutubeLogo,
 } from '@phosphor-icons/react'
 import { useAuth } from './context/AuthContext'
-import { LandingPage } from './components/landing/LandingPage'
 import type { AuthUser } from './types/auth'
 import { useI18n } from './i18n'
 import { SettingsPanel } from './components/SettingsPanel'
 import { RouteMapCard } from './components/roadmap/RouteMapCard'
-import { LessonPlayer } from './components/lesson/LessonPlayer'
-import { VideoLearningView } from './components/video/VideoLearningView'
-import { TranslateView } from './components/translate/TranslateView'
-import { ArenaView } from './components/arena/ArenaView'
-import { RankingsView } from './components/rankings/RankingsView'
-import { ProfileView } from './components/profile/ProfileView'
-import { AdminView } from './components/admin/AdminView'
+import { useWallet } from './context/WalletContext'
+import { isAdminRoute } from './admin/adminRoute'
+
+const LessonPlayer = lazy(() => import('./components/lesson/LessonPlayer').then((module) => ({ default: module.LessonPlayer })))
+const VideoLearningView = lazy(() => import('./components/video/VideoLearningView').then((module) => ({ default: module.VideoLearningView })))
+const TranslateView = lazy(() => import('./components/translate/TranslateView').then((module) => ({ default: module.TranslateView })))
+const ArenaView = lazy(() => import('./components/arena/ArenaView').then((module) => ({ default: module.ArenaView })))
+const RankingsView = lazy(() => import('./components/rankings/RankingsView').then((module) => ({ default: module.RankingsView })))
+const ProfileView = lazy(() => import('./components/profile/ProfileView').then((module) => ({ default: module.ProfileView })))
+const GaraShop = lazy(() => import('./components/shop/GaraShop').then((module) => ({ default: module.GaraShop })))
+const AdminApp = lazy(() => import('./admin/AdminApp').then((module) => ({ default: module.AdminApp })))
+const LandingPage = lazy(() => import('./components/landing/LandingPage').then((module) => ({ default: module.LandingPage })))
+const StudyBuddy = lazy(() => import('./components/ai/StudyBuddy').then((module) => ({ default: module.StudyBuddy })))
+const BuddySpotlight = lazy(() => import('./components/ai/BuddySpotlight').then((module) => ({ default: module.BuddySpotlight })))
 import { useLearning } from './context/LearningContext'
-import { StudyBuddy, type BuddyView } from './components/ai/StudyBuddy'
-import { BuddySpotlight } from './components/ai/BuddySpotlight'
+import type { BuddyView } from './components/ai/StudyBuddy'
 import { useBuddySpotlight } from './components/ai/useBuddySpotlight'
 import type { BuddyTarget } from './types/buddy'
 import { confirmArenaLeave } from './utils/arenaGuard'
@@ -39,11 +45,12 @@ import {
   roadmapHeight,
   stageTop,
 } from './roadmap'
+import type { RoadmapLesson } from './roadmap'
 
-export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile' | 'admin'
+export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile'
 
 const TAB_STORAGE_KEY = 'engorace_active_tab'
-const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile', 'admin']
+const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile']
 
 function readStoredTab(): DashboardTab {
   try {
@@ -75,13 +82,12 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
     { id: 'translate', label: t.navTranslate, icon: Translate },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankings, icon: Trophy },
+    { id: 'shop', label: t.navShop, icon: Storefront },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
   ]
 
-  // The content console is for administrators only.
-  if (user?.role === 'admin') {
-    tabs.push({ id: 'admin', label: t.navAdmin, icon: ShieldCheck })
-  }
+  // The admin console is a fully separate shell at /admin — never a learner tab,
+  // and the learner shell never links to it. Admins only manage; learners only learn.
 
   return (
     <aside className="sidebar">
@@ -91,6 +97,9 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
         </button>
         <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
       </div>
+
+      {/* Balance and level now live on Profile as a wallet card; the sidebar
+          only carries navigation so the tab list starts at the top. */}
 
       <nav className="sidebar-nav" aria-label={t.navAria}>
         {tabs.map((tab) => {
@@ -108,6 +117,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
             </button>
           )
         })}
+        {/* No admin entry here: the console lives only at /admin (direct URL). */}
       </nav>
 
       <div className="sidebar-spacer" />
@@ -115,9 +125,10 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
       <div className="profile-container">
         <div className="profile-row" onClick={() => onSelectTab('profile')} role="button" tabIndex={0}>
           <span className="avatar">{initial}</span>
+          {/* Balance and level live in the wallet chip above the nav; repeating
+              them here made the row noisy and pushed the name off-centre. */}
           <span className="profile-copy">
             <strong>{displayName}</strong>
-            <small>{user?.email || 'Người khám phá'}</small>
           </span>
           <span className="profile-actions">
             <button
@@ -161,9 +172,10 @@ function StudyView({ user, onOpenLesson }: {
 }) {
   const { t, lang } = useI18n()
   const { stages, loading, error, refresh } = useLearning()
+  const { wallet } = useWallet()
   const firstName = user?.name ? user.name.trim().split(/\s+/)[0] : 'An'
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const [cardAbove, setCardAbove] = useState(false)
   const lessons = useMemo(() => flattenLessons(stages), [stages])
   const currentLesson = useMemo(() => findCurrentLesson(stages), [stages])
   const currentLessonStageIndex = currentLesson?.stageIndex
@@ -174,6 +186,8 @@ function StudyView({ user, onOpenLesson }: {
   const activeStageIndex = useMemo(() => findCurrentStageIndex(stages), [stages])
   const [visibleStageIndex, setVisibleStageIndex] = useState(0)
   const mapScrollRef = useRef<HTMLDivElement | null>(null)
+  const cardRef = useRef<HTMLElement | null>(null)
+  const cardAboveRef = useRef(false)
   const didAutoScroll = useRef(false)
 
   useEffect(() => {
@@ -204,9 +218,10 @@ function StudyView({ user, onOpenLesson }: {
     const scrollContainer = mapScrollRef.current
     if (!scrollContainer || stages.length === 0) return
     const container = scrollContainer
+    const map = container.querySelector<SVGElement>('.roadmap-map')
+    let frame = 0
 
     function syncVisibleStage() {
-      const map = container.querySelector<SVGElement>('.roadmap-map')
       const scrollable = container.scrollHeight > container.clientHeight + 8
       if (!scrollable || !map) {
         setVisibleStageIndex(activeStageIndex)
@@ -216,53 +231,109 @@ function StudyView({ user, onOpenLesson }: {
       const stageHeightPx = map.getBoundingClientRect().height / stages.length
       if (stageHeightPx <= 0) return
       const index = Math.floor((container.scrollTop + container.clientHeight / 2) / stageHeightPx)
-      setVisibleStageIndex(Math.min(stages.length - 1, Math.max(0, index)))
+      const next = Math.min(stages.length - 1, Math.max(0, index))
+      setVisibleStageIndex((previous) => (previous === next ? previous : next))
+    }
+
+    function scheduleSync() {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        syncVisibleStage()
+      })
     }
 
     syncVisibleStage()
-    container.addEventListener('scroll', syncVisibleStage, { passive: true })
-    window.addEventListener('resize', syncVisibleStage)
+    container.addEventListener('scroll', scheduleSync, { passive: true })
+    window.addEventListener('resize', scheduleSync)
     return () => {
-      container.removeEventListener('scroll', syncVisibleStage)
-      window.removeEventListener('resize', syncVisibleStage)
+      if (frame) window.cancelAnimationFrame(frame)
+      container.removeEventListener('scroll', scheduleSync)
+      window.removeEventListener('resize', scheduleSync)
     }
   }, [stages.length, activeStageIndex])
 
-  useEffect(() => {
+  /**
+   * The lesson card floats over the map, so it has to follow its marker while
+   * the trail scrolls. Writing the CSS variables straight onto the node keeps
+   * the 6-stage SVG out of React's render path: previously every scroll event
+   * re-rendered the whole map, which cost more than half of the frame budget.
+   */
+  useLayoutEffect(() => {
     if (selectedId === null) return
     const container = mapScrollRef.current
     const map = container?.closest<HTMLElement>('.study-map')
     if (!container || !map) return
+
+    const marker = container.querySelector<SVGGElement>(
+      `.roadmap-marker[data-lesson-id="${selectedId}"]`,
+    )
+    // The marker group's box also contains the animated pulse ring and the
+    // lesson caption, so its edge moves with the animation. The hit circle is
+    // the stable geometry that actually represents the pin.
+    const markerAnchor = marker?.querySelector<SVGCircleElement>('.roadmap-marker-hit') ?? marker
     const mapEl = map
+    const desktopMap = window.matchMedia('(min-width: 961px)')
+    let frame = 0
 
     function positionCard() {
-      const marker = container?.querySelector<SVGGElement>(`.roadmap-marker[data-lesson-id="${selectedId}"]`)
-      if (!marker) {
-        setCardAnchor(null)
-        return
-      }
-      const markerRect = marker.getBoundingClientRect()
+      // Below the desktop breakpoint the card sits inline in the page flow.
+      if (!desktopMap.matches) return
+      const card = cardRef.current
+      if (!markerAnchor || !card) return
+      const markerRect = markerAnchor.getBoundingClientRect()
       const mapRect = mapEl.getBoundingClientRect()
-      const cardWidth = Math.min(310, Math.max(220, mapRect.width - 48))
+      const cardWidth = Math.min(320, Math.max(220, mapRect.width - 48))
       const markerCenter = markerRect.left + markerRect.width / 2 - mapRect.left
       const x = Math.min(
         mapRect.width - cardWidth / 2 - 12,
         Math.max(cardWidth / 2 + 12, markerCenter),
       )
       const markerTop = markerRect.top - mapRect.top
-      const above = markerTop > 230
+      const above = markerTop > card.offsetHeight + 24
       const y = above ? markerTop - 12 : markerRect.bottom - mapRect.top + 12
-      setCardAnchor({ x, y, above })
+      const notchX = Math.min(
+        cardWidth - 24,
+        Math.max(24, markerCenter - (x - cardWidth / 2)),
+      )
+
+      card.style.setProperty('--card-x', `${x}px`)
+      card.style.setProperty('--card-y', `${y}px`)
+      card.style.setProperty('--notch-x', `${notchX}px`)
+      if (above !== cardAboveRef.current) {
+        cardAboveRef.current = above
+        setCardAbove(above)
+      }
+    }
+
+    function schedulePosition() {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        positionCard()
+      })
     }
 
     positionCard()
-    container.addEventListener('scroll', positionCard, { passive: true })
-    window.addEventListener('resize', positionCard)
+    container.addEventListener('scroll', schedulePosition, { passive: true })
+    window.addEventListener('resize', schedulePosition)
     return () => {
-      container.removeEventListener('scroll', positionCard)
-      window.removeEventListener('resize', positionCard)
+      if (frame) window.cancelAnimationFrame(frame)
+      container.removeEventListener('scroll', schedulePosition)
+      window.removeEventListener('resize', schedulePosition)
     }
   }, [selectedId])
+
+  const handleSelectLesson = useCallback((lesson: RoadmapLesson) => {
+    setSelectedId(lesson.id)
+  }, [])
+
+  const markerLabel = useCallback((lesson: RoadmapLesson) => {
+    const stageNumber = String(lesson.stageIndex + 1).padStart(2, '0')
+    const stageLessonCount = stages[lesson.stageIndex]?.totalCount ?? 0
+    const prefix = `${t.stage(stageNumber)} · ${lang === 'en' ? 'lesson' : 'bài'} ${lesson.lessonIndex + 1}/${stageLessonCount}`
+    return `${prefix}: ${lesson.title}${lesson.status === 'locked' ? ` (${t.statusLocked})` : ''}`
+  }, [stages, t, lang])
 
   const visibleStage = stages[visibleStageIndex] ?? stages[activeStageIndex] ?? stages[0]
   const visibleVisual = visibleStage ? STAGE_VISUALS[visibleStage.theme] : undefined
@@ -281,6 +352,13 @@ function StudyView({ user, onOpenLesson }: {
       : selectedLesson?.status === 'done'
         ? t.stopReview
         : t.stopContinue
+
+  const statusLabel =
+    selectedLesson?.status === 'done'
+      ? t.statusDone
+      : selectedLesson?.status === 'locked'
+        ? t.statusLocked
+        : t.statusCurrent
 
   return (
     <div className="tab-view-container trail-page study-screen">
@@ -309,15 +387,11 @@ function StudyView({ user, onOpenLesson }: {
             <RouteMapCard
               stages={stages}
               selectedLessonId={selectedLesson.id}
-              onSelect={(lesson) => setSelectedId(lesson.id)}
+              onSelect={handleSelectLesson}
               lang={lang}
               fullBleed
-              markerLabel={(lesson) => {
-                const stageNumber = String(lesson.stageIndex + 1).padStart(2, '0')
-                const stageLessonCount = stages[lesson.stageIndex]?.totalCount ?? 0
-                const prefix = `${t.stage(stageNumber)} · ${lang === 'en' ? 'lesson' : 'bài'} ${lesson.lessonIndex + 1}/${stageLessonCount}`
-                return `${prefix}: ${lesson.title}${lesson.status === 'locked' ? ` (${t.statusLocked})` : ''}`
-              }}
+              markerLabel={markerLabel}
+              carKey={wallet?.equipment.car?.visual_key ?? null}
             />
           </div>
         )}
@@ -340,28 +414,31 @@ function StudyView({ user, onOpenLesson }: {
           </div>
         )}
 
-        {selectedLesson && selectedId !== null && cardAnchor && (
+        {selectedLesson && selectedId !== null && (
           <article
-            className={`roadmap-stop-card roadmap-stop-card-${selectedLesson.status}${cardAnchor.above ? ' is-above' : ''}`}
-            style={{
-              '--card-x': `${cardAnchor.x}px`,
-              '--card-y': `${cardAnchor.y}px`,
-            } as CSSProperties}
+            ref={cardRef}
+            className={`roadmap-stop-card roadmap-stop-card-${selectedLesson.status}${cardAbove ? ' is-above' : ''}`}
             aria-live="polite"
           >
-            <div className="roadmap-stop-copy">
+            <div className="roadmap-stop-top">
               <span className="roadmap-stop-index">
-                {lang === 'en' ? 'Lesson details' : 'Chi tiết bài học'}
+                {t.stage(String(selectedLesson.stageIndex + 1).padStart(2, '0'))}
+                <span className="roadmap-stop-sep" aria-hidden="true" />
+                {t.stopLessonLabel} {String(selectedLesson.lessonIndex + 1).padStart(2, '0')}
               </span>
+              <span className={`roadmap-stop-status is-${selectedLesson.status}`}>
+                <span className="roadmap-stop-status-dot" aria-hidden="true" />
+                {statusLabel}
+              </span>
+            </div>
+            <div className="roadmap-stop-copy">
               <h2>{selectedLesson.title}</h2>
             </div>
             <div className="roadmap-stop-footer">
-              <dl className="roadmap-stop-details">
-                <div>
-                  <dt>{lang === 'en' ? 'Questions' : 'Số câu hỏi'}</dt>
-                  <dd>{selectedLesson.totalQuestions}</dd>
-                </div>
-              </dl>
+              <p className="roadmap-stop-stat">
+                <strong>{selectedLesson.totalQuestions}</strong>
+                <span>{t.stopQuestionLabel}</span>
+              </p>
               <button
                 type="button"
                 className="roadmap-stop-action"
@@ -369,6 +446,9 @@ function StudyView({ user, onOpenLesson }: {
                 onClick={() => onOpenLesson(selectedLesson.id, selectedLesson.title)}
               >
                 {ctaLabel}
+                {selectedLesson.status !== 'locked' && (
+                  <ArrowRight size={14} weight="bold" aria-hidden="true" />
+                )}
               </button>
             </div>
           </article>
@@ -379,12 +459,13 @@ function StudyView({ user, onOpenLesson }: {
 }
 
 /* ------------------------------------------------------------- */
-/* MAIN APP COMPONENT                                            */
+/* LEARNER APP (separate from the admin console at /admin)       */
 /* ------------------------------------------------------------- */
-function App() {
+function LearnerApp() {
   const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
   const { stages, refresh } = useLearning()
+  const { refresh: refreshWallet } = useWallet()
   const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
@@ -396,8 +477,8 @@ function App() {
   >(null)
   const clearVideoRequest = useCallback(() => setVideoRequest(null), [])
 
-  // A tab stored by a previous admin session must never open for a learner.
-  const effectiveTab: DashboardTab = activeTab === 'admin' && user?.role !== 'admin' ? 'study' : activeTab
+  // The admin console is a separate shell — the learner shell has no admin tab.
+  const effectiveTab: DashboardTab = activeTab
   /** Element the buddy asked us to circle on the destination screen. */
   const [buddyHighlight, setBuddyHighlight] = useState<string | null>(null)
   const spotlight = useBuddySpotlight(buddyHighlight, Boolean(buddyHighlight))
@@ -415,7 +496,7 @@ function App() {
    */
   function handleBuddyNavigate(target: BuddyTarget) {
     const tab = (target.tab ?? effectiveTab) as DashboardTab
-    if (tab === 'admin' && user?.role !== 'admin') return
+    if (!DASHBOARD_TABS.includes(tab)) return
     if (!confirmArenaLeave()) return
 
     if (target.videoId) {
@@ -485,24 +566,22 @@ function App() {
     setUserNavigatedToLanding(true)
   }
 
-  if (currentView === 'landing') {
-    return (
-      <LandingPage
-        onEnterDashboard={() => setUserNavigatedToLanding(false)}
-      />
-    )
-  }
-
   const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText; activeIcon?: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
     { id: 'videos', label: t.navVideos, icon: YoutubeLogo },
     { id: 'translate', label: t.navTranslateShort, icon: Translate },
     { id: 'compete', label: t.navCompete, icon: Lightning },
     { id: 'rankings', label: t.navRankingsShort, icon: Trophy },
+    { id: 'shop', label: t.navShopShort, icon: Storefront },
     { id: 'profile', label: t.navProfile, icon: UserCircle },
   ]
-  if (user?.role === 'admin') {
-    mobileTabs.push({ id: 'admin', label: t.navAdmin, icon: ShieldCheck })
+
+  if (currentView === 'landing') {
+    return (
+      <Suspense fallback={<div className="page-loading">{t.consoleLoading}</div>}>
+        <LandingPage onEnterDashboard={() => setUserNavigatedToLanding(false)} />
+      </Suspense>
+    )
   }
 
   return (
@@ -545,18 +624,42 @@ function App() {
               onOpenLesson={(lessonId, lessonTitle) => setActiveLesson({ id: lessonId, title: lessonTitle })}
             />
           )}
-          {effectiveTab === 'videos' && (
-            <VideoLearningView videoRequest={videoRequest} onVideoRequestHandled={clearVideoRequest} />
-          )}
-          {effectiveTab === 'translate' && <TranslateView />}
-          {effectiveTab === 'compete' && <ArenaView />}
-          {effectiveTab === 'rankings' && <RankingsView />}
-          {effectiveTab === 'profile' && <ProfileView onLogout={handleLogout} />}
-          {effectiveTab === 'admin' && <AdminView />}
+          <Suspense fallback={<div className="page-loading">{t.consoleLoading}</div>}>
+            {effectiveTab === 'videos' && (
+              <VideoLearningView videoRequest={videoRequest} onVideoRequestHandled={clearVideoRequest} />
+            )}
+            {effectiveTab === 'translate' && <TranslateView />}
+            {effectiveTab === 'compete' && <ArenaView />}
+            {effectiveTab === 'rankings' && <RankingsView />}
+            {effectiveTab === 'profile' && (
+              <ProfileView onLogout={handleLogout} onOpenShop={() => selectTab('shop')} />
+            )}
+            {activeLesson && (
+              <LessonPlayer
+                lessonId={activeLesson.id}
+                lessonTitle={activeLesson.title}
+                onClose={() => setActiveLesson(null)}
+                onCompleted={() => {
+                  setActiveLesson(null)
+                  refresh()
+                  // A finished lesson pays coin/XP, so the wallet chip must follow.
+                  refreshWallet()
+                }}
+              />
+            )}
+            {effectiveTab === 'shop' && <GaraShop />}
+            <StudyBuddy
+              activeTab={effectiveTab}
+              view={buddyView}
+              onViewChange={setBuddyView}
+              onNavigate={handleBuddyNavigate}
+            />
+            <BuddySpotlight spot={spotlight} />
+          </Suspense>
         </main>
       </div>
 
-      <nav className={`mobile-nav${user?.role === 'admin' ? ' is-admin' : ''}`} aria-label={t.mobileNavAria}>
+      <nav className="mobile-nav" aria-label={t.mobileNavAria}>
         {mobileTabs.map((tab) => {
           const active = effectiveTab === tab.id
           const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
@@ -576,28 +679,19 @@ function App() {
 
       <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
 
-      <StudyBuddy
-        activeTab={effectiveTab}
-        view={buddyView}
-        onViewChange={setBuddyView}
-        onNavigate={handleBuddyNavigate}
-      />
-
-      <BuddySpotlight spot={spotlight} />
-
-      {activeLesson && (
-        <LessonPlayer
-          lessonId={activeLesson.id}
-          lessonTitle={activeLesson.title}
-          onClose={() => setActiveLesson(null)}
-          onCompleted={() => {
-            setActiveLesson(null)
-            refresh()
-          }}
-        />
-      )}
     </div>
   )
+}
+
+function App() {
+  if (isAdminRoute()) {
+    return (
+      <Suspense fallback={<div className="page-loading">Đang tải console…</div>}>
+        <AdminApp />
+      </Suspense>
+    )
+  }
+  return <LearnerApp />
 }
 
 export default App

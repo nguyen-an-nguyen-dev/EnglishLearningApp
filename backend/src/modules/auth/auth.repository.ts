@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../../db/pool';
+import { levelForXp } from '../gamification/gamification.levels';
 import type { AuthUser, UserRole } from './auth.types';
 
 export interface UserRow extends RowDataPacket {
@@ -9,11 +10,12 @@ export interface UserRow extends RowDataPacket {
   email: string;
   password_hash: string;
   xp: number;
+  coins: number;
   streak: number;
   role: UserRole;
 }
 
-const USER_COLUMNS = 'id, display_name, email, password_hash, xp, streak, role';
+const USER_COLUMNS = 'id, display_name, email, password_hash, xp, coins, streak, role';
 
 function toAuthUser(row: UserRow): AuthUser {
   return {
@@ -21,6 +23,8 @@ function toAuthUser(row: UserRow): AuthUser {
     name: row.display_name,
     email: row.email,
     xp: row.xp,
+    coins: Number(row.coins ?? 0),
+    level: levelForXp(Number(row.xp)),
     streak: row.streak,
     role: row.role === 'admin' ? 'admin' : 'learner',
   };

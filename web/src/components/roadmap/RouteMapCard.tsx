@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useId, useLayoutEffect, useMemo, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import {
   ROADMAP_LAYOUT,
@@ -15,6 +15,7 @@ import type {
   StageThemeKey,
   StageVisual,
 } from '../../roadmap'
+import { CarArt } from '../cosmetics/CarArt'
 
 export type RoadmapLang = 'vi' | 'en'
 
@@ -26,6 +27,8 @@ interface RouteMapCardProps {
   markerLabel?: (lesson: RoadmapLesson) => string
   className?: string
   fullBleed?: boolean
+  /** `visual_key` of the equipped car skin; omitted falls back to the classic car. */
+  carKey?: string | null
 }
 
 interface ScenePalette extends StageVisual {
@@ -1303,7 +1306,7 @@ function LessonMarker({
         strokeWidth="4"
         strokeLinecap="round"
       />
-      <circle cx={markerX} r="38" fill="transparent" />
+      <circle className="roadmap-marker-hit" cx={markerX} r="38" fill="transparent" />
       {isCurrent && <circle className="roadmap-marker-pulse" cx={markerX} r="35" stroke={fill} />}
       <circle className="roadmap-marker-halo" cx={markerX} r="34" />
       <circle cx={markerX} r="25" fill={fill} />
@@ -1325,30 +1328,6 @@ function LessonMarker({
   )
 }
 
-function CarArt({ glowId }: { glowId: string }) {
-  return (
-    <g className="roadmap-car-body" aria-hidden="true">
-      <g className="roadmap-car-trail">
-        <path d="M-13 31Q0 40 13 31" fill="none" stroke="#F2B544" strokeWidth="3.5" strokeLinecap="round" opacity=".5" />
-        <path d="M-19 40Q0 52 19 40" fill="none" stroke="#F2B544" strokeWidth="2.5" strokeLinecap="round" opacity=".3" />
-      </g>
-      <ellipse rx="37" ry="46" fill="#F2B544" opacity=".24" filter={`url(#${glowId})`} />
-      <ellipse cx="0" cy="5" rx="20" ry="34" fill="#D39A2A" opacity=".22" />
-      <rect x="-22" y="-34" width="44" height="68" rx="16" fill="#F2B544" stroke="#A96E13" strokeWidth="3" />
-      <rect x="-17" y="-18" width="34" height="37" rx="10" fill="#FFD46A" />
-      <path d="M-14-15H14L11-3H-11Z" fill="#5D8497" />
-      <path d="M-11 7H11L14 17H-14Z" fill="#83A8B8" />
-      <path d="M0-15V17" stroke="#FFFFFF" strokeWidth="2" opacity=".65" />
-      <rect x="-25" y="-21" width="6" height="16" rx="3" fill="#42586B" />
-      <rect x="19" y="-21" width="6" height="16" rx="3" fill="#42586B" />
-      <rect x="-25" y="8" width="6" height="16" rx="3" fill="#42586B" />
-      <rect x="19" y="8" width="6" height="16" rx="3" fill="#42586B" />
-      <rect x="-12" y="-32" width="8" height="4" rx="2" fill="#FFF4C7" />
-      <rect x="4" y="-32" width="8" height="4" rx="2" fill="#FFF4C7" />
-    </g>
-  )
-}
-
 function fallbackMarkerLabel(lesson: RoadmapLesson, lang: RoadmapLang): string {
   const stageNumber = lesson.stageIndex + 1
   const lessonNumber = lesson.lessonIndex + 1
@@ -1365,7 +1344,7 @@ function normalizeAngle(value: number): number {
   return angle
 }
 
-export function RouteMapCard({
+export const RouteMapCard = memo(function RouteMapCard({
   stages,
   selectedLessonId,
   onSelect,
@@ -1373,6 +1352,7 @@ export function RouteMapCard({
   markerLabel,
   className,
   fullBleed = false,
+  carKey,
 }: RouteMapCardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const clipId = `roadmap-clip-${uid}`
@@ -1541,9 +1521,11 @@ export function RouteMapCard({
           <filter id={roadShadowId} filterUnits="userSpaceOnUse" x="0" y="0" width={ROADMAP_LAYOUT.width} height={height}>
             <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#526779" floodOpacity=".18" />
           </filter>
-          <filter id={carGlowId} x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="11" />
-          </filter>
+          <radialGradient id={carGlowId}>
+            <stop offset="0" stopColor="#F2B544" stopOpacity=".42" />
+            <stop offset=".55" stopColor="#F2B544" stopOpacity=".18" />
+            <stop offset="1" stopColor="#F2B544" stopOpacity="0" />
+          </radialGradient>
           <linearGradient id={fogLightId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
             <stop offset=".06" stopColor="#FFFFFF" stopOpacity=".22" />
@@ -1666,7 +1648,7 @@ export function RouteMapCard({
               className="roadmap-car"
               aria-hidden="true"
             >
-              <CarArt glowId={carGlowId} />
+              <CarArt glowId={carGlowId} visualKey={carKey} />
             </g>
           )}
         </g>
@@ -1676,4 +1658,4 @@ export function RouteMapCard({
       </svg>
     </div>
   )
-}
+})

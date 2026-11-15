@@ -36,3 +36,10 @@ adminRouter.post('/videos', controller.importSharedVideo);
 adminRouter.patch('/videos/:videoId', controller.updateSharedVideo);
 adminRouter.delete('/videos/:videoId', controller.deleteSharedVideo);
 adminRouter.post('/videos/:videoId/move', controller.moveSharedVideo);
+
+// Statistics (admin console)
+adminRouter.get('/stats/overview', controller.getStatsOverview);
+adminRouter.get('/stats/trend', controller.getStatsTrend);
+adminRouter.get('/stats/lessons', controller.getStatsLessons);
+adminRouter.get('/stats/content', controller.getStatsContent);
+adminRouter.get('/stats/inactive-users', controller.listInactiveUsers);

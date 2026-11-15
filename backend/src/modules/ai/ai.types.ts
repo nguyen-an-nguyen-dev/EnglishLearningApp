@@ -32,6 +32,32 @@ export interface ChatTurn {
   context: ChatContext | null;
 }
 
+/** One message in the OpenAI-compatible payload sent to the generative model. */
+export interface ProviderMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** A reminder the model proposed; the client asks for one tap of confirmation. */
+export interface ReminderSuggestion {
+  title: string;
+  in_minutes: number | null;
+  at_time: string | null;
+  body: string | null;
+}
+
+/** The JSON object every generative call must return. */
+export interface AiReply {
+  reply: string;
+  feedback: AiFeedbackInput[];
+  /** 2-3 short Vietnamese follow-up questions the learner can tap next. */
+  followups: string[];
+  /** Optional deep-link the learner can tap to jump to a real screen/item. */
+  action: ChatAction | null;
+  /** Only on the companion flow: a reminder the buddy offered to schedule. */
+  reminder: ReminderSuggestion | null;
+}
+
 /** A deep-link the buddy offers so the learner can jump straight there. */
 export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook'] as const;
 export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];

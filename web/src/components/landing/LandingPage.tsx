@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
+import { readPreferredTheme } from '../../theme'
 import { AuthModal, type AuthMode } from '../auth/AuthModal'
 import {
   CurriculumSection,
@@ -48,22 +49,21 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
   // theme so the dashboard is unchanged when they enter the app.
   useEffect(() => {
     const root = document.documentElement
-    const previousTheme = root.dataset.theme
-    const previousColorScheme = root.style.colorScheme
+    const restoreTheme = readPreferredTheme()
     const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    const previousMeta = themeMeta?.content ?? null
 
     root.classList.add('lp-active')
     root.dataset.theme = 'light'
     root.style.colorScheme = 'light'
+    root.style.background = '#EAF9FF'
     if (themeMeta) themeMeta.content = '#EAF9FF'
 
     return () => {
       root.classList.remove('lp-active')
-      if (previousTheme === undefined) delete root.dataset.theme
-      else root.dataset.theme = previousTheme
-      root.style.colorScheme = previousColorScheme
-      if (themeMeta && previousMeta !== null) themeMeta.content = previousMeta
+      root.dataset.theme = restoreTheme
+      root.style.colorScheme = restoreTheme
+      root.style.background = restoreTheme === 'dark' ? '#0E1720' : '#F2FAFD'
+      if (themeMeta) themeMeta.content = restoreTheme === 'dark' ? '#0E1720' : '#F2FAFD'
     }
   }, [])
 

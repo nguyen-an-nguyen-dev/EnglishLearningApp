@@ -1,9 +1,15 @@
 import { requestApi } from './apiClient'
 import type {
+  AdminContentStats,
+  AdminDayTrend,
+  AdminInactiveUser,
+  AdminLessonStat,
   AdminLessonSummary,
   AdminQuestion,
   AdminSharedVideo,
   AdminStage,
+  AdminStageStat,
+  AdminStatsOverview,
   LessonPatchPayload,
   LessonPayload,
   MoveDirection,
@@ -13,7 +19,6 @@ import type {
   SharedVideoPatchPayload,
   StagePatchPayload,
   StagePayload,
-  VideoAnalysisModel,
 } from '../types/admin'
 
 // ─── Content tree ────────────────────────────────────────────────────────────
@@ -135,11 +140,10 @@ export async function listAdminVideosApi(): Promise<AdminSharedVideo[]> {
 
 export async function importAdminVideoApi(
   url: string,
-  model: VideoAnalysisModel = 'bolt',
 ): Promise<SharedVideoImportResult> {
   const data = await requestApi<{ video: SharedVideoImportResult }>('/api/admin/videos', {
     method: 'POST',
-    body: JSON.stringify({ url, model }),
+    body: JSON.stringify({ url }),
   })
   return data.video
 }
@@ -164,4 +168,41 @@ export async function moveAdminVideoApi(videoId: number, direction: MoveDirectio
     method: 'POST',
     body: JSON.stringify({ direction }),
   })
+}
+
+// ─── Statistics ────────────────────────────────────────────────────────────
+
+export async function getAdminStatsOverviewApi(): Promise<AdminStatsOverview> {
+  const data = await requestApi<{ overview: AdminStatsOverview }>('/api/admin/stats/overview')
+  return data.overview
+}
+
+export async function getAdminStatsTrendApi(days = 14): Promise<AdminDayTrend[]> {
+  const data = await requestApi<{ trend: AdminDayTrend[] }>(`/api/admin/stats/trend?days=${days}`)
+  return data.trend
+}
+
+export async function getAdminLessonStatsApi(): Promise<{
+  stages: AdminStageStat[]
+  lessons: AdminLessonStat[]
+}> {
+  const data = await requestApi<{ stages: AdminStageStat[]; lessons: AdminLessonStat[] }>(
+    '/api/admin/stats/lessons',
+  )
+  return data
+}
+
+export async function getAdminContentStatsApi(): Promise<AdminContentStats> {
+  const data = await requestApi<{ content: AdminContentStats }>('/api/admin/stats/content')
+  return data.content
+}
+
+export async function listAdminInactiveUsersApi(
+  days = 7,
+  limit = 50,
+): Promise<AdminInactiveUser[]> {
+  const data = await requestApi<{ users: AdminInactiveUser[] }>(
+    `/api/admin/stats/inactive-users?days=${days}&limit=${limit}`,
+  )
+  return data.users
 }

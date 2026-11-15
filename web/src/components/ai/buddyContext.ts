@@ -211,7 +211,7 @@ export function detectLivePageContext(
         }
       }
 
-      const isQueue = Boolean(document.querySelector('.arena-queue'))
+      const isQueue = Boolean(document.querySelector('.arena-queue, .arena-lobby-card.is-searching'))
       if (isQueue) {
         return {
           focus: 'Đấu trường từ vựng',

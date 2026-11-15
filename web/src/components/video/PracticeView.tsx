@@ -9,9 +9,9 @@ import {
   Trophy,
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
-import { saveWordApi } from '../../services/videoService'
+import { completeVideoApi, saveWordApi } from '../../services/videoService'
 import { lookupWordApi } from '../../services/translationService'
-import type { SavedWord, VideoLessonDetail, VideoSegment } from '../../types/video'
+import type { CompleteVideoResult, SavedWord, VideoLessonDetail, VideoSegment } from '../../types/video'
 import { matchDictation, tokenizeDictation, type DictationToken } from '../../utils/dictation'
 import { formatClock, youtubeEmbedUrl, youtubeThumbnailUrl, YOUTUBE_LOCKED_VARS } from '../../utils/videoPlayback'
 import { loadYouTubeApi, type YouTubePlayerInstance } from '../../utils/youtube'
@@ -87,7 +87,6 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
   const playerRef = useRef<YouTubePlayerInstance | null>(null)
   const tickerRef = useRef<number | null>(null)
   const captionGuardRef = useRef<number | null>(null)
-  const hasStartedRef = useRef(false)
   const segmentRef = useRef<VideoSegment>(segment)
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -150,7 +149,6 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     const player = playerRef.current
     const current = segmentRef.current
     if (!player || !current) return
-    hasStartedRef.current = true
     player.seekTo(current.start_ms / 1000, true)
     player.playVideo()
     startCaptionGuard(player)
@@ -187,10 +185,11 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
               if (cancelled) return
               const player = event.target as YouTubePlayerInstance
               stripCaptions(player)
-              // 1 = playing, 3 = buffering. Buffering only counts as "playing"
-              // after the learner has started a segment, otherwise the cover
-              // would flash away during the initial cue.
-              if (event.data === 1 || (event.data === 3 && hasStartedRef.current)) {
+              // 1 = playing. Buffering (3) must not count as playback: the
+              // embed paints its title, share and "More videos" chrome as soon
+              // as it is revealed, so the cover stays up until sound is
+              // actually playing.
+              if (event.data === 1) {
                 startCaptionGuard(player)
                 window.setTimeout(() => { if (!cancelled) stripCaptions(player) }, 350)
                 setPlaying(true)
@@ -248,7 +247,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
   }
 
   return (
-    <div className={`video-stage practice-stage${playing ? ' is-playing' : ''}`}>
+    <div className="video-stage practice-stage">
       <div className="video-youtube-host" ref={hostRef} />
       {/* YouTube shows its own pause overlay (history, related videos, logo)
           whenever the iframe is paused. A custom cover keeps that chrome hidden
@@ -333,13 +332,15 @@ interface PracticeViewProps {
     totalSegments: number
     onRequireAuth: () => void
   }
+  /** Fires once the backend has confirmed the completion (XP, badges). */
+  onVideoCompleted?: (result: CompleteVideoResult) => void
 }
 
 function normalizeSavedWord(value: string): string {
   return value.toLocaleLowerCase('en').replace(/[^a-z0-9]/g, '')
 }
 
-export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: PracticeViewProps) {
+export function PracticeView({ video, savedWords, onSavedWord, onBack, demo, onVideoCompleted }: PracticeViewProps) {
   const { t } = useI18n()
   const segments = useMemo(
     () => (demo ? video.segments.slice(0, Math.max(1, demo.segmentLimit)) : video.segments),
@@ -349,6 +350,8 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: P
   const [typed, setTyped] = useState('')
   const [playToken, setPlayToken] = useState(0)
   const [finished, setFinished] = useState(false)
+  const [completion, setCompletion] = useState<CompleteVideoResult | null>(null)
+  const [completionFailed, setCompletionFailed] = useState(false)
   const [savingWord, setSavingWord] = useState<string | null>(null)
   const [saveNote, setSaveNote] = useState<{ tone: 'info' | 'ok' | 'error'; text: string } | null>(null)
   const savedKeys = useMemo(
@@ -388,6 +391,22 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: P
     if (!complete) return
     if (index + 1 >= segments.length) {
       setFinished(true)
+      // Persist the completion server-side. Dictating every segment means the
+      // learner heard the whole script, so report the full duration: the API
+      // requires at least 90% of it before it accepts a completion. XP is
+      // granted only on the first completion (the backend handles that), and
+      // a failure must not trap the learner on the trophy screen.
+      if (!demo) {
+        completeVideoApi(video.id, video.duration_seconds)
+          .then((result) => {
+            setCompletion(result)
+            onVideoCompleted?.(result)
+          })
+          .catch(() => {
+            setCompletion(null)
+            setCompletionFailed(true)
+          })
+      }
       return
     }
     setIndex((value) => value + 1)
@@ -400,6 +419,8 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: P
     setTyped('')
     setPlayToken(0)
     setFinished(false)
+    setCompletion(null)
+    setCompletionFailed(false)
     setSaveNote(null)
   }
 
@@ -501,6 +522,22 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo }: P
           <span className="practice-done-eyebrow">{t.practiceDoneEyebrow}</span>
           <h2>{t.practiceDoneTitle}</h2>
           <p>{t.practiceDoneDesc(segments.length)}</p>
+          {completion && (
+            <div className="practice-done-xp" data-video-xp={completion.xp_earned} data-video-rc={completion.rc_earned}>
+              {completion.xp_earned > 0
+                ? t.practiceDoneXp(completion.xp_earned)
+                : t.practiceDoneXpAgain}
+              {completion.rc_earned > 0 && (
+                <span className="practice-done-rc"> · +{completion.rc_earned} RC</span>
+              )}
+              {completion.badges_awarded.length > 0 && (
+                <span className="practice-done-badges">
+                  {completion.badges_awarded.map((badge) => `🏅 ${badge.name}`).join(' · ')}
+                </span>
+              )}
+            </div>
+          )}
+          {completionFailed && <p className="practice-done-xp">{t.practiceDoneXpFailed}</p>}
           <div className="practice-done-actions">
             <button type="button" className="practice-solid-btn" onClick={restart}>
               <ArrowClockwise size={16} weight="bold" />

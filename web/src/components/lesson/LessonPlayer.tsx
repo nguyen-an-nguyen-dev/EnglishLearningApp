@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { ArrowClockwise, Pause, Play } from '@phosphor-icons/react'
+import { ArrowClockwise, Medal, Pause, Play, Trophy } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
 import {
   checkLessonAnswerApi,
@@ -425,11 +425,12 @@ export function LessonPlayer({
   const [result, setResult] = useState<CompleteLessonResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loadKey, setLoadKey] = useState(0)
-  const startedAtRef = useRef<number>(Date.now())
+  const startedAtRef = useRef<number>(0)
 
   useEffect(() => {
     if (!token) return
     let active = true
+    startedAtRef.current = Date.now()
     getLessonQuestionsApi(lessonId)
       .then((data) => {
         if (!active) return
@@ -557,27 +558,65 @@ export function LessonPlayer({
 
   if (result) {
     const completed = result.lesson_status === 'completed'
+    const leveledUp = result.level_after > result.level_before
     return (
       <div className="lesson-player">
-        <div className="lesson-result">
-          <span className="lesson-kind">KẾT QUẢ</span>
-          <h1>{completed ? 'Hoàn thành bài học' : 'Chưa đạt'}</h1>
-          <p className="lesson-result-title">{lessonTitle}</p>
-          {result.stage_completed && <p className="lesson-result-note">Bạn đã hoàn thành toàn bộ chặng này.</p>}
+        <div className={`lesson-result${completed ? ' is-passed' : ' is-failed'}`}>
+          <header className="lesson-result-head">
+            <span className="lesson-result-badge" aria-hidden="true">
+              {completed ? <Trophy size={24} weight="fill" /> : <ArrowClockwise size={24} weight="bold" />}
+            </span>
+            <div className="lesson-result-heading">
+              <span className="lesson-kind">KẾT QUẢ</span>
+              <h1>{completed ? 'Hoàn thành bài học' : 'Chưa đạt'}</h1>
+              <p className="lesson-result-title">{lessonTitle}</p>
+            </div>
+          </header>
 
-          <div className="lesson-result-stats">
-            <div><span>Điểm</span><strong>{result.score}%</strong></div>
-            <div><span>Đúng</span><strong>{result.correct_answers}/{result.total_questions}</strong></div>
-            <div><span>XP</span><strong>+{result.xp_earned}</strong></div>
-          </div>
+          {/* Reward leads, same as the Arena verdict: it is the payoff. */}
+          {completed ? (
+            <section className="lesson-payout" aria-label="Phần thưởng">
+              <div className="lesson-payout-cell is-rc">
+                <span>Race Coin</span>
+                <strong>{result.rc_earned > 0 ? `+${result.rc_earned}` : '0'}</strong>
+              </div>
+              <div className="lesson-payout-cell is-xp">
+                <span>XP</span>
+                <strong>{result.xp_earned > 0 ? `+${result.xp_earned}` : '0'}</strong>
+              </div>
+              <div className="lesson-payout-cell is-score">
+                <span>Điểm</span>
+                <strong>{result.score}%</strong>
+              </div>
+            </section>
+          ) : (
+            <p className="lesson-result-note is-failed">
+              Cần đúng toàn bộ {result.total_questions} câu để hoàn thành bài. Bạn đúng {result.correct_answers}/{result.total_questions}.
+            </p>
+          )}
+
+          {leveledUp && (
+            <p className="lesson-result-note is-level">
+              Lên cấp {result.level_after}! Mở Gara để xem vật phẩm vừa mở khoá.
+            </p>
+          )}
+
+          {result.stage_reward && (
+            <p className="lesson-result-note is-stage">
+              Hoàn thành chặng: +{result.stage_reward.rc} RC, +{result.stage_reward.xp} XP
+            </p>
+          )}
 
           {result.badges_awarded.length > 0 && (
             <div className="lesson-badges">
               <span className="lesson-kind">HUY HIỆU MỚI</span>
               {result.badges_awarded.map((badge) => (
                 <div key={badge.code} className="lesson-badge-row">
-                  <strong>{badge.name}</strong>
-                  <span>{badge.description}</span>
+                  <Medal size={15} weight="regular" aria-hidden="true" />
+                  <div>
+                    <strong>{badge.name}</strong>
+                    <span>{badge.description}</span>
+                  </div>
                 </div>
               ))}
             </div>

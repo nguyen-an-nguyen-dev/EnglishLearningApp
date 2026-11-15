@@ -1,6 +1,6 @@
 import { HttpError } from '../../middleware/error-handler';
 import { parseReminderTiming } from '../reminders/reminders.validation';
-import type { ReminderSuggestion } from '../ai/ai.service';
+import type { ReminderSuggestion } from '../ai/ai.types';
 import type { CreateReminderInput } from '../reminders/reminders.types';
 import { parseBuddyTarget } from '../reminders/reminders.validation';
 

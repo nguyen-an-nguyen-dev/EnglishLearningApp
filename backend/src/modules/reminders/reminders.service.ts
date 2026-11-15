@@ -50,7 +50,3 @@ export async function acknowledgeReminder(userId: number, reminderId: number): P
   if (!row) throw new HttpError(404, 'Reminder not found.');
   await repo.markDelivered(userId, reminderId);
 }
-
-export function mapDueReminders(rows: ReminderRow[], now = Date.now()): StudyReminder[] {
-  return rows.map((row) => mapReminder(row, now));
-}

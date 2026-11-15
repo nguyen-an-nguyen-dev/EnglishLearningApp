@@ -11,6 +11,8 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
+import { useWallet } from '../../context/WalletContext'
+import { CarBadge } from '../cosmetics/CarBadge'
 import {
   acceptReminderSuggestionApi,
   askBuddyApi,
@@ -60,17 +62,20 @@ const SUGGESTION_PROMPTS: Array<{ label: string; question: string; intent: 'chat
 
 export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyBuddyProps) {
   const { t } = useI18n()
+  const { wallet } = useWallet()
+  const carKey = wallet?.equipment.car?.visual_key ?? null
   const [feed, setFeed] = useState<BuddyFeed | null>(null)
   const [reminders, setReminders] = useState<StudyReminder[]>([])
   const [feedError, setFeedError] = useState(false)
   const [dismissedNudges, setDismissedNudges] = useState<string[]>([])
   const [bubbleIndex, setBubbleIndex] = useState(0)
+  const [bubbleVisible, setBubbleVisible] = useState(false)
 
   const [question, setQuestion] = useState('')
   const [asking, setAsking] = useState(false)
   const [answer, setAnswer] = useState<AnswerState>(null)
   const [askError, setAskError] = useState<string | null>(null)
-  const [acceptedReminders, setAcceptedReminders] = useState<number[]>([])
+  const [reminderAccepted, setReminderAccepted] = useState(false)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
 
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -137,6 +142,60 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
   }, [bubbles.length])
 
   const bubble = bubbles[bubbleIndex % Math.max(1, bubbles.length)]
+  const hasBubble = Boolean(bubble)
+  const bubbleLastShownAt = useRef(0)
+
+  useEffect(() => {
+    if (!hasBubble || view || activeTab === 'compete') return
+
+    let showTimer: number | null = null
+    let hideTimer: number | null = null
+    const clearTimers = () => {
+      if (showTimer !== null) window.clearTimeout(showTimer)
+      if (hideTimer !== null) window.clearTimeout(hideTimer)
+      showTimer = null
+      hideTimer = null
+    }
+    const hideBubble = () => {
+      setBubbleVisible(false)
+      hideTimer = null
+    }
+    const showBubble = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      const elapsed = now - bubbleLastShownAt.current
+      if (elapsed < 60_000) {
+        if (elapsed < 3_000) {
+          setBubbleVisible(true)
+          hideTimer = window.setTimeout(hideBubble, 3_000 - elapsed)
+        } else {
+          setBubbleVisible(false)
+        }
+        showTimer = window.setTimeout(showBubble, 60_000 - elapsed)
+        return
+      }
+      bubbleLastShownAt.current = now
+      setBubbleVisible(true)
+      hideTimer = window.setTimeout(hideBubble, 3_000)
+      showTimer = window.setTimeout(showBubble, 60_000)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        clearTimers()
+        setBubbleVisible(false)
+        return
+      }
+      clearTimers()
+      showBubble()
+    }
+
+    showBubble()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      clearTimers()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [activeTab, hasBubble, view])
 
   useEffect(() => {
     if (!view) return
@@ -177,7 +236,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
   async function acceptSuggestion(suggestion: ReminderSuggestion) {
     try {
       const reminder = await acceptReminderSuggestionApi(suggestion, { tab: activeTab as BuddyTarget['tab'] })
-      setAcceptedReminders((current) => [...current, reminder.id])
+      setReminderAccepted(true)
       setReminders((current) => [...current, reminder].sort((a, b) => a.due_at.localeCompare(b.due_at)))
       await requestNotificationPermission()
     } catch {
@@ -204,7 +263,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
 
   return (
     <>
-      {!view && bubble && (
+      {!view && activeTab !== 'compete' && bubbleVisible && bubble && (
         <button
           type="button"
           className="buddy-nudge-bubble"
@@ -222,7 +281,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
         aria-label={view ? t.buddyClose : t.buddyOpen}
         aria-expanded={Boolean(view)}
       >
-        <img src="/logo.png" alt="" className="buddy-dock-car" draggable={false} />
+        <CarBadge visualKey={carKey} size={58} className="buddy-dock-car" animated />
         {dueNudges.length > 0 && <span className="buddy-dock-dot" aria-hidden="true" />}
       </button>
 
@@ -241,7 +300,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
               </button>
             )}
             <div className="buddy-panel-identity">
-              <img src="/logo.png" alt="" className="buddy-panel-car" draggable={false} />
+              <CarBadge visualKey={carKey} size={36} className="buddy-panel-car" />
               <div>
                 <strong>{t.buddyTitle}</strong>
                 <small>{feed?.greeting ?? t.buddySubtitle}</small>
@@ -401,7 +460,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
                     </button>
                   )}
 
-                  {answer.answer.suggestion && !acceptedReminders.includes(0) && (
+                  {answer.answer.suggestion && !reminderAccepted && (
                     <div className="buddy-reminder-offer">
                       <span>
                         <Clock size={13} weight="bold" />
@@ -420,7 +479,7 @@ export function StudyBuddy({ activeTab, view, onViewChange, onNavigate }: StudyB
                     </div>
                   )}
 
-                  {acceptedReminders.length > 0 && (
+                  {reminderAccepted && (
                     <p className="buddy-ok">
                       <CheckCircle size={14} weight="fill" /> {t.buddyReminderSaved}
                     </p>

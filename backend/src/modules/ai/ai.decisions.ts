@@ -1,0 +1,273 @@
+import { env } from '../../config/env';
+import { CHAT_INTENTS } from './ai.types';
+import type { ChatContext, ChatIntent } from './ai.types';
+
+/**
+ * Gemini Decision 1 (`gemini-decision-1`) through the Decisions API.
+ *
+ * This model does not generate text. It scores a closed set of candidate answers
+ * against one shared input and returns calibrated probabilities, so it can only
+ * be used where the answer is already known to be one of a fixed list. In this
+ * app that is exactly two things:
+ *
+ *   1. which intent a chat turn belongs to (routing), and
+ *   2. whether a generated answer may be returned to the frontend (the decision
+ *      gate in ai.pipeline.ts).
+ *
+ * Every generative path (tutor reply, translation, video segmentation) still
+ * needs a text model and stays on the provider chain in ai.provider.ts.
+ *
+ * Docs: POST /v1beta/decisions, body { model, input, questions }.
+ */
+
+/* ─── Shared transport ────────────────────────────────────────────────────── */
+
+interface ChoiceQuestion {
+  instructions: string;
+  criteria: Record<string, string>;
+}
+
+interface ChoiceAnswer<T extends string> {
+  choice: T;
+  confidence: number;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Ask one Decisions endpoint for a set of closed-set questions.
+ *
+ * Returns null on any failure (disabled, no key, timeout, provider error,
+ * unusable body) so every caller can fall back to its safe default. Scoring must
+ * never be able to break a chat turn.
+ */
+async function askDecisionModel(
+  input: string,
+  questions: Record<string, ChoiceQuestion>,
+): Promise<Record<string, unknown> | null> {
+  if (!env.aiDecisionEnabled || !env.aiApiKey.trim()) return null;
+
+  const body = {
+    model: env.aiDecisionModel,
+    input,
+    questions: Object.fromEntries(Object.entries(questions).map(([id, question]) => [
+      id,
+      { type: 'choice', instructions: question.instructions, criteria: question.criteria },
+    ])),
+  };
+
+  try {
+    const response = await fetch(env.aiDecisionUrl, {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': env.aiApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(env.aiDecisionTimeoutMs),
+    });
+    if (!response.ok) return null;
+
+    const payload: unknown = await response.json();
+    if (!isRecord(payload) || !isRecord(payload.answers)) return null;
+    return payload.answers;
+  } catch {
+    return null;
+  }
+}
+
+/** Read one ranked answer, ignoring any choice that is outside the closed set. */
+function readChoice<T extends string>(
+  answers: Record<string, unknown>,
+  questionId: string,
+  options: readonly T[],
+): ChoiceAnswer<T> | null {
+  const answer = answers[questionId];
+  if (!isRecord(answer) || typeof answer.choice !== 'string') return null;
+  if (!(options as readonly string[]).includes(answer.choice)) return null;
+  const confidence = typeof answer.confidence === 'number' && Number.isFinite(answer.confidence)
+    ? Math.min(1, Math.max(0, answer.confidence))
+    : 0;
+  return { choice: answer.choice as T, confidence };
+}
+
+/* ─── 1. Intent routing ───────────────────────────────────────────────────── */
+
+/** Question IDs are the option IDs, so a choice answer maps straight to a ChatIntent. */
+const INTENT_CRITERIA: Record<ChatIntent, string> = {
+  chat: 'Người học chỉ đang trò chuyện, chào hỏi, kể chuyện, hoặc hỏi một điều chung chung. Không xin kế hoạch, không xin giải thích, không xin hướng dẫn thao tác, không xin bài tập.',
+  plan: 'Người học hỏi hôm nay / bây giờ nên học gì, xin lộ trình, thứ tự ưu tiên, hoặc cách chia thời gian học.',
+  explain: 'Người học xin giải thích một từ, một câu, một ngữ pháp, hoặc nội dung đang hiển thị trên màn hình: nghĩa là gì, tại sao lại dùng như vậy.',
+  how: 'Người học xin chỉ cách làm một thao tác cụ thể trong ứng dụng: bấm vào đâu, mở mục nào, lưu từ thế nào.',
+  practice: 'Người học xin một bài tập, câu hỏi luyện tập, hoặc đề luyện để tự làm.',
+};
+
+const INTENT_INSTRUCTIONS = [
+  'Đọc tin nhắn của một người Việt đang học tiếng Anh trong ứng dụng Engorace và chọn đúng một mục đích cho lượt này.',
+  'Chỉ chọn dựa trên điều người học THỰC SỰ xin ở câu này, không dựa vào các lượt trước.',
+  'Nếu câu vừa chào hỏi vừa có yêu cầu rõ ràng thì chọn theo yêu cầu.',
+  'Nếu không có yêu cầu rõ ràng thì chọn chat.',
+].join(' ');
+
+export interface IntentDecision {
+  intent: ChatIntent;
+  confidence: number;
+  /** True when the model was confident enough to be used without review. */
+  confident: boolean;
+}
+
+/** Below this the turn keeps whatever the client sent instead of a coin flip. */
+const MIN_INTENT_CONFIDENCE = 0.6;
+
+/** The shared input: the message plus the screen the learner is looking at. */
+function buildTurnInput(message: string, context: ChatContext | null): string {
+  const lines = [`MESSAGE: ${message}`];
+  if (context) {
+    lines.push(`SCREEN: ${context.tab}`);
+    if (context.focus) lines.push(`FOCUS: ${context.focus}`);
+    if (context.detail) lines.push(`DETAIL: ${context.detail}`);
+  }
+  return lines.join('\n');
+}
+
+/** Which intent this turn belongs to, or null when routing should stay as sent. */
+export async function classifyChatIntent(
+  message: string,
+  context: ChatContext | null,
+): Promise<IntentDecision | null> {
+  const text = message.trim();
+  if (!text) return null;
+
+  const answers = await askDecisionModel(buildTurnInput(text, context), {
+    intent: { instructions: INTENT_INSTRUCTIONS, criteria: INTENT_CRITERIA },
+  });
+  if (!answers) return null;
+
+  const answer = readChoice(answers, 'intent', CHAT_INTENTS);
+  if (!answer) return null;
+  return {
+    intent: answer.choice,
+    confidence: answer.confidence,
+    confident: answer.confidence >= MIN_INTENT_CONFIDENCE,
+  };
+}
+
+/* ─── 2. Answer review gate ───────────────────────────────────────────────── */
+
+/** `coach` writes Vietnamese grounded in learner rows; `tutor` writes English. */
+export type ReplyFlavor = 'coach' | 'tutor';
+
+export const REPLY_VERDICTS = ['ship', 'repair', 'reject'] as const;
+export type ReplyVerdict = (typeof REPLY_VERDICTS)[number];
+
+const GROUNDINGS = ['supported', 'unverified', 'invented'] as const;
+type Grounding = (typeof GROUNDINGS)[number];
+
+const REVIEW_INSTRUCTIONS = [
+  'Đọc một câu trả lời mà trợ lý AI chuẩn bị gửi cho người học và chấm xem có được gửi đi hay không.',
+  'Chỉ dựa vào MESSAGE (câu hỏi mới nhất), REPLY (câu trả lời) và dữ liệu đi kèm; không dựa vào lượt trước.',
+  'Câu trả lời đúng nhưng chưa hoàn hảo thì chọn repair, chỉ chọn reject khi nội dung không thể dùng được.',
+].join(' ');
+
+const COACH_VERDICT_CRITERIA: Record<ReplyVerdict, string> = {
+  ship: 'Trả lời đúng câu hỏi mới nhất, toàn bộ bằng tiếng Việt (chỉ giữ tiếng Anh cho từ hoặc một câu ví dụ), không chào hỏi, không câu động viên sáo rỗng, ngắn gọn, và mọi con số hay tên bài/video đều có trong dữ liệu.',
+  repair: 'Có ý đúng nhưng sai hình thức: lẫn nhiều tiếng Anh, dài dòng, có câu chào hỏi hoặc động viên sáo rỗng, hoặc trả lời lệch một phần so với câu hỏi. Viết lại được.',
+  reject: 'Lạc đề, bịa bài học/video/con số/thành tích không có trong dữ liệu, hoặc nói không biết dù dữ liệu có sẵn. Không dùng được.',
+};
+
+const TUTOR_VERDICT_CRITERIA: Record<ReplyVerdict, string> = {
+  ship: 'Answers the latest learner message in natural English at the learner level, without greeting filler, and the feedback lists only mistakes that are really in the learner sentence.',
+  repair: 'Right idea but wrong presentation: too long, asks several questions, uses markdown, or corrects a sentence that was already correct.',
+  reject: 'Off topic, not in English, or invents mistakes and corrections.',
+};
+
+const GROUNDING_INSTRUCTIONS = [
+  'So sánh mọi chi tiết cụ thể trong REPLY với dữ liệu người học đi kèm (LEARNER_DATA_JSON).',
+  'Chi tiết cụ thể là: con số, tên bài học, tên video, chủ đề, thành tích, tính năng.',
+].join(' ');
+
+const GROUNDING_CRITERIA: Record<Grounding, string> = {
+  supported: 'Mọi chi tiết cụ thể trong câu trả lời đều có trong dữ liệu, hoặc câu trả lời không nêu chi tiết cụ thể nào.',
+  unverified: 'Có một chi tiết cụ thể không tìm thấy trong dữ liệu nhưng không phải là thành tích hay tính năng bịa ra.',
+  invented: 'Có ít nhất một thông tin bịa ra: bài học, video, thành tích hoặc tính năng không tồn tại trong dữ liệu.',
+};
+
+/** Below this a verdict is treated as "no opinion" and the answer ships. */
+const MIN_VERDICT_CONFIDENCE = 0.6;
+
+export interface AnswerReviewInput {
+  message: string;
+  intent: ChatIntent;
+  reply: string;
+  context: ChatContext | null;
+  flavor: ReplyFlavor;
+  /** The same learner data the generator received; null for the tutor flow. */
+  learnerData?: string | null;
+}
+
+export interface AnswerReview {
+  verdict: ReplyVerdict;
+  confidence: number;
+}
+
+function buildReviewInput(input: AnswerReviewInput): string {
+  const lines = [
+    `MESSAGE: ${input.message}`,
+    `INTENT: ${input.intent}`,
+    `REPLY: ${input.reply}`,
+  ];
+  if (input.context) {
+    lines.push(`SCREEN: ${input.context.tab}`);
+    if (input.context.focus) lines.push(`FOCUS: ${input.context.focus}`);
+    if (input.context.detail) lines.push(`DETAIL: ${input.context.detail}`);
+  }
+  if (input.learnerData) lines.push(`LEARNER_DATA_JSON: ${input.learnerData}`);
+  return lines.join('\n');
+}
+
+/**
+ * Score a generated answer before it reaches the frontend.
+ *
+ * Returns null when the gate could not run (disabled or provider failure), which
+ * callers treat as "no objection" so scoring can never block a chat turn.
+ */
+export async function reviewAnswer(input: AnswerReviewInput): Promise<AnswerReview | null> {
+  if (!input.reply.trim()) return null;
+
+  const questions: Record<string, ChoiceQuestion> = {
+    verdict: {
+      instructions: REVIEW_INSTRUCTIONS,
+      criteria: input.flavor === 'coach' ? COACH_VERDICT_CRITERIA : TUTOR_VERDICT_CRITERIA,
+    },
+  };
+  if (input.flavor === 'coach') {
+    questions.grounding = {
+      instructions: GROUNDING_INSTRUCTIONS,
+      criteria: GROUNDING_CRITERIA,
+    };
+  }
+
+  const answers = await askDecisionModel(buildReviewInput(input), questions);
+  if (!answers) return null;
+
+  const verdict = readChoice(answers, 'verdict', REPLY_VERDICTS);
+  if (!verdict) return null;
+
+  // Grounding is checked first: an invented score/video/lesson is unsafe even
+  // when the shape verdict itself was a low-confidence guess.
+  const grounding = readChoice(answers, 'grounding', GROUNDINGS);
+  if (grounding?.choice === 'invented' && grounding.confidence >= MIN_VERDICT_CONFIDENCE) {
+    return { verdict: 'reject', confidence: grounding.confidence };
+  }
+
+  if (verdict.confidence < MIN_VERDICT_CONFIDENCE) {
+    return { verdict: 'ship', confidence: verdict.confidence };
+  }
+  if (verdict.choice === 'reject') return { verdict: 'reject', confidence: verdict.confidence };
+  if (verdict.choice === 'repair' || grounding?.choice === 'unverified') {
+    return { verdict: 'repair', confidence: verdict.confidence };
+  }
+  return { verdict: 'ship', confidence: verdict.confidence };
+}

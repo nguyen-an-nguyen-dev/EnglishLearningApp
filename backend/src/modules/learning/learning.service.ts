@@ -1,6 +1,8 @@
 import { HttpError } from '../../middleware/error-handler';
 import { env } from '../../config/env';
 import * as repo from './learning.repository';
+import * as gamificationRepo from '../gamification/gamification.repository';
+import { levelForXp } from '../gamification/gamification.levels';
 import type {
   Answer,
   CheckAnswerInput,
@@ -229,17 +231,32 @@ export async function getLessonQuestions(
 
 // ─── Progress ─────────────────────────────────────────────────────────────────
 
+interface BalanceLike {
+  xp: number;
+  coins: number;
+  streak: number;
+}
+
+/** Read the single source of XP/coin/streak without importing the economy service. */
+async function fetchBalance(userId: number): Promise<BalanceLike | undefined> {
+  return gamificationRepo.getBalance(userId);
+}
+
 export interface UserProgressResponse {
   completed_lesson_ids: number[];
   total_xp: number;
+  coins: number;
+  level: number;
+  streak: number;
   stages: StageWithLessons[];
 }
 
 export async function getUserProgress(userId: number): Promise<UserProgressResponse> {
-  const [stageRows, progressRows, firstLesson] = await Promise.all([
+  const [stageRows, progressRows, firstLesson, balance] = await Promise.all([
     repo.getAllStages(),
     repo.getUserProgress(userId),
     repo.getFirstLesson(),
+    fetchBalance(userId),
   ]);
 
   const completedIds = new Set(
@@ -247,7 +264,7 @@ export async function getUserProgress(userId: number): Promise<UserProgressRespo
   );
 
   const firstLessonId = firstLesson?.id ?? 0;
-  const totalXp = progressRows.filter(isPerfectlyCompleted).length * 20;
+  const totalXp = Number(balance?.xp ?? 0);
 
   const stages: StageWithLessons[] = [];
 
@@ -293,6 +310,9 @@ export async function getUserProgress(userId: number): Promise<UserProgressRespo
   return {
     completed_lesson_ids: Array.from(completedIds),
     total_xp: totalXp,
+    coins: Number(balance?.coins ?? 0),
+    level: levelForXp(totalXp),
+    streak: Number(balance?.streak ?? 0),
     stages,
   };
 }
@@ -427,29 +447,39 @@ export async function completeLesson(
       correct_answers: correctCount,
       total_questions: totalQuestions,
       xp_earned: 0,
+      rc_earned: 0,
       lesson_status: 'retry',
       stage_completed: false,
+      stage_reward: null,
+      level_before: 0,
+      level_after: 0,
       badges_awarded: [],
     };
   }
 
-  // 6. Persist with transaction (handles XP and duplicate completion)
-  const previousStageLessons = await getLessonsByStage(lesson.stage_id, userId);
-  const stageWasCompleted = previousStageLessons.length > 0
-    && previousStageLessons.every((stageLesson) => stageLesson.state.status === 'completed');
-  const result = await repo.completeLesson(userId, lessonId, correctCount, totalQuestions, score, input.practiceSeconds ?? null);
-  const stageLessons = await getLessonsByStage(lesson.stage_id, userId);
-  const stageCompleted = !stageWasCompleted
-    && stageLessons.length > 0
-    && stageLessons.every((stageLesson) => stageLesson.state.status === 'completed');
+  // 6. Persist with transaction. XP, RC, the stage bonus, badges, the streak and
+  //    the weekly standing are all written inside the same transaction, so a
+  //    replay of a finished lesson cannot pay twice.
+  const result = await repo.completeLesson(
+    userId,
+    lessonId,
+    correctCount,
+    totalQuestions,
+    score,
+    input.practiceSeconds ?? null,
+  );
 
   return {
     score: result.score,
     correct_answers: result.correctAnswers,
     total_questions: result.totalQuestions,
     xp_earned: result.xpEarned,
+    rc_earned: result.rcEarned,
     lesson_status: 'completed',
-    stage_completed: stageCompleted,
+    stage_completed: result.stageCompleted,
+    stage_reward: result.stageReward,
+    level_before: result.levelBefore,
+    level_after: result.levelAfter,
     badges_awarded: result.badgesAwarded,
   };
 }

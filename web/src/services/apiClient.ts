@@ -20,6 +20,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Fired when the server rejects the stored token (HTTP 401). A backend restart
+ * that rotates the signing secret, or a token that simply expired, both hit
+ * this path. The auth layer listens and drops the stale session so the UI stops
+ * pretending the user is still signed in.
+ */
+export const SESSION_EXPIRED_EVENT = 'englearn:session-expired'
+
+function handleUnauthorized(): void {
+  authStorage.clear()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+  }
+}
+
 export async function requestApi<T>(
   path: string,
   options: RequestInit = {},
@@ -38,6 +53,7 @@ export async function requestApi<T>(
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
 
   if (!response.ok || !body.success || body.data === undefined) {
+    if (response.status === 401) handleUnauthorized()
     const details = body.errors?.filter((entry) => !/^[A-Z0-9_]+$/.test(entry)) ?? []
     const detail = details.length ? ` ${details.join(' ')}` : ''
     throw new ApiError(

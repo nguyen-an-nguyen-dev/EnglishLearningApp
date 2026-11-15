@@ -1,12 +1,11 @@
 import { requestApi, requestPublicApi } from './apiClient'
 import type {
-  CompleteVideoResult,
-  DemoVideo,
-  SaveWordPayload,
-  SavedWord,
-  VideoAnalysisModel,
-  VideoLessonDetail,
-  VideoLessonSummary,
+ CompleteVideoResult,
+ DemoVideo,
+ SaveWordPayload,
+ SavedWord,
+ VideoLessonDetail,
+ VideoLessonSummary,
 } from '../types/video'
 
 /**
@@ -39,14 +38,13 @@ export async function saveVideoProgressApi(
 }
 
 export async function importVideoApi(
-  url: string,
-  model: VideoAnalysisModel = 'bolt',
+ url: string,
 ): Promise<VideoLessonDetail> {
-  const data = await requestApi<{ video: VideoLessonDetail }>('/api/videos/import', {
-    method: 'POST',
-    body: JSON.stringify({ url, model }),
-  })
-  return data.video
+ const data = await requestApi<{ video: VideoLessonDetail }>('/api/videos/import', {
+  method: 'POST',
+  body: JSON.stringify({ url }),
+ })
+ return data.video
 }
 
 export async function deleteVideoApi(videoId: number): Promise<void> {

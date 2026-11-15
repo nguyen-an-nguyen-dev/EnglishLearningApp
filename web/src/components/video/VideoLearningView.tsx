@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import {
   ArrowClockwise,
   ArrowLeft,
+  Check,
   BookOpenText,
   CheckCircle,
   Clock,
@@ -29,7 +30,6 @@ import {
 } from '../../services/videoService'
 import type {
   SavedWord,
-  VideoAnalysisModel,
   VideoLessonDetail,
   VideoLessonSummary,
 } from '../../types/video'
@@ -45,6 +45,8 @@ interface VideoLessonViewProps {
   onOpenNotebook: () => void
   savedWords: SavedWord[]
   onSavedWord: (word: SavedWord) => void
+  /** Notifies the library shell so its counters can refresh. */
+  onCompleted: () => void
 }
 
 function VideoLessonView({
@@ -53,6 +55,7 @@ function VideoLessonView({
   onOpenNotebook,
   savedWords,
   onSavedWord,
+  onCompleted,
 }: VideoLessonViewProps) {
   const { t } = useI18n()
   const [video, setVideo] = useState<VideoLessonDetail | null>(null)
@@ -164,6 +167,7 @@ function VideoLessonView({
           savedWords={savedWords}
           onSavedWord={onSavedWord}
           onBack={onBack}
+          onVideoCompleted={onCompleted}
         />
       ) : (
         <div className="practice-unavailable">
@@ -203,7 +207,7 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
   const [reloadKey, setReloadKey] = useState(0)
   const [importOpen, setImportOpen] = useState(false)
   const [importUrl, setImportUrl] = useState('')
-  const [analysisModel, setAnalysisModel] = useState<VideoAnalysisModel>('bolt')
+  const [importStage, setImportStage] = useState<'extract' | 'segment'>('extract')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const importDialogRef = useRef<HTMLDialogElement>(null)
@@ -230,16 +234,19 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getVideosApi(), getSavedWordsApi()])
-      .then(([loadedVideos, loadedWords]) => {
+    // The video library is the primary content and the vocabulary notebook is
+    // secondary, so a failed word list must not blank out the library.
+    Promise.allSettled([getVideosApi(), getSavedWordsApi()])
+      .then(([videosResult, wordsResult]) => {
         if (cancelled) return
-        setVideos(loadedVideos)
-        setSavedWords(loadedWords)
-        setLoading(false)
-      })
-      .catch((loadError: unknown) => {
-        if (cancelled) return
-        setError(loadError instanceof Error ? loadError.message : t.videoLoadError)
+        if (wordsResult.status === 'fulfilled') setSavedWords(wordsResult.value)
+        if (videosResult.status === 'fulfilled') {
+          setVideos(videosResult.value)
+          setError(null)
+        } else {
+          const loadError = videosResult.reason
+          setError(loadError instanceof Error ? loadError.message : t.videoLoadError)
+        }
         setLoading(false)
       })
     return () => { cancelled = true }
@@ -261,15 +268,18 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
     if (!importOpen && dialog.open) dialog.close()
   }, [importOpen])
 
+  // The server can't report which pipeline stage it is in; the timeline is
+  // honest enough to show "captions" first, then "AI splitting".
+  useEffect(() => {
+    if (!importing) return
+    const timer = window.setTimeout(() => setImportStage('segment'), 1800)
+    return () => window.clearTimeout(timer)
+  }, [importing])
+
   const completedCount = videos.filter((video) => video.progress?.completed).length
   const earnedXp = videos
     .filter((video) => video.progress?.completed)
     .reduce((sum, video) => sum + video.xp_reward, 0)
-  const analysisModels: Array<{ id: VideoAnalysisModel; label: string; hint: string }> = [
-    { id: 'bolt', label: t.videoModelBolt, hint: t.videoModelBoltHint },
-    { id: 'gemini', label: t.videoModelGemini, hint: t.videoModelGeminiHint },
-  ]
-  const analysisModelLabel = analysisModel === 'gemini' ? t.videoModelGemini : t.videoModelBolt
 
   function importErrorMessage(importFailure: unknown): string {
     return videoImportErrorMessage(importFailure, t)
@@ -280,20 +290,23 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
     const url = importUrl.trim()
     if (!url || importing) return
     setImporting(true)
+    setImportStage('extract')
     setImportError(null)
     try {
-      const video = await importVideoApi(url, analysisModel)
+      const video = await importVideoApi(url)
       setVideos((current) => [
         video,
         ...current.filter((entry) => entry.id !== video.id),
       ])
       setImportUrl('')
       setImportOpen(false)
+      setNotice({ tone: 'ok', text: t.videoImportDone(video.title) })
       setSelectedVideoId(video.id)
     } catch (importFailure) {
       setImportError(importErrorMessage(importFailure))
     } finally {
       setImporting(false)
+      setImportStage('extract')
     }
   }
 
@@ -335,6 +348,7 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
           onSavedWord={(word) => {
             setSavedWords((current) => [word, ...current.filter((entry) => entry.id !== word.id)])
           }}
+          onCompleted={() => setReloadKey((key) => key + 1)}
         />
       </div>
     )
@@ -417,54 +431,46 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
           </div>
 
           <form className="video-import-dialog-form" onSubmit={(event) => void handleImport(event)}>
-            <label className="video-import-field is-dialog">
-              <LinkSimple size={17} />
-              <input
-                ref={importInputRef}
-                type="url"
-                value={importUrl}
-                onChange={(event) => setImportUrl(event.target.value)}
-                placeholder={t.videoImportPlaceholder}
-                aria-label={t.videoImportTitle}
-                disabled={importing}
-              />
-            </label>
-
-            <div className="video-import-model-section">
-              <span className="video-import-options-label">
-                <Sparkle size={13} weight="fill" />
-                {t.videoModelLabel}
-              </span>
-              <div className="video-model-switch" role="radiogroup" aria-label={t.videoModelLabel}>
-                {analysisModels.map((model) => (
+            {importing ? (
+              <ol className="video-import-steps" role="status" aria-live="polite">
+                <li className={`video-import-step${importStage === 'segment' ? ' is-done' : ' is-active'}`}>
+                  <span className="video-import-step-dot" aria-hidden="true">
+                    {importStage === 'segment' ? <Check size={11} weight="bold" /> : <span className="video-spinner is-tiny" />}
+                  </span>
+                  <span className="video-import-step-text">{t.videoImportStepExtract}</span>
+                </li>
+                <li className={`video-import-step${importStage === 'segment' ? ' is-active' : ''}`}>
+                  <span className="video-import-step-dot" aria-hidden="true">
+                    {importStage === 'segment' ? <span className="video-spinner is-tiny" /> : null}
+                  </span>
+                  <span className="video-import-step-text">{t.videoImportStepSegment}</span>
+                </li>
+              </ol>
+            ) : (
+              <label className="video-import-field is-dialog">
+                <LinkSimple size={17} />
+                <input
+                  ref={importInputRef}
+                  type="url"
+                  value={importUrl}
+                  onChange={(event) => setImportUrl(event.target.value)}
+                  placeholder={t.videoImportPlaceholder}
+                  aria-label={t.videoImportTitle}
+                />
+                {importUrl.trim() !== '' && (
                   <button
-                    key={model.id}
                     type="button"
-                    role="radio"
-                    aria-checked={analysisModel === model.id}
-                    className={`video-model-option${analysisModel === model.id ? ' is-active' : ''}`}
-                    onClick={() => setAnalysisModel(model.id)}
-                    disabled={importing}
+                    className="video-import-field-clear"
+                    onClick={() => {
+                      setImportUrl('')
+                      importInputRef.current?.focus()
+                    }}
+                    aria-label={t.videoImportClear}
                   >
-                    <span className="video-model-radio" aria-hidden="true" />
-                    <span className="video-model-copy">
-                      <strong>{model.label}</strong>
-                      <small>{model.hint}</small>
-                    </span>
+                    <X size={15} />
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {importing && (
-              <div className="video-import-status" role="status" aria-live="polite">
-                <span className="video-spinner" aria-hidden="true" />
-                <div className="video-import-status-copy">
-                  <strong>{t.videoAnalyzing}</strong>
-                  <small>{t.videoAnalyzingHint(analysisModelLabel)}</small>
-                </div>
-                <span className="video-import-status-line" aria-hidden="true"><span /></span>
-              </div>
+                )}
+              </label>
             )}
 
             {importError && <p className="video-import-error" role="alert">{importError}</p>}
@@ -500,9 +506,25 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
       )}
 
       {loading && (
-        <div className="video-state-card">
-          <span className="video-spinner" aria-hidden="true" />
-          <p>{t.videoLoading}</p>
+        <div className="video-grid video-skeleton-grid" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div className="video-card video-skeleton-card" key={index}>
+              <div className="video-skeleton-thumb" />
+              <div className="video-card-body">
+                <div className="video-skeleton-chips">
+                  <span className="video-skeleton-chip" />
+                  <span className="video-skeleton-chip" />
+                </div>
+                <div className="video-skeleton-line video-skeleton-line-strong" />
+                <div className="video-skeleton-line" />
+                <div className="video-skeleton-line video-skeleton-line-short" />
+                <div className="video-skeleton-footer">
+                  <span className="video-skeleton-foot-l" />
+                  <span className="video-skeleton-foot-r" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -536,7 +558,7 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
               video.progress?.watched_seconds ?? 0,
             )
             return (
-              <article className={`video-card${completed ? ' is-completed' : ''}`} key={video.id} data-buddy-target={`video:${video.id}`}>
+              <article className={`video-card${completed ? ' is-completed' : ''}${video.is_owned ? ' is-owned' : ''}`} key={video.id} data-buddy-target={`video:${video.id}`}>
                 <button
                   type="button"
                   className="video-thumb"
@@ -544,11 +566,14 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
                   aria-label={t.videoOpen(video.title)}
                 >
                   {thumb
-                    ? <img src={thumb} alt="" loading="lazy" />
+                    ? <img src={thumb} alt="" loading="lazy" decoding="async" />
                     : <span className="video-thumb-fallback" />}
                   <span className="video-thumb-shade" />
                   <span className="video-thumb-play"><Play size={24} weight="fill" /></span>
                   <span className="video-thumb-duration">{formatClock(video.duration_seconds)}</span>
+                  {video.is_owned && (
+                    <span className="video-thumb-owned">{t.videoOwnedBadge}</span>
+                  )}
                   {completed && (
                     <span className="video-thumb-done">
                       <CheckCircle size={16} weight="fill" /> {t.videoCompleted}
@@ -578,7 +603,6 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
                   <div className="video-card-chips">
                     <span className="video-chip is-level">{video.cefr_level}</span>
                     <span className="video-chip">{video.topic}</span>
-                    {video.is_owned && <span className="video-chip is-owned">{t.videoOwned}</span>}
                   </div>
                   <h3>{video.title}</h3>
                   {video.description && <p>{video.description}</p>}

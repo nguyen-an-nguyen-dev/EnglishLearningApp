@@ -354,7 +354,7 @@ export async function importSharedVideo(
     fetchYouTubeImportSource(youtubeId),
     videoRepo.nextSharedSortOrder(),
   ]);
-  const segments = await refineSegmentsWithAi(source.segments, input.model, source.aiCues);
+  const segments = await refineSegmentsWithAi(source.segments, source.aiCues);
   const subtitleEn = segments.map((segment) => segment.text).join(' ').slice(0, 500);
 
   let videoId: number;
@@ -409,4 +409,196 @@ export async function deleteSharedVideo(videoId: number): Promise<void> {
 export async function moveSharedVideo(videoId: number, direction: MoveDirection): Promise<void> {
   const moved = await repo.moveSharedVideo(videoId, direction);
   if (!moved) throw new HttpError(404, 'Shared video not found.');
+}
+
+// ─── Statistics ──────────────────────────────────────────────────────────────
+
+function pct(part: number, whole: number): number {
+  if (whole <= 0) return 0;
+  return Math.round((part / whole) * 1000) / 10;
+}
+
+export async function getStatsOverview(): Promise<
+  import('./admin.types').StatsOverview
+> {
+  const [
+    totalLearners,
+    totalAdmins,
+    newToday,
+    newYesterday,
+    newThisWeek,
+    newThisMonth,
+    activeToday,
+    activeYesterday,
+    active7d,
+    active30d,
+    returningToday,
+    neverActive,
+    aggregates,
+    lessons,
+    videos,
+    engagement,
+  ] = await Promise.all([
+    repo.countLearners(),
+    repo.countAdmins(),
+    repo.countNewUsers('today'),
+    repo.countNewUsers('yesterday'),
+    repo.countNewUsers('week'),
+    repo.countNewUsers('month'),
+    repo.countActiveOnDate(0),
+    repo.countActiveOnDate(1),
+    repo.countActiveWithin(7),
+    repo.countActiveWithin(30),
+    repo.countReturningToday(),
+    repo.countNeverActive(),
+    repo.getUserAggregates(),
+    repo.getLessonAggregates(),
+    repo.getVideoAggregates(),
+    repo.getEngagementAggregates(),
+  ]);
+
+  const inactive7d = Math.max(0, totalLearners - active7d);
+  const inactive14d = Math.max(0, totalLearners - (await repo.countActiveWithin(14)));
+  const inactive30d = Math.max(0, totalLearners - active30d);
+  const retentionTodayVsYesterdayPct =
+    activeYesterday === 0 ? null : Math.round(((activeToday - activeYesterday) / activeYesterday) * 1000) / 10;
+
+  return {
+    totalLearners,
+    totalAdmins,
+    newToday,
+    newYesterday,
+    newThisWeek,
+    newThisMonth,
+    activeToday,
+    activeYesterday,
+    active7d,
+    active30d,
+    inactive7d,
+    inactive14d,
+    inactive30d,
+    neverActive,
+    returningToday,
+    retentionTodayVsYesterdayPct,
+    avgXp: Math.round(aggregates.avgXp * 10) / 10,
+    totalXp: aggregates.totalXp,
+    avgStreak: Math.round(aggregates.avgStreak * 10) / 10,
+    maxStreak: aggregates.maxStreak,
+    lessonsCompletedTotal: lessons.completed,
+    lessonsInProgressActive: lessons.inProgress,
+    lessonCompletionRatePct: pct(lessons.completed, lessons.totalProgressRows),
+    videosSharedCount: videos.shared,
+    videosCompletedTotal: videos.completed,
+    videoCompletionRatePct: pct(videos.completed, videos.total),
+    matchesTotal: engagement.matchesTotal,
+    matchesToday: engagement.matchesToday,
+    translationsTotal: engagement.translationsTotal,
+    answersTotal: engagement.answersTotal,
+    answerCorrectRatePct: pct(engagement.answersCorrect, engagement.answersTotal),
+    savedWordsTotal: engagement.savedWordsTotal,
+  };
+}
+
+export async function getActivityTrend(days = 14): Promise<
+  import('./admin.types').DayTrend[]
+> {
+  const bounded = Math.min(30, Math.max(2, Math.floor(days)));
+  const labels = await repo.getDayLabels(bounded);
+  const trend: import('./admin.types').DayTrend[] = [];
+  // labels are oldest -> newest; offsetDays is distance from today.
+  for (let index = 0; index < labels.length; index += 1) {
+    const offsetDays = labels.length - 1 - index;
+    const [counts, activeUsers] = await Promise.all([
+      repo.getDayCounts(offsetDays),
+      repo.countActiveOnDate(offsetDays),
+    ]);
+    trend.push({ date: labels[index], activeUsers, ...counts });
+  }
+  return trend;
+}
+
+export async function getLessonStats(): Promise<
+  import('./admin.types').LessonStat[]
+> {
+  const rows = await repo.getLessonStats();
+  return rows.map((row) => ({
+    lessonId: Number(row.lesson_id),
+    stageId: Number(row.stage_id),
+    stageTitle: row.stage_title,
+    title: row.title,
+    topic: row.topic,
+    questionCount: Number(row.question_count),
+    learnersStarted: Number(row.learners_started),
+    completions: Number(row.completions),
+    abandonRatePct:
+      Number(row.learners_started) === 0
+        ? 0
+        : pct(
+            Number(row.learners_started) - Number(row.completions),
+            Number(row.learners_started),
+          ),
+    avgScore: row.avg_score === null ? null : Math.round(Number(row.avg_score) * 10) / 10,
+  }));
+}
+
+export async function getStageStats(): Promise<
+  import('./admin.types').StageStat[]
+> {
+  const rows = await repo.getStageStats();
+  return rows.map((row) => {
+    const lessonCount = Number(row.lesson_count);
+    const learnersStarted = Number(row.learners_started);
+    // A stage spans several lessons, so compare completed lesson rows against
+    // every learner x lesson pair instead of against distinct learners alone.
+    const possibleCompletions = lessonCount * learnersStarted;
+    return {
+      stageId: Number(row.stage_id),
+      stageTitle: row.stage_title,
+      sortOrder: Number(row.sort_order),
+      lessonCount,
+      learnersStarted,
+      completions: Number(row.completions),
+      completionRatePct:
+        possibleCompletions > 0
+          ? Math.min(100, pct(Number(row.completions), possibleCompletions))
+          : 0,
+      avgScore: row.avg_score === null ? null : Math.round(Number(row.avg_score) * 10) / 10,
+    };
+  });
+}
+
+export async function getContentStats(): Promise<
+  import('./admin.types').ContentStats
+> {
+  return repo.getContentCounts();
+}
+
+export async function listInactiveUsers(
+  minDays = 7,
+  limit = 50,
+): Promise<import('./admin.types').InactiveUserRow[]> {
+  const boundedDays = Math.min(90, Math.max(1, Math.floor(minDays)));
+  const boundedLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  const rows = await repo.listInactiveUsers(boundedDays, boundedLimit);
+  const now = Date.now();
+  return rows.map((row) => {
+    const createdAt = new Date(row.created_at);
+    const last = row.last_activity_at ? new Date(row.last_activity_at) : null;
+    const reference = last ?? createdAt;
+    const daysInactive = Math.max(
+      0,
+      Math.floor((now - reference.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+    return {
+      id: Number(row.id),
+      displayName: row.display_name,
+      email: row.email,
+      xp: Number(row.xp),
+      streak: Number(row.streak),
+      createdAt: createdAt.toISOString(),
+      lastActivityAt: last ? last.toISOString() : null,
+      daysInactive,
+      lessonsCompleted: Number(row.lessons_completed),
+    };
+  });
 }

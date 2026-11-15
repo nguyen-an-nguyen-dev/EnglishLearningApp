@@ -4,7 +4,7 @@ import { buildNudges, buildGreeting } from '../src/modules/buddy/buddy.service';
 import type { StudyStats } from '../src/modules/ai/ai.repository';
 import type { StudyReminder } from '../src/modules/reminders/reminders.types';
 import { parseBuddyTarget, parseReminderTiming } from '../src/modules/reminders/reminders.validation';
-import { parseReminderSuggestion } from '../src/modules/ai/ai.service';
+import { parseReminderSuggestion } from '../src/modules/ai/ai.parsing';
 import { parseSuggestionInput } from '../src/modules/buddy/buddy.validation';
 
 function stats(overrides: Partial<StudyStats> = {}): StudyStats {
