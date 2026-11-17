@@ -1,59 +1,33 @@
 node_modules/
-**/node_modules/
-backend/dist/
 dist/
-.expo/
-**/.expo/
 web-build/
+.expo/
 backend/tmp-audio/
 
 .env
 .env.*
-**/.env
-**/.env.*
 !.env.example
-!**/.env.example
 
 npm-debug.log*
 
-# Báo cáo / tài liệu đồ án (không commit)
+# Tài liệu đồ án
 docs/
 ~$*
 
-# Agent skills, planning & temporary tooling
+# Agent skills & tooling
 .agents/
-skills-lock.json
 skills/
+skills-lock.json
 *.skill
 
-# Impeccable (design skill) — artefact runtime, tự sinh khi chạy lệnh. KHÔNG commit.
-# Dùng tiền tố ** vì skill cũng ghi vào app chưa ở root (vd web/.impeccable/ khi
-# live-server resolve app root là web/). Phần cần commit vẫn nằm ngoài danh sách
-# này: PRODUCT.md, DESIGN.md, .impeccable/config.json, .impeccable/design.json,
-# .impeccable/surfaces/, .impeccable/live/config.json, .impeccable/critique/ignore.md.
-**/.impeccable/config.local.json
-**/.impeccable/questions/
-**/.impeccable/mocks/
-**/.impeccable/review/
-**/.impeccable/build/
-**/.impeccable/reference/
-**/.impeccable/live/inject-journal.json
-**/.impeccable/live/roots.json
-**/.impeccable/live/server.json
-**/.impeccable/live/sessions/
-**/.impeccable/live/*.js
-**/.impeccable/live/*.log
-**/.impeccable/critique/*
-!**/.impeccable/critique/ignore.md
-# Engine binary + font index do skill tải về (~/.impeccable, scripts/data) nằm
-# ngoài repo, nhưng chặn luôn nếu bản portable rơi vào đây.
-**/.impeccable/bin/
-impeccable.exe
-impeccable.exe.verified
+# Impeccable runtime (skill tự sinh)
+**/.impeccable/
+impeccable.exe*
 impeccable-windows-*.exe
+
+# File tạm / patch cục bộ
 update_node.js
 run_decor_patch.cjs
 mobile/components/map/RoadsideDecor.tsx
 DOC_MAP.md
-**/DOC_MAP.md
 backend/.yt-dlp-tmp/
