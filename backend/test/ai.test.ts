@@ -5,11 +5,14 @@ import { once } from 'node:events';
 import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
 import type { RowDataPacket } from 'mysql2';
+import { env } from '../src/config/env';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = randomBytes(48).toString('hex');
 }
 process.env.AI_API_KEY = 'test-only-provider-key';
+const originalCfAccounts = env.cfAccounts;
+env.cfAccounts = [];
 
 let server: Server;
 let baseUrl: string;
@@ -101,6 +104,7 @@ before(async () => {
 
 after(async () => {
   if (globalThis.fetch !== originalFetch) globalThis.fetch = originalFetch;
+  env.cfAccounts = originalCfAccounts;
   if (ownerEmail) await pool.execute('DELETE FROM users WHERE email = ?', [ownerEmail]);
   if (otherEmail) await pool.execute('DELETE FROM users WHERE email = ?', [otherEmail]);
   if (server?.listening) {
@@ -116,7 +120,8 @@ test('AI chat persists history and feedback, enforces ownership, and reports pro
   interface LessonSeedRow extends RowDataPacket { id: number; topic: string; question_id: number; }
   const [lessonRows] = await pool.execute<LessonSeedRow[]>(
     `SELECT l.id, l.topic, q.id AS question_id FROM lessons l
-     JOIN questions q ON q.lesson_id = l.id LIMIT 1`,
+     JOIN questions q ON q.lesson_id = l.id
+     WHERE l.topic = 'Greetings' LIMIT 1`,
   );
   assert.ok(lessonRows[0], 'AI personalization test requires at least one seeded lesson question.');
   await pool.execute(

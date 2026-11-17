@@ -392,7 +392,7 @@
 
 /* The duel owns the leftover page height, so the question stage centres
    instead of leaving a dead band above the footer. */
-.arena-view { display: flex; flex-direction: column; }
+.arena-view { display: flex; flex-direction: column; gap: 18px; }
 .arena-match {
   display: flex;
   flex: 1;
@@ -913,7 +913,32 @@
 .profile-identity { padding-right: 48px; }
 .profile-account { padding-left: 40px; border-left: 1px solid var(--line); }
 
-.profile-identity-head { display: flex; align-items: center; gap: 18px; }
+/* Identity banner — full width so the equipped nameplate has a real surface
+   to fill. The wallet sits inside it, right-aligned. */
+.profile-identity-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 34px;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+}
+/* The equipped nameplate is the banner background (see `nameplateSurface`);
+   the band around the name itself is gone. */
+.profile-identity-head.is-plated {
+  border-color: var(--plate-edge, transparent);
+  background: var(--plate-bg);
+  color: var(--plate-fg, var(--ink));
+}
+.profile-identity-head.is-plated .profile-identity-copy h2,
+.profile-identity-head.is-plated .profile-identity-copy p,
+.profile-identity-head.is-plated .profile-role { color: inherit; }
+.profile-identity-head.is-plated .profile-identity-copy p { opacity: 0.78; }
+.profile-identity-head.is-plated .profile-role { opacity: 0.88; }
 .profile-avatar {
   display: grid;
   width: 68px;
@@ -950,7 +975,7 @@
 .profile-numbers {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 30px 0 0;
+  margin: 0;
   padding: 20px 0;
   border-top: 1px solid var(--rule-strong);
   border-bottom: 1px solid var(--line);
@@ -1152,6 +1177,8 @@
   .rank-step.is-3 .rank-step-base { height: 42px; }
   .rank-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
   .rank-facts div { padding: 0; border-left: 0; }
+  .profile-identity-head { gap: 14px; margin-bottom: 26px; padding: 16px; border-radius: 16px; }
+  .profile-identity-head .profile-wallet-card { flex: 1 1 100%; }
   .profile-numbers { grid-template-columns: 1fr; gap: 16px; padding: 18px 0; }
   .profile-numbers div { padding-left: 0; border-left: 0; }
   .profile-numbers dd { font-size: 24px; }

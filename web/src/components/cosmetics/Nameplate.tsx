@@ -11,9 +11,10 @@ export interface NameplateProps {
 }
 
 /**
- * The band that sits behind a display name — not a page background. It hugs
- * its own text (inline-flex, own padding) and appears wherever a name is shown:
- * profile, ranking rows and the arena scoreboard.
+ * The band that sits behind a display name. It hugs its own text
+ * (inline-flex, own padding) and appears wherever a name is shown: ranking
+ * rows and the arena scoreboard. The profile paints the same skin as the
+ * background of its own blocks instead — see `nameplateSurface.ts`.
  */
 export function Nameplate({ visualKey, children, className, dense = false }: NameplateProps) {
   const skin = nameplateSkin(visualKey)

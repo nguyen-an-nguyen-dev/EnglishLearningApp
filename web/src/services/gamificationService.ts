@@ -1,7 +1,6 @@
 import { requestApi } from './apiClient'
 import type {
   LeagueView,
-  RewardCenter,
   ShopItem,
   ShopResponse,
   Wallet,
@@ -37,17 +36,6 @@ export async function unequipSlotApi(slot: string): Promise<ShopItem> {
     { method: 'POST' },
   )
   return data.item
-}
-
-export async function getRewardsApi(): Promise<RewardCenter> {
-  return requestApi<RewardCenter>('/api/rewards')
-}
-
-export async function claimQuestApi(code: string): Promise<{ quest: RewardCenter['daily'][number]; coins: number }> {
-  return requestApi<{ quest: RewardCenter['daily'][number]; coins: number }>(
-    `/api/rewards/quests/${encodeURIComponent(code)}/claim`,
-    { method: 'POST' },
-  )
 }
 
 export async function getLeagueApi(): Promise<LeagueView> {

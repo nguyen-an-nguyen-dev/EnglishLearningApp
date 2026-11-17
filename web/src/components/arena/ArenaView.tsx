@@ -38,6 +38,7 @@ import {
   saveBattleSession,
   type BattleSessionSnapshot,
 } from '../../utils/battleSession'
+import { LoadingDots } from '../LoadingDots'
 
 type DuelScreen = 'lobby' | 'queue' | 'match' | 'result'
 type DuelConnection = { mode: 'queue' | 'resume'; matchId?: number; nonce: number }
@@ -462,7 +463,9 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
   if (screen === 'match' && resuming) {
     return (
       <section className="arena-queue">
-        <span className="video-spinner" aria-hidden="true" />
+        {/* The heading already announces the wait, so the dots stay decorative
+            here and no second status line competes with it. */}
+        <LoadingDots />
         <h2>{t.arenaResuming}</h2>
         {error && <p className="arena-error">{error}</p>}
       </section>
@@ -633,8 +636,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
           </div>
         ) : (
           <div className="arena-loading">
-            <span className="video-spinner" aria-hidden="true" />
-            <p>{t.arenaLoadingRound}</p>
+            <LoadingDots label={t.arenaLoadingRound} />
           </div>
         )}
       </section>
@@ -789,10 +791,11 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             <div className="arena-v2-coach">
               <div className="gara-bubble">
                 <span className="gara-bubble-name">Bác Turbo</span>
-                <br />
-                {outcome === 'win'
-                  ? 'Thắng rồi! Nối thêm một trận nữa để chuỗi dài hơn, điểm đua tuần này cũng dày hơn.'
-                  : 'Thua một trận thôi, đừng nản! Ôn mấy từ bên cạnh rồi gỡ lại ngay nhé.'}
+                <span>
+                  {outcome === 'win'
+                    ? 'Thắng rồi! Nối thêm một trận nữa để chuỗi dài hơn, điểm đua tuần này cũng dày hơn.'
+                    : 'Thua một trận thôi, đừng nản! Ôn mấy từ bên cạnh rồi gỡ lại ngay nhé.'}
+                </span>
               </div>
               <div className="gara-stall-mascot">
                 <TurboMascot />
@@ -884,19 +887,18 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                 <div className={`arena-v2-versus-slot is-empty${isSearching ? ' is-searching' : ''}`}>
                   {isSearching ? (
                     <span className="arena-v2-search-orb" aria-hidden="true">
+                      <span className="arena-search-halo" />
+                      <span className="arena-search-halo" />
                       <i /><i /><i />
                     </span>
                   ) : (
                     <span className="arena-v2-versus-empty">?</span>
                   )}
                   <strong>{isSearching && opponent ? t.arenaQueueOpponent(opponent.name) : isSearching ? t.arenaSearching : t.arenaWaitingSeat}</strong>
-                  <small>
-                    {isSearching ? (
-                      <span className="arena-v2-search-dots" role="status" aria-label={t.arenaSearching}>
-                        <i /><i /><i />
-                      </span>
-                    ) : t.arenaWaitingSeatHint}
-                  </small>
+                  {/* The seat keeps the same circle + two text lines in both
+                      states, so starting or cancelling a search never resizes
+                      it and the versus row stays put. */}
+                  <small role="status">{isSearching ? t.arenaSearchingHint : t.arenaWaitingSeatHint}</small>
                 </div>
               </div>
               <button
@@ -913,33 +915,38 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
         </div>
       </section>
 
-      <section className="arena-v2-rules-block">
-        <span className="gc-label">{t.arenaRulesTitle}</span>
-        <ol className="arena-v2-rules">
-          <li>
-            <i>1</i>
-            <p>{t.arenaRuleOne}</p>
-          </li>
-          <li>
-            <i>2</i>
-            <p>{t.arenaRuleTwo}</p>
-          </li>
-          <li>
-            <i>3</i>
-            <p>{t.arenaRuleThree}</p>
-          </li>
-        </ol>
-      </section>
-
-      <section className="arena-v2-tip">
-        <div className="gara-bubble">
-          <span className="gara-bubble-name">Bác Turbo</span>
-          <br />
-          {t.arenaLobbyTip}
+      {/* Rules and Bác Turbo's tip share one board: the rule columns are split
+          by dashed rules instead of three nested cards, and the coach line is
+          the board's footer, so nothing floats in a band of empty paper. */}
+      <section className="arena-v2-guide">
+        <div className="arena-v2-guide-body">
+          <div className="arena-v2-guide-head">
+            <span className="gc-label">{t.arenaRulesTitle}</span>
+          </div>
+          <ol className="arena-v2-rules">
+            <li>
+              <i>1</i>
+              <p>{t.arenaRuleOne}</p>
+            </li>
+            <li>
+              <i>2</i>
+              <p>{t.arenaRuleTwo}</p>
+            </li>
+            <li>
+              <i>3</i>
+              <p>{t.arenaRuleThree}</p>
+            </li>
+          </ol>
         </div>
-        <div className="gara-stall-mascot">
-          <TurboMascot />
-          <span className="gara-stall-shadow" aria-hidden="true" />
+
+        <div className="arena-v2-coachline">
+          <div className="gara-bubble">
+            <span className="gara-bubble-name">Bác Turbo</span>
+            <span>{t.arenaLobbyTip}</span>
+          </div>
+          <div className="gara-stall-mascot">
+            <TurboMascot />
+          </div>
         </div>
       </section>
     </>

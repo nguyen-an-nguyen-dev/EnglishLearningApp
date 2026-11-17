@@ -143,8 +143,11 @@
 }
 
 /* Overlays and floating panels ------------------------------------------- */
+/* The settings popover grows out of its trigger rather than sliding in from
+   nowhere, which keeps it feeling attached to the gear button. */
 .settings-panel {
-  animation: settings-pop 190ms var(--motion-ease) both;
+  transform-origin: bottom right;
+  animation: settings-pop 170ms var(--motion-ease) both;
 }
 .video-import-dialog[open] {
   animation: video-dialog-in 220ms var(--motion-ease) both;

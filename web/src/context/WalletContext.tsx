@@ -2,28 +2,24 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import {
-  claimQuestApi,
   equipItemApi,
   getLeagueApi,
-  getRewardsApi,
   getShopApi,
   getWalletApi,
   purchaseItemApi,
   unequipSlotApi,
 } from '../services/gamificationService'
-import type { LeagueView, RewardCenter, ShopItem, Wallet } from '../types/gamification'
+import type { LeagueView, ShopItem, Wallet } from '../types/gamification'
 
 interface WalletContextValue {
   wallet: Wallet | null
   shop: ShopItem[]
-  rewards: RewardCenter | null
   league: LeagueView | null
   loading: boolean
   refresh: () => void
   purchase: (itemId: number) => Promise<void>
   equip: (itemId: number) => Promise<void>
   unequip: (slot: string) => Promise<void>
-  claimQuest: (code: string) => Promise<void>
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined)
@@ -32,7 +28,6 @@ function WalletProviderInner({ token, children }: { token: string | null; childr
   const { refreshUser } = useAuth()
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [shop, setShop] = useState<ShopItem[]>([])
-  const [rewards, setRewards] = useState<RewardCenter | null>(null)
   const [league, setLeague] = useState<LeagueView | null>(null)
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
@@ -44,14 +39,12 @@ function WalletProviderInner({ token, children }: { token: string | null; childr
     Promise.all([
       getWalletApi(),
       getShopApi(),
-      getRewardsApi(),
       getLeagueApi(),
     ])
-      .then(([walletData, shopData, rewardsData, leagueData]) => {
+      .then(([walletData, shopData, leagueData]) => {
         if (cancelled) return
         setWallet(walletData)
         setShop(shopData.items)
-        setRewards(rewardsData)
         setLeague(leagueData)
         setLoading(false)
       })
@@ -84,15 +77,9 @@ function WalletProviderInner({ token, children }: { token: string | null; childr
     setReloadKey((key) => key + 1)
   }, [])
 
-  const claimQuest = useCallback(async (code: string) => {
-    await claimQuestApi(code)
-    void refreshUser()
-    setReloadKey((key) => key + 1)
-  }, [refreshUser])
-
   const value = useMemo<WalletContextValue>(
-    () => ({ wallet, shop, rewards, league, loading, refresh, purchase, equip, unequip, claimQuest }),
-    [wallet, shop, rewards, league, loading, refresh, purchase, equip, unequip, claimQuest],
+    () => ({ wallet, shop, league, loading, refresh, purchase, equip, unequip }),
+    [wallet, shop, league, loading, refresh, purchase, equip, unequip],
   )
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

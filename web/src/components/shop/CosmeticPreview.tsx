@@ -1,4 +1,4 @@
-import { CarPreview } from '../cosmetics/CarArt'
+import { CarSidePreview } from '../cosmetics/CarSideArt'
 import { AvatarFrame } from '../cosmetics/AvatarFrame'
 import { Nameplate } from '../cosmetics/Nameplate'
 import type { CosmeticSlot } from '../../types/gamification'
@@ -18,7 +18,9 @@ export interface CosmeticPreviewProps {
  */
 export function CosmeticPreview({ slot, visualKey, sampleName = 'Engorace', size = 132 }: CosmeticPreviewProps) {
   if (slot === 'car') {
-    return <CarPreview visualKey={visualKey} size={size} />
+    // Cars are shown in profile, not top-down: the shop art box is landscape,
+    // so a side view is what fills it legibly.
+    return <CarSidePreview className="car-side-preview" visualKey={visualKey} />
   }
   if (slot === 'frame') {
     return (

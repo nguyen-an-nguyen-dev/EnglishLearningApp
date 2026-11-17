@@ -5,11 +5,14 @@ import { once } from 'node:events';
 import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
 import type { RowDataPacket } from 'mysql2';
+import { env } from '../src/config/env';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = randomBytes(48).toString('hex');
 }
 process.env.AI_API_KEY = 'test-only-provider-key';
+const originalCfAccounts = env.cfAccounts;
+env.cfAccounts = [{ apiKey: 'test-only-cf-key', apiUrl: 'https://cf.example.test' }];
 
 let server: Server;
 let baseUrl: string;
@@ -20,7 +23,9 @@ let originalFetch: typeof fetch;
 let providerResponse: Response | Error | null = null;
 let persistentProviderResponse: (() => Response) | null = null;
 let providerCallCount = 0;
+let geminiCallCount = 0;
 let providerRequest: { model?: string; max_tokens?: number; response_format?: unknown; messages?: Array<{ content: string }> } | null = null;
+let providerRequests: Array<NonNullable<typeof providerRequest>> = [];
 
 function geminiResponse(content: unknown, status = 200): Response {
   return new Response(JSON.stringify({
@@ -34,11 +39,16 @@ function geminiResponse(content: unknown, status = 200): Response {
 before(async () => {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input) === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions') {
+    if (['https://cf.example.test', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'].includes(String(input))) {
       providerCallCount++;
+      if (String(input) === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions') geminiCallCount++;
       providerRequest = typeof init?.body === 'string'
         ? JSON.parse(init.body) as typeof providerRequest
         : null;
+      if (providerRequest) providerRequests.push(providerRequest);
+      if (String(input) === 'https://cf.example.test' && persistentProviderResponse) {
+        return new Response(JSON.stringify({ error: { message: 'CF API busy' } }), { status: 503 });
+      }
       if (persistentProviderResponse) return persistentProviderResponse();
       const response = providerResponse;
       providerResponse = null;
@@ -74,6 +84,7 @@ before(async () => {
 
 after(async () => {
   if (globalThis.fetch !== originalFetch) globalThis.fetch = originalFetch;
+  env.cfAccounts = originalCfAccounts;
   if (email) {
     await pool.execute('DELETE FROM translations WHERE user_id = (SELECT id FROM users WHERE email = ?)', [email]);
     await pool.execute('DELETE FROM users WHERE email = ?', [email]);
@@ -94,6 +105,7 @@ test('translation API supports both directions, words, TXT uploads, validation, 
     body: JSON.stringify({ text, sourceLanguage, targetLanguage }),
   });
 
+  providerRequests = [];
   providerResponse = geminiResponse('Xin chào buổi sáng.');
   const englishToVietnamese = await translate('Good morning', 'en', 'vi');
   assert.equal(englishToVietnamese.status, 201);
@@ -101,7 +113,8 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   assert.equal(firstResult.data.translatedText, 'Xin chào buổi sáng.');
   assert.equal(firstResult.data.fileName, null);
   assert.equal(providerRequest?.response_format, undefined, 'plain text translation skips structured output mode');
-  assert.ok((providerRequest?.max_tokens ?? 8192) <= 512);
+  assert.equal(providerRequests.length, 1);
+  assert.equal(providerRequests[0].max_tokens, 2048);
   assert.match(providerRequest?.messages?.[0]?.content ?? '', /Return only the translated text/);
 
   providerResponse = geminiResponse({
@@ -248,7 +261,7 @@ test('long TXT uploads are translated as parallel chunks and rejoined in order',
   upload.append('file', new Blob([document], { type: 'text/plain' }), 'long.txt');
 
   persistentProviderResponse = () => geminiResponse('DA');
-  const callsBefore = providerCallCount;
+  const callsBefore = geminiCallCount;
   const response = await fetch(`${baseUrl}/api/translate/file`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -257,7 +270,7 @@ test('long TXT uploads are translated as parallel chunks and rejoined in order',
   persistentProviderResponse = null;
 
   assert.equal(response.status, 201);
-  assert.equal(providerCallCount - callsBefore, 5, 'each 2000-character chunk gets its own provider call');
+  assert.equal(geminiCallCount - callsBefore, 5, 'each 2000-character chunk gets its own Gemini fallback call');
   const result = await response.json() as { data: { originalText: string; translatedText: string } };
   assert.equal(result.data.originalText.length, document.length);
   assert.equal(result.data.translatedText, ['DA', 'DA', 'DA', 'DA', 'DA'].join('\n'));
@@ -284,7 +297,7 @@ test('a picked .txt sent as JSON text is accepted, oversized or unnamed bodies a
 
 test('a long pasted text also splits into chunks instead of waiting on one slow request', async () => {
   const text = `${'y'.repeat(4000)}\nz`;
-  const callsBefore = providerCallCount;
+  const callsBefore = geminiCallCount;
   persistentProviderResponse = () => geminiResponse('CC');
   const response = await fetch(`${baseUrl}/api/translate`, {
     method: 'POST',
@@ -294,7 +307,7 @@ test('a long pasted text also splits into chunks instead of waiting on one slow 
   persistentProviderResponse = null;
 
   assert.equal(response.status, 201);
-  assert.equal(providerCallCount - callsBefore, 3, 'the 4000-character line is cut in two and the next line starts a third chunk');
+  assert.equal(geminiCallCount - callsBefore, 3, 'the 4000-character line is cut in two and the next line starts a third Gemini fallback call');
   const result = await response.json() as { data: { translatedText: string } };
   assert.equal(result.data.translatedText, ['CC', 'CC', 'CC'].join('\n'));
 });

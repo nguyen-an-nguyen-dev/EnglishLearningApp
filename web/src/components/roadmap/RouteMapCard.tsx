@@ -1320,7 +1320,6 @@ function LessonMarker({
         fill={SCENES[node.stage.theme].ink}
         fontSize="10"
         fontWeight="700"
-        opacity=".72"
       >
         {lang === 'en' ? 'Lesson' : 'Bài'} {node.lessonIndex + 1}
       </text>

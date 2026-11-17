@@ -16,7 +16,10 @@ import { useAuth } from './context/AuthContext'
 import type { AuthUser } from './types/auth'
 import { useI18n } from './i18n'
 import { SettingsPanel } from './components/SettingsPanel'
+import { LoadingDots } from './components/LoadingDots'
 import { RouteMapCard } from './components/roadmap/RouteMapCard'
+import { nameplateSurface } from './components/cosmetics/nameplateSurface'
+import { formatCompact } from './utils/format'
 import { useWallet } from './context/WalletContext'
 import { isAdminRoute } from './admin/adminRoute'
 
@@ -73,8 +76,18 @@ interface SidebarProps {
 
 function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpenSettings }: SidebarProps) {
   const { t } = useI18n()
+  const { wallet } = useWallet()
   const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const displayName = user?.name || 'An Nguyễn'
+  // The equipped plate is a block background here, not a band around the
+  // name, so the sidebar strip shows the cosmetic the learner paid for.
+  const plate = nameplateSurface(wallet?.equipment.nameplate?.visual_key ?? null)
+  const coins = wallet?.coins ?? 0
+  const totalXp = wallet?.xp ?? 0
+  const level = wallet?.level ?? 1
+  const xpRatio = wallet?.level_progress.progress_ratio ?? 0
+  const xpToNext = wallet?.level_progress.xp_to_next_level ?? null
+  const xpPercent = Math.min(100, Math.max(0, Math.round(xpRatio * 100)))
 
   const tabs: { id: DashboardTab; label: string; icon: typeof BookOpenText; activeIcon?: typeof BookOpenText }[] = [
     { id: 'study', label: t.navStudy, icon: BookOpenText },
@@ -98,9 +111,8 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
         <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
       </div>
 
-      {/* Balance and level now live on Profile as a wallet card; the sidebar
-          only carries navigation so the tab list starts at the top. */}
-
+      {/* The full wallet card still lives on Profile; the strip at the foot of
+          the sidebar carries a compact balance + XP readout next to the user. */}
       <nav className="sidebar-nav" aria-label={t.navAria}>
         {tabs.map((tab) => {
           const active = activeTab === tab.id
@@ -123,39 +135,91 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
       <div className="sidebar-spacer" />
 
       <div className="profile-container">
-        <div className="profile-row" onClick={() => onSelectTab('profile')} role="button" tabIndex={0}>
-          <span className="avatar">{initial}</span>
-          {/* Balance and level live in the wallet chip above the nav; repeating
-              them here made the row noisy and pushed the name off-centre. */}
-          <span className="profile-copy">
-            <strong>{displayName}</strong>
-          </span>
-          <span className="profile-actions">
-            <button
-              type="button"
-              className="profile-icon-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenSettings(e.currentTarget)
-              }}
-              aria-haspopup="dialog"
-              title={t.settings}
-              aria-label={t.settings}
+        <div
+          className={`profile-row${plate.className}`}
+          style={plate.style}
+          onClick={() => onSelectTab('profile')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="profile-banner" aria-hidden="true">
+            <svg viewBox="0 0 300 64" preserveAspectRatio="xMidYMid slice">
+              <rect className="banner-sky" width="300" height="64" />
+              <circle className="banner-sun" cx="250" cy="22" r="11" />
+              <g fill="#fff">
+                <circle cx="30" cy="14" r="1.8" />
+                <circle cx="78" cy="30" r="1.4" />
+                <circle cx="130" cy="12" r="1.8" />
+                <circle cx="190" cy="24" r="1.4" />
+              </g>
+              <ellipse className="banner-hill" cx="60" cy="74" rx="120" ry="24" />
+              <path className="banner-castle" d="M200 64V40h8v-6h4v6h6v-12l4-7 4 7v12h6v-6h4v6h8v24z" />
+            </svg>
+          </div>
+          <div className="profile-main-row">
+            <div className="profile-avatar-wrap">
+              <span className="profile-avatar-frame">
+                <span className="avatar">{initial}</span>
+              </span>
+              {/* The level lives here only: the copy line used to repeat it. */}
+              <b className="profile-level-badge" aria-label={`${t.walletLevel} ${level}`}>{level}</b>
+            </div>
+            <span className="profile-copy">
+              <strong>{displayName}</strong>
+              <span className="profile-coins" title={`${coins} Race Coin`}>
+                <i className="profile-coin" aria-hidden="true" />
+                <strong>{formatCompact(coins)}</strong>
+                <span>RC</span>
+              </span>
+            </span>
+            <span className="profile-actions">
+              <button
+                type="button"
+                className="profile-icon-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenSettings(e.currentTarget)
+                }}
+                aria-haspopup="dialog"
+                title={t.settings}
+                aria-label={t.settings}
+              >
+                <Gear size={18} />
+              </button>
+              <button
+                type="button"
+                className="logout-icon-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onLogout()
+                }}
+                title={t.signOut}
+                aria-label={t.signOutAria}
+              >
+                <SignOut size={18} />
+              </button>
+            </span>
+          </div>
+
+          {/* One wide meter carries the totals: the XP number rides inside the
+              track, so the card drops the extra line that repeated balance. */}
+          <span
+            className="profile-xp"
+            title={xpToNext !== null
+              ? `${formatCompact(xpToNext)} XP ${t.walletLevelNext}`
+              : t.walletLevelMax}
+          >
+            <span
+              className="profile-xp-meter"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={xpPercent}
+              aria-label={`${formatCompact(totalXp)} XP · ${t.walletLevel} ${level}`}
             >
-              <Gear size={18} />
-            </button>
-            <button
-              type="button"
-              className="logout-icon-btn"
-              onClick={(e) => {
-                e.stopPropagation()
-                onLogout()
-              }}
-              title={t.signOut}
-              aria-label={t.signOutAria}
-            >
-              <SignOut size={18} />
-            </button>
+              <span className="profile-xp-fill" style={{ width: `${xpPercent}%` }} />
+              <b className="profile-xp-value">{formatCompact(totalXp)} XP</b>
+            </span>
           </span>
         </div>
       </div>
@@ -399,8 +463,7 @@ function StudyView({ user, onOpenLesson }: {
         {loading && stages.length === 0 && (
           <div className="roadmap-scroll" ref={mapScrollRef}>
             <div className="roadmap-state">
-              <span className="roadmap-spinner" aria-hidden="true" />
-              <p>{t.roadmapLoading}</p>
+              <LoadingDots label={t.roadmapLoading} />
             </div>
           </div>
         )}
@@ -465,7 +528,7 @@ function LearnerApp() {
   const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
   const { stages, refresh } = useLearning()
-  const { refresh: refreshWallet } = useWallet()
+  const { wallet, refresh: refreshWallet } = useWallet()
   const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
@@ -578,7 +641,7 @@ function LearnerApp() {
 
   if (currentView === 'landing') {
     return (
-      <Suspense fallback={<div className="page-loading">{t.consoleLoading}</div>}>
+      <Suspense fallback={<div className="page-loading"><LoadingDots label={t.consoleLoading} /></div>}>
         <LandingPage onEnterDashboard={() => setUserNavigatedToLanding(false)} />
       </Suspense>
     )
@@ -607,15 +670,21 @@ function LearnerApp() {
               <img src="/logo.png" alt="" className="brand-logo-img" />
               <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
             </div>
-            <button
-              type="button"
-              className="mobile-settings-btn"
-              onClick={(e) => setSettingsAnchor((prev) => (prev === e.currentTarget ? null : e.currentTarget))}
-              aria-label={t.settings}
-              title={t.settings}
-            >
-              <Gear size={20} />
-            </button>
+            {/* The sidebar carries the level on desktop, but it is hidden below
+                960px, so the same fact rides here on mobile. Both right-hand
+                items share a group so `space-between` keeps them together. */}
+            <span className="mobile-brand-actions">
+              <span className="mobile-level-chip">{t.walletLevel} {wallet?.level ?? 1}</span>
+              <button
+                type="button"
+                className="mobile-settings-btn"
+                onClick={(e) => setSettingsAnchor((prev) => (prev === e.currentTarget ? null : e.currentTarget))}
+                aria-label={t.settings}
+                title={t.settings}
+              >
+                <Gear size={20} />
+              </button>
+            </span>
           </div>
 
           {effectiveTab === 'study' && (
@@ -624,7 +693,7 @@ function LearnerApp() {
               onOpenLesson={(lessonId, lessonTitle) => setActiveLesson({ id: lessonId, title: lessonTitle })}
             />
           )}
-          <Suspense fallback={<div className="page-loading">{t.consoleLoading}</div>}>
+          <Suspense fallback={<div className="page-loading"><LoadingDots label={t.consoleLoading} /></div>}>
             {effectiveTab === 'videos' && (
               <VideoLearningView videoRequest={videoRequest} onVideoRequestHandled={clearVideoRequest} />
             )}
@@ -686,7 +755,7 @@ function LearnerApp() {
 function App() {
   if (isAdminRoute()) {
     return (
-      <Suspense fallback={<div className="page-loading">Đang tải console…</div>}>
+      <Suspense fallback={<div className="page-loading"><LoadingDots label="Đang tải console…" /></div>}>
         <AdminApp />
       </Suspense>
     )

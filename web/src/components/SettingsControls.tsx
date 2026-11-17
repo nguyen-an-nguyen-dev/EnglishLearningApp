@@ -70,7 +70,11 @@ export function ThemePicker() {
             >
               <span className={`theme-swatch ${option.swatch}`} aria-hidden="true" />
               <span>{option.label}</span>
-              {active && <Check size={18} weight="bold" />}
+              {active && (
+                <span className="theme-check" aria-hidden="true">
+                  <Check size={14} weight="bold" />
+                </span>
+              )}
             </button>
           )
         })}

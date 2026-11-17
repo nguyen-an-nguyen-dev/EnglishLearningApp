@@ -36,23 +36,3 @@ export function CarArt({ glowId, visualKey }: CarArtProps) {
     </g>
   )
 }
-
-/**
- * Standalone top-down car tile for the shop preview. Same geometry as the
- * roadmap car, sized to fill a square with its own gradient.
- */
-export function CarPreview({ visualKey, size = 132 }: { visualKey?: string | null; size?: number }) {
-  const skin = carSkin(visualKey)
-  const glowId = `car-preview-glow-${(visualKey ?? 'default').replace(/[^a-zA-Z0-9_-]/g, '')}`
-  return (
-    <svg viewBox="-60 -70 120 160" width={size} height={size} role="img" aria-hidden="true">
-      <defs>
-        <radialGradient id={glowId} cx="50%" cy="55%" r="60%">
-          <stop offset="0%" stopColor={skin.trail} stopOpacity="0.42" />
-          <stop offset="100%" stopColor={skin.trail} stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <CarArt glowId={glowId} visualKey={visualKey} />
-    </svg>
-  )
-}

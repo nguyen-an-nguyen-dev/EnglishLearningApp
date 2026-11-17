@@ -59,6 +59,8 @@ test('authentication API validates credentials and protects /me with JWT', async
     name: 'Test Learner',
     email,
     xp: 0,
+    coins: 0,
+    level: 1,
     streak: 0,
     role: 'learner',
   });
@@ -138,7 +140,16 @@ test('authentication API validates credentials and protects /me with JWT', async
   assert.equal(currentUser.status, 200);
   const me = await currentUser.json() as { success: boolean; data: { user: { id: number; email: string } } };
   assert.equal(me.success, true);
-  assert.deepEqual(me.data.user, { id: userId, name: 'Test Learner', email, xp: 0, streak: 0, role: 'learner' });
+  assert.deepEqual(me.data.user, {
+    id: userId,
+    name: 'Test Learner',
+    email,
+    xp: 0,
+    coins: 0,
+    level: 1,
+    streak: 0,
+    role: 'learner',
+  });
 });
 
 test('profile and password updates persist and re-authenticate', async () => {

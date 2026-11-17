@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Lock } from '@phosphor-icons/react'
-import { RewardCenter } from './RewardCenter'
 import { CosmeticPreview } from './CosmeticPreview'
 import { TurboMascot } from '../cosmetics/TurboMascot'
 import { nameplateSkin } from '../../cosmetics'
 import { useWallet } from '../../context/WalletContext'
 import { formatCompact } from '../../utils/format'
+import { LoadingDots } from '../LoadingDots'
 import type { ShopItem, ShopSlot } from '../../types/gamification'
 
 type GaraTab = 'all' | ShopSlot
@@ -14,7 +14,7 @@ const TABS: { id: GaraTab; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
   { id: 'car', label: 'Xe' },
   { id: 'frame', label: 'Khung avatar' },
-  { id: 'nameplate', label: 'Biển tên' },
+  { id: 'nameplate', label: 'Nền' },
   { id: 'booster', label: 'Vật phẩm' },
 ]
 
@@ -63,27 +63,15 @@ function BoosterGlyph({ visualKey }: { visualKey: string }) {
   )
 }
 
-/** Nameplate swatch for the Biển tên section; mirrors the real equip render. */
-function NameplateSwatch({ visualKey, label }: { visualKey: string; label: string }) {
+/** Scenic thumbnail for the Nền section; same art the equipped block paints. */
+function NameplateArt({ visualKey }: { visualKey: string }) {
   const skin = nameplateSkin(visualKey)
-  const transparent = skin.bg === 'transparent'
-  return (
-    <span
-      className="gara-nameplate-swatch"
-      style={{
-        background: transparent ? 'transparent' : skin.bg,
-        color: skin.fg ?? undefined,
-        borderColor: transparent ? 'var(--gc-ink)' : skin.edge ?? undefined,
-      }}
-    >
-      {label}
-    </span>
-  )
+  return <span className="gara-scenic-art" style={{ backgroundImage: skin.art }} aria-hidden="true" />
 }
 
 function GaraArt({ item }: { item: ShopItem }) {
   if (item.slot === 'booster') return <BoosterGlyph visualKey={item.visual_key} />
-  if (item.slot === 'nameplate') return <NameplateSwatch visualKey={item.visual_key} label={item.name} />
+  if (item.slot === 'nameplate') return <NameplateArt visualKey={item.visual_key} />
   return <CosmeticPreview slot={item.slot} visualKey={item.visual_key} sampleName={item.name} size={104} />
 }
 
@@ -132,7 +120,7 @@ function GaraCard({
 
   return (
     <li className={`gara-v2-card is-${item.slot === 'booster' ? 'booster' : item.rarity}${item.equipped ? ' is-worn' : ''}`}>
-      <div className="gara-v2-art">
+      <div className={`gara-v2-art${item.slot === 'nameplate' ? ' is-scenic' : ''}${item.slot === 'car' ? ' is-car' : ''}`}>
         <span className="gara-v2-rarity">{isBooster ? 'Vật phẩm' : RARITY_LABEL[item.rarity] ?? 'Cơ bản'}</span>
         <GaraArt item={item} />
         {!item.unlocked && (
@@ -186,6 +174,9 @@ export function GaraShop() {
   const [tab, setTab] = useState<GaraTab>('all')
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The RC guide replaces the old quest board: income is explained where a
+  // learner wonders about it, and the numbers are the backend's own.
+  const [rcGuide, setRcGuide] = useState(false)
 
   const coins = wallet?.coins ?? 0
   const level = wallet?.level ?? 1
@@ -222,7 +213,7 @@ export function GaraShop() {
   const sectionTitle: Record<ShopSlot, string> = {
     car: 'Xe',
     frame: 'Khung avatar',
-    nameplate: 'Biển tên',
+    nameplate: 'Nền',
     booster: 'Vật phẩm hỗ trợ',
   }
 
@@ -231,7 +222,7 @@ export function GaraShop() {
       <header className="gara-v2-head">
         <div>
           <h1>Gara Engorace</h1>
-          <p>Tiêu Race Coin để mở xe, khung avatar, biển tên và vật phẩm hỗ trợ.</p>
+          <p>Tiêu Race Coin để mở xe, khung avatar, nền và vật phẩm hỗ trợ.</p>
         </div>
         <div className="gara-v2-pills">
           <span className="gc-pill">
@@ -258,53 +249,65 @@ export function GaraShop() {
           <b>GARA ENGORACE · MỞ CỬA</b>
         </div>
 
-        {/* Shelf: the equipped set hangs from pegs, the way a real garage wall
-            displays parts. Each hook drops to its item so the shelf reads as one
-            fixture instead of three floating icons. */}
-        <div className="gara-shelf" aria-hidden="true">
-          <span className="gara-shelf-hook">
-            <span className="gara-shelf-peg" />
-            <span className="gara-shelf-item is-car">
-              <CosmeticPreview slot="car" visualKey={wallet?.equipment.car?.visual_key ?? 'car_classic_yellow'} size={72} />
+        {/* The showroom bay is deliberately bare: one garage doorway on the
+            left and the equipped car rolling out of it. No lamp, checkered
+            floor or other scenery — the gate and the car are the whole scene. */}
+        <div className="gara-bay" aria-hidden="true">
+          <div className="gara-bay-stage">
+            <span className="gara-bay-door">
+              <i className="gara-bay-door-shutter" />
             </span>
-          </span>
-          <span className="gara-shelf-hook">
-            <span className="gara-shelf-peg" />
-            <span className="gara-shelf-item is-frame">
-              <CosmeticPreview slot="frame" visualKey={wallet?.equipment.frame?.visual_key ?? 'frame_plain'} size={64} />
-            </span>
-          </span>
-          <span className="gara-shelf-hook">
-            <span className="gara-shelf-peg" />
-            <span className="gara-shelf-item is-plate">
-              <CosmeticPreview slot="nameplate" visualKey={wallet?.equipment.nameplate?.visual_key ?? 'plate_plain'} sampleName="E" size={56} />
-            </span>
-          </span>
-          <span className="gara-shelf-board" />
+            <div className="gara-bay-car">
+              <CosmeticPreview
+                slot="car"
+                visualKey={wallet?.equipment.car?.visual_key ?? 'car_classic_yellow'}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="gara-stall-speech">
           <div className="gara-bubble">
             <span className="gara-bubble-name">Bác Turbo</span>
-            <br />
-            Ê, tay đua! Hàng mới về đủ cả: xe, khung avatar, biển tên, còn có thẻ Bảo vệ chuỗi nữa.
-            Thua một trận mà mất chuỗi thì tiếc lắm đó nha!
+            <span>
+              Ê, tay đua! Hàng mới về đủ cả: xe, khung avatar, nền, còn có thẻ Bảo vệ chuỗi nữa.
+              Thua một trận mà mất chuỗi thì tiếc lắm đó nha!
+            </span>
           </div>
           <div className="gara-faq">
             <button type="button" className="gc-btn is-quiet" onClick={() => setTab('booster')}>
               ▸ Bảo vệ chuỗi là gì vậy bác?
             </button>
-            <button type="button" className="gc-btn is-quiet" onClick={() => setTab('all')}>
-              ▸ Làm sao kiếm thêm RC?
-            </button>
-          </div>
+            <button
+              type="button"
+              className="gc-btn is-quiet"
+              aria-expanded={rcGuide}
+              onClick={() => setRcGuide((open) => !open)}
+            >
+              {rcGuide ? '▾' : '▸'} Làm sao kiếm thêm RC?
+            </button>          </div>
+
+          {rcGuide && (
+            <div className="gara-rc-guide">
+              <p className="gara-rc-guide-title">Không cần nhiệm vụ — RC trả thẳng cho việc học:</p>
+              <ul>
+                <li><span>Hoàn thành một bài</span><strong>+15 RC</strong></li>
+                <li><span>Xong cả một chặng</span><strong>+40 RC</strong></li>
+                <li><span>Mỗi video luyện nghe</span><strong>+10 RC</strong></li>
+                <li><span>Thắng một trận đấu</span><strong>+20 RC</strong></li>
+                <li><span>Thua vẫn có</span><strong>+8 RC</strong></li>
+                <li><span>Mỗi huy hiệu mới</span><strong>+25 RC</strong></li>
+              </ul>
+              <p className="gara-rc-guide-note">Đấu trường trả RC cho 5 trận đầu mỗi ngày; phần thưởng bài chỉ trả một lần.</p>
+            </div>
+          )}
         </div>
 
-        {/* Turbo hovers over the counter with his own soft shadow, so he reads as
-            floating above the stall rather than standing behind it. */}
+        {/* Turbo stands behind the counter: his torso runs past the stall's
+            bottom edge and the counter board is painted over it, so he reads as
+            the shopkeeper on duty rather than a sticker hovering in the air. */}
         <div className="gara-stall-mascot">
           <TurboMascot />
-          <span className="gara-stall-shadow" aria-hidden="true" />
         </div>
 
         <div className="gara-stall-counter" aria-hidden="true">
@@ -338,8 +341,7 @@ export function GaraShop() {
 
       {loading && shop.length === 0 ? (
         <div className="shop-state">
-          <span className="video-spinner" aria-hidden="true" />
-          <p>Đang mở gara...</p>
+          <LoadingDots label="Đang mở gara..." />
         </div>
       ) : (
         sections.map((section) => (
@@ -368,7 +370,6 @@ export function GaraShop() {
         ))
       )}
 
-      <RewardCenter />
     </div>
   )
 }

@@ -3150,7 +3150,7 @@ INSERT INTO `match_answers` (`id`, `match_id`, `user_id`, `question_id`, `round`
 (108,36,51,NULL,2,NULL,'avoitable',0,7896,'2026-11-04 18:17:54.000'),
 (109,36,10,NULL,3,NULL,'',0,23468,'2026-11-04 18:18:21.000'),
 (110,36,51,NULL,3,NULL,'environment',1,23468,'2026-11-04 18:18:21.000');
--- shop_items: 22 dòng (6 xe · 6 khung · 6 biển tên · 4 vật phẩm hỗ trợ; 4 độ hiếm; 5 kiểu mở khoá)
+-- shop_items: 22 dòng (6 xe · 6 khung · 6 nền · 4 vật phẩm hỗ trợ; 4 độ hiếm; 5 kiểu mở khoá)
 INSERT INTO `shop_items` (`id`, `code`, `name`, `description`, `slot`, `rarity`, `price`, `unlock_type`, `unlock_value`, `visual_key`, `style_json`, `sort_order`, `active`, `created_at`) VALUES
 (1,'car_default','Xe vàng kinh điển','Chiếc xe đầu tiên của mọi tay đua Engorace.','car','common',0,'default',NULL,'car_classic_yellow','{"body":"#F2B544","bodyDark":"#D39A2A","trim":"#A96E13","glass":"#5D8497","glassLight":"#83A8B8","wheel":"#42586B","light":"#FFF4C7","trail":"#F2B544"}',10,1,'2026-11-15 09:00:00.000'),
 (2,'car_sport_red','Xe đua lửa','Thân xe đỏ rực, tem đua kéo dài tới đuôi.','car','rare',220,'level','3','car_sport_red','{"body":"#E5484D","bodyDark":"#B32D31","trim":"#7F1D1F","glass":"#45566B","glassLight":"#7C90A8","wheel":"#2B3442","light":"#FFE9A8","trail":"#FF7A5C"}',20,1,'2026-11-15 09:00:00.000'),
@@ -3164,12 +3164,12 @@ INSERT INTO `shop_items` (`id`, `code`, `name`, `description`, `slot`, `rarity`,
 (10,'frame_gold','Khung vàng','Viền vàng cho người hoàn thành 10 bài.','frame','epic',380,'achievement','lessons_10','frame_gold','{"ring":"#E0B34A","ringDark":"#AE8420","accent":"#FFE9A8"}',140,1,'2026-11-15 09:00:00.000'),
 (11,'frame_violet','Khung tím','Viền tím mảnh, mở khi xong chặng 4.','frame','epic',520,'stage','4','frame_violet','{"ring":"#9A7BE0","ringDark":"#6E52B4","accent":"#D9CBFF"}',150,1,'2026-11-15 09:00:00.000'),
 (12,'frame_prism','Khung thủy tinh','Viền nhiều sắc, phần thưởng hạng Vàng.','frame','legendary',600,'league','gold','frame_prism','{"ring":"#7FD8E8","ringDark":"#4E9FB5","accent":"#E7C6F7"}',160,1,'2026-11-15 09:00:00.000'),
-(13,'nameplate_default','Biển tên mặc định','Dải tên trơn theo màu chữ.','nameplate','common',0,'default',NULL,'plate_plain','{"bg":"transparent","fg":null,"edge":null}',210,1,'2026-11-15 09:00:00.000'),
-(14,'nameplate_slate','Biển tên xám','Dải xám lạnh, chữ trắng.','nameplate','common',120,'level','1','plate_slate','{"bg":"#42586B","fg":"#F2FAFD","edge":"#2B3B49"}',220,1,'2026-11-15 09:00:00.000'),
-(15,'nameplate_cyan','Biển tên cyan','Dải cyan của thương hiệu Engorace.','nameplate','rare',200,'level','3','plate_cyan','{"bg":"linear-gradient(90deg,#00C7FF,#007A9E)","fg":"#04222C","edge":"#00688A"}',230,1,'2026-11-15 09:00:00.000'),
-(16,'nameplate_sunset','Biển tên hoàng hôn','Chuyển sắc cam hồng ấm.','nameplate','epic',320,'stage','2','plate_sunset','{"bg":"linear-gradient(90deg,#F7A46B,#E2567E)","fg":"#3A1020","edge":"#B93A5F"}',240,1,'2026-11-15 09:00:00.000'),
-(17,'nameplate_forest','Biển tên rừng','Xanh lá trầm, mở cùng huy hiệu 500 XP.','nameplate','epic',420,'achievement','xp_500','plate_forest','{"bg":"linear-gradient(90deg,#3E9B5F,#1F7A6B)","fg":"#08281C","edge":"#1B5E43"}',250,1,'2026-11-15 09:00:00.000'),
-(18,'nameplate_royal','Biển tên hoàng gia','Dải đen viền vàng, dành cho Kim Cương.','nameplate','legendary',500,'league','diamond','plate_royal','{"bg":"linear-gradient(90deg,#161B22,#3A2F14)","fg":"#F5D98B","edge":"#C9A227"}',260,1,'2026-11-15 09:00:00.000'),
+(13,'nameplate_default','Nền mặc định','Nền trơn theo màu giao diện.','nameplate','common',0,'default',NULL,'plate_plain','{"scene":"plain"}',210,1,'2026-11-15 09:00:00.000'),
+(14,'nameplate_slate','Nền núi sương','Dãy núi xanh phủ sương lúc bình minh.','nameplate','common',120,'level','1','plate_slate','{"scene":"slate"}',220,1,'2026-11-15 09:00:00.000'),
+(15,'nameplate_cyan','Nền bầu trời','Bầu trời xanh với những đám mây trắng.','nameplate','rare',200,'level','3','plate_cyan','{"scene":"sky"}',230,1,'2026-11-15 09:00:00.000'),
+(16,'nameplate_sunset','Nền hoàng hôn','Hoàng hôn cam hồng trên những đồi cỏ.','nameplate','epic',320,'stage','2','plate_sunset','{"scene":"sunset"}',240,1,'2026-11-15 09:00:00.000'),
+(17,'nameplate_forest','Nền rừng xanh','Rừng xanh mát với ánh nắng xuyên tán lá.','nameplate','epic',420,'achievement','xp_500','plate_forest','{"scene":"forest"}',250,1,'2026-11-15 09:00:00.000'),
+(18,'nameplate_royal','Nền hoàng gia','Bầu trời đêm và cung điện ánh vàng, dành cho Kim Cương.','nameplate','legendary',500,'league','diamond','plate_royal','{"scene":"royal"}',260,1,'2026-11-15 09:00:00.000'),
 -- boosters: consumables, never owned permanently (charges / timed effects)
 (19,'booster_streak_shield','Bảo vệ chuỗi','Thua một trận vẫn giữ nguyên chuỗi thắng.','booster','common',60,'default',NULL,'booster_shield',NULL,310,1,'2026-11-15 09:00:00.000'),
 (20,'booster_xp2','Nhân đôi XP','Nhân đôi XP nhận được trong 30 phút.','booster','rare',80,'default',NULL,'booster_xp',NULL,320,1,'2026-11-15 09:00:00.000'),

@@ -18,6 +18,7 @@ import {
   YoutubeLogo,
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
+import { LoadingDots } from '../LoadingDots'
 import { videoImportErrorMessage } from '../../utils/videoImportErrors'
 import { PracticeView } from './PracticeView'
 import { VideoNotebookView } from './VideoNotebookView'
@@ -86,8 +87,7 @@ function VideoLessonView({
   if (loading) {
     return (
       <div className="video-state-card">
-        <span className="video-spinner" aria-hidden="true" />
-        <p>{t.videoLoading}</p>
+        <LoadingDots label={t.videoLoading} />
       </div>
     )
   }

@@ -298,6 +298,7 @@ const vi = {
   arenaRuleThree: 'Ai thắng nhiều vòng hơn sau 8 vòng sẽ thắng trận.',
   arenaWaitingSeat: 'Đang chờ',
   arenaWaitingSeatHint: 'chưa ghép trận',
+  arenaSearchingHint: 'đang ghép trận',
   arenaLobbyTip: 'Cứ 5 giây là gợi ý lại hiện thêm chữ cái. Gõ nhanh là thắng, đừng đợi gợi ý nha!',
 
   /* translate */
@@ -862,6 +863,7 @@ const en: typeof vi = {
   arenaRuleThree: 'Whoever wins more rounds across 8 rounds wins the match.',
   arenaWaitingSeat: 'Waiting',
   arenaWaitingSeatHint: 'no match yet',
+  arenaSearchingHint: 'matching now',
   arenaLobbyTip: 'A hint reveals more letters every 5 seconds. Type fast and win — do not wait for the hints!',
 
   /* translate */

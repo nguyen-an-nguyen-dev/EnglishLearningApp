@@ -5,8 +5,14 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
-import type { BattleWord } from '../src/modules/battle/battle.repository';
-import { BATTLE_ROUNDS, hintSchedule, type BattleRepository } from '../src/modules/battle/battle.socket';
+import type { BattleParticipant, BattleSettlement, BattleWord } from '../src/modules/battle/battle.repository';
+import {
+  BATTLE_HINT_STEP_MS,
+  BATTLE_ROUNDS,
+  hintLettersAtStep,
+  hintStepsElapsed,
+  type BattleRepository,
+} from '../src/modules/battle/battle.socket';
 
 // Shorten the real 30s round / 3s reveal / 20s reconnect grace so the whole match stays a fast test.
 const TEST_ROUND_MS = 1_500;
@@ -35,6 +41,13 @@ class MemoryBattleRepository implements BattleRepository {
     responseTimeMs: number;
   }> = [];
   readonly finished: Array<{ matchId: number; status: string; winnerUserId: number | null }> = [];
+  readonly settlements: Array<{
+    matchId: number;
+    status: 'completed' | 'cancelled';
+    winnerUserId: number | null;
+    participants: BattleParticipant[];
+    rated: boolean;
+  }> = [];
   private nextMatchId = 1;
 
   async getPlayerName(userId: number): Promise<string> {
@@ -74,6 +87,27 @@ class MemoryBattleRepository implements BattleRepository {
 
   async finishMatch(matchId: number, status: 'completed' | 'cancelled', winnerUserId: number | null): Promise<void> {
     this.finished.push({ matchId, status, winnerUserId });
+  }
+
+  async settleMatch(
+    matchId: number,
+    status: 'completed' | 'cancelled',
+    winnerUserId: number | null,
+    participants: BattleParticipant[],
+    rated: boolean,
+  ): Promise<BattleSettlement> {
+    this.settlements.push({ matchId, status, winnerUserId, participants, rated });
+    return {
+      rewards: Object.fromEntries(participants.map(({ userId }) => [userId, {
+        rc: 0,
+        xp: 0,
+        rp: 0,
+        counted: false,
+      }])),
+      levelBefore: {},
+      levelAfter: {},
+      duelCountedToday: false,
+    };
   }
 }
 
@@ -288,6 +322,16 @@ test('a round only reveals hints, never the answer, and the first correct guess 
         assert.equal(finalResult.winnerUserId, 101);
         assert.equal(finalResult.scores[0].score, BATTLE_ROUNDS);
         assert.equal(finalResult.scores[1].score, 0);
+        assert.deepEqual(repository.settlements.at(-1), {
+          matchId: game.matchId,
+          status: 'completed',
+          winnerUserId: 101,
+          participants: [
+            { userId: 101, score: BATTLE_ROUNDS },
+            { userId: 102, score: 0 },
+          ],
+          rated: true,
+        });
       }
     }
 
@@ -359,6 +403,16 @@ test('match:leave awards the win to the remaining player and clears the round ti
     assert.equal(resultAfterLeave.winnerUserId, 302);
     assert.equal(resultAfterLeave.totalRounds, BATTLE_ROUNDS);
     assert.deepEqual(repository.finished.at(-1), { matchId: game.matchId, status: 'completed', winnerUserId: 302 });
+    assert.deepEqual(repository.settlements.at(-1), {
+      matchId: game.matchId,
+      status: 'completed',
+      winnerUserId: 302,
+      participants: [
+        { userId: 301, score: 0 },
+        { userId: 302, score: 0 },
+      ],
+      rated: false,
+    });
     await new Promise((resolve) => setTimeout(resolve, TEST_ROUND_MS + 400));
     assert.equal(unexpectedQuestion, false);
   } finally {
@@ -456,16 +510,23 @@ test('matchmaking keeps one live seat per user and makes the odd player wait', a
   }
 });
 
-test('hint schedule starts empty and reveals about 20% of the letters every 5 seconds', () => {
+test('hint steps reveal about 20% more letters every five seconds', () => {
   const word = 'environment';
-  const schedule = hintSchedule(word, 25_000);
-  assert.deepEqual(schedule.map((step) => step.atMs), [5_000, 10_000, 15_000, 20_000]);
-  for (let index = 0; index < schedule.length; index += 1) {
-    const step = schedule[index];
-    assert.ok(step.letters.length > 0);
-    assert.ok(step.letters.length < word.length);
-    for (const hint of step.letters) assert.equal(word[hint.position], hint.letter);
-    if (index > 0) assert.ok(step.letters.length >= schedule[index - 1].letters.length);
+  const roundMs = 25_000;
+  assert.equal(BATTLE_HINT_STEP_MS, 5_000);
+  assert.deepEqual(
+    [4_999, 5_000, 10_000, 15_000, 20_000, 25_000].map((elapsedMs) => hintStepsElapsed(roundMs, elapsedMs)),
+    [0, 1, 2, 3, 4, 4],
+  );
+
+  let previousCount = 0;
+  for (let step = 1; step <= 4; step += 1) {
+    const hints = hintLettersAtStep(word, step, roundMs);
+    assert.ok(hints.length > previousCount);
+    assert.ok(hints.length < word.length);
+    for (const hint of hints) assert.equal(word[hint.position], hint.letter);
+    previousCount = hints.length;
   }
-  assert.equal(schedule.length, 4);
+  assert.deepEqual(hintLettersAtStep(word, 0, roundMs), []);
+  assert.deepEqual(hintLettersAtStep(word, 5, roundMs), []);
 });

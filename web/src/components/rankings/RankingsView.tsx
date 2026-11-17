@@ -4,6 +4,7 @@ import { ArrowClockwise, Crown, Trophy } from '@phosphor-icons/react'
 import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../context/WalletContext'
 import { useI18n } from '../../i18n'
+import { LoadingDots } from '../LoadingDots'
 import { getRankingApi } from '../../services/communityService'
 import type { RankingBoard, RankingEntry } from '../../types/community'
 import { AvatarFrame } from '../cosmetics/AvatarFrame'
@@ -196,8 +197,7 @@ export function RankingsView() {
 
       {loading && (
         <div className="rank-state">
-          <span className="video-spinner" aria-hidden="true" />
-          <p>{t.rankLoading}</p>
+          <LoadingDots label={t.rankLoading} />
         </div>
       )}
 

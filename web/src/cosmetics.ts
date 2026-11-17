@@ -3,9 +3,11 @@
  *
  * The backend only sends a key, ownership and price; every colour and shape
  * lives here so the shop preview, the roadmap car, the avatar frame and the
- * nameplate all draw from one definition. Skins are procedural SVG — no
+ * background plate all draw from one definition. Skins are procedural SVG — no
  * external assets — which keeps the look consistent in light and dark.
  */
+
+import { plateScene, SCENIC_ART } from './components/cosmetics/scenicArt'
 
 export interface CarSkin {
   body: string
@@ -25,10 +27,12 @@ export interface FrameSkin {
 }
 
 export interface NameplateSkin {
-  /** CSS background value; 'transparent' means text-only. */
+  /** CSS background value for blocks and bands; 'transparent' means text-only. */
   bg: string
   fg: string | null
   edge: string | null
+  /** Scenery-only art for the shop thumbnail (no text scrim). */
+  art: string
 }
 
 /** Fallback used whenever an unknown visual_key arrives from the API. */
@@ -53,6 +57,7 @@ export const DEFAULT_NAMEPLATE_SKIN: NameplateSkin = {
   bg: 'transparent',
   fg: null,
   edge: null,
+  art: SCENIC_ART.plain,
 }
 
 export const CAR_SKINS: Record<string, CarSkin> = {
@@ -95,11 +100,39 @@ export const FRAME_SKINS: Record<string, FrameSkin> = {
 
 export const NAMEPLATE_SKINS: Record<string, NameplateSkin> = {
   plate_plain: DEFAULT_NAMEPLATE_SKIN,
-  plate_slate: { bg: '#42586B', fg: '#F2FAFD', edge: '#2B3B49' },
-  plate_cyan: { bg: 'linear-gradient(90deg,#00C7FF,#007A9E)', fg: '#04222C', edge: '#00688A' },
-  plate_sunset: { bg: 'linear-gradient(90deg,#F7A46B,#E2567E)', fg: '#3A1020', edge: '#B93A5F' },
-  plate_forest: { bg: 'linear-gradient(90deg,#3E9B5F,#1F7A6B)', fg: '#08281C', edge: '#1B5E43' },
-  plate_royal: { bg: 'linear-gradient(90deg,#161B22,#3A2F14)', fg: '#F5D98B', edge: '#C9A227' },
+  // Scenic plates paint the block with an illustrated landscape. The scrim in
+  // each background keeps white/gold copy readable over the art; the same art
+  // (without the scrim) fills the shop card thumbnails.
+  plate_slate: {
+    bg: plateScene('slate', 'rgba(10,24,38,0.48)'),
+    fg: '#F3FAFF',
+    edge: 'rgba(255,255,255,0.38)',
+    art: SCENIC_ART.slate,
+  },
+  plate_cyan: {
+    bg: plateScene('sky', 'rgba(4,34,48,0.4)'),
+    fg: '#F4FCFF',
+    edge: 'rgba(255,255,255,0.4)',
+    art: SCENIC_ART.sky,
+  },
+  plate_sunset: {
+    bg: plateScene('sunset', 'rgba(46,14,40,0.42)'),
+    fg: '#FFF7F2',
+    edge: 'rgba(255,255,255,0.36)',
+    art: SCENIC_ART.sunset,
+  },
+  plate_forest: {
+    bg: plateScene('forest', 'rgba(6,36,26,0.48)'),
+    fg: '#F2FFF8',
+    edge: 'rgba(255,255,255,0.34)',
+    art: SCENIC_ART.forest,
+  },
+  plate_royal: {
+    bg: plateScene('royal', 'rgba(4,8,26,0.36)'),
+    fg: '#FFE9A8',
+    edge: 'rgba(201,162,39,0.82)',
+    art: SCENIC_ART.royal,
+  },
 }
 
 export function carSkin(visualKey: string | null | undefined): CarSkin {

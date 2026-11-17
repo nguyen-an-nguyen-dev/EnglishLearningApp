@@ -211,6 +211,11 @@
 .gara-stall-speech { width: 380px; max-width: 100%; display: grid; gap: 12px; }
 .gara-bubble {
   position: relative;
+  /* Name pill and message are two grid rows, so the speaker's name never rides
+     on a forced line break and the text sits a consistent 7px under it. */
+  display: grid;
+  align-content: center;
+  gap: 7px;
   padding: 12px 18px 14px;
   border: 3px solid var(--gc-ink);
   border-radius: 18px;
@@ -236,7 +241,7 @@
 }
 .gara-bubble-name {
   display: inline-block;
-  margin-bottom: 6px;
+  justify-self: start;
   padding: 0 10px;
   border: 3px solid var(--gc-ink);
   border-radius: 8px;
@@ -249,90 +254,169 @@
 .gara-faq { display: grid; gap: 9px; }
 .gara-faq .gc-btn { min-height: 40px; justify-content: flex-start; font-size: 14px; text-align: left; }
 
-/* Pegboard shelf: the equipped set hangs off hooks on a shop backboard, so the
-   banner shows real gear instead of three floating icons. */
-.gara-shelf {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  justify-content: space-around;
-  gap: 4px;
-  width: 250px;
-  min-height: 150px;
-  flex: none;
-  padding: 12px 10px 11px;
+/* RC income, explained where the question is asked. RC replaced the quest
+   board, so the stall carries the real payout table. */
+.gara-rc-guide {
+  margin-top: 2px;
+  padding: 12px 14px;
   border: 3px solid var(--gc-ink);
   border-radius: 12px;
-  background:
-    radial-gradient(circle, rgba(20, 32, 58, 0.16) 1.5px, transparent 1.6px) 0 0 / 18px 18px,
-    linear-gradient(180deg, #ffffff 0%, #eef7fc 100%);
-  box-shadow: 0 4px 0 var(--gc-ink);
-  margin-bottom: 8px;
+  background: var(--gc-paper);
+  box-shadow: 0 3px 0 var(--gc-ink);
 }
-:root[data-theme="dark"] .gara-shelf {
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.12) 1.5px, transparent 1.6px) 0 0 / 18px 18px,
-    linear-gradient(180deg, #1c2b48 0%, #16233c 100%);
+.gara-rc-guide-title {
+  margin: 0 0 8px;
+  color: var(--gc-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.4;
 }
-/* Each hook is a column: a peg stretched from the top rail down to the item,
-   so all three items rest on the plank at the same baseline. */
-.gara-shelf-hook {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-}
-.gara-shelf-peg {
-  flex: 1 1 auto;
-  width: 6px;
-  min-height: 10px;
-  border: 2px solid var(--gc-ink);
-  border-radius: 3px;
-  background: var(--gc-wood);
-}
-.gara-shelf-item {
+.gara-rc-guide ul {
   display: grid;
-  place-items: center;
-  transition: transform 0.2s ease;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-/* Each item tilts a touch, the way a hung object would. */
-.gara-shelf-item.is-car { transform: rotate(-3deg); }
-.gara-shelf-item.is-frame { transform: rotate(2deg); }
-.gara-shelf-item.is-plate { transform: rotate(-2deg); }
-.gara-shelf-item svg { max-width: 100%; height: auto; }
-.gara-shelf-board {
-  position: absolute;
-  inset: auto 0 0;
-  height: 11px;
-  border-top: 3px solid var(--gc-ink);
-  background: var(--gc-wood);
+.gara-rc-guide li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--gc-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.gara-rc-guide li strong {
+  flex: none;
+  color: var(--gc-cyan-deep);
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.gara-rc-guide-note {
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--gc-dash);
+  color: var(--gc-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
-.gara-stall-mascot { position: relative; width: 168px; flex: none; align-self: flex-end; }
-.gara-stall-mascot > svg { width: 100%; height: auto; }
-/* Floating, not standing: a soft contact shadow under the body and a slow
-   bob keep him above the counter. */
-.gara-stall-mascot > .gara-stall-shadow {
+/* Garage bay: one doorway on the left, the equipped car rolling out of it.
+   No lamp, no checkered floor, no scenery — those only competed with the car. */
+.gara-bay {
+  position: relative;
+  /* Pull the whole bay to the stall's left edge and down onto the counter
+     line; previously the car hovered ~20px above it. */
+  top: 20px;
+  left: -32px;
+  width: min(404px, 100%);
+  flex: none;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.gara-bay-stage { position: relative; padding: 0; }
+/* The doorway the car rolls out of. It paints over the car's rear while the car
+   is still entering, which is what sells "it just left the garage". */
+.gara-bay-door {
   position: absolute;
-  left: 50%;
-  bottom: -6px;
-  width: 58%;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(20, 32, 58, 0.28);
-  transform: translateX(-50%);
-  filter: blur(1px);
+  z-index: 2;
+  left: 0;
+  bottom: 0;
+  width: 86px;
+  height: 106px;
+  overflow: hidden;
+  border: 3px solid var(--gc-ink);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(180deg, #1d2c46 0%, #2c4160 100%);
 }
-.gara-stall-mascot > svg { position: relative; z-index: 1; animation: gara-hover 4.6s ease-in-out infinite; }
-@keyframes gara-hover {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
+:root[data-theme="dark"] .gara-bay-door {
+  background: linear-gradient(180deg, #060d18 0%, #0c1729 100%);
 }
+/* Shutter, rolled down to the halfway point: slats are the cheapest way to say
+   "garage" without a label. */
+.gara-bay-door-shutter {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 44px;
+  border-bottom: 3px solid var(--gc-ink);
+  background: repeating-linear-gradient(180deg, #cfd9e6 0 7px, #aab8c9 7px 10px);
+}
+:root[data-theme="dark"] .gara-bay-door-shutter {
+  background: repeating-linear-gradient(180deg, #2b3b56 0 7px, #1d2a41 7px 10px);
+}
+/* A shadow hanging under the shutter is what stops the opening reading as a flat
+   black rectangle. */
+.gara-bay-door::after {
+  content: "";
+  position: absolute;
+  inset: 44px 0 auto;
+  height: 16px;
+  background: linear-gradient(180deg, rgb(0 0 0 / 55%), transparent);
+  pointer-events: none;
+}
+/* Parked to the right of the doorway, so the entrance animation has somewhere
+   to come from and the doorway stays visible once it stops. */
+.gara-bay-car {
+  position: relative;
+  z-index: 1;
+  margin: 0 12px 0 88px;
+  /* Four visible steps: 25% → 50% → 75% → 100% as the car clears the doorway. */
+  animation: gara-bay-drive-in 1.6s steps(4, jump-start) both;
+}
+.gara-bay-car svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The SVG has empty space under the wheels; drop it so the tyres sit on the
+     counter line instead of floating above it. */
+  transform: translateY(14px);
+}
+/* Rolling wheels around each rim's own hub. With `view-box` the rim inherited
+   the SVG origin and orbited the car instead of spinning on its axle. */
+.gara-bay-car .car-wheel-rim {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gara-bay-wheel 0.56s linear 3 both;
+}
+@keyframes gara-bay-drive-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes gara-bay-wheel {
+  to { transform: rotate(360deg); }
+}
+@keyframes gara-bay-drive-in-soft {
+  0% { transform: translateX(-62%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+/* Reduced motion still gets the arrival — it is the point of the stage — but as a
+   short fade over a third of the distance, with the rims turning instead of the
+   car sweeping across the whole bay. The `!important`s outlast the app-wide
+   duration reset at the bottom of index.css. */
 @media (prefers-reduced-motion: reduce) {
-  .gara-stall-mascot > svg { animation: none; }
+  .gara-bay-car {
+    animation-name: gara-bay-drive-in-soft !important;
+    animation-duration: 1.15s !important;
+    animation-timing-function: ease !important;
+  }
+  .gara-bay-car .car-wheel-rim {
+    animation-duration: 0.56s !important;
+    animation-iteration-count: 2 !important;
+  }
 }
+.gara-stall-mascot { position: relative; width: 168px; flex: none; align-self: flex-end; }
+.gara-stall-mascot > svg { display: block; width: 100%; height: auto; }
+/* In the stall he stands on the floor behind the counter: his torso runs past
+   the padding edge and the counter board is painted over it, which reads as
+   "shopkeeper behind the till" instead of a floating sticker. */
+.gara-stall > .gara-stall-mascot { z-index: 1; margin-bottom: -34px; }
 .gara-stall-counter {
   position: absolute;
+  z-index: 3;
   inset: auto 0 0;
   display: flex;
   justify-content: space-between;
@@ -409,7 +493,12 @@
   place-items: center;
   border-bottom: 3px solid var(--gc-ink);
   background: var(--gara-art-bg, var(--gc-card-common));
+  overflow: hidden;
 }
+/* Cars get the wide banner: the side view is 2:1, so the art box drops the
+   square crop and lets the car run the full card width. */
+.gara-v2-art.is-car { height: 116px; padding: 6px 4px; }
+.car-side-preview { display: block; width: 100%; height: 100%; }
 .gara-v2-card.is-common { --gara-art-bg: var(--gc-card-common); }
 .gara-v2-card.is-rare { --gara-art-bg: var(--gc-card-rare); }
 .gara-v2-card.is-epic { --gara-art-bg: var(--gc-card-epic); }
@@ -418,6 +507,7 @@
 
 .gara-v2-rarity {
   position: absolute;
+  z-index: 2;
   top: 8px;
   left: 8px;
   padding: 1px 8px;
@@ -517,23 +607,25 @@
   text-transform: uppercase;
 }
 
-/* Nameplate swatch: the real plate colours, at card scale. */
-.gara-nameplate-swatch {
-  display: grid;
-  place-items: center;
-  min-width: 96px;
-  max-width: 140px;
-  padding: 6px 14px;
-  border: 3px solid var(--gc-ink);
-  border-radius: 10px;
-  box-shadow: 0 4px 0 var(--gc-ink);
-  color: var(--gc-ink);
-  font-family: var(--gc-display);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
-  text-align: center;
-  word-break: break-word;
+/* Scenic background cards: the whole top of the card is the landscape, the
+   way the reference shop shows Sky/Field tiles. The rarity pill moves to the
+   top-right so it reads like a badge over the art. */
+.gara-v2-art.is-scenic { height: 158px; padding: 0; }
+.gara-scenic-art {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+  transition: transform 240ms ease;
+}
+.gara-v2-card:hover .gara-scenic-art { transform: scale(1.035); }
+.gara-v2-art.is-scenic .gara-v2-rarity {
+  left: auto;
+  right: 8px;
+  background: rgb(8 18 34 / 82%);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 7px rgb(0 0 0 / 28%);
 }
 
 /* Booster art glyphs (no cosmetics preview applies to consumables). */
@@ -975,14 +1067,17 @@
 .arena-v2-versus-players {
   display: flex;
   align-items: center;
-  justify-content: space-around;
   gap: 14px;
+  width: 100%;
 }
 :root[data-theme="dark"] .arena-v2-versus {
   background: linear-gradient(180deg, #1d2a4a 0%, #182444 100%);
 }
 .arena-v2-versus-slot {
   display: grid;
+  /* Equal shares, not content-sized: the two seats stay the same size and the
+     row cannot resize when the queue state swaps a label. */
+  flex: 1 1 0;
   justify-items: center;
   gap: 6px;
   min-width: 0;
@@ -990,7 +1085,7 @@
 }
 .arena-v2-versus-slot strong {
   overflow: hidden;
-  max-width: 130px;
+  max-width: 100%;
   color: var(--gc-ink);
   font-family: var(--gc-display);
   font-size: 14px;
@@ -999,51 +1094,113 @@
   white-space: nowrap;
 }
 :root[data-theme="dark"] .arena-v2-versus-slot strong { color: #eaf2ff; }
-.arena-v2-versus-slot small { color: var(--gc-muted); font-size: 12px; font-weight: 600; }
+.arena-v2-versus-slot small {
+  /* One line in every state, so the seat keeps its height while searching. */
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--gc-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan-deep); }
 :root[data-theme="dark"] .arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan); }
+/* Both circles match the 92px avatar on the left seat, so the two drivers are
+   the same size and the searching one swaps in without moving the row. */
 .arena-v2-search-orb {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  width: 84px;
-  height: 84px;
+  width: 92px;
+  height: 92px;
+}
+/* Two halo rings push outward so the wait is legible even from the corner of
+   the eye: the dashed ring alone reads as a still graphic when it turns. */
+.arena-v2-search-orb .arena-search-halo {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--gc-cyan-deep);
+  border-radius: 50%;
+  opacity: 0;
+  animation: arena-search-halo 2.4s ease-out infinite;
+}
+.arena-v2-search-orb .arena-search-halo:nth-of-type(2) { animation-delay: 1.2s; }
+:root[data-theme="dark"] .arena-v2-search-orb .arena-search-halo { border-color: var(--gc-cyan); }
+/* The dashed ring turns on its own so the wait reads as movement; the dots
+   inside stay upright and just bounce. A conic sweep rides on top of the ring
+   because a rotating dashed circle alone is close to invisible. */
+.arena-v2-search-orb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   border: 4px dashed var(--gc-cyan-deep);
   border-radius: 50%;
+  animation: arena-search-orbit 3.4s linear infinite;
 }
-:root[data-theme="dark"] .arena-v2-search-orb { border-color: var(--gc-cyan); }
-.arena-v2-search-orb i,
-.arena-v2-search-dots i {
+.arena-v2-search-orb::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 250deg,
+    color-mix(in srgb, var(--gc-cyan) 92%, transparent) 330deg,
+    transparent 360deg
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  animation: arena-search-sweep 1.5s linear infinite;
+}
+:root[data-theme="dark"] .arena-v2-search-orb::after {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 250deg,
+    color-mix(in srgb, var(--gc-cyan) 100%, transparent) 330deg,
+    transparent 360deg
+  );
+}
+:root[data-theme="dark"] .arena-v2-search-orb::before { border-color: var(--gc-cyan); }
+.arena-v2-search-orb i {
   display: block;
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: currentColor;
-  animation: arena-search-dot 1s ease-in-out infinite;
+  color: var(--gc-cyan-deep);
+  animation: arena-search-dot 1.1s ease-in-out infinite;
 }
-.arena-v2-search-orb i:nth-child(2),
-.arena-v2-search-dots i:nth-child(2) { animation-delay: 160ms; }
-.arena-v2-search-orb i:nth-child(3),
-.arena-v2-search-dots i:nth-child(3) { animation-delay: 320ms; }
-.arena-v2-search-orb i { width: 9px; height: 9px; color: var(--gc-cyan-deep); }
 :root[data-theme="dark"] .arena-v2-search-orb i { color: var(--gc-cyan); }
-.arena-v2-search-dots { display: inline-flex; align-items: center; gap: 5px; min-height: 12px; color: var(--gc-cyan-deep); }
-:root[data-theme="dark"] .arena-v2-search-dots { color: var(--gc-cyan); }
+/* The two halo spans come first, so the dots are matched by type. */
+.arena-v2-search-orb i:nth-of-type(2) { animation-delay: 180ms; }
+.arena-v2-search-orb i:nth-of-type(3) { animation-delay: 360ms; }
+@keyframes arena-search-orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes arena-search-sweep {
+  to { transform: rotate(360deg); }
+}
+@keyframes arena-search-halo {
+  0% { opacity: 0.75; transform: scale(0.86); }
+  70% { opacity: 0; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
 @keyframes arena-search-dot {
-  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-4px); }
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0) scale(0.85); }
+  30% { opacity: 1; transform: translateY(-5px) scale(1); }
 }
 .arena-v2-versus-empty {
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
+  width: 92px;
+  height: 92px;
   border: 4px dashed var(--gc-muted);
   border-radius: 50%;
   color: var(--gc-muted);
   font-family: var(--gc-display);
-  font-size: 34px;
+  font-size: 42px;
   font-weight: 800;
 }
 .arena-v2-versus-badge {
@@ -1060,12 +1217,25 @@
   transform: rotate(-4deg);
 }
 
-/* Rules: three numbered panels, the reference's "Luật chơi" strip. */
-.arena-v2-rules-block { display: grid; gap: 8px; }
+/* Lobby guide board: three numbered rules split by dashed rules, closing with
+   Bác Turbo's tip. One outlined surface, no cards nested inside it. */
+.arena-v2-guide {
+  display: grid;
+  border: 3px solid var(--gc-ink);
+  border-radius: 18px;
+  background: var(--gc-paper);
+  box-shadow: 0 5px 0 var(--gc-ink);
+  overflow: hidden;
+}
+.arena-v2-guide-body { padding: 16px 20px 18px; }
+.arena-v2-guide-head { margin-bottom: 12px; }
+/* Three fixed columns rather than `auto-fit`: a numbered list must read across
+   (1 2 3), and `auto-fit` can land on two columns, where the wrapped third item
+   keeps its left border and leaves a dash stranded at the start of the row. */
 .arena-v2-rules {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 20px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1073,18 +1243,18 @@
 .arena-v2-rules li {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  border: 3px solid var(--gc-ink);
-  border-radius: 16px;
-  background: var(--gc-paper);
-  box-shadow: 0 5px 0 var(--gc-ink);
+  gap: 11px;
+  padding: 2px 0;
+}
+.arena-v2-rules li + li {
+  border-left: 2px dashed var(--gc-dash);
+  padding-left: 20px;
 }
 .arena-v2-rules i {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex: none;
   border: 3px solid var(--gc-ink);
   border-radius: 50%;
@@ -1092,21 +1262,31 @@
   box-shadow: 0 3px 0 var(--gc-ink);
   color: var(--gc-ink);
   font-family: var(--gc-display);
-  font-size: 20px;
+  font-size: 18px;
   font-style: normal;
   font-weight: 800;
 }
-.arena-v2-rules p { margin: 2px 0 0; color: var(--gc-ink); font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+.arena-v2-rules p { margin: 1px 0 0; color: var(--gc-ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
 :root[data-theme="dark"] .arena-v2-rules p { color: #eaf2ff; }
 
-/* Turbo's coaching tip under the rules. */
-.arena-v2-tip {
+/* The tip closes the board: a top dashed rule separates it from the numbering.
+   Centred, not bottom-aligned — the mascot is always taller than the bubble, so
+   aligning their feet would strand the speech line in dead space below it. */
+.arena-v2-coachline {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 22px;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  border-top: 2px dashed var(--gc-dash);
 }
-.arena-v2-tip .gara-bubble { flex: 1; max-width: 560px; }
+.arena-v2-coachline .gara-bubble {
+  flex: 1;
+  min-width: 0;
+}
+.arena-v2-coachline .gara-stall-mascot { width: 104px; }
+/* On the board footer the bubble points right at the mascot, so the tail
+   leaves from the same side in every theme. */
+.arena-v2-coachline .gara-bubble::after { bottom: 22px; }
 
 /* Responsive -------------------------------------------------------------- */
 
@@ -1116,7 +1296,6 @@
   .arena-v2-hero { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.95fr); gap: 16px; }
   .arena-v2-matchmaking { gap: 12px; }
   .arena-v2-versus { padding: 16px 12px; }
-  .arena-v2-search-orb { width: 76px; height: 76px; }
   .arena-view .arena-head { gap: 14px; padding-bottom: 10px; }
   .arena-view .arena-head p { margin-top: 5px; font-size: 13px; }
   .arena-v2-hero { gap: 18px; padding: 16px 20px; }
@@ -1129,11 +1308,21 @@
   .arena-v2-history li { width: 30px; height: 30px; font-size: 13px; }
   .arena-lobby-card .arena-v2-cta { min-height: 46px; padding: 7px 20px; font-size: 18px; }
   .arena-v2-versus { padding: 12px 10px; }
-  .arena-v2-rules li { padding: 10px; }
+  .arena-v2-guide-body { padding: 13px 16px 15px; }
   .arena-v2-rules p { font-size: 12px; }
 }
 
 @media (max-width: 1024px) {
+  /* Two columns keep the rules reading across; three would be too tight here. */
+  .arena-v2-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .arena-v2-rules li:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 2px dashed var(--gc-dash);
+    grid-column: 1 / -1;
+  }
   .arena-v2-lower { grid-template-columns: minmax(0, 1fr); }
   .arena-v2-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .arena-v2-matchmaking { max-width: 640px; }
@@ -1165,7 +1354,7 @@
   .gara-v2-price { font-size: 16px; }
   .gara-stall-speech { width: 100%; }
   .gara-stall-mascot { display: none; }
-  .gara-shelf { width: 100%; justify-content: center; }
+  .gara-bay { width: 100%; }
   .arena-v2-checker { height: 18px; background-size: 18px 18px; }
   .arena-v2-payouts { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .arena-v2-payout { padding: 13px 16px; }
@@ -1174,10 +1363,25 @@
   .arena-v2-actions-row { grid-template-columns: minmax(0, 1fr); }
   .arena-v2-coach .gara-stall-mascot { display: none; }
   .arena-v2-hero h2 { font-size: 27px; }
+  /* A narrow lane cannot fit the VS badge between two equal seats, so the row
+     keeps its gap tight and the seat labels shrink to stay on one line. */
+  .arena-v2-versus { padding: 16px 12px; }
+  .arena-v2-versus-players { gap: 8px; }
+  .arena-v2-versus-badge { padding: 0 6px; font-size: 16px; }
+  .arena-v2-versus-slot strong { font-size: 13px; }
+  .arena-v2-versus-slot small { font-size: 11.5px; }
   .arena-lobby-card .arena-v2-cta { width: 100%; min-height: 52px; padding: 8px 20px; font-size: 18px; }
   .arena-v2-history li { width: 34px; height: 34px; font-size: 14px; }
-  .arena-v2-rules { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .arena-v2-tip .gara-stall-mascot { display: none; }
+  /* One column: every rule but the first gets a dashed row separator instead of
+     the column rule it carried in the wider tiers. */
+  .arena-v2-rules { grid-template-columns: minmax(0, 1fr); }
+  .arena-v2-rules li + li {
+    margin-top: 9px;
+    padding-top: 9px;
+    border-left: 0;
+    padding-left: 0;
+    border-top: 2px dashed var(--gc-dash);
+  }
 }
 
 @media (max-width: 400px) {
@@ -1189,6 +1393,22 @@
   .gara-v2-card,
   .gc-btn,
   .arena-v2-car { transition: none; }
-  .arena-v2-search-orb i,
-  .arena-v2-search-dots i { animation: none; }
+  /* Reduced motion asks for no travel, not for a frozen screen. Rotation stops;
+     the opacity pulse keeps saying "still searching". The `!important` defers to
+     the app-wide guard (which pins every animation to 0.01ms) only where the
+     guard is less specific — these pulses must survive it. */
+  .arena-v2-search-orb i { animation: arena-search-dot-soft 1.6s ease-in-out infinite !important; }
+  .arena-v2-search-orb i:nth-of-type(2) { animation-delay: 200ms !important; }
+  .arena-v2-search-orb i:nth-of-type(3) { animation-delay: 400ms !important; }
+  .arena-v2-search-orb::after { animation: none !important; opacity: 0.55; }
+  .arena-v2-search-orb::before { animation: arena-search-breathe 1.8s ease-in-out infinite !important; }
+  .arena-v2-search-orb .arena-search-halo { animation: none !important; opacity: 0; }
+}
+@keyframes arena-search-dot-soft {
+  0%, 100% { opacity: 0.3; transform: none; }
+  50% { opacity: 1; transform: none; }
+}
+@keyframes arena-search-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }

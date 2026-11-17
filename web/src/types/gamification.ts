@@ -4,8 +4,6 @@ export type ShopSlot = CosmeticSlot | 'booster'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type UnlockType = 'default' | 'level' | 'stage' | 'league' | 'achievement'
 export type LeagueTier = 'bronze' | 'silver' | 'gold' | 'diamond'
-export type QuestKind = 'daily' | 'weekly'
-export type QuestMetric = 'lesson' | 'video' | 'duel_win' | 'duel_play' | 'answers' | 'saved_word' | 'login'
 
 export interface ShopItem {
   id: number
@@ -72,27 +70,6 @@ export interface ShopResponse {
   coins: number
   level: number
   boosters: BoosterStock
-}
-
-export interface Quest {
-  code: string
-  kind: QuestKind
-  title: string
-  description: string
-  metric: QuestMetric
-  target: number
-  progress: number
-  rc_reward: number
-  xp_reward: number
-  rp_reward: number
-  claimable: boolean
-  claimed: boolean
-}
-
-export interface RewardCenter {
-  streak: number
-  daily: Quest[]
-  weekly: Quest[]
 }
 
 export interface LeagueStanding {
