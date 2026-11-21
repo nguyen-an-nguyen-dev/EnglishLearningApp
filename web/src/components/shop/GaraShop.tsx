@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Lock } from '@phosphor-icons/react'
+import { StreakShieldArt } from '../StreakShieldArt'
 import { CosmeticPreview } from './CosmeticPreview'
 import { TurboMascot } from '../cosmetics/TurboMascot'
 import { nameplateSkin } from '../../cosmetics'
@@ -25,19 +26,22 @@ const RARITY_LABEL: Record<string, string> = {
   legendary: 'Huyền thoại',
 }
 
-/** Booster art: a shield for the streak card, a "x2" orb for the multipliers. */
-function BoosterGlyph({ visualKey }: { visualKey: string }) {
-  if (visualKey === 'booster_shield') {
+/** Booster art: original SVG shield plus x2 glyphs for the multipliers. */
+function BoosterGlyph({ visualKey, kind }: { visualKey: string; kind?: string | null }) {
+  const effect = kind ?? (
+    visualKey === 'booster_shield' ? 'streak_shield'
+      : visualKey === 'booster_xp' ? 'xp_multiplier'
+        : visualKey === 'booster_rc' ? 'rc_multiplier'
+          : null
+  )
+  if (effect === 'streak_shield') {
     return (
       <span className="gara-booster-glyph" aria-hidden="true">
-        <svg viewBox="0 0 64 64" width="52" height="52">
-          <path d="M32 4l24 8v18c0 16-10 26-24 30C18 56 8 46 8 30V12z" fill="#38c98a" stroke="#14203a" strokeWidth="4" strokeLinejoin="round" />
-          <path d="M32 20c6 8 10 12 10 18a10 10 0 0 1-20 0c0-6 4-8 5-14 3 2 4 4 5 6 0-4 0-7 0-10z" fill="#ffd23f" stroke="#14203a" strokeWidth="3" strokeLinejoin="round" />
-        </svg>
+        <StreakShieldArt />
       </span>
     )
   }
-  if (visualKey === 'booster_xp') {
+  if (effect === 'xp_multiplier') {
     return (
       <span className="gara-booster-glyph" aria-hidden="true">
         <b>x2</b>
@@ -45,7 +49,7 @@ function BoosterGlyph({ visualKey }: { visualKey: string }) {
       </span>
     )
   }
-  if (visualKey === 'booster_rc') {
+  if (effect === 'rc_multiplier') {
     return (
       <span className="gara-booster-glyph is-rc" aria-hidden="true">
         <b>x2</b>
@@ -55,24 +59,21 @@ function BoosterGlyph({ visualKey }: { visualKey: string }) {
   }
   return (
     <span className="gara-booster-glyph is-starter" aria-hidden="true">
-      <svg viewBox="0 0 64 64" width="52" height="52">
-        <path d="M32 4l24 8v18c0 16-10 26-24 30C18 56 8 46 8 30V12z" fill="#38c98a" stroke="#14203a" strokeWidth="4" strokeLinejoin="round" />
-        <path d="M32 20c6 8 10 12 10 18a10 10 0 0 1-20 0c0-6 4-8 5-14 3 2 4 4 5 6 0-4 0-7 0-10z" fill="#ffd23f" stroke="#14203a" strokeWidth="3" strokeLinejoin="round" />
-      </svg>
+      <StreakShieldArt />
     </span>
   )
 }
 
 /** Scenic thumbnail for the Nền section; same art the equipped block paints. */
-function NameplateArt({ visualKey }: { visualKey: string }) {
-  const skin = nameplateSkin(visualKey)
+function NameplateArt({ visualKey, style }: { visualKey: string; style?: Record<string, string | null> | null }) {
+  const skin = nameplateSkin(visualKey, style)
   return <span className="gara-scenic-art" style={{ backgroundImage: skin.art }} aria-hidden="true" />
 }
 
 function GaraArt({ item }: { item: ShopItem }) {
-  if (item.slot === 'booster') return <BoosterGlyph visualKey={item.visual_key} />
-  if (item.slot === 'nameplate') return <NameplateArt visualKey={item.visual_key} />
-  return <CosmeticPreview slot={item.slot} visualKey={item.visual_key} sampleName={item.name} size={104} />
+  if (item.slot === 'booster') return <BoosterGlyph visualKey={item.visual_key} kind={item.booster_kind} />
+  if (item.slot === 'nameplate') return <NameplateArt visualKey={item.visual_key} style={item.style} />
+  return <CosmeticPreview slot={item.slot} visualKey={item.visual_key} style={item.style} sampleName={item.name} size={150} />
 }
 
 function GaraCard({
@@ -99,7 +100,7 @@ function GaraCard({
   const blocked = !item.unlocked || (isBooster ? !affordable : !item.owned && !affordable)
 
   const priceLabel = !item.unlocked
-    ? 'Đang khoá'
+    ? (item.unlock_label || 'Đang khoá')
     : !isBooster && item.owned
       ? 'Đã sở hữu'
       : free
@@ -107,7 +108,7 @@ function GaraCard({
         : `${formatCompact(item.price)} RC`
 
   const actionLabel = !item.unlocked
-    ? 'Chưa mở khoá'
+    ? 'Unlock'
     : isBooster
       ? affordable ? 'Mua' : `Thiếu ${formatCompact(item.price - coins)} RC`
       : item.equipped
@@ -119,13 +120,13 @@ function GaraCard({
             : `Thiếu ${formatCompact(item.price - coins)} RC`
 
   return (
-    <li className={`gara-v2-card is-${item.slot === 'booster' ? 'booster' : item.rarity}${item.equipped ? ' is-worn' : ''}`}>
-      <div className={`gara-v2-art${item.slot === 'nameplate' ? ' is-scenic' : ''}${item.slot === 'car' ? ' is-car' : ''}`}>
+    <li className={`gara-v2-card is-${item.slot === 'booster' ? 'booster' : item.rarity}${item.equipped ? ' is-worn' : ''}${!item.unlocked ? ' is-locked' : ''}`}>
+      <div className={`gara-v2-art${item.slot === 'nameplate' ? ' is-scenic' : ''}${item.slot === 'car' ? ' is-car' : ''}${item.slot === 'frame' ? ' is-frame' : ''}`}>
         <span className="gara-v2-rarity">{isBooster ? 'Vật phẩm' : RARITY_LABEL[item.rarity] ?? 'Cơ bản'}</span>
         <GaraArt item={item} />
         {!item.unlocked && (
-          <span className="gara-v2-lock">
-            <Lock size={14} weight="bold" /> {item.unlock_label || 'Đang khoá'}
+          <span className="gara-v2-lock" aria-hidden="true">
+            <Lock size={14} weight="bold" />
           </span>
         )}
         {item.equipped && <span className="gara-v2-worn">Đang dùng</span>}
@@ -136,9 +137,13 @@ function GaraCard({
       <div className="gara-v2-body">
         <h3>{item.name}</h3>
         <p>{item.description}</p>
-        <div className="gara-v2-price">
-          {!item.unlocked || (!isBooster && item.owned) ? null : free ? null : <i className="gc-coin" aria-hidden="true" />}
-          <span className={!item.unlocked ? 'is-locked' : ''}>{priceLabel}</span>
+        <div className={`gara-v2-price${!item.unlocked ? ' is-locked' : ''}`}>
+          {!item.unlocked ? (
+            <Lock size={13} weight="bold" aria-hidden="true" />
+          ) : (!isBooster && item.owned) ? null : free ? null : (
+            <i className="gc-coin" aria-hidden="true" />
+          )}
+          <span>{priceLabel}</span>
         </div>
         <div className="gara-v2-foot">
           <button
@@ -174,18 +179,20 @@ export function GaraShop() {
   const [tab, setTab] = useState<GaraTab>('all')
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The RC guide replaces the old quest board: income is explained where a
-  // learner wonders about it, and the numbers are the backend's own.
-  const [rcGuide, setRcGuide] = useState(false)
+  // Which stall question Bác Turbo is answering; null shows his greeting.
+  const [faq, setFaq] = useState<'streak' | 'rc' | null>(null)
 
   const coins = wallet?.coins ?? 0
   const level = wallet?.level ?? 1
-  const boosters = wallet?.boosters
 
   const sections = useMemo(() => {
     const wanted: ShopSlot[] = tab === 'all' ? ['car', 'frame', 'nameplate', 'booster'] : [tab]
     return wanted.map((slot) => {
-      const items = shop.filter((item) => item.slot === slot).sort((a, b) => a.id - b.id)
+      // The plain plate is only a fallback, never a shop choice: it cannot be
+      // unequipped, so listing it just leaves a dead "Bỏ dùng" card behind.
+      const items = shop
+        .filter((item) => item.slot === slot && !(slot === 'nameplate' && item.unlock_type === 'default'))
+        .sort((a, b) => a.id - b.id)
       const owned = slot === 'booster'
         ? items.filter((item) => item.charges > 0 || item.active_until).length
         : items.filter((item) => item.owned).length
@@ -245,15 +252,15 @@ export function GaraShop() {
       </header>
 
       <section className="gara-stall">
-        <div className="gara-stall-awning" aria-hidden="true">
-          <b>GARA ENGORACE · MỞ CỬA</b>
-        </div>
+        <div className="gara-stall-awning" aria-hidden="true" />
 
         {/* The showroom bay is deliberately bare: one garage doorway on the
             left and the equipped car rolling out of it. No lamp, checkered
             floor or other scenery — the gate and the car are the whole scene. */}
         <div className="gara-bay" aria-hidden="true">
           <div className="gara-bay-stage">
+            <div className="gara-bay-interior" aria-hidden="true" />
+            <span className="gara-bay-door-rail" aria-hidden="true" />
             <span className="gara-bay-door">
               <i className="gara-bay-door-shutter" />
             </span>
@@ -267,40 +274,67 @@ export function GaraShop() {
         </div>
 
         <div className="gara-stall-speech">
-          <div className="gara-bubble">
-            <span className="gara-bubble-name">Bác Turbo</span>
-            <span>
-              Ê, tay đua! Hàng mới về đủ cả: xe, khung avatar, nền, còn có thẻ Bảo vệ chuỗi nữa.
-              Thua một trận mà mất chuỗi thì tiếc lắm đó nha!
-            </span>
+          <div className="gara-bubble-slot">
+            <div className="gara-bubble" aria-live="polite">
+              <span className="gara-bubble-name">Bác Turbo</span>
+              {/* The answer replaces the greeting inside the bubble, so the
+                  questions below never open a second panel under themselves. */}
+              <div className="gara-bubble-msg" id="gara-faq-answer" key={faq ?? 'intro'}>
+                {faq === 'streak' ? (
+                  <>
+                    <p>
+                      Thẻ Bảo vệ chuỗi giữ nguyên chuỗi của bạn khi thua một trận.
+                      Mỗi thẻ dùng một lần — cần thì mua ở mục Vật phẩm nha!
+                    </p>
+                    <p className="gara-bubble-note">
+                      Đừng tiếc thẻ khi chuỗi đang dài: mất chuỗi là mất luôn cả
+                      đà học đấy.
+                    </p>
+                  </>
+                ) : faq === 'rc' ? (
+                  <>
+                    <p className="gara-bubble-lead">Không cần nhiệm vụ — RC trả thẳng:</p>
+                    <ul className="gara-bubble-rc">
+                      <li><span>Hoàn thành bài</span><strong>+15 RC</strong></li>
+                      <li><span>Xong cả chặng</span><strong>+40 RC</strong></li>
+                      <li><span>Mỗi video nghe</span><strong>+10 RC</strong></li>
+                      <li><span>Thắng trận đấu</span><strong>+20 RC</strong></li>
+                      <li><span>Thua vẫn có</span><strong>+8 RC</strong></li>
+                      <li><span>Huy hiệu mới</span><strong>+25 RC</strong></li>
+                    </ul>
+                    <p className="gara-bubble-note">
+                      Tối đa 5 trận/ngày; thưởng bài chỉ trả một lần.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Ê, tay đua! Hàng mới về đủ cả: xe, khung avatar, nền, còn có thẻ Bảo vệ chuỗi nữa.
+                    Thua một trận mà mất chuỗi thì tiếc lắm đó nha!
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
           <div className="gara-faq">
-            <button type="button" className="gc-btn is-quiet" onClick={() => setTab('booster')}>
-              ▸ Bảo vệ chuỗi là gì vậy bác?
+            <button
+              type="button"
+              className={`gc-btn is-quiet${faq === 'streak' ? ' is-answering' : ''}`}
+              aria-expanded={faq === 'streak'}
+              aria-controls="gara-faq-answer"
+              onClick={() => setFaq((current) => current === 'streak' ? null : 'streak')}
+            >
+              {faq === 'streak' ? '▾' : '▸'} Bảo vệ chuỗi là gì vậy bác?
             </button>
             <button
               type="button"
-              className="gc-btn is-quiet"
-              aria-expanded={rcGuide}
-              onClick={() => setRcGuide((open) => !open)}
+              className={`gc-btn is-quiet${faq === 'rc' ? ' is-answering' : ''}`}
+              aria-expanded={faq === 'rc'}
+              aria-controls="gara-faq-answer"
+              onClick={() => setFaq((current) => current === 'rc' ? null : 'rc')}
             >
-              {rcGuide ? '▾' : '▸'} Làm sao kiếm thêm RC?
-            </button>          </div>
-
-          {rcGuide && (
-            <div className="gara-rc-guide">
-              <p className="gara-rc-guide-title">Không cần nhiệm vụ — RC trả thẳng cho việc học:</p>
-              <ul>
-                <li><span>Hoàn thành một bài</span><strong>+15 RC</strong></li>
-                <li><span>Xong cả một chặng</span><strong>+40 RC</strong></li>
-                <li><span>Mỗi video luyện nghe</span><strong>+10 RC</strong></li>
-                <li><span>Thắng một trận đấu</span><strong>+20 RC</strong></li>
-                <li><span>Thua vẫn có</span><strong>+8 RC</strong></li>
-                <li><span>Mỗi huy hiệu mới</span><strong>+25 RC</strong></li>
-              </ul>
-              <p className="gara-rc-guide-note">Đấu trường trả RC cho 5 trận đầu mỗi ngày; phần thưởng bài chỉ trả một lần.</p>
-            </div>
-          )}
+              {faq === 'rc' ? '▾' : '▸'} Làm sao kiếm thêm RC?
+            </button>
+          </div>
         </div>
 
         {/* Turbo stands behind the counter: his torso runs past the stall's
@@ -329,13 +363,6 @@ export function GaraShop() {
         ))}
         {equippedLine && <span className="gara-v2-tabs-note">Đang dùng: <strong>{equippedLine}</strong></span>}
       </nav>
-
-      {boosters && (boosters.streak_shields > 0 || boosters.rc_multipliers > 0 || boosters.xp_multiplier_ms_left > 0) && (
-        <div className="arena-v2-boost">
-          Đang có: {boosters.streak_shields} khiên · {boosters.rc_multipliers} thẻ x2 RC
-          {boosters.xp_multiplier_ms_left > 0 ? ` · x2 XP còn ${Math.ceil(boosters.xp_multiplier_ms_left / 60000)} phút` : ''}
-        </div>
-      )}
 
       {error && <p className="gara-v2-error">{error}</p>}
 

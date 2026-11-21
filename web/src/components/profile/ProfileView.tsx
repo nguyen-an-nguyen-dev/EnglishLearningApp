@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Medal, ShieldCheck, SignOut } from '@phosphor-icons/react'
+import { ArrowRight, Brain, Medal, SignOut } from '@phosphor-icons/react'
 import { AccountActions } from '../AccountActions'
 import { useAuth } from '../../context/AuthContext'
 import { useLearning } from '../../context/LearningContext'
@@ -10,16 +10,26 @@ import { flattenLessons } from '../../roadmap'
 import type { EarnedBadge } from '../../types/community'
 import { AvatarFrame } from '../cosmetics/AvatarFrame'
 import { nameplateSurface } from '../cosmetics/nameplateSurface'
+import { SocialAccounts } from './SocialAccounts'
+import { BoosterStatus } from './BoosterStatus'
 import { formatCompact } from '../../utils/format'
 
 type StageState = 'done' | 'current' | 'locked'
 
-export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; onOpenShop?: () => void }) {
+export function ProfileView({ onLogout, onOpenReview }: { onLogout: () => void; onOpenReview: () => void }) {
   const { t } = useI18n()
   const { user } = useAuth()
   const { stages, loading } = useLearning()
-  const { wallet } = useWallet()
+  const { wallet, refresh } = useWallet()
   const [badges, setBadges] = useState<EarnedBadge[]>([])
+
+  // The wallet is loaded once for the whole app; equipping a nameplate in the
+  // Gara (or another tab) can leave this view with the old surface. Pull the
+  // latest wallet when the profile opens so the head always wears the plate
+  // that is actually equipped.
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
   useEffect(() => {
     let cancelled = false
@@ -40,14 +50,18 @@ export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; on
     ?? stages.find((stage) => stage.completedCount < stage.totalCount)
     ?? stages[0]
   const displayName = user?.name || 'An Nguyễn'
-  const streak = user?.streak ?? 0
+  const streak = wallet?.streak ?? user?.streak ?? 0
   const xp = user?.xp ?? 0
   const coins = wallet?.coins ?? user?.coins ?? 0
   const level = wallet?.level ?? user?.level ?? 1
   const frameKey = wallet?.equipment.frame?.visual_key ?? null
+  const frameStyle = wallet?.equipment.frame?.style ?? null
   // The nameplate is the head's surface now: the band around the name is gone,
   // and the equipped plate paints the block instead.
-  const plate = nameplateSurface(wallet?.equipment.nameplate?.visual_key ?? null)
+  const plate = nameplateSurface(
+    wallet?.equipment.nameplate?.visual_key ?? null,
+    wallet?.equipment.nameplate?.style ?? null,
+  )
 
   function stageState(index: number): StageState {
     const stage = stages[index]
@@ -85,58 +99,16 @@ export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; on
       </header>
 
       <section className={`profile-identity-head${plate.className}`} style={plate.style}>
-        <AvatarFrame name={displayName} visualKey={frameKey} size={68} />
+        <AvatarFrame name={displayName} visualKey={frameKey} style={frameStyle} size={92} />
         <div className="profile-identity-copy">
           <h2>{displayName}</h2>
           <p>{user?.email}</p>
-          <span className="profile-role">
-            <ShieldCheck size={15} weight="regular" />
-            {t.activeLearner}
-          </span>
         </div>
-
-        {/* Balance and level sit inside the identity block, so the plate behind
-            them is one continuous surface. The XP meter is the long line: it
-            fills the spare width instead of forcing a second full-width card. */}
-        <button
-          type="button"
-          className={`profile-wallet-card${onOpenShop ? ' is-clickable' : ''}`}
-          onClick={onOpenShop}
-          disabled={!onOpenShop}
-          aria-label={`${formatCompact(coins)} Race Coin. ${t.walletLevel} ${level}. ${
-            wallet?.level_progress.xp_to_next_level !== null && wallet?.level_progress.xp_to_next_level !== undefined
-              ? `${formatCompact(wallet.level_progress.xp_to_next_level)} XP ${t.walletLevelNext}`
-              : t.walletLevelMax
-          }`}
-        >
-          <span className="profile-wallet-top">
-            <span className="profile-wallet-amount">
-              <i className="profile-wallet-coin" aria-hidden="true" />
-              <strong>{formatCompact(coins)}</strong>
-              <span>RC</span>
-            </span>
-            <span className="profile-wallet-level">{t.walletLevel} {level}</span>
-          </span>
-          <span className="profile-wallet-progress">
-            <span className="profile-wallet-meter" aria-hidden="true">
-              <span style={{ width: `${Math.round((wallet?.level_progress.progress_ratio ?? 0) * 100)}%` }} />
-            </span>
-            <span className="profile-wallet-hint">
-              {wallet?.level_progress.xp_to_next_level !== null && wallet?.level_progress.xp_to_next_level !== undefined
-                ? `${formatCompact(wallet.level_progress.xp_to_next_level)} XP ${t.walletLevelNext}`
-                : t.walletLevelMax}
-            </span>
-          </span>
-        </button>
       </section>
 
       <div className="profile-grid">
         <section className="profile-identity">
           <dl className="profile-numbers">
-            <div>
-              <dd>{streak}</dd>
-              <dt>{t.statStreakLabel}</dt>
-            </div>
             <div>
               <dd>{formatCompact(xp)}</dd>
               <dt>{t.statXpLabel}</dt>
@@ -146,6 +118,17 @@ export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; on
               <dt>{t.statLessonsLabel}</dt>
             </div>
           </dl>
+
+          <BoosterStatus boosters={wallet?.boosters} />
+
+          <button type="button" className="profile-review" onClick={onOpenReview} data-open-review="true">
+            <span className="profile-review-icon"><Brain size={18} weight="fill" /></span>
+            <span className="profile-review-copy">
+              <strong>{t.navReview}</strong>
+              <small>{t.profileReviewHint}</small>
+            </span>
+            <ArrowRight size={16} weight="bold" />
+          </button>
 
           <section className="profile-path">
             <header>
@@ -197,10 +180,7 @@ export function ProfileView({ onLogout, onOpenShop }: { onLogout: () => void; on
         <aside className="profile-account">
           <h3>{t.accountOptions}</h3>
           <AccountActions user={user} />
-          <p className="profile-tip">
-            <strong>{t.tipTitle}</strong>
-            {t.tipBody(streak)}
-          </p>
+          <SocialAccounts />
           <button type="button" className="profile-logout" onClick={onLogout}>
             <SignOut size={16} weight="bold" />
             <span>{t.logoutShort}</span>

@@ -238,35 +238,41 @@ export function detectLivePageContext(
       const rankEl = document.querySelector('.rank-view') as HTMLElement | null
       const myRank = rankEl?.dataset.myRank
       const totalUsers = rankEl?.dataset.totalUsers || ''
-      const myXp = rankEl?.dataset.myXp || ''
+      const myRp = rankEl?.dataset.myScore || ''
       const leaderName = rankEl?.dataset.leaderName || ''
-      const leaderXp = rankEl?.dataset.leaderXp || ''
-      const aboveName = rankEl?.dataset.aboveName || ''
-      const aboveRank = rankEl?.dataset.aboveRank || ''
-      const aboveXp = rankEl?.dataset.aboveXp || ''
-      const belowName = rankEl?.dataset.belowName || ''
-      const belowRank = rankEl?.dataset.belowRank || ''
-      const belowXp = rankEl?.dataset.belowXp || ''
+      const leaderScore = rankEl?.dataset.leaderScore || ''
+      const tier = rankEl?.dataset.leagueTier || ''
+      const promote = rankEl?.dataset.promoteSlots || '6'
+      const demote = rankEl?.dataset.demoteSlots || '6'
 
       const details = [
-        `Người dùng đang xem Bảng xếp hạng thi đua học tập.`,
-        myRank ? `Thứ hạng hiện tại của bạn: Hạng #${myRank} trên tổng số ${totalUsers} học viên` : 'Chưa có thứ hạng cụ thể',
-        myXp ? `Điểm kinh nghiệm (XP) của bạn: ${myXp} XP` : '',
-        leaderName ? `Người dẫn đầu bảng xếp hạng: ${leaderName} (${leaderXp} XP)` : '',
-        aboveName ? `Người xếp ngay phía trên bạn: ${aboveName} (Hạng #${aboveRank}, có ${aboveXp} XP, hơn bạn ${Math.max(0, Number(aboveXp) - Number(myXp))} XP)` : 'Bạn đang đứng đầu bảng!',
-        belowName ? `Người xếp ngay phía dưới bạn: ${belowName} (Hạng #${belowRank}, có ${belowXp} XP, kém bạn ${Math.max(0, Number(myXp) - Number(belowXp))} XP)` : 'Không có ai xếp sau bạn.',
+        'Người dùng đang xem bảng xếp hạng league tuần này. Chỉ có một bảng theo tuần, không có bảng tổng.',
+        tier ? `Hạng hiện tại: ${tier}.` : '',
+        myRank ? `Thứ hạng tuần này: #${myRank} trên ${totalUsers} học viên cùng hạng.` : 'Chưa có thứ hạng tuần này.',
+        myRp ? `RP tuần này: ${myRp}.` : '',
+        leaderName ? `Người dẫn đầu: ${leaderName} (${leaderScore} RP).` : '',
+        `Vùng xếp hạng: ${promote} đầu lên hạng, ${demote} cuối xuống hạng, ở giữa giữ hạng.`,
       ]
         .filter(Boolean)
         .join(' | ')
 
       return {
-        focus: myRank ? `Bảng xếp hạng · Hạng #${myRank}` : 'Bảng xếp hạng',
-        badge: myRank ? `Bảng xếp hạng · Hạng #${myRank}` : 'Bảng xếp hạng',
+        focus: myRank ? `League tuần · Hạng #${myRank}` : 'League tuần',
+        badge: myRank ? `League · Hạng #${myRank}` : 'League tuần',
         detail: details,
       }
     }
 
-    // 7. Profile
+    // 7. Garage shop
+    if (activeTab === 'shop') {
+      return {
+        focus: 'Gara Engorace',
+        badge: 'Gara Engorace',
+        detail: 'Người dùng đang ở Gara: mua và lắp xe, khung tên, phụ tùng bằng Race Coin.',
+      }
+    }
+
+    // 8. Profile
     if (activeTab === 'profile') {
       const profileEl = document.querySelector('.profile-view') as HTMLElement | null
       const userName = profileEl?.dataset.userName || ''

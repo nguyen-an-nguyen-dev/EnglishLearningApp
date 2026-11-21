@@ -352,7 +352,6 @@ export async function completeVideo(
       );
     }
 
-    const xpEarned = alreadyCompleted ? 0 : xpReward;
     // Everything is keyed by video id, so replaying a finished video is a no-op.
     const outcome = alreadyCompleted
       ? { rcEarned: 0, xpEarned: 0 }

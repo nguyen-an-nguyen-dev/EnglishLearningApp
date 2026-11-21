@@ -21,10 +21,11 @@ export async function checkLessonAnswerApi(
   lessonId: number,
   questionId: number,
   answer: string,
+  responseMs?: number,
 ): Promise<CheckAnswerFeedback> {
   return requestApi<CheckAnswerFeedback>(
     `/api/lessons/${lessonId}/questions/${questionId}/check`,
-    { method: 'POST', body: JSON.stringify({ answer }) },
+    { method: 'POST', body: JSON.stringify({ answer, responseMs }) },
   )
 }
 

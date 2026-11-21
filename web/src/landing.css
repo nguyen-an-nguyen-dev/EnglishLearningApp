@@ -361,7 +361,7 @@ html.lp-active .landing-page-wrapper {
 .lp-hero-facts > div:last-child { padding-right: 0; margin-right: 0; border-right: 0; }
 .lp-hero-facts dt {
   color: var(--brand-600);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 25px;
   font-weight: 600;
   line-height: 1;
@@ -972,7 +972,7 @@ html.lp-active .landing-page-wrapper {
   border-color: var(--brand-300);
   background: transparent;
   color: var(--muted) !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-sans);
   font-weight: 800;
   letter-spacing: 1.5px;
 }
@@ -1081,7 +1081,7 @@ html.lp-active .landing-page-wrapper {
 }
 .lp-arena-points {
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 36px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1097,7 +1097,7 @@ html.lp-active .landing-page-wrapper {
 }
 .lp-arena-clock-num {
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 42px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1271,7 +1271,7 @@ html.lp-active .landing-page-wrapper {
 .lp-arena-report-side span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .lp-arena-report-side strong {
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 52px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1413,7 +1413,8 @@ html.lp-active .landing-page-wrapper {
   transition: background 150ms ease, transform 150ms ease;
 }
 .auth-social-btn:hover { background: var(--brand-100); transform: translateY(-1px); }
-.auth-social-btn svg { display: block; }
+.auth-social-btn svg,
+.auth-social-btn img { display: block; }
 .auth-social-google { display: grid; place-items: center; }
 .auth-social-error {
   margin: 2px 0 0;
@@ -1449,9 +1450,19 @@ html.lp-active .landing-page-wrapper {
   font-size: 10.5px;
   line-height: 1.5;
 }
+.auth-alert-success {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #1F8A56;
+  border-radius: 7px;
+  background: #E8F8EF;
+  color: #166843;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
 .auth-form { display: grid; gap: 13px; }
 .auth-dialog .form-group { display: grid; gap: 5px; }
-.auth-dialog .form-label { color: var(--ink-soft); font-size: 10px; font-weight: 700; }
+.auth-dialog .form-label { color: var(--ink-soft); font-size: 12.5px; font-weight: 700; }
 .auth-dialog .input-wrapper { position: relative; display: flex; align-items: center; }
 .auth-dialog .input-icon {
   position: absolute;
@@ -1507,27 +1518,113 @@ html.lp-active .landing-page-wrapper {
 }
 .auth-submit-btn:hover:not(:disabled) { background: var(--brand-400); }
 .auth-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.auth-quick { margin-top: 10px; }
+.auth-quick-btn {
+  display: inline-flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 7px;
+  background: var(--brand-100);
+  color: var(--brand-800);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.auth-quick-btn:hover:not(:disabled) { border-color: var(--brand-500); background: #DCF5FF; }
+.auth-quick-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* --- registration OTP step ------------------------------------------------ */
+.auth-otp-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 2px;
+}
+.auth-otp-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: var(--brand-100);
+  color: var(--brand-700);
+}
+.auth-otp-head h3 {
+  margin: 1px 0 3px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 750;
+}
+.auth-otp-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.auth-otp-head p strong { color: var(--ink-soft); }
+.auth-dialog .auth-otp-input {
+  height: 54px;
+  padding: 0 16px;
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.34em;
+  text-align: center;
+}
+.auth-otp-meta {
+  min-height: 17px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.auth-otp-dev {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 7px;
+  background: var(--brand-100);
+  color: var(--brand-800);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.auth-otp-dev-code {
+  border: 1px solid var(--brand-600);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--brand-800);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  padding: 3px 8px;
+}
+.auth-otp-dev-code:hover { background: #DCF5FF; }
+.auth-otp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.auth-otp-actions .auth-link-btn { font-size: 12px; }
+.auth-link-btn:disabled { opacity: 0.5; cursor: not-allowed; text-decoration: none; }
 .btn-inner-loading { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .spin-icon { animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.auth-demo-btn {
-  display: inline-flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 7px 0;
-  border: 0;
-  background: none;
-  color: var(--brand-700);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  transition: color 150ms ease;
-}
-.auth-demo-btn:hover:not(:disabled) { color: var(--brand-800); text-decoration: underline; text-underline-offset: 3px; }
-.auth-demo-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .auth-footer { margin-top: 16px; color: var(--muted); font-size: 12.5px; text-align: center; }
 .auth-link-btn {

@@ -17,9 +17,9 @@ function Note({ note }: { note: Note | null }) {
   return <p className={`account-note is-${note.kind}`} role="status">{note.text}</p>
 }
 
-function PasswordForm({ onCancel }: { onCancel: () => void }) {
+function PasswordForm({ onCancel, hasPassword }: { onCancel: () => void; hasPassword: boolean }) {
   const { t } = useI18n()
-  const { changePassword } = useAuth()
+  const { changePassword, refreshUser } = useAuth()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [repeat, setRepeat] = useState('')
@@ -41,11 +41,12 @@ function PasswordForm({ onCancel }: { onCancel: () => void }) {
 
     setBusy(true)
     try {
-      await changePassword({ currentPassword: current, newPassword: next })
+      await changePassword({ currentPassword: hasPassword ? current : '', newPassword: next })
       setCurrent('')
       setNext('')
       setRepeat('')
       setNote({ kind: 'ok', text: t.passwordUpdated })
+      if (!hasPassword) await refreshUser()
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       setNote({
@@ -59,17 +60,20 @@ function PasswordForm({ onCancel }: { onCancel: () => void }) {
 
   return (
     <form className="account-form" onSubmit={handleSubmit}>
-      <div className="account-field">
-        <label htmlFor="pw-current">{t.currentPassword}</label>
-        <input
-          id="pw-current"
-          type="password"
-          autoComplete="current-password"
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-          required
-        />
-      </div>
+      {!hasPassword && <p className="account-hint">{t.setPasswordHint}</p>}
+      {hasPassword && (
+        <div className="account-field">
+          <label htmlFor="pw-current">{t.currentPassword}</label>
+          <input
+            id="pw-current"
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            required
+          />
+        </div>
+      )}
       <div className="account-field">
         <label htmlFor="pw-next">{t.newPassword}</label>
         <input
@@ -176,10 +180,12 @@ export function AccountActions({ user }: { user: AuthUser | null }) {
           onClick={() => toggle('password')}
         >
           <LockKey size={18} />
-          <span>{t.changePassword}</span>
+          <span>{user?.has_password === false ? t.setPasswordTitle : t.changePassword}</span>
           <CaretDown size={15} weight="bold" />
         </button>
-        {mode === 'password' && <PasswordForm onCancel={() => setMode(null)} />}
+        {mode === 'password' && (
+          <PasswordForm onCancel={() => setMode(null)} hasPassword={user?.has_password !== false} />
+        )}
       </div>
 
       <div className="account-row">

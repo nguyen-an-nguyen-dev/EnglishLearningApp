@@ -1,6 +1,6 @@
 /* ==========================================================================
    THI ĐUA · BẢNG XẾP HẠNG · HỒ SƠ
-   Editorial scoreboard: hairline rules instead of cards, Fraunces for numerals,
+   Editorial scoreboard: hairline rules instead of cards, Be Vietnam Pro for numerals,
    one ink block per screen, a single left axis on every column.
    ========================================================================== */
 
@@ -113,7 +113,7 @@
 .arena-record dd {
   margin: 0;
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -204,7 +204,7 @@
 .arena-rules li + li { border-top: 1px solid color-mix(in srgb, var(--ink-block-fg) 14%, transparent); }
 .arena-rules li > span {
   color: color-mix(in srgb, var(--ink-block-fg) 44%, transparent);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
@@ -282,7 +282,7 @@
   border-radius: 50%;
   background: color-mix(in srgb, var(--brand-500) 22%, transparent);
   color: var(--ink-block-fg);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 20px;
   font-weight: 500;
 }
@@ -302,7 +302,7 @@
 }
 .arena-side-score {
   color: var(--ink-block-fg);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 36px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -325,7 +325,7 @@
 }
 .arena-score-mid > strong {
   color: var(--ink-block-fg);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -388,6 +388,17 @@
 @keyframes arena-bubble-in {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
+}
+
+/* Respect reduced motion: the waiting dots, rings and bubbles fall back to
+   static states instead of looping/flying. */
+@media (prefers-reduced-motion: reduce) {
+  .arena-queue-rings span,
+  .arena-away-dot,
+  .arena-attempt-bubble {
+    animation: none;
+  }
+  .arena-attempt-bubble { opacity: 1; transform: none; }
 }
 
 /* The duel owns the leftover page height, so the question stage centres
@@ -622,7 +633,7 @@
 .arena-verdict-scores strong {
   margin-left: auto;
   color: var(--ink-block-fg);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 30px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -660,7 +671,7 @@
 
 /* ==========================================================================
    BẢNG XẾP HẠNG
-   Bục vinh danh + đường đua XP. Màu lấy từ 5 sắc độ cố định, mỗi người một sắc.
+   Chỉ một bảng league theo tuần; các vùng thăng/xuống/hạng vẽ ở rankings.css.
    ========================================================================== */
 .rank-view {
   --rank-hue-0: #00C7FF;
@@ -672,226 +683,15 @@
 }
 .rank-head {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 32px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   margin-bottom: 26px;
 }
 .rank-head > div { min-width: 0; }
 
-/* Podium ------------------------------------------------------------------ */
-.rank-podium {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: end;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.rank-step {
-  display: grid;
-  justify-items: center;
-  align-content: end;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 10px;
-}
-.rank-step-avatar {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--hue);
-  color: var(--rank-avatar-ink);
-  font-size: 19px;
-  font-weight: 800;
-  box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--hue) 80%, transparent);
-}
-.rank-step.is-1 .rank-step-avatar { width: 66px; height: 66px; font-size: 23px; }
-.rank-step-name {
-  display: flex;
-  max-width: 100%;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rank-step-name svg { flex: none; color: var(--hue); }
-.rank-step-name em {
-  flex: none;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 8.5px;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.rank-step-xp {
-  color: var(--muted);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-.rank-step-xp i { margin-left: 3px; font-family: var(--font-sans); font-size: 8.5px; font-style: normal; font-weight: 700; letter-spacing: 0.08em; }
-.rank-step-base {
-  display: grid;
-  width: 100%;
-  place-items: center;
-  margin-top: 8px;
-  border-radius: 16px 16px 0 0;
-  background: var(--hue);
-  color: var(--rank-avatar-ink);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 26px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.rank-step.is-1 .rank-step-base { height: 92px; font-size: 34px; }
-.rank-step.is-2 .rank-step-base { height: 66px; }
-.rank-step.is-3 .rank-step-base { height: 50px; }
-
-/* Your standing ----------------------------------------------------------- */
-.rank-you {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  padding: 18px 22px;
-  border-radius: 0 0 18px 18px;
-  background: color-mix(in srgb, var(--brand-500) 13%, var(--paper));
-}
-.rank-you-rank { display: grid; gap: 4px; }
-.rank-you-rank strong {
-  color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 32px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.rank-you-total { color: var(--muted); font-size: 11.5px; font-weight: 600; }
-.rank-facts { display: flex; margin: 0; }
-.rank-facts div { padding: 0 22px; border-left: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); }
-.rank-facts div:first-child { padding-left: 0; border-left: 0; }
-.rank-facts dt {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.rank-facts dd {
-  margin: 6px 0 0;
-  color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 19px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  white-space: nowrap;
-}
-.rank-facts dd.is-name {
-  max-width: 160px;
-  overflow: hidden;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-}
-
-/* Lanes ------------------------------------------------------------------- */
-.rank-board { display: grid; gap: 2px; margin: 22px 0 0; padding: 0; list-style: none; }
-.rank-row {
-  display: grid;
-  grid-template-columns: 34px 30px minmax(0, 1fr) minmax(70px, 0.8fr) 88px;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: 12px;
-}
-.rank-row.is-you { background: color-mix(in srgb, var(--brand-500) 14%, transparent); }
-.rank-index {
-  color: var(--muted);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-.rank-avatar {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--hue);
-  color: var(--rank-avatar-ink);
-  font-size: 12px;
-  font-weight: 800;
-}
-.rank-name {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 13.5px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rank-name em {
-  flex: none;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 8.5px;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.rank-bar {
-  display: block;
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-}
-.rank-bar i {
-  display: block;
-  width: var(--share, 0%);
-  height: 100%;
-  border-radius: inherit;
-  background: var(--hue);
-  transition: width 320ms ease;
-}
-.rank-xp {
-  color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.rank-xp i {
-  margin-left: 4px;
-  color: var(--muted);
-  font-family: var(--font-sans);
-  font-size: 8.5px;
-  font-style: normal;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
+/* The XP podium and career lanes are gone: the only board is the weekly league,
+   drawn in rankings.css. What remains here is the shared heading and state. */
 .rank-state {
   display: grid;
   justify-items: center;
@@ -948,7 +748,7 @@
   border-radius: 50%;
   background: var(--solid);
   color: var(--solid-fg);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 500;
 }
@@ -974,7 +774,7 @@
 
 .profile-numbers {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
   padding: 20px 0;
   border-top: 1px solid var(--rule-strong);
@@ -985,7 +785,7 @@
 .profile-numbers dd {
   margin: 0;
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 30px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -1001,6 +801,87 @@
   text-transform: uppercase;
 }
 
+/* Streak overview used to be a full card here; the sidebar profile card now
+   carries the same facts, so only the mascot flame survives in this file. */
+
+/* The mascot flame flickers gently; dimmed when no streak is active. */
+.streak-flame { display: block; transform-origin: 50% 85%; }
+.streak-flame.is-active { animation: streak-mascot-flicker 2.6s ease-in-out infinite; }
+.streak-flame:not(.is-active) { opacity: 0.45; filter: grayscale(0.5); }
+@keyframes streak-mascot-flicker {
+  0%, 100% { transform: scale(1) rotate(-1deg); }
+  50% { transform: scale(1.05) rotate(1.5deg); }
+}
+
+.profile-boosters {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.booster-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.booster-item-icon {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+.booster-item-icon.is-xp { background: #fff3d6; color: #a66a00; }
+.booster-item-icon.is-rc { background: var(--brand-100); color: var(--brand-800); }
+.booster-item strong { color: var(--ink); font-size: 12.5px; font-weight: 800; }
+.booster-item strong em { color: var(--brand-700); font-style: normal; }
+.booster-item p { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.booster-item small { display: block; margin-top: 3px; color: var(--brand-700); font-size: 11px; font-weight: 700; }
+
+/* Review lives here as one action, not a navigation tab. */
+.profile-review {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--brand-500) 24%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-500) 7%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.profile-review:hover {
+  border-color: var(--brand-500);
+  background: color-mix(in srgb, var(--brand-500) 12%, var(--paper));
+  transform: translateY(-1px);
+}
+.profile-review:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 3px; }
+.profile-review-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--brand-600);
+  color: #FFFFFF;
+}
+.profile-review-copy { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.profile-review-copy strong { font-size: 14px; font-weight: 800; }
+.profile-review-copy small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.profile-review > svg { flex: none; color: var(--brand-700); }
+
 .profile-path { margin-top: 34px; }
 .profile-path > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .profile-path h3 {
@@ -1012,7 +893,7 @@
 }
 .profile-path header > strong {
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -1030,7 +911,7 @@
 }
 .profile-stage-index {
   color: var(--muted);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -1073,15 +954,81 @@
 .profile-badges p { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
 
 .profile-account h3 { margin: 0 0 6px; color: var(--ink); font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
-.profile-tip {
-  margin: 24px 0 0;
-  padding-top: 20px;
+/* Linked social identities: one quiet row per provider, with the action as a
+   text link. The Google SDK still renders its own (transparent) button inside
+   `.profile-social-google` so the official popup flow keeps working. */
+.profile-social {
+  margin-top: 20px;
+  padding-top: 18px;
   border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.65;
 }
-.profile-tip strong { display: block; margin-bottom: 5px; color: var(--ink); font-size: 12.5px; }
+.profile-social-head h3 { margin: 0 0 4px; color: var(--ink); font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
+.profile-social-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.profile-social-list { display: grid; gap: 0; margin: 8px 0 0; padding: 0; list-style: none; }
+.profile-social-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+.profile-social-row:last-child { border-bottom: 0; }
+.profile-social-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--paper-muted);
+}
+.profile-social-mark.is-google { color: #4285f4; }
+.profile-social-mark.is-facebook { color: #1877f2; }
+.profile-social-mark img { display: block; width: 18px; height: 18px; }
+.profile-social-copy { display: grid; min-width: 0; flex: 1 1 auto; }
+.profile-social-copy strong { color: var(--ink); font-size: 13px; font-weight: 700; }
+.profile-social-copy small { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-social-link {
+  flex: none;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--brand-700);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--brand-700) 30%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 140ms ease, text-decoration-color 140ms ease, opacity 140ms ease;
+}
+.profile-social-link:hover:not(:disabled) { color: var(--brand-600); text-decoration-color: currentColor; }
+.profile-social-link.is-danger { color: var(--muted); text-decoration-color: transparent; }
+.profile-social-link.is-danger:hover:not(:disabled) { color: var(--danger-600); text-decoration-color: currentColor; }
+.profile-social-link:disabled { opacity: 0.55; cursor: not-allowed; }
+.profile-social-action { position: relative; display: inline-flex; flex: none; align-items: center; }
+.profile-social-action > .profile-social-link { pointer-events: none; }
+.profile-social-action[aria-busy='true'] { pointer-events: none; opacity: 0.6; }
+.profile-social-action:focus-within { outline: 2px solid var(--brand-500); outline-offset: 3px; border-radius: 4px; }
+.profile-social-google { position: absolute; inset: -7px -8px; overflow: hidden; }
+.profile-social-google > * {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.profile-social-empty { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+.profile-social-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.profile-social .account-note { display: flex; align-items: center; gap: 6px; }
+
 .profile-logout {
   display: flex;
   width: 100%;
@@ -1178,7 +1125,6 @@
   .rank-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
   .rank-facts div { padding: 0; border-left: 0; }
   .profile-identity-head { gap: 14px; margin-bottom: 26px; padding: 16px; border-radius: 16px; }
-  .profile-identity-head .profile-wallet-card { flex: 1 1 100%; }
   .profile-numbers { grid-template-columns: 1fr; gap: 16px; padding: 18px 0; }
   .profile-numbers div { padding-left: 0; border-left: 0; }
   .profile-numbers dd { font-size: 24px; }

@@ -9,6 +9,7 @@ import {
   Clock,
   Headphones,
   LinkSimple,
+  MagnifyingGlass,
   Play,
   Plus,
   Sparkle,
@@ -22,12 +23,14 @@ import { LoadingDots } from '../LoadingDots'
 import { videoImportErrorMessage } from '../../utils/videoImportErrors'
 import { PracticeView } from './PracticeView'
 import { VideoNotebookView } from './VideoNotebookView'
+import { VideoCarousel } from './VideoCarousel'
 import {
   deleteVideoApi,
   getSavedWordsApi,
   getVideoApi,
   getVideosApi,
   importVideoApi,
+  saveWordApi,
 } from '../../services/videoService'
 import type {
   SavedWord,
@@ -63,6 +66,8 @@ function VideoLessonView({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [savingWord, setSavingWord] = useState<string | null>(null)
+  const [vocabNote, setVocabNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -111,6 +116,31 @@ function VideoLessonView({
   const completed = Boolean(video.progress?.completed)
   const hasSegments = video.segments.length > 0
   const segmentNumber = String(video.segments.length).padStart(2, '0')
+  const savedWordNames = new Set(savedWords.map((entry) => entry.word.trim().toLowerCase()))
+
+  async function handleSaveVocabulary(entry: VideoLessonDetail['vocabulary'][number]) {
+    if (!video || savingWord) return
+    setSavingWord(entry.word)
+    setVocabNote(null)
+    try {
+      const saved = await saveWordApi({
+        word: entry.word,
+        ipa: entry.ipa || undefined,
+        meaningVi: entry.meaning_vi || undefined,
+        detailVi: entry.detail_vi || undefined,
+        videoId: video.id,
+      })
+      onSavedWord(saved)
+      setVocabNote({ tone: 'ok', text: t.videoVocabSaved })
+    } catch (saveError) {
+      setVocabNote({
+        tone: 'error',
+        text: saveError instanceof Error ? saveError.message : t.saveFailed,
+      })
+    } finally {
+      setSavingWord(null)
+    }
+  }
 
   return (
     <div
@@ -178,6 +208,45 @@ function VideoLessonView({
           </button>
         </div>
       )}
+
+      {video.vocabulary.length > 0 && (
+        <section className="video-vocab" aria-labelledby="video-vocab-title">
+          <header className="video-vocab-head">
+            <span className="video-section-label"><Sparkle size={13} weight="fill" /> {t.videoVocabTitle}</span>
+            <h2 id="video-vocab-title">{t.videoVocabTitle}</h2>
+            <p>{t.videoVocabDesc}</p>
+          </header>
+          <ul className="video-vocab-list">
+            {video.vocabulary.map((entry) => {
+              const saved = savedWordNames.has(entry.word.trim().toLowerCase())
+              return (
+                <li key={entry.id} className="video-vocab-item">
+                  <div className="video-vocab-word">
+                    <strong>{entry.word}</strong>
+                    {entry.ipa && <span>{entry.ipa}</span>}
+                  </div>
+                  <p className="video-vocab-meaning">{entry.meaning_vi}</p>
+                  {entry.detail_vi && <p className="video-vocab-detail">{entry.detail_vi}</p>}
+                  <button
+                    type="button"
+                    className="video-ghost-btn video-vocab-save"
+                    disabled={saved || savingWord === entry.word}
+                    onClick={() => void handleSaveVocabulary(entry)}
+                  >
+                    {saved ? <Check size={14} weight="bold" /> : <Plus size={14} weight="bold" />}
+                    <span>{saved ? t.videoVocabSaved : t.videoVocabSave}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          {vocabNote && (
+            <p className={`video-vocab-note is-${vocabNote.tone}`} role="status">
+              {vocabNote.text}
+            </p>
+          )}
+        </section>
+      )}
     </div>
   )
 }
@@ -191,6 +260,8 @@ interface VideoLearningViewProps {
 export function VideoLearningView({ videoRequest, onVideoRequestHandled }: VideoLearningViewProps) {
   const { t } = useI18n()
   const [videos, setVideos] = useState<VideoLessonSummary[]>([])
+  const [levelFilter, setLevelFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     document.documentElement.dataset.videoMono = 'true'
@@ -281,6 +352,16 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
     .filter((video) => video.progress?.completed)
     .reduce((sum, video) => sum + video.xp_reward, 0)
 
+  const sharedVideos = videos.filter((video) => !video.is_owned)
+  const ownedVideos = videos.filter((video) => video.is_owned)
+  const levels = Array.from(new Set(sharedVideos.map((video) => video.cefr_level))).sort()
+  const query = searchQuery.trim().toLowerCase()
+  const visibleShared = sharedVideos.filter((video) => {
+    const matchesLevel = levelFilter === 'all' || video.cefr_level === levelFilter
+    const matchesQuery = query === '' || `${video.title} ${video.topic} ${video.description ?? ''}`.toLowerCase().includes(query)
+    return matchesLevel && matchesQuery
+  })
+
   function importErrorMessage(importFailure: unknown): string {
     return videoImportErrorMessage(importFailure, t)
   }
@@ -324,6 +405,86 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
     }
   }
 
+  function renderVideoCard(video: VideoLessonSummary) {
+            const thumb = video.thumbnail_url ?? youtubeThumbnailUrl(video.video_url)
+            const completed = Boolean(video.progress?.completed)
+            const ratio = videoCompletionRatio(
+              video.duration_seconds,
+              video.progress?.watched_seconds ?? 0,
+            )
+            return (
+              <article className={`video-card${completed ? ' is-completed' : ''}${video.is_owned ? ' is-owned' : ''}`} key={video.id} data-buddy-target={`video:${video.id}`}>
+                <button
+                  type="button"
+                  className="video-thumb"
+                  onClick={() => setSelectedVideoId(video.id)}
+                  aria-label={t.videoOpen(video.title)}
+                >
+                  {thumb
+                    ? <img src={thumb} alt="" loading="lazy" decoding="async" />
+                    : <span className="video-thumb-fallback" />}
+                  <span className="video-thumb-shade" />
+                  <span className="video-thumb-play"><Play size={24} weight="fill" /></span>
+                  <span className="video-thumb-duration">{formatClock(video.duration_seconds)}</span>
+                  {video.is_owned && (
+                    <span className="video-thumb-owned">{t.videoOwnedBadge}</span>
+                  )}
+                  {completed && (
+                    <span className="video-thumb-done">
+                      <CheckCircle size={16} weight="fill" /> {t.videoCompleted}
+                    </span>
+                  )}
+                  {ratio > 0 && (
+                    <span className="video-thumb-progress" aria-hidden="true">
+                      <span style={{ width: `${ratio}%` }} />
+                    </span>
+                  )}
+                </button>
+
+                {video.is_owned && (
+                  <button
+                    type="button"
+                    className="video-card-delete"
+                    onClick={() => void handleDelete(video)}
+                    disabled={deletingId === video.id}
+                    aria-label={t.videoDelete}
+                    title={t.videoDelete}
+                  >
+                    <Trash size={18} weight="regular" />
+                  </button>
+                )}
+
+                <div className="video-card-body">
+                  <div className="video-card-chips">
+                    <span className="video-chip is-level">{video.cefr_level}</span>
+                    <span className="video-chip">{video.topic}</span>
+                  </div>
+                  <h3>{video.title}</h3>
+                  {video.description && <p>{video.description}</p>}
+                  <div className="video-card-footer">
+                    <span className="video-card-progress-text">
+                      {completed ? t.videoCompleted : t.videoProgressLabel(ratio)}
+                    </span>
+                    <span className={`video-card-badge ${video.xp_reward > 0 ? 'is-xp' : 'is-practice'}`}>
+                      {video.xp_reward > 0
+                        ? <><Sparkle size={11} weight="fill" /><span>+{video.xp_reward} XP</span></>
+                        : <><Headphones size={11} weight="bold" /><span>{t.videoPractice}</span></>}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="video-card-action"
+                    onClick={() => setSelectedVideoId(video.id)}
+                  >
+                    <Play size={15} weight="fill" />
+                    <span>{completed ? t.videoReview : t.videoStart}</span>
+                  </button>
+                </div>
+              </article>
+            )
+  }
+
+
   if (view === 'notebook') {
     return (
       <VideoNotebookView
@@ -355,7 +516,7 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
   }
 
   return (
-    <div className="tab-view-container">
+    <div className="tab-view-container video-page">
       <div className="page-heading page-heading-row">
         <div>
           <span className="page-eyebrow">{t.videosEyebrow}</span>
@@ -383,7 +544,6 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
 
       <section className="video-hero">
         <div className="video-hero-copy">
-          <span className="video-section-label"><Sparkle size={14} weight="fill" /> {t.videosHeroKicker}</span>
           <h2>{t.videosHeroTitle}</h2>
           <p>{t.videosHeroDesc}</p>
           <div className="video-hero-actions">
@@ -393,9 +553,26 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
           </div>
         </div>
         <div className="video-hero-visual" aria-hidden="true">
-          <span className="video-hero-ring is-one" />
-          <span className="video-hero-ring is-two" />
-          <span className="video-hero-play"><Play size={34} weight="fill" /></span>
+          <svg className="video-hero-tv" viewBox="0 0 280 200" role="img" aria-label="">
+            <path className="video-tv-line" d="M110 44L82 10M170 44L198 10M60 182L50 198M220 182L230 198" fill="none" />
+            <circle className="video-tv-line" cx="82" cy="10" r="5" fill="#ff5a5f" />
+            <circle className="video-tv-line" cx="198" cy="10" r="5" fill="#ff5a5f" />
+            <rect className="video-tv-line" x="10" y="44" width="260" height="140" rx="22" fill="#ffd23f" />
+            <rect className="video-tv-line" x="26" y="58" width="196" height="112" rx="12" fill="#14203a" />
+            <circle className="video-tv-line" cx="124" cy="104" r="26" fill="#fff" />
+            <path d="M116 90l22 14-22 14z" fill="#14203a" />
+            <rect x="34" y="136" width="14" height="14" rx="4" fill="#19b6f0" />
+            <rect x="56" y="124" width="14" height="26" rx="4" fill="#ffd23f" />
+            <rect x="78" y="132" width="14" height="18" rx="4" fill="#ff5a5f" />
+            <rect x="100" y="116" width="14" height="34" rx="4" fill="#38c98a" />
+            <rect x="122" y="128" width="14" height="22" rx="4" fill="#19b6f0" />
+            <rect x="144" y="120" width="14" height="30" rx="4" fill="#ffd23f" />
+            <rect x="166" y="134" width="14" height="16" rx="4" fill="#ff5a5f" />
+            <rect x="188" y="126" width="14" height="24" rx="4" fill="#38c98a" />
+            <circle className="video-tv-line" cx="246" cy="86" r="9" fill="#ff5a5f" />
+            <circle className="video-tv-line" cx="246" cy="114" r="9" fill="#38c98a" />
+            <path className="video-tv-line" d="M236 140H256M236 148H256M236 156H256" fill="none" strokeWidth="3" />
+          </svg>
         </div>
       </section>
 
@@ -549,86 +726,72 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
       )}
 
       {!loading && !error && videos.length > 0 && (
-        <div className="video-grid">
-          {videos.map((video) => {
-            const thumb = video.thumbnail_url ?? youtubeThumbnailUrl(video.video_url)
-            const completed = Boolean(video.progress?.completed)
-            const ratio = videoCompletionRatio(
-              video.duration_seconds,
-              video.progress?.watched_seconds ?? 0,
-            )
-            return (
-              <article className={`video-card${completed ? ' is-completed' : ''}${video.is_owned ? ' is-owned' : ''}`} key={video.id} data-buddy-target={`video:${video.id}`}>
-                <button
-                  type="button"
-                  className="video-thumb"
-                  onClick={() => setSelectedVideoId(video.id)}
-                  aria-label={t.videoOpen(video.title)}
-                >
-                  {thumb
-                    ? <img src={thumb} alt="" loading="lazy" decoding="async" />
-                    : <span className="video-thumb-fallback" />}
-                  <span className="video-thumb-shade" />
-                  <span className="video-thumb-play"><Play size={24} weight="fill" /></span>
-                  <span className="video-thumb-duration">{formatClock(video.duration_seconds)}</span>
-                  {video.is_owned && (
-                    <span className="video-thumb-owned">{t.videoOwnedBadge}</span>
-                  )}
-                  {completed && (
-                    <span className="video-thumb-done">
-                      <CheckCircle size={16} weight="fill" /> {t.videoCompleted}
-                    </span>
-                  )}
-                  {ratio > 0 && (
-                    <span className="video-thumb-progress" aria-hidden="true">
-                      <span style={{ width: `${ratio}%` }} />
-                    </span>
-                  )}
-                </button>
-
-                {video.is_owned && (
+        <>
+          <VideoCarousel
+            title={t.videoSectionShared}
+            description={t.videoSectionSharedDesc}
+            countLabel={t.videoCount(sharedVideos.length)}
+            items={visibleShared}
+            getKey={(video) => video.id}
+            renderItem={renderVideoCard}
+            emptyText={t.videoSectionSharedEmpty}
+            toolbar={
+              <div className="video-filter-bar">
+                <div className="video-filter-tabs" role="group" aria-label={t.videoFilterAria}>
                   <button
                     type="button"
-                    className="video-card-delete"
-                    onClick={() => void handleDelete(video)}
-                    disabled={deletingId === video.id}
-                    aria-label={t.videoDelete}
-                    title={t.videoDelete}
+                    className={levelFilter === 'all' ? 'is-active' : ''}
+                    onClick={() => setLevelFilter('all')}
                   >
-                    <Trash size={18} weight="regular" />
+                    {t.videoFilterAll}
                   </button>
-                )}
-
-                <div className="video-card-body">
-                  <div className="video-card-chips">
-                    <span className="video-chip is-level">{video.cefr_level}</span>
-                    <span className="video-chip">{video.topic}</span>
-                  </div>
-                  <h3>{video.title}</h3>
-                  {video.description && <p>{video.description}</p>}
-                  <div className="video-card-footer">
-                    <span className="video-card-progress-text">
-                      {completed ? t.videoCompleted : t.videoProgressLabel(ratio)}
-                    </span>
-                    <span className={`video-card-badge ${video.xp_reward > 0 ? 'is-xp' : 'is-practice'}`}>
-                      {video.xp_reward > 0
-                        ? <><Sparkle size={11} weight="fill" /><span>+{video.xp_reward} XP</span></>
-                        : <><Headphones size={11} weight="bold" /><span>{t.videoPractice}</span></>}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="video-card-action"
-                    onClick={() => setSelectedVideoId(video.id)}
-                  >
-                    <Play size={15} weight="fill" />
-                    <span>{completed ? t.videoReview : t.videoStart}</span>
-                  </button>
+                  {levels.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      className={levelFilter === level ? 'is-active' : ''}
+                      onClick={() => setLevelFilter(level)}
+                    >
+                      {level}
+                    </button>
+                  ))}
                 </div>
-              </article>
-            )
-          })}
-        </div>
+                <label className="video-search">
+                  <MagnifyingGlass size={18} />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={t.videoSearchPlaceholder}
+                    aria-label={t.videoSearchAria}
+                  />
+                </label>
+              </div>
+            }
+          />
+          <VideoCarousel
+            title={t.videoSectionOwned}
+            description={t.videoSectionOwnedDesc}
+            countLabel={t.videoCount(ownedVideos.length)}
+            tone="sun"
+            items={ownedVideos}
+            getKey={(video) => video.id}
+            renderItem={renderVideoCard}
+            emptyText={t.videoSectionOwnedEmpty}
+            trailing={
+              <button
+                type="button"
+                className="video-add-card"
+                onClick={() => { setImportError(null); setImportOpen(true) }}
+                data-buddy-target="control:add-video"
+              >
+                <span className="video-add-card-icon"><Plus size={28} weight="bold" /></span>
+                <strong>{t.videoAddCardTitle}</strong>
+                <span className="video-add-card-desc">{t.videoAddCardDesc}</span>
+              </button>
+            }
+          />
+        </>
       )}
     </div>
   )

@@ -152,11 +152,13 @@ export async function recordAnswerAttempt(
   questionId: number,
   answer: string,
   isCorrect: boolean,
+  responseTimeMs: number | null = null,
 ): Promise<void> {
   await pool.execute(
-    `INSERT INTO learning_answer_attempts (user_id, question_id, submitted_answer, is_correct)
-     VALUES (?, ?, ?, ?)`,
-    [userId, questionId, answer, isCorrect],
+    `INSERT INTO learning_answer_attempts
+       (user_id, question_id, submitted_answer, is_correct, response_time_ms)
+     VALUES (?, ?, ?, ?, ?)`,
+    [userId, questionId, answer, isCorrect, responseTimeMs],
   );
 }
 

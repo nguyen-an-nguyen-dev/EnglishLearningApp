@@ -40,8 +40,14 @@ export interface BattleRepository {
   getPlayerName(userId: number): Promise<string | undefined>;
   getWords(limit: number, levels: string[]): Promise<BattleWord[]>;
   createMatch(playerOneId: number, playerTwoId: number): Promise<number>;
-  recordAnswer(matchId: number, userId: number, round: number, answer: string, isCorrect: boolean, responseTimeMs: number): Promise<void>;
+  recordAnswer(matchId: number, userId: number, round: number, answer: string, isCorrect: boolean, responseTimeMs: number, wordId?: number | null): Promise<void>;
   finishMatch(matchId: number, status: 'completed' | 'cancelled', winnerUserId: number | null): Promise<void>;
+  /**
+   * Feeds missed words to the spaced-repetition queue. Optional so a repository
+   * with no review storage (the in-memory one used by tests) still satisfies the
+   * contract instead of silently writing to a real database.
+   */
+  enqueueReviewMistakes?(entries: Array<{ userId: number; wordId: number; isCorrect: boolean }>): Promise<void>;
   settleMatch(
     matchId: number,
     status: 'completed' | 'cancelled',
@@ -104,11 +110,6 @@ interface GameStartPayload {
 interface HintLetter {
   position: number;
   letter: string;
-}
-
-interface HintStep {
-  atMs: number;
-  letters: HintLetter[];
 }
 
 interface GameQuestionPayload {
@@ -615,8 +616,21 @@ export function attachBattleSocket(
           submission.answer,
           submission.correct,
           submission.responseTimeMs,
+          word.id,
         );
       }));
+      // Missed words feed the spaced-repetition queue. A failure here must not
+      // break the match, so it is logged and swallowed. The call goes through
+      // the repository so a test double never touches the real database.
+      await battleRepository.enqueueReviewMistakes?.(
+        match.players.map((player) => ({
+          userId: player.userId,
+          wordId: word.id,
+          isCorrect: match.answers.get(player.userId)?.correct ?? false,
+        })),
+      ).catch((error) => {
+        console.error('Failed to enqueue Word Battle review items:', error);
+      });
     } catch (error) {
       console.error('Failed to persist Word Battle answers:', error);
       match.resolving = false;

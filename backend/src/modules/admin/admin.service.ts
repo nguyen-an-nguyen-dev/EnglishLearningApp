@@ -35,6 +35,7 @@ import {
   type StagePatch,
   type StageThemeKey,
 } from './admin.types';
+import { isDuplicateKeyError } from '../../utils/db-errors';
 
 export const DEFAULT_STAGE_THEME: StageThemeKey = 'river';
 export const DEFAULT_SHARED_TOPIC = 'Thư viện chung';
@@ -124,10 +125,6 @@ function mapSharedVideo(row: AdminSharedVideoRow): AdminSharedVideo {
     segment_count: Number(row.segment_count),
     created_at: new Date(row.created_at).toISOString(),
   };
-}
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ER_DUP_ENTRY';
 }
 
 // ─── Content tree ────────────────────────────────────────────────────────────

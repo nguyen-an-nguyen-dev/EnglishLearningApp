@@ -1,5 +1,10 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../../db/pool';
+import {
+  LAST_ACTIVITY_JOIN,
+  activeUserIds,
+  activityEventRows,
+} from './admin.activity';
 import type {
   AdminAnswerRow,
   AdminLessonRow,
@@ -581,16 +586,7 @@ async function scalar(sql: string, params: DbValue[] = []): Promise<number> {
 }
 
 function activeUnion(dateExpr: string): string {
-  return `(
-    SELECT user_id AS uid FROM progress WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
-    UNION SELECT user_id FROM video_progress WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
-    UNION SELECT user_id FROM learning_answer_attempts WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
-    UNION SELECT player_one_id FROM matches WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
-    UNION SELECT player_two_id FROM matches WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
-    UNION SELECT user_id FROM translations WHERE user_id IS NOT NULL AND ${dateExpr.replaceAll('__TS__', 'created_at')}
-    UNION SELECT user_id FROM chats WHERE ${dateExpr.replaceAll('__TS__', 'updated_at')}
-    UNION SELECT user_id FROM saved_words WHERE ${dateExpr.replaceAll('__TS__', 'created_at')}
-  )`;
+  return activeUserIds(dateExpr.replaceAll('__TS__', 'ts'));
 }
 
 export async function countLearners(): Promise<number> {
@@ -643,15 +639,7 @@ export async function countReturningToday(): Promise<number> {
 export async function countNeverActive(): Promise<number> {
   return scalar(
     `SELECT COUNT(*) AS value FROM users u WHERE u.role = 'learner'
-     AND NOT EXISTS (
-       SELECT 1 FROM progress p WHERE p.user_id = u.id
-       UNION ALL SELECT 1 FROM video_progress vp WHERE vp.user_id = u.id
-       UNION ALL SELECT 1 FROM learning_answer_attempts la WHERE la.user_id = u.id
-       UNION ALL SELECT 1 FROM translations t WHERE t.user_id = u.id
-       UNION ALL SELECT 1 FROM chats c WHERE c.user_id = u.id
-       UNION ALL SELECT 1 FROM saved_words sw WHERE sw.user_id = u.id
-       UNION ALL SELECT 1 FROM matches m WHERE m.player_one_id = u.id OR m.player_two_id = u.id
-     )`,
+     AND NOT EXISTS (SELECT 1 FROM ${activityEventRows()} ev WHERE ev.user_id = u.id)`,
   );
 }
 
@@ -938,28 +926,16 @@ export interface InactiveUserDbRow extends RowDataPacket {
 export async function listInactiveUsers(minDays: number, limit: number): Promise<InactiveUserDbRow[]> {
   const [rows] = await pool.execute<InactiveUserDbRow[]>(
     `SELECT u.id, u.display_name, u.email, u.xp, u.streak, u.created_at,
-            a.last_activity_at,
+            activity.last_activity_at,
             (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id AND p.status = 'completed') AS lessons_completed
      FROM users u
-     LEFT JOIN (
-       SELECT user_id, MAX(ts) AS last_activity_at
-       FROM (
-         SELECT user_id, updated_at AS ts FROM progress
-         UNION ALL SELECT user_id, updated_at FROM video_progress
-         UNION ALL SELECT user_id, created_at FROM learning_answer_attempts
-         UNION ALL SELECT user_id, created_at FROM translations WHERE user_id IS NOT NULL
-         UNION ALL SELECT user_id, updated_at FROM chats
-         UNION ALL SELECT user_id, created_at FROM saved_words
-         UNION ALL SELECT player_one_id AS user_id, created_at AS ts FROM matches
-         UNION ALL SELECT player_two_id, created_at FROM matches
-       ) ev GROUP BY user_id
-     ) a ON a.user_id = u.id
+     ${LAST_ACTIVITY_JOIN}
      WHERE u.role = 'learner'
        AND (
-         a.last_activity_at IS NULL
-         OR a.last_activity_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+         activity.last_activity_at IS NULL
+         OR activity.last_activity_at < DATE_SUB(NOW(), INTERVAL ? DAY)
        )
-     ORDER BY COALESCE(a.last_activity_at, u.created_at) ASC
+     ORDER BY COALESCE(activity.last_activity_at, u.created_at) ASC
      LIMIT ?`,
     [minDays, limit],
   );

@@ -92,6 +92,13 @@ function QuestionBody({
   const [audioTime, setAudioTime] = useState(0)
   const [audioLength, setAudioLength] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  // QuestionBody is keyed per question, so mount time is the moment the
+  // question appeared. That makes the timing sample belong to this question.
+  const shownAtRef = useRef(0)
+
+  useEffect(() => {
+    shownAtRef.current = Date.now()
+  }, [])
 
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? null
   const selectedWords = selectedWordIds
@@ -154,7 +161,12 @@ function QuestionBody({
     setInlineError(null)
     audioRef.current?.pause()
     try {
-      const result = await checkLessonAnswerApi(lessonId, question.id, answer)
+      const result = await checkLessonAnswerApi(
+        lessonId,
+        question.id,
+        answer,
+        Date.now() - shownAtRef.current,
+      )
       setFeedback(result)
       setChecked(true)
     } catch (error: unknown) {
@@ -268,6 +280,7 @@ function QuestionBody({
                   <button
                     key={option.id}
                     type="button"
+                    aria-pressed={selected}
                     className={`lesson-option${selected ? ' is-selected' : ''}${highlightedCorrect(option) ? ' is-correct' : ''}${highlightedWrong(option) ? ' is-wrong' : ''}`}
                     onClick={() => {
                       if (checked) return

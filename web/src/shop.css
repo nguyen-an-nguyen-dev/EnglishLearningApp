@@ -301,6 +301,7 @@
 
 /* ---- cosmetics ----------------------------------------------------------- */
 .avatar-frame {
+  position: relative;
   display: grid;
   flex: none;
   place-items: center;
@@ -308,6 +309,167 @@
   color: #FFFFFF;
   font-weight: 800;
   line-height: 1;
+}
+.avatar-frame > svg { display: block; width: 100%; height: 100%; }
+/* Mascot frames are layered in code: aura → head PNG → metal ring → initial
+   core → themed ornaments → particles. Every motif gets its own ring shape and
+   motion, so the frames are not the same medal with a different animal. */
+.avatar-frame.has-mascot { background: transparent; box-shadow: none; }
+.avatar-frame-aura {
+  position: absolute;
+  z-index: 0;
+  top: 62.9%;
+  left: 50%;
+  width: 112%;
+  height: 112%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--frame-glow) 0%, transparent 66%);
+  opacity: 0.42;
+  filter: blur(7px);
+  pointer-events: none;
+  animation: frame-aura 5.5s ease-in-out infinite;
+}
+.avatar-frame-head {
+  position: absolute;
+  z-index: 2;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: 50% 80%;
+  filter: drop-shadow(0 2px 3px rgb(10 18 38 / 28%));
+}
+.avatar-frame-ring {
+  position: absolute;
+  z-index: 3;
+  top: 25.9%;
+  left: 13%;
+  width: 74%;
+  height: 74%;
+  overflow: visible;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 2px 2px rgb(6 12 26 / 30%))
+    drop-shadow(0 0 4px var(--frame-glow));
+}
+.avatar-frame.has-mascot .avatar-frame-core {
+  position: absolute;
+  z-index: 4;
+  top: 62.9%;
+  left: 50%;
+  width: 55%;
+  height: 55%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(160deg, #2b4777, #111b31 72%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 32%),
+    0 1px 3px rgb(6 12 26 / 35%);
+}
+/* Ornaments sit over the ring box, so the head can peek out behind them. */
+.avatar-frame-motif {
+  position: absolute;
+  z-index: 5;
+  top: 25.9%;
+  left: 13%;
+  width: 74%;
+  height: 74%;
+  overflow: visible;
+  pointer-events: none;
+}
+.avatar-frame-particles {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.frame-particle {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.frame-particle.is-ember {
+  border-radius: 50%;
+  background: var(--particle-color);
+  box-shadow: 0 0 8px var(--particle-color);
+  animation-name: frame-rise;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.frame-particle.is-star {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  background: var(--particle-color);
+  filter: drop-shadow(0 0 3px var(--particle-color));
+  animation-name: frame-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.frame-particle.is-petal {
+  border-radius: 60% 40% 62% 38%;
+  background: var(--particle-color);
+  box-shadow: 0 0 4px var(--particle-color);
+  animation-name: frame-fall;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.frame-particle.is-bubble {
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / 90%), var(--particle-color) 68%);
+  animation-name: frame-rise;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.frame-particle.is-shard {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  background: linear-gradient(160deg, #ffffff, var(--particle-color));
+  filter: drop-shadow(0 0 4px var(--particle-color));
+  animation-name: frame-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.frame-particle.is-bolt {
+  clip-path: polygon(56% 0%, 24% 55%, 48% 55%, 38% 100%, 78% 42%, 53% 42%);
+  background: var(--particle-color);
+  filter: drop-shadow(0 0 4px var(--particle-color));
+  animation-name: frame-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+/* Motion is reserved for motifs where it reads as part of the material. */
+.avatar-frame[data-motif="crystal"] .avatar-frame-ring,
+.avatar-frame[data-motif="stars"] .avatar-frame-ring { animation: frame-spin 24s linear infinite; }
+.avatar-frame[data-motif="neon"] .avatar-frame-ring { animation: frame-pulse 2.8s ease-in-out infinite; }
+.avatar-frame[data-motif="ocean"] .avatar-frame-ring { animation: frame-bob 4.5s ease-in-out infinite; }
+.avatar-frame[data-motif="dragon"] .avatar-frame-ring { animation: frame-pulse 3.6s ease-in-out infinite; }
+@keyframes frame-rise {
+  0% { transform: translateY(4px) scale(0.8); opacity: 0; }
+  25% { opacity: 0.9; }
+  100% { transform: translateY(-14px) scale(1.1); opacity: 0; }
+}
+@keyframes frame-fall {
+  0% { transform: translateY(-8px) rotate(0deg); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translateY(16px) rotate(160deg); opacity: 0; }
+}
+@keyframes frame-twinkle {
+  0%, 100% { opacity: 0.22; transform: scale(0.75); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes frame-spin { to { transform: rotate(360deg); } }
+@keyframes frame-pulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 3px var(--frame-glow)); }
+  50% { transform: scale(1.025); filter: drop-shadow(0 0 9px var(--frame-glow)); }
+}
+@keyframes frame-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes frame-aura {
+  0%, 100% { opacity: 0.32; transform: translate(-50%, -50%) scale(0.96); }
+  50% { opacity: 0.55; transform: translate(-50%, -50%) scale(1.05); }
 }
 .avatar-frame-core {
   display: grid;
@@ -334,58 +496,9 @@
   text-overflow: ellipsis;
 }
 .nameplate.is-dense { padding: 1px 9px; font-size: 12.5px; }
-
-/* ---- profile wallet card ------------------------------------------------- */
-/* Balance + level + XP live inside the identity banner now, tucked to its
-   right edge. Two short rows: amount/level, then a wide meter with its hint,
-   so the card reads as one compact instrument rather than a second panel. */
-.profile-wallet-card {
-  display: grid;
-  flex: 0 1 340px;
-  gap: 8px;
-  min-width: 0;
-  margin: 0 0 0 auto;
-  padding: 11px 14px;
-  border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--paper) 86%, transparent);
-  text-align: left;
-  transition: background 160ms ease, border-color 160ms ease;
-}
-.profile-wallet-card.is-clickable { cursor: pointer; }
-.profile-wallet-card.is-clickable:hover {
-  border-color: var(--brand-500);
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
-}
-.profile-wallet-card:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
-.profile-wallet-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.profile-wallet-amount { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
-.profile-wallet-amount strong {
-  font-family: "Fraunces Variable", Georgia, serif;
-  font-size: 20px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.profile-wallet-amount > span { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
-.profile-wallet-coin {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--brand-500);
-}
-.profile-wallet-level { color: var(--ink); font-size: 11.5px; font-weight: 800; white-space: nowrap; }
-.profile-wallet-progress {
-  display: grid;
-  grid-template-columns: minmax(48px, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-.profile-wallet-meter { display: block; height: 4px; border-radius: 99px; background: var(--brand-100); overflow: hidden; }
-.profile-wallet-meter > span { display: block; height: 100%; border-radius: 99px; background: var(--brand-600); transition: width 320ms ease; }
-.profile-wallet-hint { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; }
+/* The "Bạn" tag follows a bare text node, so flex `gap` has nothing to space
+   it from; a margin keeps the name from running into the tag. */
+.nameplate em { margin-left: 5px; font-style: normal; }
 
 /* ---- arena duel reward --------------------------------------------------- */
 .arena-reward {
@@ -404,23 +517,9 @@
 .arena-reward-note { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; font-weight: 600; }
 
 /* ---- ranking league tabs ------------------------------------------------- */
-.rank-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .rank-season { display: grid; gap: 4px; justify-items: end; text-align: right; }
 .rank-season strong { font-size: 16px; font-weight: 800; }
 .rank-season-rp { color: var(--muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.rank-tabs { display: flex; gap: 6px; margin: 0 0 18px; border-bottom: 1px solid var(--line); }
-.rank-tab {
-  padding: 11px 16px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-}
-.rank-tab:hover { color: var(--ink); }
-.rank-tab.is-active { color: var(--brand-800); border-bottom-color: var(--brand-600); }
 .rank-tier { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
 
 /* ---- responsive ---------------------------------------------------------- */
@@ -488,7 +587,7 @@
 .arena-duel-seat .nameplate { max-width: 100%; }
 .arena-duel-score {
   color: var(--ink);
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: clamp(38px, 5vw, 54px);
   font-weight: 500;
   line-height: 1;
@@ -557,7 +656,7 @@
 .arena-payout-cell.is-xp .arena-payout-icon { background: var(--brand-100); color: var(--ok-600); }
 .arena-payout-cell.is-rp .arena-payout-icon { background: var(--paper-muted); color: var(--accent-600); }
 .arena-payout-cell strong {
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 28px;
   font-weight: 500;
   line-height: 1;

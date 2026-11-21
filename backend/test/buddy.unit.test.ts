@@ -27,6 +27,9 @@ function stats(overrides: Partial<StudyStats> = {}): StudyStats {
     badges: 0,
     xp: 900,
     streak: 7,
+    reviewDue: 0,
+    reviewTotal: 0,
+    reviewWords: 0,
     ownedVideos: 0,
     ownedVideoTitles: [],
     ...overrides,
@@ -88,6 +91,22 @@ test('a long gap produces a comeback nudge that names the gap', () => {
   const comeback = nudges.find((nudge) => nudge.kind === 'comeback');
   assert.ok(comeback);
   assert.match(comeback.title, /5 ngày/);
+});
+
+test('due review items produce one plain nudge, with no counts', () => {
+  const withDue = stats({ reviewDue: 6, reviewTotal: 9, reviewWords: 4 });
+  const nudges = buildNudges(withDue, [], new Date('2026-11-07T11:00:00.000Z'), now);
+  const due = nudges.find((nudge) => nudge.kind === 'review-due');
+  assert.ok(due, 'a learner with due items must be told about them');
+  assert.equal(due.action.target.tab, 'profile', 'the nudge lands on the profile, not a removed tab');
+  assert.equal(due.title, 'Có bài ôn tập');
+  // No numbers in the copy: the nudge is a door, the session holds the count.
+  assert.doesNotMatch(due.title, /\d/);
+  assert.doesNotMatch(due.body, /\d/);
+
+  // Nothing due means no nudge at all, so the badge never cries wolf.
+  const clean = buildNudges(stats({ reviewDue: 0 }), [], new Date('2026-11-07T11:00:00.000Z'), now);
+  assert.equal(clean.some((nudge) => nudge.kind === 'review-due'), false);
 });
 
 test('the greeting changes with the learner state', () => {

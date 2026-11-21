@@ -12,7 +12,7 @@ export type AiChatTopic =
   | 'STUDY_COACH'
 
 export type ChatIntent = 'chat' | 'plan' | 'explain' | 'how' | 'practice'
-export type ChatTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile' | 'admin'
+export type ChatTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile' | 'admin'
 
 export interface ChatContext {
   tab: ChatTab

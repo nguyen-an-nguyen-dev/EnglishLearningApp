@@ -555,6 +555,191 @@
   font-weight: 600;
 }
 
+/* --- Catalogue panels (shop / arena / video vocabulary) ----------------- */
+
+.admin-shop-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-shop-search {
+  min-width: 210px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--admin-radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.admin-shop-search:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 24%, transparent);
+}
+
+.admin-shop-thumb {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper-muted);
+  overflow: hidden;
+}
+
+.admin-shop-thumb .car-side-preview,
+.admin-shop-thumb .cosmetic-preview-frame,
+.admin-shop-thumb .cosmetic-preview-plate {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.admin-shop-booster {
+  padding: 4px 6px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.admin-shop-plate {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper-muted);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.admin-row.is-inactive { opacity: 0.58; }
+
+.admin-status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.admin-status-dot.is-on { background: #2e9b5f; }
+
+.admin-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-check input { width: 16px; height: 16px; accent-color: var(--brand-600); }
+
+.admin-arena-translation { color: var(--muted); font-weight: 600; }
+
+.admin-arena-example {
+  display: grid;
+  gap: 1px;
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.admin-arena-example small { color: var(--muted); font-size: 11px; }
+
+.admin-user-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.admin-user-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.admin-user-summary {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper-muted);
+}
+
+.admin-user-summary strong { color: var(--ink); font-size: 13.5px; }
+.admin-user-summary span { color: var(--ink-soft); font-size: 12px; }
+.admin-user-summary small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+.admin-vocab-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.admin-vocab-form {
+  padding-right: 20px;
+  border-right: 1px solid var(--line);
+}
+
+.admin-vocab-list-wrap { min-width: 0; }
+
+.admin-vocab-list {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.admin-vocab-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.admin-vocab-list li + li { border-top: 1px solid var(--line); }
+.admin-vocab-list li.is-editing { background: color-mix(in srgb, var(--brand-500) 8%, transparent); }
+.admin-vocab-list li > div:first-child { display: grid; min-width: 0; flex: 1 1 auto; }
+.admin-vocab-list strong { color: var(--ink); font-size: 12.5px; }
+.admin-vocab-list small { color: var(--muted); font-size: 11px; }
+.admin-vocab-list p { margin: 2px 0 0; color: var(--ink-soft); font-size: 11.5px; line-height: 1.45; }
+
+@media (max-width: 860px) {
+  .admin-vocab-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-vocab-form { padding-right: 0; border-right: 0; }
+  .admin-shop-toolbar-actions { width: 100%; justify-content: flex-start; }
+  .admin-shop-search { flex: 1 1 180px; min-width: 0; }
+}
+
 /* --- Form fields -------------------------------------------------------- */
 
 .admin-form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

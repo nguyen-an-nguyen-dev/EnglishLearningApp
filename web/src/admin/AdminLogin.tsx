@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { CircleNotch, EnvelopeSimple, Eye, EyeSlash, LockKey } from '@phosphor-icons/react'
+import { CircleNotch, EnvelopeSimple, Eye, EyeSlash, Lightning, LockKey } from '@phosphor-icons/react'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../i18n'
-import { authStorage } from '../services/authService'
+import { authStorage } from '../services/authStorage'
 import { validateLogin } from '../utils/validation'
+import logoUrl from '../assets/logo.png'
 
 export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useI18n()
@@ -39,11 +40,29 @@ export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
     }
   }
 
+  async function handleQuickLogin() {
+    setError(null)
+    setBusy(true)
+    try {
+      await login({ email: 'admin@engorace.demo', password: 'Engorace@2026' })
+      const cached = authStorage.getUser()
+      if (cached && cached.role !== 'admin') {
+        setError(t.consoleNoAccessDesc)
+        return
+      }
+      onSuccess()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t.adminSaveError)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="admin-login">
       <div className="admin-login-card" role="dialog" aria-label={t.consoleLoginTitle}>
         <div className="admin-login-head">
-          <img src="/logo.png" alt="Engorace" />
+          <img src={logoUrl} alt="Engorace" />
           <h1>{t.consoleLoginTitle}</h1>
           <p>{t.consoleLoginDesc}</p>
         </div>
@@ -102,8 +121,17 @@ export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
                 <span>{t.consoleLoginTitle}</span>
               )}
             </button>
+            <button
+              type="button"
+              className="admin-btn is-quiet"
+              onClick={() => void handleQuickLogin()}
+              disabled={busy}
+              style={{ justifyContent: 'center' }}
+            >
+              <Lightning size={15} weight="fill" />
+              <span>Đăng nhập nhanh (demo)</span>
+            </button>
           </form>
-          <div className="admin-login-hint">Tài khoản demo: test@test.com · 123456</div>
         </div>
       </div>
     </div>

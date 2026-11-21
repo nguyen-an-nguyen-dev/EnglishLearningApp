@@ -23,6 +23,7 @@ const TIER_LABEL: Record<string, string> = {
 // ─── Wallet ──────────────────────────────────────────────────────────────────
 
 export async function getWallet(userId: number): Promise<Wallet> {
+  await repo.ensureStreakState(userId);
   const seasonId = await repo.ensureCurrentSeason();
   const [balance, racePoints, season, equipment, ownedCount, boosterRows] = await Promise.all([
     repo.getBalance(userId),
@@ -35,6 +36,7 @@ export async function getWallet(userId: number): Promise<Wallet> {
   if (!balance) throw new HttpError(401, 'Invalid authentication token.');
 
   const progress = levelProgress(Number(balance.xp));
+  const streakLostAt = balance.streak_lost_at ? new Date(balance.streak_lost_at) : null;
   return {
     coins: Number(balance.coins),
     xp: Number(balance.xp),
@@ -48,8 +50,17 @@ export async function getWallet(userId: number): Promise<Wallet> {
       progress_ratio: progress.progressRatio,
     },
     streak: Number(balance.streak),
+    streak_lost: Number(balance.streak_lost ?? 0),
+    streak_lost_at: balance.streak_lost_at ? new Date(balance.streak_lost_at).toISOString() : null,
+    streak_lost_recent: Number(balance.streak_lost ?? 0) > 0 && streakLostAt !== null
+      && Date.now() - streakLostAt.getTime() < 7 * 24 * 60 * 60 * 1000,
+    last_activity_days_ago: balance.last_activity_days_ago === null
+      ? null
+      : Number(balance.last_activity_days_ago),
     race_points: racePoints,
-    tier: repo.tierForPoints(racePoints),
+    // The tier is a persistent rank carried across seasons; weekly RP only
+    // decides movement inside the league, never the tier itself.
+    tier: balance.league_tier ?? 'bronze',
     season_code: season?.code ?? null,
     equipment,
     owned_count: ownedCount,
@@ -86,16 +97,15 @@ interface UnlockContext {
 }
 
 async function loadUnlockContext(userId: number, xp: number): Promise<UnlockContext> {
-  const seasonId = await repo.ensureCurrentSeason();
-  const [completedStages, badgeCodes, racePoints] = await Promise.all([
+  const [completedStages, badgeCodes, tier] = await Promise.all([
     repo.countCompletedStages(userId),
     repo.getUserBadgeCodes(userId),
-    repo.getRacePoints(seasonId, userId),
+    repo.getLeagueTier(pool, userId),
   ]);
   return {
     level: levelForXp(xp),
     completedStages,
-    tier: repo.tierForPoints(racePoints),
+    tier,
     badgeCodes,
   };
 }
@@ -210,8 +220,19 @@ export async function purchaseItem(userId: number, itemId: number): Promise<{ it
  * that is the whole point of a consumable.
  */
 async function purchaseBooster(userId: number, item: ShopItemRow): Promise<{ item: ShopItem; coins: number }> {
-  const spec = BOOSTER_SPECS[item.code];
-  if (!spec) throw new HttpError(422, 'This consumable is not configured.', ['UNKNOWN_BOOSTER']);
+  // Behaviour is read from the catalogue row so an admin can add a consumable
+  // without touching BOOSTER_SPECS. The old map stays as a fallback for rows
+  // created before the booster columns existed.
+  const legacy = BOOSTER_SPECS[item.code];
+  const kind = item.booster_kind ?? legacy?.kind;
+  if (!kind) throw new HttpError(422, 'This consumable is not configured.', ['UNKNOWN_BOOSTER']);
+  const charges = item.booster_kind ? Number(item.booster_charges) : legacy?.charges ?? 0;
+  const durationMs = item.booster_kind
+    ? Number(item.booster_duration_minutes) * 60_000
+    : legacy?.durationMs ?? 0;
+  if (charges <= 0 && durationMs <= 0) {
+    throw new HttpError(422, 'This consumable has no effect configured.', ['UNKNOWN_BOOSTER']);
+  }
 
   const connection = await pool.getConnection();
   try {
@@ -226,7 +247,7 @@ async function purchaseBooster(userId: number, item: ShopItemRow): Promise<{ ite
     }
 
     await connection.execute('UPDATE users SET coins = coins - ? WHERE id = ?', [item.price, userId]);
-    await repo.addBoosterInTx(connection, userId, item.id, spec.kind, spec.charges, spec.durationMs);
+    await repo.addBoosterInTx(connection, userId, item.id, kind, charges, durationMs);
 
     const bonus = BOOSTER_BONUS[item.code];
     if (bonus) {
@@ -287,6 +308,7 @@ export async function unequipSlot(userId: number, slot: string): Promise<ShopIte
 // ─── Quests ──────────────────────────────────────────────────────────────────
 
 export async function getRewards(userId: number): Promise<{ streak: number; daily: QuestView[]; weekly: QuestView[] }> {
+  await repo.ensureStreakState(userId);
   const balance = await repo.getBalance(userId);
   if (!balance) throw new HttpError(401, 'Invalid authentication token.');
   const [dailyRows, weeklyRows] = await Promise.all([
@@ -382,11 +404,12 @@ export async function claimQuest(userId: number, code: string): Promise<{ quest:
 
 export async function getLeague(userId: number): Promise<LeagueView> {
   const seasonId = await repo.ensureCurrentSeason();
+  const leagueTier = await repo.getLeagueTier(pool, userId);
   const [season, racePoints, board, myRank, payout] = await Promise.all([
     repo.getSeasonRow(seasonId),
     repo.getRacePoints(seasonId, userId),
-    repo.getLeagueBoard(seasonId),
-    repo.getMyLeagueRank(seasonId, userId),
+    repo.getLeagueBoard(seasonId, leagueTier),
+    repo.getMyLeagueRank(seasonId, userId, leagueTier),
     repo.getLastPayout(userId),
   ]);
 
@@ -410,7 +433,7 @@ export async function getLeague(userId: number): Promise<LeagueView> {
           ends_in_ms: Math.max(0, new Date(season.ends_at).getTime() - Date.now()),
         }
       : null,
-    tier: repo.tierForPoints(racePoints),
+    tier: leagueTier,
     race_points: racePoints,
     standings,
     // A learner with no race points yet has no meaningful position; showing

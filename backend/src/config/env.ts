@@ -8,6 +8,12 @@ function getPort(value: string | undefined, fallback: number): number {
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback;
 }
 
+function getInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function splitList(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw
@@ -65,8 +71,29 @@ export const env = {
   aiDecisionTimeoutMs: getPort(process.env.AI_DECISION_TIMEOUT_MS, 8000),
   cfAccounts: cloudflareAccounts(),
   cfModel: process.env.CF_MODEL || '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+  // Speech-to-text used when the browser's Web Speech API cannot reach its
+  // service (Chrome fires a "network" error). Workers AI Whisper first, then
+  // Gemini's audio input as the fallback.
+  speechWhisperModel: process.env.SPEECH_WHISPER_MODEL || '@cf/openai/whisper-large-v3-turbo',
+  speechTimeoutMs: getPort(process.env.SPEECH_TIMEOUT_MS, 25000),
+  // express.raw limit for one recorded clip, in bytes (default 4 MiB).
+  speechMaxBytes: getInt(process.env.SPEECH_MAX_BYTES, 4 * 1024 * 1024),
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   facebookAppId: process.env.FACEBOOK_APP_ID || '',
+  facebookAppSecret: process.env.FACEBOOK_APP_SECRET || '',
+  // Transactional mail for the web registration OTP. SMTP is optional in
+  // development: `otpDebug` logs the code and echoes it to the caller instead.
+  smtpHost: (process.env.SMTP_HOST || '').trim(),
+  smtpPort: getPort(process.env.SMTP_PORT, 587),
+  smtpSecure: (process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+  smtpUser: (process.env.SMTP_USER || '').trim(),
+  smtpPass: process.env.SMTP_PASS || '',
+  mailFrom: (process.env.MAIL_FROM || 'Engorace <no-reply@engorace.local>').trim(),
+  otpExpiryMinutes: getInt(process.env.OTP_EXPIRY_MINUTES, 10),
+  otpResendSeconds: getInt(process.env.OTP_RESEND_SECONDS, 60),
+  otpMaxAttempts: getInt(process.env.OTP_MAX_ATTEMPTS, 6),
+  otpDebug: (process.env.OTP_DEBUG
+    ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true')).toLowerCase() === 'true',
   supabaseUrl: (process.env.SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''),
   supabaseBucket: process.env.SUPABASE_BUCKET || '',
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || '',

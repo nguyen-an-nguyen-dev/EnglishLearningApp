@@ -27,7 +27,8 @@ function parseRawAction(value: unknown): ChatAction | null {
     Number.isSafeInteger(input) && Number(input) > 0 ? Number(input) : undefined;
   const tab = typeof value.tab === 'string' && CHAT_TABS.includes(value.tab as ChatTab)
     ? value.tab as ChatTab
-    : undefined;
+    // Review lives inside the profile, so the action still needs a real tab.
+    : value.kind === 'open_review' ? 'profile' : undefined;
   return {
     kind: value.kind as ChatActionKind,
     label: typeof value.label === 'string' ? value.label.trim().slice(0, 60) : '',

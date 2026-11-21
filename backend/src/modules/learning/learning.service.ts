@@ -1,5 +1,6 @@
 import { HttpError } from '../../middleware/error-handler';
 import { env } from '../../config/env';
+import { enqueue as enqueueReviewItem } from '../analytics/review.repository';
 import * as repo from './learning.repository';
 import * as gamificationRepo from '../gamification/gamification.repository';
 import { levelForXp } from '../gamification/gamification.levels';
@@ -389,7 +390,15 @@ export async function checkLessonAnswer(
   const isCorrect = isAnswerCorrect(question, submitted, answerRows);
   const correctAnswer = answerRows.find((answer) => answer.is_correct === true || answer.is_correct === 1);
 
-  await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect);
+  await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect, input.responseMs ?? null);
+
+  // A missed question joins the review queue right away. The queue is the
+  // learner's own practice space; the roadmap itself is never touched.
+  if (!isCorrect) {
+    await enqueueReviewItem(userId, 'question', questionId, 'mistake').catch(() => {
+      /* review scheduling must never fail the answer check */
+    });
+  }
 
   return {
     is_correct: isCorrect,

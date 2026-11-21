@@ -1,4 +1,4 @@
-import { authStorage } from './authService'
+import { authStorage } from './authStorage'
 
 interface ApiEnvelope<T> {
   success: boolean

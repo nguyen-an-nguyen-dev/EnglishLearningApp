@@ -43,7 +43,6 @@ import { LoadingDots } from '../LoadingDots'
 type DuelScreen = 'lobby' | 'queue' | 'match' | 'result'
 type DuelConnection = { mode: 'queue' | 'resume'; matchId?: number; nonce: number }
 
-const DUEL_ROUNDS = 8
 const DUEL_SECONDS = 25
 
 /** Where a score puts its car on the lane, kept clear of both end caps. */
@@ -519,10 +518,15 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             <AvatarFrame
               name={player?.name ?? t.arenaYou}
               visualKey={wallet?.equipment.frame?.visual_key ?? null}
+              style={wallet?.equipment.frame?.style ?? null}
               size={44}
             />
             <div className="arena-side-copy">
-              <Nameplate visualKey={wallet?.equipment.nameplate?.visual_key ?? null} dense>
+              <Nameplate
+                visualKey={wallet?.equipment.nameplate?.visual_key ?? null}
+                style={wallet?.equipment.nameplate?.style ?? null}
+                dense
+              >
                 {player?.name ?? t.arenaYou}
               </Nameplate>
               <strong className="arena-side-score">{scoreFor(currentUserId)}</strong>
@@ -673,6 +677,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
               <AvatarFrame
                 name={myName}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
+              style={wallet?.equipment.frame?.style ?? null}
                 size={64}
               />
               <div className="arena-v2-seat-copy">
@@ -699,7 +704,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
           {/* Each car sits where its score put it on the track. */}
           <div className="arena-v2-lane" aria-hidden="true">
             <span className="arena-v2-car" style={{ left: `${lanePercent(myScore, best)}%` }}>
-              <CarBadge visualKey={wallet?.equipment.car?.visual_key ?? null} size={40} />
+              <CarBadge visualKey={wallet?.equipment.car?.visual_key ?? null} style={wallet?.equipment.car?.style ?? null} size={40} />
             </span>
             <span className="arena-v2-finish" />
           </div>
@@ -764,7 +769,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                     className={entry.won ? '' : 'is-loss'}
                     title={`${entry.won ? 'Thắng' : 'Thua'} · ${entry.opponent_name}`}
                   >
-                    {entry.won ? 'T' : 'B'}
+                    {entry.won ? t.arenaWinShort : t.arenaLossShort}
                   </i>
                 ))}
               </div>
@@ -841,30 +846,23 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             <h2>{t.arenaDuelTitle}</h2>
             <p>{t.arenaDuelDesc}</p>
 
-            <div className="arena-v2-info">
-              <span>{t.arenaLiveQueue}</span>
-              <span>{t.arenaSecondsEach(DUEL_SECONDS)}</span>
-              <span>{t.arenaRounds(DUEL_ROUNDS)}</span>
-            </div>
-
             <div className="arena-v2-history" role="group" aria-label={t.arenaRecentMatches}>
               <span className="arena-v2-history-title">{t.arenaRecentMatches}</span>
-              {recent.length === 0 ? (
-                <span className="arena-v2-history-empty">{t.arenaNoRecentMatches}</span>
-              ) : (
-                <ol>
-                  {recent.slice(0, 8).map((entry) => (
-                    <li
-                      key={entry.match_id}
-                      className={entry.won ? 'is-win' : 'is-loss'}
-                      title={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
-                      aria-label={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
-                    >
-                      {entry.won ? t.arenaWinShort : t.arenaLossShort}
-                    </li>
-                  ))}
-                </ol>
-              )}
+              <ol>
+                {recent.slice(0, 10).map((entry) => (
+                  <li
+                    key={entry.match_id}
+                    className={entry.won ? 'is-win' : 'is-loss'}
+                    title={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
+                    aria-label={`${entry.won ? t.arenaMatchWin : t.arenaMatchLose} · ${entry.opponent_name}`}
+                  >
+                    {entry.won ? t.arenaWinShort : t.arenaLossShort}
+                  </li>
+                ))}
+                {Array.from({ length: Math.max(0, 10 - recent.length) }, (_, index) => (
+                  <li key={`empty-${index}`} className="is-placeholder" aria-hidden="true" />
+                ))}
+              </ol>
             </div>
 
             {error && <p className="arena-error">{error}</p>}
@@ -878,6 +876,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                   <AvatarFrame
                     name={user?.name ?? null}
                     visualKey={wallet?.equipment.frame?.visual_key ?? null}
+              style={wallet?.equipment.frame?.style ?? null}
                     size={92}
                   />
                   <strong>{user?.name ?? t.arenaYou}</strong>

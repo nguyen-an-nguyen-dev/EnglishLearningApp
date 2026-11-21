@@ -16,7 +16,7 @@ export type AiTopic = (typeof AI_TOPICS)[number];
 export const CHAT_INTENTS = ['chat', 'plan', 'explain', 'how', 'practice'] as const;
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
-export const CHAT_TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile', 'admin'] as const;
+export const CHAT_TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile', 'admin'] as const;
 export type ChatTab = (typeof CHAT_TABS)[number];
 
 /** Untrusted page context sent by the web. Never interpolated into SQL. */
@@ -59,7 +59,7 @@ export interface AiReply {
 }
 
 /** A deep-link the buddy offers so the learner can jump straight there. */
-export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook'] as const;
+export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review'] as const;
 export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];
 
 export interface ChatAction {
@@ -108,6 +108,10 @@ export interface StudySnapshot {
   battlesPlayed: number;
   battleWins: number;
   badges: number;
+  /** Spaced-repetition items already due, so the plan can put recall first. */
+  reviewDue: number;
+  reviewTotal: number;
+  reviewWords: number;
 }
 
 export interface StudyPlan {

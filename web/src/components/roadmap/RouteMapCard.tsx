@@ -29,6 +29,7 @@ interface RouteMapCardProps {
   fullBleed?: boolean
   /** `visual_key` of the equipped car skin; omitted falls back to the classic car. */
   carKey?: string | null
+  carStyle?: Record<string, string | null> | null
 }
 
 interface ScenePalette extends StageVisual {
@@ -1352,6 +1353,7 @@ export const RouteMapCard = memo(function RouteMapCard({
   className,
   fullBleed = false,
   carKey,
+  carStyle,
 }: RouteMapCardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const clipId = `roadmap-clip-${uid}`
@@ -1647,7 +1649,7 @@ export const RouteMapCard = memo(function RouteMapCard({
               className="roadmap-car"
               aria-hidden="true"
             >
-              <CarArt glowId={carGlowId} visualKey={carKey} />
+              <CarArt glowId={carGlowId} visualKey={carKey} style={carStyle} />
             </g>
           )}
         </g>

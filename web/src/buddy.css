@@ -1,10 +1,10 @@
 /* ==========================================================================
-   EN BUDDY — companion, not a chatbot.
+   EN BUDDY — now a voice, not a bubble in the corner.
 
-   The car still carries the brand: it sits in the corner, speaks one short line
-   at a time, and opens a small panel of *specific* reminders built from the
-   learner's own rows. There is no thread, no tab strip and no composer bar
-   pretending to be a messenger: one question in, one answer out.
+   One round microphone sits in the middle of the bottom edge. Tap it and speak
+   what you want to do; a plain destination ("mở bảng xếp hạng") opens at once,
+   anything else is answered in a short panel that floats above the orb. There is
+   no thread, no tab strip and no composer bar pretending to be a messenger.
 
    Rules kept from index.css: one border per block, left-aligned text, icons
    without boxes, brand cyan only for actions, amber only for rewards.
@@ -18,114 +18,190 @@
   --buddy-slow: 420ms;
 }
 
-/* --- The car in the corner ------------------------------------------------ */
-
-.buddy-dock {
-  position: fixed;
-  z-index: 40;
-  right: 20px;
-  bottom: 20px;
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  padding: 0;
-  /* Just the car: no chip, no circle, no plate behind it. */
-  border: 0;
-  background: none;
-  box-shadow: none;
-  cursor: pointer;
-  transition: transform var(--buddy-mid) var(--buddy-ease);
-}
-
-.buddy-dock:hover { transform: translateY(-3px) scale(1.04); }
-.buddy-dock:active { transform: translateY(0) scale(0.97); }
-/* The hit area is invisible, so the ring has to carry the focus state. */
-.buddy-dock:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 4px; border-radius: 14px; }
-
-.buddy-dock-car {
-  /* The badge keeps the roadmap car's tall aspect ratio, so size by height. */
-  width: auto;
-  height: 52px;
-  filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--ink) 26%, transparent));
-}
-
-@keyframes buddy-idle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-3px) rotate(-1.5deg); }
-}
-
-/* A reminder is waiting: the car says so without a red badge. */
-.buddy-dock-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--brand-500);
-  box-shadow: 0 0 0 3px var(--paper);
-}
-
-/* --- The one line the car says -------------------------------------------- */
-
-.buddy-nudge-bubble {
-  position: fixed;
-  z-index: 39;
-  right: 92px;
-  bottom: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: min(300px, calc(100vw - 130px));
-  padding: 9px 13px;
-  border: 1px solid var(--line);
-  border-radius: 14px 14px 4px 14px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 650;
-  line-height: 1.45;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: 0 12px 26px -20px color-mix(in srgb, var(--ink) 55%, transparent);
-  animation: buddy-bubble-in var(--buddy-mid) var(--buddy-ease);
-}
-
-.buddy-nudge-bubble:hover { border-color: var(--brand-400); }
-.buddy-nudge-bubble:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
-
 @keyframes buddy-bubble-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 
-/* --- Panel ---------------------------------------------------------------- */
+/* --- The voice, centred on the bottom edge -------------------------------- */
 
-.buddy-panel {
+.voice-dock {
   position: fixed;
-  z-index: 41;
-  right: 20px;
-  bottom: 96px;
+  z-index: 40;
+  left: 50%;
+  bottom: 22px;
   display: flex;
   flex-direction: column;
-  width: min(392px, calc(100vw - 32px));
-  max-height: min(72dvh, 620px);
+  align-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  /* Only the controls take clicks; the caption below must not block the page. */
+  pointer-events: none;
+}
+
+.voice-dock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.voice-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  transition: transform var(--buddy-mid) var(--buddy-ease);
+}
+
+.voice-orb:hover { transform: translateY(-2px) scale(1.04); }
+.voice-orb:active { transform: translateY(0) scale(0.97); }
+.voice-orb:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 5px; }
+
+.voice-orb-core {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
+  background: var(--action-bg);
+  color: var(--action-fg);
+  box-shadow:
+    0 14px 26px -14px color-mix(in srgb, var(--ink) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+  transition: background var(--buddy-fast) var(--buddy-ease);
+}
+
+.voice-orb:hover .voice-orb-core { background: var(--action-hover); }
+
+/* The halo is the listening ring: it breathes while the mic is open. */
+.voice-orb-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-500) 26%, transparent);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity var(--buddy-fast) var(--buddy-ease);
+}
+
+@keyframes voice-listening {
+  0%, 100% { opacity: 0.45; transform: scale(0.94); }
+  50% { opacity: 0.9; transform: scale(1.16); }
+}
+
+.voice-orb.is-listening .voice-orb-halo {
+  opacity: 0.9;
+  animation: voice-listening 1.6s var(--buddy-soft) infinite;
+}
+
+.voice-orb.is-thinking .voice-orb-core {
+  background: color-mix(in srgb, var(--ink) 78%, var(--paper));
+}
+
+/* Open, the orb is a quiet close button: the panel already carries the accent. */
+.voice-orb.is-open .voice-orb-core {
+  background: color-mix(in srgb, var(--ink) 10%, var(--paper));
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.voice-orb-dot {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 6px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--paper);
+}
+
+/* Two quiet satellites: mute, and the written panel. */
+.voice-side-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: color var(--buddy-fast) var(--buddy-ease), border-color var(--buddy-fast) var(--buddy-ease);
+}
+
+.voice-side-btn:hover { color: var(--ink); border-color: var(--line-strong); }
+.voice-side-btn:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+
+.voice-dock-hint {
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The live transcript floats above the orb, so the learner sees what was heard. */
+.voice-caption {
+  max-width: min(420px, calc(100vw - 48px));
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--ink) 60%, transparent);
+  animation: buddy-bubble-in var(--buddy-mid) var(--buddy-ease);
+  pointer-events: none;
+}
+
+/* --- Panel ---------------------------------------------------------------- */
+
+.voice-panel {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 108px;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(68dvh, 560px);
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
   box-shadow: 0 34px 60px -34px color-mix(in srgb, var(--ink) 60%, transparent);
   overflow: hidden;
-  animation: buddy-panel-in var(--buddy-mid) var(--buddy-ease);
+  transform: translateX(-50%);
+  animation: voice-panel-in var(--buddy-mid) var(--buddy-ease);
 }
 
-@keyframes buddy-panel-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.99); }
-  to { opacity: 1; transform: none; }
+@keyframes voice-panel-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-.buddy-panel-head {
+.voice-panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -134,10 +210,7 @@
   border-bottom: 1px solid var(--line);
 }
 
-.buddy-panel-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.buddy-panel-car { width: auto; height: 40px; flex: none; }
-
-.buddy-panel-identity strong {
+.voice-panel-head strong {
   display: block;
   color: var(--ink);
   font-size: 13.5px;
@@ -145,7 +218,7 @@
   letter-spacing: -0.01em;
 }
 
-.buddy-panel-identity small {
+.voice-panel-head small {
   display: block;
   margin-top: 2px;
   color: var(--muted);
@@ -153,7 +226,7 @@
   line-height: 1.45;
 }
 
-.buddy-panel-body {
+.voice-panel-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -162,6 +235,64 @@
   scrollbar-width: thin;
   min-width: 0;
 }
+
+/* --- Ask ------------------------------------------------------------------ */
+
+.voice-ask-form { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+.voice-ask-form input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.voice-ask-form input:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 24%, transparent);
+}
+
+.voice-mic-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color var(--buddy-fast) var(--buddy-ease), color var(--buddy-fast) var(--buddy-ease);
+}
+
+.voice-mic-btn:hover { border-color: var(--brand-400); color: var(--ink); }
+.voice-mic-btn:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+.voice-mic-btn.is-live {
+  border-color: var(--brand-500);
+  background: color-mix(in srgb, var(--brand-500) 14%, var(--paper));
+  color: var(--brand-800);
+}
+
+/* What the mic currently hears, in the learner's own words. */
+.voice-heard {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-500) 8%, var(--paper));
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.voice-hint-line { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 
 /* --- Reminder / suggestion cards ------------------------------------------ */
 
@@ -477,25 +608,33 @@
 
 /* --- Small screens -------------------------------------------------------- */
 
-@media (max-width: 720px) {
-  .buddy-dock { right: 10px; bottom: 84px; width: 56px; height: 56px; }
-  .buddy-dock-car { height: 46px; width: auto; }
-  .buddy-nudge-bubble { right: 76px; bottom: 96px; max-width: calc(100vw - 100px); font-size: 12px; }
-  .buddy-panel {
-    right: 8px;
+@media (max-width: 960px) {
+  /* The mobile tab bar owns the bottom edge, so the orb sits just above it. */
+  .voice-dock { bottom: 78px; }
+  .voice-panel { bottom: 158px; max-height: min(66dvh, 520px); }
+  .voice-orb { width: 58px; height: 58px; }
+  .voice-orb-core { width: 54px; height: 54px; }
+  .voice-dock-hint { font-size: 11px; }
+}
+
+@media (max-width: 420px) {
+  .voice-panel {
     left: 8px;
-    bottom: 84px;
+    right: 8px;
     width: auto;
-    max-height: min(74dvh, 560px);
+    transform: none;
+    animation-name: buddy-bubble-in;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .buddy-dock-car,
-  .buddy-panel,
-  .buddy-nudge-bubble,
+  .voice-panel,
+  .voice-caption,
+  .voice-orb-halo,
   .buddy-spotlight { animation: none; }
-  .buddy-dock,
+  .voice-orb,
+  .voice-side-btn,
+  .voice-mic-btn,
   .buddy-solid-btn,
   .buddy-ghost-btn,
   .buddy-text-btn,

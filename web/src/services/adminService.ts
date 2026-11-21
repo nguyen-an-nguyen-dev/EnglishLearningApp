@@ -1,15 +1,23 @@
 import { requestApi } from './apiClient'
 import type {
+  AdminBattleWord,
   AdminContentStats,
   AdminDayTrend,
   AdminInactiveUser,
   AdminLessonStat,
   AdminLessonSummary,
+  AdminManagedUser,
+  AdminUserListResult,
+  AdminUserPatchPayload,
   AdminQuestion,
   AdminSharedVideo,
+  AdminShopItem,
   AdminStage,
   AdminStageStat,
   AdminStatsOverview,
+  AdminVideoVocabulary,
+  BattleWordPatchPayload,
+  BattleWordPayload,
   LessonPatchPayload,
   LessonPayload,
   MoveDirection,
@@ -17,8 +25,12 @@ import type {
   QuestionPayload,
   SharedVideoImportResult,
   SharedVideoPatchPayload,
+  ShopItemPatchPayload,
+  ShopItemPayload,
   StagePatchPayload,
   StagePayload,
+  VideoVocabularyPatchPayload,
+  VideoVocabularyPayload,
 } from '../types/admin'
 
 // ─── Content tree ────────────────────────────────────────────────────────────
@@ -171,6 +183,131 @@ export async function moveAdminVideoApi(videoId: number, direction: MoveDirectio
 }
 
 // ─── Statistics ────────────────────────────────────────────────────────────
+
+// ─── Shop catalogue ───────────────────────────────────────────────────────
+
+export async function listAdminShopItemsApi(): Promise<AdminShopItem[]> {
+  const data = await requestApi<{ items: AdminShopItem[] }>('/api/admin/shop-items')
+  return data.items
+}
+
+export async function createAdminShopItemApi(payload: ShopItemPayload): Promise<AdminShopItem> {
+  const data = await requestApi<{ item: AdminShopItem }>('/api/admin/shop-items', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.item
+}
+
+export async function updateAdminShopItemApi(
+  itemId: number,
+  payload: ShopItemPatchPayload,
+): Promise<AdminShopItem> {
+  const data = await requestApi<{ item: AdminShopItem }>(`/api/admin/shop-items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return data.item
+}
+
+export async function deleteAdminShopItemApi(itemId: number): Promise<void> {
+  await requestApi<{ deleted: boolean }>(`/api/admin/shop-items/${itemId}`, { method: 'DELETE' })
+}
+
+// ─── Arena vocabulary ─────────────────────────────────────────────────────
+
+export async function listAdminBattleWordsApi(): Promise<AdminBattleWord[]> {
+  const data = await requestApi<{ words: AdminBattleWord[] }>('/api/admin/battle-words')
+  return data.words
+}
+
+export async function createAdminBattleWordApi(payload: BattleWordPayload): Promise<AdminBattleWord> {
+  const data = await requestApi<{ word: AdminBattleWord }>('/api/admin/battle-words', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.word
+}
+
+export async function updateAdminBattleWordApi(
+  wordId: number,
+  payload: BattleWordPatchPayload,
+): Promise<AdminBattleWord> {
+  const data = await requestApi<{ word: AdminBattleWord }>(`/api/admin/battle-words/${wordId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return data.word
+}
+
+export async function deleteAdminBattleWordApi(wordId: number): Promise<void> {
+  await requestApi<{ deleted: boolean }>(`/api/admin/battle-words/${wordId}`, { method: 'DELETE' })
+}
+
+// ─── Video vocabulary ─────────────────────────────────────────────────────
+
+export async function listAdminVideoVocabularyApi(videoId: number): Promise<AdminVideoVocabulary[]> {
+  const data = await requestApi<{ vocabulary: AdminVideoVocabulary[] }>(
+    `/api/admin/videos/${videoId}/vocabulary`,
+  )
+  return data.vocabulary
+}
+
+export async function createAdminVideoVocabularyApi(
+  videoId: number,
+  payload: VideoVocabularyPayload,
+): Promise<AdminVideoVocabulary> {
+  const data = await requestApi<{ vocabulary: AdminVideoVocabulary }>(
+    `/api/admin/videos/${videoId}/vocabulary`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+  return data.vocabulary
+}
+
+export async function updateAdminVideoVocabularyApi(
+  vocabularyId: number,
+  payload: VideoVocabularyPatchPayload,
+): Promise<AdminVideoVocabulary> {
+  const data = await requestApi<{ vocabulary: AdminVideoVocabulary }>(
+    `/api/admin/video-vocabulary/${vocabularyId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  )
+  return data.vocabulary
+}
+
+export async function deleteAdminVideoVocabularyApi(vocabularyId: number): Promise<void> {
+  await requestApi<{ deleted: boolean }>(
+    `/api/admin/video-vocabulary/${vocabularyId}`,
+    { method: 'DELETE' },
+  )
+}
+
+// ─── User management ─────────────────────────────────────────────────────
+
+export async function listAdminUsersApi(params: {
+  search?: string
+  role?: 'learner' | 'admin' | ''
+  limit?: number
+  offset?: number
+} = {}): Promise<AdminUserListResult> {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.role) query.set('role', params.role)
+  query.set('limit', String(params.limit ?? 100))
+  query.set('offset', String(params.offset ?? 0))
+  return requestApi<AdminUserListResult>(`/api/admin/users?${query.toString()}`)
+}
+
+export async function updateAdminUserApi(
+  userId: number,
+  payload: AdminUserPatchPayload,
+): Promise<AdminManagedUser> {
+  const data = await requestApi<{ user: AdminManagedUser }>(`/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return data.user
+}
 
 export async function getAdminStatsOverviewApi(): Promise<AdminStatsOverview> {
   const data = await requestApi<{ overview: AdminStatsOverview }>('/api/admin/stats/overview')

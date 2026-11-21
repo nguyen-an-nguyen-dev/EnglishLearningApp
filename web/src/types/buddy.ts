@@ -5,6 +5,7 @@ export type NudgeKind =
   | 'streak'
   | 'comeback'
   | 'next-lesson'
+  | 'review-due'
   | 'weak-topic'
   | 'saved-words'
   | 'next-video'
@@ -13,7 +14,7 @@ export type NudgeKind =
 export type NudgeTone = 'calm' | 'push' | 'proud'
 
 export interface BuddyTarget {
-  tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile'
+  tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile'
   lessonId?: number
   videoId?: number
   /** Declared element to circle, e.g. `lesson:12`, `video:9`, `control:notebook`. */
@@ -75,7 +76,7 @@ export interface BuddyAnswer {
   reply: string
   followups: string[]
   action: {
-    kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook'
+    kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review'
     label: string
     tab?: BuddyTarget['tab']
     videoId?: number

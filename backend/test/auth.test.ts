@@ -63,6 +63,7 @@ test('authentication API validates credentials and protects /me with JWT', async
     level: 1,
     streak: 0,
     role: 'learner',
+    has_password: true,
   });
   userId = registered.data.user.id;
 
@@ -149,6 +150,7 @@ test('authentication API validates credentials and protects /me with JWT', async
     level: 1,
     streak: 0,
     role: 'learner',
+    has_password: true,
   });
 });
 

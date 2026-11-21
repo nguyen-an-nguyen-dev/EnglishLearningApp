@@ -3,7 +3,7 @@ import type { BuddyTarget } from './reminders.types';
 
 /** Elements a screen can expose for the buddy to point at. */
 export const HIGHLIGHT_PATTERN = /^(lesson|video|word|tab|control|page):[A-Za-z0-9_-]{1,60}$/;
-const TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'profile'] as const;
+const TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile'] as const;
 
 function asObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

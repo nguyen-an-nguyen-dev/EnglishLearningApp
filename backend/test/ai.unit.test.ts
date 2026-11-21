@@ -181,6 +181,9 @@ test('study plan steps come from real progress, weak topics and unlock order', (
     badges: 1,
     xp: 20,
     streak: 2,
+    reviewDue: 0,
+    reviewTotal: 0,
+    reviewWords: 0,
     ownedVideos: 2,
     ownedVideoTitles: ['Video riêng A', 'Video riêng B'],
   };
@@ -214,6 +217,51 @@ test('study plan steps come from real progress, weak topics and unlock order', (
   assert.equal(buildStudyPlan(finished, { ...stats, completedLessonIds: [1, 2, 3, 4] })[0].kind, 'review');
 });
 
+test('due review items are scheduled ahead of speculative practice', () => {
+  const stats: StudyStats = {
+    totalLessons: 2,
+    completedLessons: 1,
+    completedLessonIds: [1],
+    lessons: [
+      { id: 1, title: 'Bài 1', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 2, title: 'Bài 2', topic: 'Travel', stageTitle: 'Chặng 1' },
+    ],
+    videosTotal: 0,
+    videosCompleted: 0,
+    nextVideo: null,
+    savedWords: 0,
+    translations: 0,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 0,
+    xp: 0,
+    streak: 0,
+    reviewDue: 6,
+    reviewTotal: 11,
+    reviewWords: 4,
+    ownedVideos: 0,
+    ownedVideoTitles: [],
+  };
+  const learner: LearnerContext = {
+    level: 'beginner',
+    completedTopics: ['Intro'],
+    weakTopics: [],
+    recentMistakes: [],
+    previousFeedback: [],
+  };
+
+  const steps = buildStudyPlan(toStudySnapshot(learner, stats), stats);
+  const due = steps.find((step) => step.id === 'review-due');
+  assert.ok(due, 'a learner with due items must be sent to the review queue');
+  assert.equal(due.target.tab, 'profile', 'the step lands on the profile, where the review button lives');
+  assert.equal(steps[0].id, 'next-lesson', 'the roadmap lesson still comes first');
+  assert.equal(steps[1].id, 'review-due', 'due recall outranks optional practice');
+  assert.ok(due.minutes >= 5 && due.minutes <= 15, 'the estimate stays inside a sane range');
+
+  const nothingDue = buildStudyPlan(toStudySnapshot(learner, { ...stats, reviewDue: 0 }), stats);
+  assert.equal(nothingDue.some((step) => step.id === 'review-due'), false);
+});
+
 test('offline coach reply still names the real next lesson and weak topic', () => {
   const stats: StudyStats = {
     totalLessons: 3,
@@ -234,6 +282,9 @@ test('offline coach reply still names the real next lesson and weak topic', () =
     badges: 0,
     xp: 20,
     streak: 0,
+    reviewDue: 0,
+    reviewTotal: 0,
+    reviewWords: 0,
     ownedVideos: 0,
     ownedVideoTitles: [],
   };
@@ -253,6 +304,54 @@ test('offline coach reply still names the real next lesson and weak topic', () =
   assert.match(reply.reply, /Bài 2/);
   assert.deepEqual(reply.feedback, []);
   assert.equal(reply.action?.kind, 'open_lesson', 'offline answer still deep-links to the first step');
+});
+
+test('the offline coach reply names due review items, not just the plan order', () => {
+  const stats: StudyStats = {
+    totalLessons: 2,
+    completedLessons: 1,
+    completedLessonIds: [1],
+    lessons: [
+      { id: 1, title: 'Bài 1', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 2, title: 'Bài 2', topic: 'Travel', stageTitle: 'Chặng 1' },
+    ],
+    videosTotal: 0,
+    videosCompleted: 0,
+    nextVideo: null,
+    savedWords: 0,
+    translations: 0,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 0,
+    xp: 0,
+    streak: 0,
+    reviewDue: 9,
+    reviewTotal: 14,
+    reviewWords: 3,
+    ownedVideos: 0,
+    ownedVideoTitles: [],
+  };
+  const learner: LearnerContext = {
+    level: 'beginner',
+    completedTopics: ['Intro'],
+    weakTopics: [],
+    recentMistakes: [],
+    previousFeedback: [],
+  };
+  const snapshot = toStudySnapshot(learner, stats);
+  const reply = buildOfflineCoachReply(snapshot, buildStudyPlan(snapshot, stats), 'plan', null);
+
+  // The lesson still leads, but a learner who stops after one sentence must
+  // still learn that nine items are about to expire.
+  assert.match(reply.reply, /Bài 2/);
+  // Nine due items still produce a seven-item session, and the reply says so.
+  assert.match(reply.reply, /7 mục/, 'the shortlist size appears in the prose');
+  assert.match(reply.reply, /3 từ vựng/, 'the word count is quoted too');
+  assert.match(reply.reply, /Ôn Tập/, 'the reply names where to go');
+
+  const nothingDue = toStudySnapshot(learner, { ...stats, reviewDue: 0 });
+  const quiet = buildOfflineCoachReply(nothingDue, buildStudyPlan(nothingDue, stats), 'plan', null);
+  assert.doesNotMatch(quiet.reply, /mục này/, 'no due reminder when nothing is due');
 });
 
 test('chat actions resolve only to real catalogue ids and tabs', () => {
@@ -277,6 +376,9 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
     badges: 0,
     xp: 0,
     streak: 0,
+    reviewDue: 0,
+    reviewTotal: 0,
+    reviewWords: 0,
     ownedVideos: 0,
     ownedVideoTitles: [],
   };

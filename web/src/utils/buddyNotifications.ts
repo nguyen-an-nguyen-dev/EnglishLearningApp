@@ -1,4 +1,5 @@
 import type { StudyReminder } from '../types/buddy'
+import logoUrl from '../assets/logo.png'
 
 export type NotificationPermissionState = 'unsupported' | 'default' | 'granted' | 'denied'
 
@@ -34,8 +35,8 @@ export function showReminderNotification(reminder: StudyReminder): boolean {
     const notification = new Notification('En Buddy', {
       body: `${reminder.title}${reminder.body ? ` · ${reminder.body}` : ''}`,
       tag: `engorace-reminder-${reminder.id}`,
-      icon: '/logo.png',
-      badge: '/logo.png',
+      icon: logoUrl,
+      badge: logoUrl,
     })
     notification.onclick = () => {
       window.focus()
