@@ -21,6 +21,7 @@ import {
   type TranslateLanguage,
   type TranslationResult,
 } from '../../services/translationService'
+import { readTextFile } from '../../utils/file'
 
 const MAX_CHARACTERS = 10_000
 const MAX_FILE_BYTES = 20 * 1024
@@ -223,7 +224,7 @@ export function TranslateView() {
       return
     }
     try {
-      const text = await file.text()
+      const text = await readTextFile(file, MAX_FILE_BYTES)
       if (!text.trim()) {
         setError(t.translateFileEmpty)
         return

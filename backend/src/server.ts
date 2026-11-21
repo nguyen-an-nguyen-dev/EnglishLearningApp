@@ -1,15 +1,25 @@
 import { app } from './app';
 import { env } from './config/env';
+import { validateRuntimeConfig } from './config/runtime';
 import { pool } from './db/pool';
 import { attachBattleSocket } from './modules/battle/battle.socket';
+import { logger } from './utils/logger';
+
+const configIssues = validateRuntimeConfig();
+if (configIssues.length > 0) {
+  for (const issue of configIssues) {
+    logger.error('invalid_configuration', { field: issue.field, message: issue.message });
+  }
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
 
 const server = app.listen(env.port, () => {
-  console.log(`Backend listening on port ${env.port}`);
+  logger.info('backend_listening', { port: env.port, env: process.env.NODE_ENV ?? 'development' });
 });
 const io = attachBattleSocket(server);
 
 server.once('error', (error: NodeJS.ErrnoException) => {
-  console.error('Backend failed to start:', error.code ?? error.message);
+  logger.error('backend_start_failed', { code: error.code ?? error.message });
   process.exit(1);
 });
 
@@ -18,14 +28,14 @@ let isShuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`Received ${signal}; shutting down`);
+  logger.info('shutdown_started', { signal });
 
   try {
     await new Promise<void>((resolve, reject) => {
       io.close((error) => error ? reject(error) : resolve());
     });
   } catch (socketError) {
-    console.error('Socket.IO shutdown error:', socketError instanceof Error ? socketError.message : 'Unknown error');
+    logger.error('socket_shutdown_failed', { message: socketError instanceof Error ? socketError.message : 'Unknown error' });
     process.exitCode = 1;
     if (server.listening) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -35,9 +45,10 @@ async function shutdown(signal: string): Promise<void> {
   try {
     await pool.end();
   } catch (poolError) {
-    console.error('MariaDB pool shutdown error:', poolError instanceof Error ? poolError.message : 'Unknown error');
+    logger.error('database_shutdown_failed', { message: poolError instanceof Error ? poolError.message : 'Unknown error' });
     process.exitCode = 1;
   }
+  logger.info('shutdown_complete');
 }
 
 process.on('SIGINT', () => void shutdown('SIGINT'));

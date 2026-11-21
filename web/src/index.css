@@ -223,6 +223,16 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .brand-eng { color: var(--brand-wordmark-eng); }
 .brand-o { color: var(--brand-wordmark-o); }
 .brand-race { color: var(--brand-wordmark-race); }
+/* Sidebar header: the compact streak mascot sits to the right of the wordmark. */
+.sidebar .brand-block { gap: 8px; }
+.sidebar .brand-block .brand-name { font-size: 21px; }
+.sidebar .brand-block .streak-summary.is-compact {
+  flex: none;
+  align-self: center;
+  margin-left: -2px;
+  padding-left: 0;
+  color: var(--ink-soft);
+}
 
 /* Navigation */
 .sidebar-nav { display: grid; gap: 6px; margin-top: 26px; }
@@ -234,6 +244,15 @@ button:focus-visible, a:focus-visible, input:focus-visible {
    inflate every auto row (a 4px gap rendered as 30px). Rows hug the top and the
    gap stays what it says. */
 .sidebar > .sidebar-nav { align-content: start; }
+/* The nav still scrolls, but the bar itself is hidden — it fought with the
+   sticker card and the wordmark for attention on narrow sidebars. */
+.sidebar,
+.sidebar > .sidebar-nav {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidebar::-webkit-scrollbar,
+.sidebar > .sidebar-nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .nav-item {
   position: relative;
   height: 46px;
@@ -247,7 +266,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: none;
   color: var(--muted);
   cursor: pointer;
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.01em;
@@ -257,7 +276,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .nav-item svg { flex: none; transition: color 160ms ease; }
 /* Nav rows join the sticker system the profile card and settings popover use:
-   ink border, hard offset shadow, Baloo 2, blue fill for the current tab. */
+   ink border, hard offset shadow, Be Vietnam Pro, blue fill for the current tab. */
 .nav-item:hover {
   color: var(--ink);
   background: var(--paper-muted);
@@ -279,7 +298,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .sidebar-spacer { flex: 0 0 auto; min-height: 12px; }
 
 /* Profile card in the sidebar (see Settings reference). The neo-brutalist
-   sticker system — 3px ink border, hard offset shadow, Baloo 2 — is applied
+   sticker system - 3px ink border, hard offset shadow, Be Vietnam Pro - is applied
    only here and in the settings popover, not the whole app. Tokens are
    scoped to the card so the rest of the app keeps the cyan-mist palette. */
 .profile-row,
@@ -316,18 +335,18 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   width: 100%;
   padding: 0;
   overflow: hidden;
-  border: 3px solid var(--k);
-  border-radius: 16px;
+  border: 2px solid var(--k);
+  border-radius: 12px;
   background: var(--pn);
   color: var(--tx);
-  box-shadow: 0 4px 0 var(--k);
+  box-shadow: 0 3px 0 var(--k);
   text-align: left;
   cursor: pointer;
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
-.profile-row:hover { transform: translateY(-1px); box-shadow: 0 5px 0 var(--k); }
-.profile-row:active { transform: translateY(1px); box-shadow: 0 2px 0 var(--k); }
-.profile-row:focus-visible { outline: 3px solid #19b6f0; outline-offset: 3px; }
+.profile-row:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--k); }
+.profile-row:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--k); }
+.profile-row:focus-visible { outline: 2px solid #19b6f0; outline-offset: 2px; }
 /* Equipped nameplate as the card's surface (see `nameplateSurface`). The
    plate is its own scenery, so the decorative banner steps aside instead of
    stacking two landscapes in one block. */
@@ -337,7 +356,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   color: var(--plate-fg, var(--tx));
 }
 .profile-row.is-plated .profile-banner { display: none; }
-.profile-row.is-plated .profile-main-row { margin-top: 0; padding-top: 12px; }
+.profile-row.is-plated .profile-main-row {
+  margin-top: 0;
+  padding-top: 10px;
+  align-items: center;
+}
 .profile-row.is-plated .profile-copy strong {
   color: inherit;
   text-shadow: 0 1px 8px rgb(2 8 18 / 42%);
@@ -345,7 +368,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .profile-row.is-plated:hover {
   border-color: var(--plate-edge, var(--k));
   background: var(--plate-bg);
-  box-shadow: 0 5px 0 var(--k);
+  box-shadow: 0 4px 0 var(--k);
 }
 .profile-row.is-plated .profile-icon-btn,
 .profile-row.is-plated .logout-icon-btn {
@@ -381,93 +404,51 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .profile-main-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 12px 16px 9px;
-  margin-top: -24px;
+  gap: 7px;
+  padding: 8px 10px 6px;
+  margin-top: -28px;
 }
-.profile-avatar-wrap { position: relative; flex: none; }
-.profile-avatar-frame {
-  display: block;
-  padding: 3px;
-  border: 3px solid var(--k);
-  border-radius: 50%;
-  background: #19b6f0;
-  box-shadow: 0 2px 0 var(--k);
-}
-.profile-avatar-frame .avatar {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--k);
-  background: #dff3ff;
-  color: #14203a;
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1;
-  box-shadow: none;
+.profile-avatar-wrap {
+  position: relative;
+  flex: none;
+  /* Symmetric vertical margins keep the avatar's visual box on the row's
+     centre line, so the name and the action chips share that same midline. */
+  margin: -6px -6px -6px -8px;
+  line-height: 0;
 }
 .profile-level-badge {
   position: absolute;
-  right: -4px;
-  bottom: -1px;
-  display: grid;
+  z-index: 10;
+  right: 9px;
+  bottom: 8px;
+  display: inline-grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 3px solid var(--k);
-  border-radius: 50%;
-  background: #ffd23f;
-  color: #14203a;
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-}
-/* Balance chip tucked under the name: one small pill instead of a second row. */
-.profile-coins {
-  display: inline-flex;
-  flex: none;
-  align-self: flex-start;
-  align-items: center;
-  gap: 5px;
-  margin-top: 3px;
-  padding: 0 9px;
+  min-width: 25px;
+  height: 21px;
+  padding: 0 5px;
   border: 2px solid var(--k);
   border-radius: 999px;
-  background: var(--p2);
-  color: var(--tx);
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.profile-coins strong { font-size: 12.5px; line-height: 1.4; }
-.profile-coins > span {
-  color: var(--mu);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-.profile-coin {
-  display: inline-block;
-  width: 11px;
-  height: 11px;
-  flex: none;
-  border: 2px solid var(--k);
-  border-radius: 50%;
   background: #ffd23f;
+  color: #14203a;
+  box-shadow:
+    0 2px 0 var(--k),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 /* One wide meter, with the running XP total printed across its middle so the
    number sits *in* the bar instead of in a corner chip. White glyphs carry an
    ink outline, which is what keeps them legible where the fill meets the track. */
-.profile-xp { display: block; margin: 0 16px 14px; }
+.profile-xp { display: block; margin: 6px 7px 8px; }
 .profile-xp-meter {
   position: relative;
   display: block;
-  height: 26px;
-  border: 3px solid var(--k);
+  height: 21px;
+  border: 2px solid var(--k);
   border-radius: 999px;
   background: var(--p2);
   overflow: hidden;
@@ -491,8 +472,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   /* Light meter keeps ink glyphs (7:1 on the cyan fill, 13:1 on the track);
      white glyphs only survive the dark track, not this near-white one. */
   color: var(--k);
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
-  font-size: 13.5px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.01em;
   line-height: 1;
@@ -513,7 +494,80 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 /* The card is inset from the column edges, so its border and offset shadow have
    room to read; only the sidebar's own 16px padding keeps it off the bottom. */
 .profile-container {
-  padding: 12px 0 2px;
+  padding: 8px 0 0;
+}
+.streak-summary {
+  display: grid;
+  gap: 7px;
+  margin: 0 10px;
+  padding: 7px 0 8px;
+  border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.streak-summary-line { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.streak-summary-line .streak-flame { flex: none; }
+.streak-summary-line strong { font-size: 16px; font-weight: 800; line-height: 1; }
+.streak-summary-days { opacity: 0.8; font-size: 11px; font-weight: 700; white-space: nowrap; }
+/* The charge count rides on the shield like the avatar's level badge: a small
+   square tag tucked into its lower-right corner, not a rounded pill. */
+.streak-shields {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: auto;
+  padding-right: 3px;
+  line-height: 0;
+}
+.streak-shields b {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  min-width: 12px;
+  height: 12px;
+  place-items: center;
+  padding: 0 2px;
+  border: 1.5px solid var(--k);
+  border-radius: 0;
+  background: #ffd23f;
+  color: #14203a;
+  font-family: var(--font-sans);
+  font-size: 7.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.streak-week { display: flex; justify-content: space-between; gap: 3px; }
+.streak-week-day { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.streak-week-dot {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border: 2px solid var(--k);
+  border-radius: 50%;
+  background: var(--p2);
+  color: #14203a;
+}
+.streak-week-dot.is-done { background: #ff9f2e; }
+.streak-week-dot.is-today { box-shadow: 0 0 0 3px #ffd23f; }
+.streak-week-dot.is-pending { border-style: dashed; background: #ffd23f; }
+.streak-week-dot.is-missed { border-color: color-mix(in srgb, currentColor 55%, transparent); background: transparent; }
+.streak-week-dot.is-upcoming {
+  border-style: dashed;
+  border-color: color-mix(in srgb, currentColor 48%, transparent);
+  background: transparent;
+}
+.streak-week-day small { opacity: 0.78; color: inherit; font-size: 9px; font-weight: 800; letter-spacing: 0.02em; }
+.streak-summary-loss { opacity: 0.82; color: inherit; font-size: 10.5px; font-weight: 600; line-height: 1.45; }
+.streak-summary.is-compact { display: inline-flex; gap: 0; margin: 0; padding: 0; border: 0; font-size: 12px; }
+.streak-summary.is-compact .streak-summary-line { gap: 3px; }
+.streak-flame.is-shielded { --flame-outer: #7fd6ff; --flame-inner: #dff3ff; }
+@media (prefers-reduced-motion: reduce) {
+  .streak-summary .streak-flame { animation: none; }
 }
 .avatar {
   display: grid;
@@ -534,50 +588,67 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   flex: 1;
   flex-direction: column;
   min-width: 0;
+  /* No extra top offset: the copy block must sit on the avatar's vertical
+     midline. The row already starts high enough for two lines to clear the
+     banner, so centring needs no nudge. */
+  align-self: center;
 }
+/* The card is only 264px wide: one unbroken line cut most Vietnamese names
+   after two words ("Nguyễn Anh…"). The avatar already sets the row's height, so
+   a second line costs no vertical space; balance keeps the two lines close to
+   equal width instead of leaving a lone syllable on the second one. */
 .profile-copy strong {
-  color: var(--tx);
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--tx);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.18;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  white-space: normal;
 }
 .profile-actions {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  /* Same vertical centre as the name, so the chips never float above or below
+     a short two-word name. */
+  align-self: center;
 }
 .profile-icon-btn,
 .logout-icon-btn {
   display: grid;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 25px;
+  height: 25px;
   place-items: center;
-  border: 3px solid var(--k);
-  border-radius: 8px;
+  border: 2px solid var(--k);
+  border-radius: 7px;
   background: var(--p2);
   color: var(--tx);
-  box-shadow: 0 2px 0 var(--k);
+  box-shadow: 0 1px 0 var(--k);
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease;
 }
+.profile-icon-btn svg,
+.logout-icon-btn svg { width: 15px; height: 15px; }
 .profile-icon-btn:hover,
 .logout-icon-btn:hover {
   transform: translateY(1px);
-  box-shadow: 0 2px 0 var(--k);
+  box-shadow: 0 1px 0 var(--k);
 }
 .profile-icon-btn:active,
 .logout-icon-btn:active {
-  transform: translateY(3px);
+  transform: translateY(2px);
   box-shadow: 0 0 0 var(--k);
 }
 .profile-icon-btn:focus-visible,
-.logout-icon-btn:focus-visible { outline: 3px solid #19b6f0; outline-offset: 2px; }
+.logout-icon-btn:focus-visible { outline: 2px solid #19b6f0; outline-offset: 2px; }
 .logout-icon-btn:hover {
   background: var(--danger-50);
   color: var(--danger-600);
@@ -769,7 +840,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: none;
   color: var(--mu);
   cursor: pointer;
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 800;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
@@ -796,7 +867,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: var(--p2);
   color: var(--tx);
   cursor: pointer;
-  font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 800;
   text-align: left;
@@ -1259,7 +1330,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
 .roadmap-stop-copy h2 {
   margin: 0;
   color: var(--stage-card-ink, var(--ink));
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -1284,7 +1355,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
 }
 .roadmap-stop-stat strong {
   color: var(--stage-card-ink, var(--ink));
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 23px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1468,7 +1539,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
     border-radius: 999px;
     background: #FFD23F;
     color: #14203A;
-    font-family: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-size: 12.5px;
     font-weight: 800;
     line-height: 1.5;
@@ -1891,7 +1962,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
 .lesson-payout-cell { display: grid; gap: 6px; padding: 16px 18px; background: var(--paper); }
 .lesson-payout-cell span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .lesson-payout-cell strong {
-  font-family: "Fraunces Variable", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 500;
   line-height: 1;

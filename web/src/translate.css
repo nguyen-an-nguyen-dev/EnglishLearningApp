@@ -39,7 +39,7 @@
   align-items: center;
   gap: 10px;
   color: var(--brand-700);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -94,7 +94,7 @@
 .translate-pair-side:last-child { text-align: right; }
 .translate-pair-label {
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -103,7 +103,7 @@
 .translate-pair-lang {
   overflow: hidden;
   color: var(--ink);
-  font-family: "Fraunces Variable", "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -150,7 +150,7 @@
 }
 .translate-history-title {
   color: var(--ink-soft);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -201,7 +201,7 @@
 .translate-history-page-label {
   min-width: 28px;
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -247,7 +247,7 @@
 }
 .translate-history-date {
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 8.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -278,7 +278,7 @@
   padding: 7px 0;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -293,7 +293,7 @@
   align-items: center;
   gap: 8px;
   color: var(--ink-soft);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -359,7 +359,7 @@
 
 .translate-counter {
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -389,14 +389,14 @@
 }
 .translate-block-index {
   color: var(--brand-700);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 .translate-block-label {
   color: var(--ink-soft);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -453,7 +453,7 @@
   gap: 6px;
   margin: 0;
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -524,14 +524,14 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--ink);
-  font-family: "Fraunces Variable", "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 .translate-dropzone small {
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -587,7 +587,7 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -610,7 +610,7 @@
 .translate-result-text {
   max-width: 88ch;
   color: var(--ink);
-  font-family: "Fraunces Variable", "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 18px;
   font-weight: 400;
   line-height: 1.85;
@@ -628,7 +628,7 @@
 }
 .translate-empty strong {
   color: var(--ink);
-  font-family: "Fraunces Variable", "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -644,7 +644,7 @@
 .translate-loading { display: grid; gap: 16px; }
 .translate-loading-label {
   color: var(--brand-700);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -679,7 +679,7 @@
   gap: 8px;
   color: var(--muted);
   cursor: pointer;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -719,14 +719,14 @@
 }
 .translate-note-head strong {
   color: var(--ink);
-  font-family: "Fraunces Variable", "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 .translate-note-head em {
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 10px;
   font-style: normal;
 }
@@ -734,7 +734,7 @@
   padding: 2px 6px;
   background: var(--brand-100);
   color: var(--brand-800);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -778,7 +778,7 @@
 }
 .translate-clear-kicker {
   color: var(--brand-700);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.2em;

@@ -1,3 +1,4 @@
+import { REVIEW_SESSION_LIMIT } from '../analytics/review.scheduler';
 import type { StudyStats } from './ai.repository';
 import type {
   AiReply,
@@ -47,6 +48,9 @@ export function toStudySnapshot(learner: LearnerContext, stats: StudyStats): Stu
     battlesPlayed: stats.battlesPlayed,
     battleWins: stats.battleWins,
     badges: stats.badges,
+    reviewDue: stats.reviewDue,
+    reviewTotal: stats.reviewTotal,
+    reviewWords: stats.reviewWords,
   };
 }
 
@@ -97,6 +101,22 @@ export function buildStudyPlan(snapshot: StudySnapshot, stats: StudyStats): Stud
       reason: `Bạn đang có ${snapshot.savedWords} từ đã lưu; lặp lại ngắn hôm nay giúp nhớ lâu hơn.`,
       minutes: 5,
       target: { tab: 'videos' },
+    });
+  }
+
+  // Items the schedule already says are due outrank anything speculative: they
+  // are the exact words and questions this learner is about to forget.
+  if (snapshot.reviewDue > 0) {
+    const batch = Math.min(snapshot.reviewDue, REVIEW_SESSION_LIMIT);
+    steps.splice(Math.min(1, steps.length), 0, {
+      id: 'review-due',
+      kind: 'review',
+      title: `Ôn ${batch} mục đến hạn`,
+      reason: snapshot.reviewWords > 0
+        ? `${batch} mục đã tới lịch ôn, trong đó ${snapshot.reviewWords} từ vựng bạn từng làm sai.`
+        : `${batch} câu bạn từng làm sai đã tới lịch ôn lại.`,
+      minutes: Math.min(15, Math.max(5, batch * 1)),
+      target: { tab: 'profile' },
     });
   }
 
@@ -166,6 +186,11 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
   if (action.kind === 'open_notebook') {
     return { kind: 'open_notebook', tab: 'videos', label: action.label || 'Mở Sổ từ vựng' };
   }
+  if (action.kind === 'open_review') {
+    // Review is not a screen of its own; the profile button owns it. The action
+    // still says "open_review" so the web can start the session in one tap.
+    return { kind: 'open_review', tab: 'profile', label: action.label || 'Mở phiên ôn tập' };
+  }
   const tab = action.tab ?? 'study';
   const tabLabels: Record<ChatTab, string> = {
     study: 'Vào Lộ trình học',
@@ -173,6 +198,7 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
     translate: 'Vào Dịch tài liệu',
     compete: 'Vào Thi Đua',
     rankings: 'Vào Bảng xếp hạng',
+    shop: 'Vào Gara',
     profile: 'Vào Hồ sơ',
     admin: 'Vào Quản trị nội dung',
   };
@@ -196,6 +222,13 @@ export function buildOfflineCoachReply(
   const lines = [
     `Việc tiếp theo: ${first.title} (${first.minutes} phút). ${first.reason}`,
   ];
+  // Due recall is time-sensitive: naming it only in the plan hides it from a
+  // learner who reads the answer and stops there.
+  const due = steps.find((step) => step.id === 'review-due');
+  if (due && due !== first) {
+    const batch = Math.min(snapshot.reviewDue, REVIEW_SESSION_LIMIT);
+    lines.push(`Đừng bỏ lịch ôn: ${due.reason} Mở Ôn Tập để trả lời ${batch} mục này.`);
+  }
   if (weak) {
     lines.push(`Chủ đề yếu nhất: ${weak.topic}: ${weak.mistakes} câu sai gần đây.`);
   }
@@ -210,7 +243,8 @@ export function buildOfflineCoachReply(
   const followups = intent === 'plan'
     ? ['Bài tiếp theo học trong bao lâu?', 'Chủ đề yếu nhất của mình là gì?']
     : ['Hôm nay mình nên học gì trước?', 'Giải thích chủ đề mình đang xem'];
-  // The offline answer stays actionable too: point at the real first step.
+  // The offline answer stays actionable too: point at the real first step, so
+  // the button matches the sentence the learner just read.
   const target = first.target;
   const action: ChatAction = target.videoId
     ? { kind: 'open_video', tab: 'videos', videoId: target.videoId, label: 'Mở video' }

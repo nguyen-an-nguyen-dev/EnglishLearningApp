@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2';
 
 /** Where the buddy should take the learner when a nudge or reminder is opened. */
 export interface BuddyTarget {
-  tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile';
+  tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile';
   lessonId?: number;
   videoId?: number;
   /** A declared on-screen element, e.g. `lesson:12`, `video:9`, `control:arena-start`. */

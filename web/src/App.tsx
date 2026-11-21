@@ -19,6 +19,8 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { LoadingDots } from './components/LoadingDots'
 import { RouteMapCard } from './components/roadmap/RouteMapCard'
 import { nameplateSurface } from './components/cosmetics/nameplateSurface'
+import { AvatarFrame } from './components/cosmetics/AvatarFrame'
+import { StreakSummary } from './components/profile/StreakSummary'
 import { formatCompact } from './utils/format'
 import { useWallet } from './context/WalletContext'
 import { isAdminRoute } from './admin/adminRoute'
@@ -30,12 +32,13 @@ const ArenaView = lazy(() => import('./components/arena/ArenaView').then((module
 const RankingsView = lazy(() => import('./components/rankings/RankingsView').then((module) => ({ default: module.RankingsView })))
 const ProfileView = lazy(() => import('./components/profile/ProfileView').then((module) => ({ default: module.ProfileView })))
 const GaraShop = lazy(() => import('./components/shop/GaraShop').then((module) => ({ default: module.GaraShop })))
+const ReviewLauncher = lazy(() => import('./components/review/ReviewLauncher').then((module) => ({ default: module.ReviewLauncher })))
 const AdminApp = lazy(() => import('./admin/AdminApp').then((module) => ({ default: module.AdminApp })))
 const LandingPage = lazy(() => import('./components/landing/LandingPage').then((module) => ({ default: module.LandingPage })))
-const StudyBuddy = lazy(() => import('./components/ai/StudyBuddy').then((module) => ({ default: module.StudyBuddy })))
+const VoiceOrb = lazy(() => import('./components/ai/VoiceOrb').then((module) => ({ default: module.VoiceOrb })))
 const BuddySpotlight = lazy(() => import('./components/ai/BuddySpotlight').then((module) => ({ default: module.BuddySpotlight })))
 import { useLearning } from './context/LearningContext'
-import type { BuddyView } from './components/ai/StudyBuddy'
+import type { BuddyView } from './components/ai/VoiceOrb'
 import { useBuddySpotlight } from './components/ai/useBuddySpotlight'
 import type { BuddyTarget } from './types/buddy'
 import { confirmArenaLeave } from './utils/arenaGuard'
@@ -77,12 +80,10 @@ interface SidebarProps {
 function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpenSettings }: SidebarProps) {
   const { t } = useI18n()
   const { wallet } = useWallet()
-  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const displayName = user?.name || 'An Nguyễn'
   // The equipped plate is a block background here, not a band around the
   // name, so the sidebar strip shows the cosmetic the learner paid for.
-  const plate = nameplateSurface(wallet?.equipment.nameplate?.visual_key ?? null)
-  const coins = wallet?.coins ?? 0
+  const plate = nameplateSurface(wallet?.equipment.nameplate?.visual_key, wallet?.equipment.nameplate?.style)
   const totalXp = wallet?.xp ?? 0
   const level = wallet?.level ?? 1
   const xpRatio = wallet?.level_progress.progress_ratio ?? 0
@@ -109,6 +110,9 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
           <img src="/logo.png" alt="Engorace Logo" className="brand-logo-img" />
         </button>
         <span className="brand-name"><span className="brand-eng">Eng</span><span className="brand-o">o</span><span className="brand-race">race</span></span>
+        {/* The streak mascot lives beside the wordmark now; the old strip at
+            the foot of the sidebar was taking a whole line from the card. */}
+        <StreakSummary compact />
       </div>
 
       {/* The full wallet card still lives on Profile; the strip at the foot of
@@ -158,19 +162,17 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
           </div>
           <div className="profile-main-row">
             <div className="profile-avatar-wrap">
-              <span className="profile-avatar-frame">
-                <span className="avatar">{initial}</span>
-              </span>
+              <AvatarFrame
+                name={displayName}
+                visualKey={wallet?.equipment.frame?.visual_key ?? null}
+                style={wallet?.equipment.frame?.style ?? null}
+                size={82}
+              />
               {/* The level lives here only: the copy line used to repeat it. */}
               <b className="profile-level-badge" aria-label={`${t.walletLevel} ${level}`}>{level}</b>
             </div>
             <span className="profile-copy">
-              <strong>{displayName}</strong>
-              <span className="profile-coins" title={`${coins} Race Coin`}>
-                <i className="profile-coin" aria-hidden="true" />
-                <strong>{formatCompact(coins)}</strong>
-                <span>RC</span>
-              </span>
+              <strong title={displayName}>{displayName}</strong>
             </span>
             <span className="profile-actions">
               <button
@@ -456,6 +458,7 @@ function StudyView({ user, onOpenLesson }: {
               fullBleed
               markerLabel={markerLabel}
               carKey={wallet?.equipment.car?.visual_key ?? null}
+              carStyle={wallet?.equipment.car?.style ?? null}
             />
           </div>
         )}
@@ -533,6 +536,8 @@ function LearnerApp() {
   const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
   const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
+  // Review is no longer a tab: the profile button opens one short session.
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [buddyView, setBuddyView] = useState<BuddyView>(null)
   // A deep-link request coming from the buddy (open one video or the notebook).
   const [videoRequest, setVideoRequest] = useState<
@@ -674,6 +679,7 @@ function LearnerApp() {
                 960px, so the same fact rides here on mobile. Both right-hand
                 items share a group so `space-between` keeps them together. */}
             <span className="mobile-brand-actions">
+              <StreakSummary compact />
               <span className="mobile-level-chip">{t.walletLevel} {wallet?.level ?? 1}</span>
               <button
                 type="button"
@@ -699,9 +705,11 @@ function LearnerApp() {
             )}
             {effectiveTab === 'translate' && <TranslateView />}
             {effectiveTab === 'compete' && <ArenaView />}
-            {effectiveTab === 'rankings' && <RankingsView />}
+            {effectiveTab === 'rankings' && (
+              <RankingsView onStartStudying={() => setActiveTab('study')} />
+            )}
             {effectiveTab === 'profile' && (
-              <ProfileView onLogout={handleLogout} onOpenShop={() => selectTab('shop')} />
+              <ProfileView onLogout={handleLogout} onOpenReview={() => setReviewOpen(true)} />
             )}
             {activeLesson && (
               <LessonPlayer
@@ -717,11 +725,12 @@ function LearnerApp() {
               />
             )}
             {effectiveTab === 'shop' && <GaraShop />}
-            <StudyBuddy
+            <VoiceOrb
               activeTab={effectiveTab}
               view={buddyView}
               onViewChange={setBuddyView}
               onNavigate={handleBuddyNavigate}
+              onOpenReview={() => setReviewOpen(true)}
             />
             <BuddySpotlight spot={spotlight} />
           </Suspense>
@@ -747,6 +756,11 @@ function LearnerApp() {
       </nav>
 
       <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
+      {reviewOpen && (
+        <Suspense fallback={null}>
+          <ReviewLauncher onClose={() => setReviewOpen(false)} />
+        </Suspense>
+      )}
 
     </div>
   )

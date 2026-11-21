@@ -1,0 +1,287 @@
+/* ==========================================================================
+   REVIEW
+   One short redo session opened from the profile. It replays only what the
+   learner already got wrong; the fixed roadmap is never touched.
+   ========================================================================== */
+
+.review-session,
+.review-launch {
+  --rv-radius: 18px;
+  --rv-border: color-mix(in srgb, var(--ink) 12%, transparent);
+  --rv-soft: color-mix(in srgb, var(--brand-500) 7%, var(--paper));
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 55% at 50% 0%, color-mix(in srgb, var(--brand-500) 8%, transparent), transparent 70%),
+    var(--paper);
+  color: var(--ink);
+}
+
+/* The decision dialog: loading, an error, or "nothing to review". */
+.review-launch {
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.review-launch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(440px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--rv-border);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: 0 26px 70px -32px color-mix(in srgb, var(--ink) 65%, transparent);
+  text-align: center;
+}
+.review-launch-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 17px;
+  background: var(--rv-soft);
+  color: var(--brand-700);
+}
+.review-launch-icon.is-error {
+  background: color-mix(in srgb, #d9534f 11%, var(--paper));
+  color: #b8433f;
+}
+.review-launch-card h2 {
+  margin: 0;
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: clamp(21px, 3.2vw, 26px);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+.review-launch-card p {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.review-launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.review-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-600);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--brand-700) 90%, transparent);
+  transition: transform 140ms ease, background 140ms ease;
+}
+.review-cta:hover:not(:disabled) { transform: translateY(-1px); background: var(--brand-700); }
+.review-cta:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.review-cta:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 3px; }
+
+.review-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 18px;
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.review-ghost:hover:not(:disabled) { border-color: var(--brand-500); background: var(--rv-soft); }
+.review-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Session overlay ----------------------------------------------------------- */
+.review-session-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 16px clamp(16px, 4vw, 32px);
+  border-bottom: 1px solid var(--line);
+}
+.review-session-close {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.review-session-close:hover { background: var(--rv-soft); color: var(--ink); }
+.review-session-progress { height: 10px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.review-session-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-600);
+  transition: width 280ms cubic-bezier(.2, .8, .2, 1);
+}
+.review-session-counter { min-width: 52px; color: var(--muted); font-size: 12px; font-weight: 800; text-align: right; }
+
+.review-session-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  padding: clamp(24px, 5vh, 52px) clamp(16px, 4vw, 32px) 32px;
+}
+.review-card {
+  width: min(680px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.review-card-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--rv-soft);
+  color: var(--brand-800);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.review-card h1 {
+  margin: 0;
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: clamp(26px, 4.6vw, 38px);
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+}
+.review-card-sub { margin: -6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+.review-word-hint { display: flex; flex-wrap: wrap; gap: 8px; }
+.review-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.review-options { display: flex; flex-direction: column; gap: 10px; }
+.review-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border: 1px solid var(--rv-border);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.review-option:hover:not(:disabled) { border-color: var(--brand-500); background: var(--rv-soft); }
+.review-option:disabled { cursor: default; }
+.review-option.is-selected { border-color: var(--brand-600); background: var(--rv-soft); }
+.review-option.is-correct {
+  border-color: #2f9e6b;
+  background: color-mix(in srgb, #2f9e6b 12%, var(--paper));
+}
+.review-option.is-wrong {
+  border-color: #d9534f;
+  background: color-mix(in srgb, #d9534f 10%, var(--paper));
+}
+.review-option-letter {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--rv-soft);
+  color: var(--brand-800);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.review-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid var(--rv-border);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 140ms ease;
+}
+.review-input:focus { border-color: var(--brand-600); }
+.review-input:disabled { opacity: 0.75; }
+
+.review-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.review-feedback strong { font-size: 14px; }
+.review-feedback.is-correct {
+  border: 1px solid color-mix(in srgb, #2f9e6b 34%, transparent);
+  background: color-mix(in srgb, #2f9e6b 10%, var(--paper));
+  color: color-mix(in srgb, #1f6f4a 88%, var(--ink));
+}
+.review-feedback.is-wrong {
+  border: 1px solid color-mix(in srgb, #d9534f 34%, transparent);
+  background: color-mix(in srgb, #d9534f 8%, var(--paper));
+  color: color-mix(in srgb, #a33a37 88%, var(--ink));
+}
+.review-feedback small { color: var(--muted); }
+
+.review-session-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .review-session-head { gap: 10px; padding: 12px 14px; }
+}

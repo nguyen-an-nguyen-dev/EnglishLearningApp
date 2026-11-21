@@ -11,6 +11,33 @@ export const register: RequestHandler = async (request, response, next) => {
   }
 };
 
+export const startRegistration: RequestHandler = async (request, response, next) => {
+  try {
+    const data = await authService.startRegistration(request.body);
+    response.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyRegistration: RequestHandler = async (request, response, next) => {
+  try {
+    const data = await authService.verifyRegistration(request.body);
+    response.status(201).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendRegistrationOtp: RequestHandler = async (request, response, next) => {
+  try {
+    const data = await authService.resendRegistrationOtp(request.body);
+    response.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const login: RequestHandler = async (request, response, next) => {
   try {
     const data = await authService.login(request.body);
@@ -41,6 +68,46 @@ export const facebook: RequestHandler = async (request, response, next) => {
 export const providers: RequestHandler = async (_request, response, next) => {
   try {
     response.json({ success: true, data: await authService.listProviders() });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const linkedProviders: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const providers = await authService.listLinkedProviders(request.auth.userId);
+    response.json({ success: true, data: { providers } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const linkProvider: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const token = request.params.provider === 'google'
+      ? request.body?.credential
+      : request.body?.accessToken;
+    const data = await authService.linkProvider(
+      request.auth.userId,
+      String(request.params.provider),
+      token,
+    );
+    response.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unlinkProvider: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const providers = await authService.unlinkProvider(
+      request.auth.userId,
+      String(request.params.provider),
+    );
+    response.json({ success: true, data: { providers } });
   } catch (error) {
     next(error);
   }

@@ -122,6 +122,8 @@ export interface CompleteLessonInput {
 
 export interface CheckAnswerInput {
   answer: string;
+  /** Milliseconds between the question being shown and the answer being sent. */
+  responseMs?: number;
 }
 
 export interface CheckAnswerResult {

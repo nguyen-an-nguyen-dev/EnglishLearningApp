@@ -14,8 +14,11 @@ export interface NameplateSurface {
  * the plate skin is actually visible there; a plain plate leaves the block's
  * usual paper surface untouched.
  */
-export function nameplateSurface(visualKey: string | null | undefined): NameplateSurface {
-  const skin = nameplateSkin(visualKey)
+export function nameplateSurface(
+  visualKey: string | null | undefined,
+  style?: Record<string, string | null> | null,
+): NameplateSurface {
+  const skin = nameplateSkin(visualKey, style)
   if (skin.bg === 'transparent') return { className: '' }
   return {
     className: ' is-plated',

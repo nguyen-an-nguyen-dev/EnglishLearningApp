@@ -32,11 +32,13 @@
   --gc-wood: #8a4a17;
   --gc-track: #eaf2f8;
   --gc-dash: #c9d6ea;
+  --gc-card-shadow: #5d6a80;
   --gc-card-common: #e4eaf2;
   --gc-card-rare: #cfe8ff;
   --gc-card-epic: #e3d7ff;
+  --gc-card-legendary: #ffe9a8;
   --gc-card-item: #ffe6b0;
-  --gc-display: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+  --gc-display: var(--font-sans);
 }
 
 :root[data-theme="dark"] .gara-v2,
@@ -50,9 +52,11 @@
   --gc-line-soft: #3a4d70;
   --gc-track: #16253f;
   --gc-dash: #3a4d70;
+  --gc-card-shadow: #0a1220;
   --gc-card-common: #243552;
   --gc-card-rare: #1c3a63;
   --gc-card-epic: #33285f;
+  --gc-card-legendary: #4d3b17;
   --gc-card-item: #4d3b17;
   --gc-wood: #4a3320;
 }
@@ -180,6 +184,9 @@
     repeating-linear-gradient(90deg, rgba(20, 32, 58, 0.05) 0 2px, transparent 2px 72px),
     linear-gradient(180deg, #f2fbff 0%, #e2f4fc 62%, #d3ecf8 100%);
   overflow: hidden;
+  /* The stall's own width decides whether the car bay fits beside the speech
+     and mascot; a viewport query would be wrong once the sidebar eats space. */
+  container-type: inline-size;
 }
 :root[data-theme="dark"] .gara-stall {
   background:
@@ -193,24 +200,18 @@
   border-bottom: 3px solid var(--gc-ink);
   background: repeating-linear-gradient(90deg, var(--gc-cyan) 0 54px, #fff 54px 108px);
 }
-.gara-stall-awning b {
-  position: absolute;
-  left: 50%;
-  top: 9px;
-  transform: translateX(-50%);
-  padding: 2px 22px;
-  border-radius: 10px;
-  background: var(--gc-ink);
-  color: var(--gc-yellow);
-  font-family: var(--gc-display);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-}
 .gara-stall-speech { width: 380px; max-width: 100%; display: grid; gap: 12px; }
+/* The slot reserves the tallest answer's height, so the questions below never
+   move; the bubble itself hugs whichever reply is showing and sits at the
+   bottom of that slot, growing upward when the answer is long. */
+.gara-bubble-slot {
+  display: flex;
+  min-height: 180px;
+  align-items: flex-end;
+}
 .gara-bubble {
   position: relative;
+  width: 100%;
   /* Name pill and message are two grid rows, so the speaker's name never rides
      on a forced line break and the text sits a consistent 7px under it. */
   display: grid;
@@ -254,96 +255,157 @@
 .gara-faq { display: grid; gap: 9px; }
 .gara-faq .gc-btn { min-height: 40px; justify-content: flex-start; font-size: 14px; text-align: left; }
 
-/* RC income, explained where the question is asked. RC replaced the quest
-   board, so the stall carries the real payout table. */
-.gara-rc-guide {
-  margin-top: 2px;
-  padding: 12px 14px;
-  border: 3px solid var(--gc-ink);
-  border-radius: 12px;
-  background: var(--gc-paper);
-  box-shadow: 0 3px 0 var(--gc-ink);
+/* Bác Turbo answers inside his own bubble: the question buttons stay put and
+   the copy cross-fades instead of pushing a second panel under the stall. */
+.gara-bubble-msg { animation: gara-bubble-swap 240ms ease both; }
+.gara-bubble-msg p { margin: 0; }
+.gara-bubble-lead { font-weight: 800; }
+.gara-bubble-msg .gara-bubble-note {
+  margin-top: 7px;
+  color: var(--gc-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
-.gara-rc-guide-title {
-  margin: 0 0 8px;
-  color: var(--gc-ink);
-  font-size: 12.5px;
-  font-weight: 800;
-  line-height: 1.4;
-}
-.gara-rc-guide ul {
+.gara-bubble-rc {
   display: grid;
-  gap: 4px;
-  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 18px;
+  margin: 7px 0 0;
   padding: 0;
   list-style: none;
 }
-.gara-rc-guide li {
+.gara-bubble-rc li {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  color: var(--gc-ink);
+  gap: 8px;
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1.5;
 }
-.gara-rc-guide li strong {
+.gara-bubble-rc li span { min-width: 0; }
+.gara-bubble-rc li strong {
   flex: none;
   color: var(--gc-cyan-deep);
   font-size: 12.5px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.gara-rc-guide-note {
-  margin: 9px 0 0;
-  padding-top: 8px;
-  border-top: 1px dashed var(--gc-dash);
-  color: var(--gc-muted);
-  font-size: 11.5px;
-  line-height: 1.5;
+:root[data-theme="dark"] .gara-bubble-rc li strong { color: var(--gc-cyan); }
+.gara-faq .gc-btn.is-answering { background: var(--gc-soft); }
+@keyframes gara-bubble-swap {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 640px) {
+  /* A phone bubble is narrow: keep the payout in two compact columns so the
+     answer stays a speech bubble, not a full-height panel. */
+  .gara-bubble-rc { gap: 2px 8px; }
+  .gara-bubble-rc li { gap: 4px; font-size: 11.5px; }
+  .gara-bubble-rc li strong { font-size: 11.5px; }
+  .gara-bubble-lead { font-size: 13.5px; }
+  .gara-bubble-msg .gara-bubble-note { font-size: 11px; }
+}
+
+/* When the stall cannot fit the bay, the speech and the mascot on one row, the
+   car bay is the first thing to go: Bác Turbo alone keeps the scene intact
+   instead of stacking a huge empty garage above the conversation. */
+@container (max-width: 925px) {
+  .gara-bay { display: none; }
 }
 
 /* Garage bay: one doorway on the left, the equipped car rolling out of it.
    No lamp, no checkered floor, no scenery — those only competed with the car. */
 .gara-bay {
+  --gara-bay-inset: 32px;
   position: relative;
-  /* Pull the whole bay to the stall's left edge and down onto the counter
-     line; previously the car hovered ~20px above it. */
+  /* Pull the bay against the stall's inner left edge and down onto the counter
+     line; `margin-right: auto` keeps it there instead of letting the stall's
+     space-around centring drift it right. */
   top: 20px;
-  left: -32px;
-  width: min(404px, 100%);
+  left: calc(-1 * var(--gara-bay-inset));
+  width: min(334px, 100%);
   flex: none;
-  margin-bottom: 8px;
+  margin: 0 auto 8px 0;
   overflow: hidden;
 }
-.gara-bay-stage { position: relative; padding: 0; }
-/* The doorway the car rolls out of. It paints over the car's rear while the car
-   is still entering, which is what sells "it just left the garage". */
-.gara-bay-door {
+.gara-bay-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 124px;
+  padding: 0;
+}
+/* The dark tunnel sits behind the car; the door frame and shutter sit in front.
+   That lets the car be genuinely inside the garage and drive out through the
+   opening instead of sliding in front of a painted door. */
+.gara-bay-interior {
   position: absolute;
-  z-index: 2;
+  z-index: 1;
   left: 0;
   bottom: 0;
-  width: 86px;
-  height: 106px;
-  overflow: hidden;
-  border: 3px solid var(--gc-ink);
-  border-bottom: 0;
-  border-radius: 10px 10px 0 0;
+  width: 58px;
+  height: 120px;
+  border-radius: 3px 3px 0 0;
   background: linear-gradient(180deg, #1d2c46 0%, #2c4160 100%);
 }
-:root[data-theme="dark"] .gara-bay-door {
+:root[data-theme="dark"] .gara-bay-interior {
   background: linear-gradient(180deg, #060d18 0%, #0c1729 100%);
 }
+/* The right rail is a separate layer *behind* the car: the car covers it as it
+   passes, so the frame never draws a line through the body. When the car is
+   gone the rail is still there and the doorway reads complete. */
+.gara-bay-door-rail {
+  position: absolute;
+  z-index: 1;
+  left: 54px;
+  bottom: 0;
+  width: 4px;
+  height: 120px;
+  border-radius: 0 3px 0 0;
+  background: #5f7391;
+}
+:root[data-theme="dark"] .gara-bay-door-rail { background: #8ea4c0; }
+/* The doorway the car rolls out of. It paints over the car's rear while the car
+   is still entering, which is what sells "it just left the garage". Tall and
+   square like a roll-up door: a thick dark frame around a pale slatted shutter,
+   with the darker opening left below. */
+.gara-bay-door {
+  --gara-door-rail: #5f7391;
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: 0;
+  width: 58px;
+  height: 120px;
+  overflow: hidden;
+  border: 4px solid var(--gc-ink);
+  /* The left rail carries a steel colour so the frame reads against the dark
+     bay; the right rail is the separate layer above. */
+  border-left-color: var(--gara-door-rail);
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+}
+:root[data-theme="dark"] .gara-bay-door { --gara-door-rail: #8ea4c0; }
 /* Shutter, rolled down to the halfway point: slats are the cheapest way to say
    "garage" without a label. */
 .gara-bay-door-shutter {
   position: absolute;
-  inset: 0 0 auto;
-  height: 44px;
-  border-bottom: 3px solid var(--gc-ink);
-  background: repeating-linear-gradient(180deg, #cfd9e6 0 7px, #aab8c9 7px 10px);
+  inset: 0 4px auto 0;
+  height: 46px;
+  border-bottom: 4px solid var(--gc-ink);
+  background: repeating-linear-gradient(180deg, #e3ebf4 0 9px, #a9bacf 9px 12px);
+  /* Starts fully shut, then rolls up only as far as the car needs: a slatted
+     panel stays across the top instead of a fully open hole. The right 4px is
+     left free so the steel jamb reads as one continuous column. */
+  animation: gara-door-open 1.3s ease-in-out both;
+}
+@keyframes gara-door-open {
+  from { height: 100%; }
+  to { height: 16%; }
 }
 :root[data-theme="dark"] .gara-bay-door-shutter {
   background: repeating-linear-gradient(180deg, #2b3b56 0 7px, #1d2a41 7px 10px);
@@ -353,60 +415,72 @@
 .gara-bay-door::after {
   content: "";
   position: absolute;
-  inset: 44px 0 auto;
-  height: 16px;
+  inset: 46px 4px auto 0;
+  height: 14px;
   background: linear-gradient(180deg, rgb(0 0 0 / 55%), transparent);
   pointer-events: none;
+  /* The shadow rides the shutter's bottom edge as it rises. */
+  animation: gara-door-shadow 1.3s ease-in-out both;
+}
+@keyframes gara-door-shadow {
+  from { top: 100%; }
+  to { top: 16%; }
 }
 /* Parked to the right of the doorway, so the entrance animation has somewhere
-   to come from and the doorway stays visible once it stops. */
+   to come from and the doorway stays visible once it stops. The car is a fixed
+   size rather than a percentage: at a fixed 260px it stays level with the
+   resized doorway instead of ballooning when the bay fills a narrow screen. */
 .gara-bay-car {
+  --car-from: -99%;
   position: relative;
-  z-index: 1;
-  margin: 0 12px 0 88px;
-  /* Four visible steps: 25% → 50% → 75% → 100% as the car clears the doorway. */
-  animation: gara-bay-drive-in 1.6s steps(4, jump-start) both;
+  /* Behind the doorway (z 3) but in front of the dark tunnel (z 1): the car
+     really sits inside the garage and leaves through the opening. */
+  z-index: 2;
+  width: 230px;
+  max-width: calc(100% - 74px);
+  /* Finishes clear of the frame, so the tail has to pass behind the door's
+     right rail instead of stopping on top of it. */
+  margin: 0 12px 0 43px;
+  animation: gara-bay-drive-in 6s cubic-bezier(0.33, 0, 0.2, 1) 1.6s both;
 }
-.gara-bay-car svg {
+.gara-bay-car svg,
+.gara-bay-car img {
   display: block;
   width: 100%;
   height: auto;
-  /* The SVG has empty space under the wheels; drop it so the tyres sit on the
-     counter line instead of floating above it. */
-  transform: translateY(14px);
+  /* The 240×130 art keeps 22 units of shadow room below the ground line; drop
+     that empty band so the tyres sit on the counter line. */
+  transform: translateY(16.9%);
 }
 /* Rolling wheels around each rim's own hub. With `view-box` the rim inherited
    the SVG origin and orbited the car instead of spinning on its axle. */
 .gara-bay-car .car-wheel-rim {
   transform-box: fill-box;
   transform-origin: center;
-  animation: gara-bay-wheel 0.56s linear 3 both;
+  animation: gara-bay-wheel 1.5s linear 4 1.6s both;
 }
 @keyframes gara-bay-drive-in {
-  from { transform: translateX(-100%); }
+  from { transform: translateX(var(--car-from)); }
   to { transform: translateX(0); }
 }
 @keyframes gara-bay-wheel {
   to { transform: rotate(360deg); }
-}
-@keyframes gara-bay-drive-in-soft {
-  0% { transform: translateX(-62%); opacity: 0; }
-  100% { transform: translateX(0); opacity: 1; }
 }
 /* Reduced motion still gets the arrival — it is the point of the stage — but as a
    short fade over a third of the distance, with the rims turning instead of the
    car sweeping across the whole bay. The `!important`s outlast the app-wide
    duration reset at the bottom of index.css. */
 @media (prefers-reduced-motion: reduce) {
-  .gara-bay-car {
-    animation-name: gara-bay-drive-in-soft !important;
-    animation-duration: 1.15s !important;
-    animation-timing-function: ease !important;
-  }
-  .gara-bay-car .car-wheel-rim {
-    animation-duration: 0.56s !important;
-    animation-iteration-count: 2 !important;
-  }
+  /* The garage entrance is the point of this scene, so it keeps its full
+     sequence even when the app-wide guard asks for reduced motion. The class
+     selectors out-rank that guard's `*` and repeat the shorthand with
+     `!important` so the duration is not pinned to 0.01ms. */
+  .gara-bay-door-shutter { animation: gara-door-open 1.3s ease-in-out both !important; }
+  .gara-bay-door::after { animation: gara-door-shadow 1.3s ease-in-out both !important; }
+  .gara-bay-car { animation: gara-bay-drive-in 6s cubic-bezier(0.33, 0, 0.2, 1) 1.6s both !important; }
+  .gara-bay-car .car-wheel-rim { animation: gara-bay-wheel 1.5s linear 4 1.6s both !important; }
+  /* The Q&A copy still fades in: it is feedback for the click, not decoration. */
+  .gara-bubble-msg { animation: gara-bubble-swap 240ms ease both !important; }
 }
 .gara-stall-mascot { position: relative; width: 168px; flex: none; align-self: flex-end; }
 .gara-stall-mascot > svg { display: block; width: 100%; height: auto; }
@@ -480,11 +554,19 @@
   border: 3px solid var(--gc-ink);
   border-radius: 16px;
   background: var(--gc-paper);
-  box-shadow: 0 5px 0 var(--gc-ink);
+  /* Softer than ink on purpose: at 5px the ink-coloured offset read as a heavy
+     black bar under every card. */
+  box-shadow: 0 4px 0 var(--gc-card-shadow);
   overflow: hidden;
   transition: transform 0.14s ease, box-shadow 0.14s ease;
 }
-.gara-v2-card:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--gc-ink); }
+/* The card only eases up 1px and keeps its shadow; the action button is what
+   actually lifts on hover. */
+.gara-v2-card:hover { transform: translateY(-1px); }
+.gara-v2-card:hover .gara-v2-foot .gc-btn:not(:disabled):not(.is-disabled):not(:active) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 var(--gc-ink);
+}
 
 .gara-v2-art {
   position: relative;
@@ -498,12 +580,17 @@
 /* Cars get the wide banner: the side view is 2:1, so the art box drops the
    square crop and lets the car run the full card width. */
 .gara-v2-art.is-car { height: 116px; padding: 6px 4px; }
-.car-side-preview { display: block; width: 100%; height: 100%; }
+/* Mascot frames need a taller square so the head, badge and paws all read. */
+.gara-v2-art.is-frame { height: 148px; padding: 6px 0; }
+.car-side-preview { display: block; width: 100%; height: 100%; object-fit: contain; }
 .gara-v2-card.is-common { --gara-art-bg: var(--gc-card-common); }
 .gara-v2-card.is-rare { --gara-art-bg: var(--gc-card-rare); }
 .gara-v2-card.is-epic { --gara-art-bg: var(--gc-card-epic); }
+.gara-v2-card.is-legendary { --gara-art-bg: var(--gc-card-legendary); }
 .gara-v2-card.is-booster { --gara-art-bg: var(--gc-card-item); }
 .gara-v2-art svg { max-height: 96px; }
+/* The avatar frame is an SVG now; keep the full 148px bay, not the car cap. */
+.gara-v2-art.is-frame .avatar-frame > svg { max-height: none; }
 
 .gara-v2-rarity {
   position: absolute;
@@ -535,15 +622,28 @@
 }
 .gara-v2-lock {
   position: absolute;
-  inset: 0;
+  z-index: 2;
+  bottom: 8px;
+  left: 8px;
   display: grid;
   place-items: center;
-  padding: 8px;
-  background: rgba(20, 32, 58, 0.78);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  text-align: center;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--gc-ink);
+  border-radius: 50%;
+  background: var(--gc-yellow);
+  color: var(--gc-ink);
+  box-shadow: 0 2px 0 var(--gc-ink);
+}
+/* Locked cards keep their art recognisable, but drained of colour and light.
+   The condition itself lives under the card (`.gara-v2-price.is-locked`), so
+   the old full-cover dark panel is gone. */
+.gara-v2-card.is-locked .car-side-preview,
+.gara-v2-card.is-locked .cosmetic-preview-frame,
+.gara-v2-card.is-locked .gara-scenic-art,
+.gara-v2-card.is-locked .gara-booster-glyph {
+  filter: grayscale(0.55) brightness(0.72);
+  opacity: 0.55;
 }
 .gara-v2-charges {
   position: absolute;
@@ -589,7 +689,15 @@
   font-weight: 800;
 }
 :root[data-theme="dark"] .gara-v2-price { color: #eaf2ff; }
-.gara-v2-price.is-locked { color: var(--gc-muted); font-size: 14px; }
+.gara-v2-price.is-locked {
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--gc-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.gara-v2-price.is-locked svg { flex: none; margin-top: 2px; }
 .gara-v2-price.is-short { color: var(--gc-muted); }
 .gara-v2-foot { display: grid; gap: 6px; }
 .gara-v2-hint { margin: 0; color: var(--gc-muted); font-size: 11px; font-weight: 700; text-align: center; }
@@ -989,31 +1097,6 @@
   font-weight: 500;
   line-height: 1.45;
 }
-.arena-v2-info { display: flex; flex-wrap: wrap; gap: 7px; }
-.arena-v2-info span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 10px;
-  border: 3px solid var(--gc-ink);
-  border-radius: 999px;
-  background: var(--gc-paper);
-  box-shadow: 0 3px 0 var(--gc-ink);
-  color: var(--gc-ink);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-.arena-v2-info span::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border: 2px solid var(--gc-ink);
-  border-radius: 50%;
-  background: var(--gc-cyan);
-}
-:root[data-theme="dark"] .arena-v2-info span { color: #eaf2ff; }
-
 /* Recent form: the latest results make the lobby useful between matches. */
 .arena-v2-history { display: grid; gap: 8px; margin: 12px 0 4px; }
 .arena-v2-history-title {
@@ -1040,7 +1123,11 @@
   font-weight: 800;
 }
 .arena-v2-history li.is-loss { background: var(--gc-red); }
-.arena-v2-history-empty { color: var(--gc-muted); font-size: 12.5px; font-weight: 600; }
+.arena-v2-history li.is-placeholder {
+  background: var(--gc-soft);
+  border-color: var(--gc-line-soft);
+  box-shadow: 0 3px 0 var(--gc-line-soft);
+}
 .arena-lobby-card .arena-v2-cta { width: min(320px, 100%); min-height: 50px; padding: 8px 24px; border-radius: 14px; font-size: 19px; }
 .arena-lobby-card .arena-v2-cta.is-cancel { background: var(--gc-red); color: var(--gc-ink); }
 .arena-lobby-card.is-searching .arena-v2-cta { min-width: min(260px, 100%); }
@@ -1301,8 +1388,6 @@
   .arena-v2-hero { gap: 18px; padding: 16px 20px; }
   .arena-v2-hero h2 { font-size: clamp(28px, 2.8vw, 36px); }
   .arena-v2-hero-copy > p { margin: 5px 0 8px; font-size: 13px; }
-  .arena-v2-info { gap: 6px; }
-  .arena-v2-info span { padding: 2px 8px; font-size: 12px; }
   .arena-v2-history { gap: 6px; margin-top: 8px; }
   .arena-v2-history ol { gap: 5px; }
   .arena-v2-history li { width: 30px; height: 30px; font-size: 13px; }
@@ -1341,6 +1426,7 @@
   .gara-stall { padding: 84px 20px 40px; }
   .gara-stall-counter { padding: 0 20px; }
   .gara-stall-mascot { width: 140px; }
+  .gara-bay { --gara-bay-inset: 20px; }
   .gara-v2-tabs-note { margin-left: 0; width: 100%; }
   .arena-v2-hero { padding: 24px 20px; }
   .arena-chips { justify-content: flex-start; }
@@ -1354,7 +1440,6 @@
   .gara-v2-price { font-size: 16px; }
   .gara-stall-speech { width: 100%; }
   .gara-stall-mascot { display: none; }
-  .gara-bay { width: 100%; }
   .arena-v2-checker { height: 18px; background-size: 18px 18px; }
   .arena-v2-payouts { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .arena-v2-payout { padding: 13px 16px; }

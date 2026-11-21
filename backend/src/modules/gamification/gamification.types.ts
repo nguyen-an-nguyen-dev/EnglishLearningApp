@@ -48,6 +48,10 @@ export interface ShopItemRow extends RowDataPacket {
   visual_key: string;
   /** MariaDB returns this JSON column already parsed; other drivers as a string. */
   style_json: string | Record<string, unknown> | null;
+  /** Consumable behaviour; NULL on a non-booster row. */
+  booster_kind: BoosterKind | null;
+  booster_charges: number;
+  booster_duration_minutes: number;
   sort_order: number;
 }
 
@@ -63,6 +67,8 @@ export interface ShopItem {
   unlock_value: string | null;
   visual_key: string;
   style: Record<string, string | null> | null;
+  /** Consumable effect; null for permanent cosmetics. */
+  booster_kind: BoosterKind | null;
   owned: boolean;
   equipped: boolean;
   unlocked: boolean;
@@ -101,6 +107,13 @@ export interface Wallet {
     progress_ratio: number;
   };
   streak: number;
+  /** Most recent broken streak, for the loss notice. */
+  streak_lost: number;
+  streak_lost_at: string | null;
+  /** True when the break happened in the last 7 days. */
+  streak_lost_recent: boolean;
+  /** Days since the last active day (0 = today, null = never active). */
+  last_activity_days_ago: number | null;
   race_points: number;
   tier: LeagueTier;
   season_code: string | null;

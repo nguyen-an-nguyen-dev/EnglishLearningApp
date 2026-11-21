@@ -148,6 +148,160 @@ export interface SharedVideoPatchPayload {
 
 export type SharedVideoImportResult = VideoLessonDetail
 
+// ─── Shop catalogue ───────────────────────────────────────────────────────
+
+export const SHOP_SLOTS = ['car', 'frame', 'nameplate', 'booster'] as const
+export type AdminShopSlot = (typeof SHOP_SLOTS)[number]
+
+export const SHOP_RARITIES = ['common', 'rare', 'epic', 'legendary'] as const
+export type AdminShopRarity = (typeof SHOP_RARITIES)[number]
+
+export const SHOP_UNLOCK_TYPES = ['default', 'level', 'stage', 'league', 'achievement'] as const
+export type AdminShopUnlockType = (typeof SHOP_UNLOCK_TYPES)[number]
+
+export const BOOSTER_KINDS = ['streak_shield', 'xp_multiplier', 'rc_multiplier'] as const
+export type AdminBoosterKind = (typeof BOOSTER_KINDS)[number]
+
+export const LEAGUE_TIERS = ['bronze', 'silver', 'gold', 'diamond'] as const
+export type AdminLeagueTier = (typeof LEAGUE_TIERS)[number]
+
+export interface AdminShopItem {
+  id: number
+  code: string
+  name: string
+  description: string
+  slot: AdminShopSlot
+  rarity: AdminShopRarity
+  price: number
+  unlock_type: AdminShopUnlockType
+  unlock_value: string | null
+  visual_key: string
+  style: Record<string, string | null> | null
+  booster_kind: AdminBoosterKind | null
+  booster_charges: number
+  booster_duration_minutes: number
+  sort_order: number
+  active: boolean
+  created_at: string
+}
+
+export interface ShopItemPayload {
+  name: string
+  description?: string
+  slot: AdminShopSlot
+  rarity: AdminShopRarity
+  price: number
+  unlock_type: AdminShopUnlockType
+  unlock_value?: string | null
+  visual_key?: string
+  style?: Record<string, string | null> | null
+  booster_kind?: AdminBoosterKind | null
+  booster_charges?: number
+  booster_duration_minutes?: number
+  active?: boolean
+}
+
+export type ShopItemPatchPayload = Partial<Omit<ShopItemPayload, 'name'>> & { name?: string }
+
+// ─── Arena vocabulary ─────────────────────────────────────────────────────
+
+export const BATTLE_PARTS_OF_SPEECH = [
+  'noun',
+  'verb',
+  'adjective',
+  'adverb',
+  'pronoun',
+  'preposition',
+  'conjunction',
+  'interjection',
+] as const
+export type AdminBattlePart = (typeof BATTLE_PARTS_OF_SPEECH)[number]
+
+export interface AdminBattleWord {
+  id: number
+  word_en: string
+  translation_vi: string
+  part_of_speech: AdminBattlePart
+  cefr_level: CefrLevel
+  explanation_vi: string
+  example_en: string
+  example_vi: string
+  image_url: string | null
+  sort_order: number
+}
+
+export interface BattleWordPayload {
+  word_en: string
+  translation_vi: string
+  part_of_speech: AdminBattlePart
+  cefr_level: CefrLevel
+  explanation_vi: string
+  example_en: string
+  example_vi: string
+  image_url?: string | null
+}
+
+export type BattleWordPatchPayload = Partial<BattleWordPayload>
+
+// ─── Video vocabulary ─────────────────────────────────────────────────────
+
+export interface AdminVideoVocabulary {
+  id: number
+  video_id: number
+  word: string
+  ipa: string
+  meaning_vi: string
+  detail_vi: string
+  sort_order: number
+}
+
+export interface VideoVocabularyPayload {
+  word: string
+  ipa?: string
+  meaning_vi: string
+  detail_vi: string
+}
+
+export type VideoVocabularyPatchPayload = Partial<VideoVocabularyPayload>
+
+// ─── User management ─────────────────────────────────────────────────────
+
+export type AdminManagedRole = 'learner' | 'admin'
+
+export interface AdminManagedUser {
+  id: number
+  name: string
+  email: string
+  role: AdminManagedRole
+  xp: number
+  coins: number
+  level: number
+  streak: number
+  streak_lost: number
+  streak_lost_at: string | null
+  race_points: number
+  lessons_completed: number
+  videos_completed: number
+  provider_count: number
+  created_at: string
+  last_activity_at: string | null
+}
+
+export interface AdminUserListResult {
+  users: AdminManagedUser[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AdminUserPatchPayload {
+  xp?: number
+  coins?: number
+  streak?: number
+  race_points?: number
+  role?: AdminManagedRole
+}
+
 // ─── Statistics (admin console) ─────────────────────────────────────────────
 
 export interface AdminStatsOverview {

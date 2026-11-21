@@ -117,8 +117,10 @@ const APP_GUIDE = [
   '- Học qua Video (videos): thư viện video YouTube, luyện nghe theo từng đoạn (nghe rồi gõ lại) và Sổ từ vựng để ôn từ đã lưu.',
   '- Dịch Tài Liệu (translate): dán văn bản hoặc tải tệp .txt để dịch Anh–Việt, có từ loại và nghĩa của từ.',
   '- Thi Đua (compete): đấu trường từ vựng 1v1 theo thời gian thực với đối thủ.',
-  '- Bảng Xếp Hạng (rankings): bục xếp hạng, điểm XP và khoảng cách với người trên/dưới.',
-  '- Hồ sơ (profile): XP, chuỗi ngày học (streak), tiến độ bài học và huy hiệu.',
+  '- Bảng Xếp Hạng (rankings): một bảng league theo tuần cho hạng của bạn: 6 đầu lên hạng, 6 cuối xuống hạng, ở giữa giữ hạng.',
+  '- Ôn Tập: KHÔNG còn là tab riêng. Nó là nút trong Hồ sơ (profile), mở ra một phiên ôn ngắn 5–7 mục đã tới lịch. Muốn mở phiên ôn thì dùng action open_review.',
+  '- Hồ sơ (profile): XP, chuỗi ngày học (streak), tiến độ bài học, huy hiệu và nút Ôn Tập.',
+  '- Gara (shop): mua và lắp phụ tùng, xe, khung tên bằng Race Coin.',
 ].join('\n');
 
 /** The buddy can offer a one-tap deep link instead of just describing the screen. */
@@ -128,6 +130,7 @@ const ACTION_GUIDE = [
   '- Mở đúng một video: {"kind":"open_video","videoId":<id trong video_catalog>,"label":"Mở video: <tên ngắn>"}',
   '- Mở đúng một bài học: {"kind":"open_lesson","lessonId":<id trong lesson_catalog>,"label":"Mở bài: <tên ngắn>"}',
   '- Chuyển sang một màn hình: {"kind":"open_tab","tab":"study|videos|translate|compete|rankings|profile","label":"..."}',
+  '- Mở phiên ôn tập (câu/từ đã tới lịch ôn): {"kind":"open_review","label":"Ôn ngay"}',
   '- Mở Sổ từ vựng (danh sách từ đã lưu): {"kind":"open_notebook","label":"Mở Sổ từ"}',
   // Pointing at one element beats describing where it is.
   '- Khoanh sáng đúng một thứ trên màn hình đích: thêm "highlight" cạnh action.',
@@ -137,8 +140,10 @@ const ACTION_GUIDE = [
   '  * nút bấm: "control:notebook" (nút Sổ từ), "control:arena-start" (nút vào trận)',
   'Gợi ý từ khoá → đích đến:',
   '- "sổ từ" / "từ đã lưu" / "ôn từ" → open_notebook',
+  '- "ôn tập" / "ôn lại" / "bài cần ôn" / "tới lịch ôn" → open_review',
   '- "thi đua" / "đấu trường" / "đấu 1v1" → open_tab compete (highlight "control:arena-start")',
   '- "xếp hạng" / "thứ hạng" → open_tab rankings',
+  '- "gara" / "cửa hàng" / "mua xe" / "phụ tùng" → open_tab shop',
   '- "dịch" / "dịch tài liệu" → open_tab translate',
   '- "hồ sơ" / "trang cá nhân" → open_tab profile',
   '- "lộ trình" / "bài học" / "roadmap" → open_tab study, và nếu nêu đúng tên bài thì open_lesson + highlight "lesson:<id>"',

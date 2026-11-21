@@ -4,10 +4,14 @@ import type {
   LoginPayload,
   RegisterPayload,
   AuthContextType,
+  StartRegistrationResult,
+  VerifyRegistrationPayload,
 } from '../types/auth';
 import {
   loginApi,
-  registerApi,
+  startRegistrationApi,
+  verifyRegistrationApi,
+  resendRegistrationOtpApi,
   getCurrentUserApi,
   loginWithGoogleApi,
   loginWithFacebookApi,
@@ -89,15 +93,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (credentials: RegisterPayload) => {
+  const startRegistration = async (
+    credentials: RegisterPayload,
+  ): Promise<StartRegistrationResult> => startRegistrationApi(credentials);
+
+  const resendRegistrationOtp = (email: string): Promise<StartRegistrationResult> =>
+    resendRegistrationOtpApi(email);
+
+  const verifyRegistration = async (payload: VerifyRegistrationPayload) => {
     setIsLoading(true);
     try {
-      await registerApi(credentials);
-      // Auto login after successful registration
-      const { token: receivedToken, user: receivedUser } = await loginApi({
-        email: credentials.email,
-        password: credentials.password,
-      });
+      const { token: receivedToken, user: receivedUser } = await verifyRegistrationApi(payload);
       setToken(receivedToken);
       setUser(receivedUser);
       authStorage.setToken(receivedToken);
@@ -157,7 +163,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       login,
       loginWithProvider,
-      register,
+      startRegistration,
+      verifyRegistration,
+      resendRegistrationOtp,
       changePassword,
       updateProfile,
       refreshUser,

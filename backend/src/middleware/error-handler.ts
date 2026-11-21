@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
+import { logger } from '../utils/logger';
 
 export class HttpError extends Error {
   constructor(
@@ -15,12 +16,13 @@ export const notFoundHandler: RequestHandler = (_request, _response, next) => {
   next(new HttpError(404, 'Route not found'));
 };
 
-export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, request, response, _next) => {
   if (error instanceof HttpError) {
     response.status(error.statusCode).json({
       success: false,
       message: error.message,
       errors: error.errors,
+      requestId: request.requestId,
     });
     return;
   }
@@ -36,14 +38,21 @@ export const errorHandler: ErrorRequestHandler = (error, _request, response, _ne
       success: false,
       message: status === 400 ? 'Bad request.' : 'Request rejected.',
       errors: [],
+      requestId: request.requestId,
     });
     return;
   }
 
-  console.error('Unhandled request error:', error instanceof Error ? error.message : 'Unknown error');
+  logger.error('unhandled_request_error', {
+    request_id: request.requestId,
+    method: request.method,
+    path: request.originalUrl.split('?')[0],
+    message: error instanceof Error ? error.message : 'Unknown error',
+  });
   response.status(500).json({
     success: false,
     message: 'Internal server error',
     errors: [],
+    requestId: request.requestId,
   });
 };

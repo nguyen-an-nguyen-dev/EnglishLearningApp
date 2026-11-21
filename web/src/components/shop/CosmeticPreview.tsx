@@ -6,6 +6,8 @@ import type { CosmeticSlot } from '../../types/gamification'
 export interface CosmeticPreviewProps {
   slot: CosmeticSlot
   visualKey: string
+  /** Admin-defined palette from the shop row. */
+  style?: Record<string, string | null> | null
   /** Name shown inside the frame/nameplate previews. */
   sampleName?: string
   size?: number
@@ -16,22 +18,22 @@ export interface CosmeticPreviewProps {
  * palette. Locked items still render their full preview (the shop dims them with
  * CSS), so a learner can always see what they are working toward.
  */
-export function CosmeticPreview({ slot, visualKey, sampleName = 'Engorace', size = 132 }: CosmeticPreviewProps) {
+export function CosmeticPreview({ slot, visualKey, style, sampleName = 'Engorace', size = 132 }: CosmeticPreviewProps) {
   if (slot === 'car') {
     // Cars are shown in profile, not top-down: the shop art box is landscape,
     // so a side view is what fills it legibly.
-    return <CarSidePreview className="car-side-preview" visualKey={visualKey} />
+    return <CarSidePreview className="car-side-preview" visualKey={visualKey} style={style} />
   }
   if (slot === 'frame') {
     return (
       <div className="cosmetic-preview-frame" style={{ width: size, height: size }}>
-        <AvatarFrame name={sampleName} visualKey={visualKey} size={Math.round(size * 0.62)} />
+        <AvatarFrame name={sampleName} visualKey={visualKey} style={style} size={Math.round(size * 0.82)} />
       </div>
     )
   }
   return (
     <div className="cosmetic-preview-plate" style={{ width: size, height: size }}>
-      <Nameplate visualKey={visualKey}>{sampleName}</Nameplate>
+      <Nameplate visualKey={visualKey} style={style}>{sampleName}</Nameplate>
     </div>
   )
 }

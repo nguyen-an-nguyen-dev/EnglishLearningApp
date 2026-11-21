@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DemoVideoPanel } from './DemoVideoPanel'
 import { useHeroTilt } from './useHeroTilt'
+import logoUrl from '../../assets/logo.png'
 import {
   ArrowCounterClockwise,
   ArrowRight,
@@ -44,7 +45,7 @@ export function LandingHeader({
       <div className="lp-header-inner">
         <a className="lp-wordmark" href="#top" onClick={onCloseMenu} aria-label="Engorace, về đầu trang">
           <div className="lp-brand-logo-wrap" aria-hidden="true">
-            <img src="/logo.png" alt="Engorace Logo" className="lp-brand-logo-img" />
+            <img src={logoUrl} alt="Engorace Logo" className="lp-brand-logo-img" />
           </div>
           <span className="lp-brand-wordmark"><span className="lp-brand-eng">Eng</span><span className="lp-brand-o">o</span><span className="lp-brand-race">race</span></span>
         </a>

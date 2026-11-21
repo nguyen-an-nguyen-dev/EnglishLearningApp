@@ -5,6 +5,8 @@ import { carSkin } from '../../cosmetics'
 export interface CarBadgeProps {
   /** `visual_key` of the equipped car skin; unknown keys fall back to classic. */
   visualKey?: string | null
+  /** Admin-defined palette from the shop row. */
+  style?: Record<string, string | null> | null
   /** Rendered width in px; height follows the car's own aspect ratio. */
   size?: number
   className?: string
@@ -20,8 +22,8 @@ export interface CarBadgeProps {
  * and on the map. A second, independently drawn car would drift out of sync
  * whenever the roadmap art changes.
  */
-export function CarBadge({ visualKey, size = 46, className, animated = false }: CarBadgeProps) {
-  const skin = carSkin(visualKey)
+export function CarBadge({ visualKey, style, size = 46, className, animated = false }: CarBadgeProps) {
+  const skin = carSkin(visualKey, style)
   // useId keeps the gradient id unique: several badges of the same skin can be
   // on screen at once (dock, panel, tab).
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
@@ -42,7 +44,7 @@ export function CarBadge({ visualKey, size = 46, className, animated = false }: 
           <stop offset="100%" stopColor={skin.trail} stopOpacity="0" />
         </radialGradient>
       </defs>
-      <CarArt glowId={glowId} visualKey={visualKey} />
+      <CarArt glowId={glowId} visualKey={visualKey} style={style} />
     </svg>
   )
 }

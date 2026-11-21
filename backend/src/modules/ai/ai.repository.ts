@@ -38,6 +38,10 @@ export interface StudyStats {
   badges: number;
   xp: number;
   streak: number;
+  /** Spaced-repetition items whose due date has already passed. */
+  reviewDue: number;
+  reviewTotal: number;
+  reviewWords: number;
   /** Videos the learner imported themselves (owner_user_id), not the shared library. */
   ownedVideos: number;
   ownedVideoTitles: string[];
@@ -55,6 +59,9 @@ interface CountDbRow extends RowDataPacket {
   badges: number;
   xp: number;
   streak: number;
+  review_due: number;
+  review_total: number;
+  review_words: number;
 }
 interface LessonDbRow extends RowDataPacket {
   id: number;
@@ -82,8 +89,11 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
          (SELECT COUNT(*) FROM matches WHERE status = 'completed' AND winner_user_id = ?) AS battle_wins,
          (SELECT COUNT(*) FROM user_badges WHERE user_id = ?) AS badges,
          (SELECT xp FROM users WHERE id = ?) AS xp,
-         (SELECT streak FROM users WHERE id = ?) AS streak`,
-      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
+         (SELECT streak FROM users WHERE id = ?) AS streak,
+         (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND due_at <= NOW()) AS review_due,
+         (SELECT COUNT(*) FROM review_items WHERE user_id = ?) AS review_total,
+         (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND kind = 'word') AS review_words`,
+      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
     ),
     pool.execute<LessonDbRow[]>(
       `SELECT l.id, l.title, l.topic, s.title AS stage_title
@@ -146,6 +156,9 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
     badges: num(counts?.badges),
     xp: num(counts?.xp),
     streak: num(counts?.streak),
+    reviewDue: num(counts?.review_due),
+    reviewTotal: num(counts?.review_total),
+    reviewWords: num(counts?.review_words),
     ownedVideos: num(ownedCountRows[0][0]?.n),
     ownedVideoTitles: ownedList.map((row) => row.title),
   };

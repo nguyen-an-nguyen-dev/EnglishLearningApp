@@ -4,6 +4,7 @@ export type ShopSlot = CosmeticSlot | 'booster'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type UnlockType = 'default' | 'level' | 'stage' | 'league' | 'achievement'
 export type LeagueTier = 'bronze' | 'silver' | 'gold' | 'diamond'
+export type BoosterKind = 'streak_shield' | 'xp_multiplier' | 'rc_multiplier'
 
 export interface ShopItem {
   id: number
@@ -18,6 +19,8 @@ export interface ShopItem {
   visual_key: string
   /** Palette/art parameters, resolved against `cosmetics.ts` by visual_key. */
   style: Record<string, string | null> | null
+  /** Consumable effect; null for permanent cosmetics. */
+  booster_kind: BoosterKind | null
   owned: boolean
   equipped: boolean
   unlocked: boolean
@@ -49,6 +52,13 @@ export interface Wallet {
   level: number
   level_progress: LevelProgress
   streak: number
+  /** Most recent broken streak, for the loss notice. */
+  streak_lost: number
+  streak_lost_at: string | null
+  /** True when the break happened in the last 7 days. */
+  streak_lost_recent: boolean
+  /** Days since the last active day (0 = today, null = never active). */
+  last_activity_days_ago: number | null
   race_points: number
   tier: LeagueTier
   season_code: string | null

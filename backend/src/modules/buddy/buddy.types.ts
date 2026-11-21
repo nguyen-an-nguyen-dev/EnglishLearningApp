@@ -6,6 +6,7 @@ export type NudgeKind =
   | 'streak'
   | 'comeback'
   | 'next-lesson'
+  | 'review-due'
   | 'weak-topic'
   | 'saved-words'
   | 'next-video'

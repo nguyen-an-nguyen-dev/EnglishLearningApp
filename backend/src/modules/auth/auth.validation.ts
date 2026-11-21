@@ -1,5 +1,11 @@
 import { HttpError } from '../../middleware/error-handler';
-import type { LoginInput, PasswordChangeInput, ProfileUpdateInput, RegisterInput } from './auth.types';
+import type {
+  LoginInput,
+  PasswordChangeInput,
+  ProfileUpdateInput,
+  RegisterInput,
+  VerifyRegistrationInput,
+} from './auth.types';
 
 function asObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -60,7 +66,8 @@ export function parsePasswordChangeInput(value: unknown): PasswordChangeInput {
   const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
   const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
-  if (!currentPassword) errors.push('Current password is required.');
+  // `currentPassword` is optional for a social-only account setting its first
+  // password; the service checks it whenever the account already has one.
   validateNewPassword(newPassword, errors);
 
   if (errors.length) throw new HttpError(422, 'Validation failed', errors);
@@ -79,4 +86,31 @@ export function parseLoginInput(value: unknown): LoginInput {
 
   if (errors.length) throw new HttpError(422, 'Validation failed', errors);
   return { email, password };
+}
+
+export function parseEmailInput(value: unknown): { email: string } {
+  const body = asObject(value);
+  const errors: string[] = [];
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+
+  if (!email) errors.push('Email is required.');
+  else validateEmail(email, errors);
+
+  if (errors.length) throw new HttpError(422, 'Validation failed', errors);
+  return { email };
+}
+
+export function parseVerifyRegistrationInput(value: unknown): VerifyRegistrationInput {
+  const body = asObject(value);
+  const errors: string[] = [];
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  // People paste codes with a space ("123 456"); the stored hash is whitespace-free.
+  const code = typeof body.code === 'string' ? body.code.replace(/\s+/g, '') : '';
+
+  if (!email) errors.push('Email is required.');
+  else validateEmail(email, errors);
+  if (!/^\d{6}$/.test(code)) errors.push('The verification code must be six digits.');
+
+  if (errors.length) throw new HttpError(422, 'Validation failed', errors);
+  return { email, code };
 }

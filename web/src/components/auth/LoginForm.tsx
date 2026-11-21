@@ -3,6 +3,11 @@ import { EnvelopeSimple, LockKey, Eye, EyeSlash, CircleNotch, Lightning } from '
 import { useAuth } from '../../context/AuthContext';
 import { validateLogin } from '../../utils/validation';
 
+const QUICK_LOGIN_ACCOUNT = {
+  email: 'minhanh@engorace.demo',
+  password: 'Engorace@2026',
+};
+
 interface LoginFormProps {
   onSwitchToRegister: () => void;
   onSuccess?: () => void;
@@ -18,21 +23,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quickBusy, setQuickBusy] = useState(false);
 
-  const DEMO_ACCOUNT = { email: 'test@test.com', password: '123456' };
-
-  const handleDemoLogin = async () => {
+  const quickLogin = async (account: { email: string; password: string }) => {
     setErrorMessage(null);
-    setEmail(DEMO_ACCOUNT.email);
-    setPassword(DEMO_ACCOUNT.password);
-    setIsSubmitting(true);
+    setQuickBusy(true);
     try {
-      await login(DEMO_ACCOUNT);
+      await login({ email: account.email, password: account.password });
       onSuccess?.();
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định.');
     } finally {
-      setIsSubmitting(false);
+      setQuickBusy(false);
     }
   };
 
@@ -125,7 +127,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <button
           type="submit"
           className="auth-submit-btn"
-          disabled={isSubmitting}
+          disabled={isSubmitting || quickBusy}
         >
           {isSubmitting ? (
             <span className="btn-inner-loading">
@@ -137,16 +139,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           )}
         </button>
 
-        <button
-          type="button"
-          className="auth-demo-btn"
-          onClick={handleDemoLogin}
-          disabled={isSubmitting}
-          title={`${DEMO_ACCOUNT.email} · ${DEMO_ACCOUNT.password}`}
-        >
-          <Lightning size={15} weight="fill" />
-          <span>Vào nhanh bằng tài khoản demo</span>
-        </button>
+        <div className="auth-quick">
+          <button
+            type="button"
+            className="auth-quick-btn"
+            onClick={() => void quickLogin(QUICK_LOGIN_ACCOUNT)}
+            disabled={isSubmitting || quickBusy}
+            title={QUICK_LOGIN_ACCOUNT.email}
+          >
+            {quickBusy ? <CircleNotch className="spin-icon" size={15} /> : <Lightning size={15} weight="fill" />}
+            <span>Đăng nhập nhanh (demo)</span>
+          </button>
+        </div>
 
       </form>
 

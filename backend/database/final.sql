@@ -85,13 +85,59 @@ CREATE TABLE `users` (
   `xp` int(10) unsigned NOT NULL DEFAULT 0,
   `coins` int(10) unsigned NOT NULL DEFAULT 0,
   `streak` smallint(5) unsigned NOT NULL DEFAULT 0,
+  -- Last broken streak, kept for the "you lost a N-day streak" notice.
+  `streak_lost` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `streak_lost_at` date DEFAULT NULL,
   `last_activity_date` date DEFAULT NULL,
   `role` enum('learner','admin') NOT NULL DEFAULT 'learner',
+  -- League tier carries across seasons; only top/bottom 6 change at settlement.
+  `league_tier` enum('bronze','silver','gold','diamond') NOT NULL DEFAULT 'bronze',
+  -- 0 = account created by a social provider and has no usable password yet.
+  `password_set` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_username` (`username`),
   UNIQUE KEY `uq_users_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- user_providers: external identities (Google / Facebook) bound to one user.
+-- The unique identity key is what login resolves against; e-mail is only a
+-- display/debug attribute and is never used to auto-link an account.
+CREATE TABLE `user_providers` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `provider` enum('google','facebook') NOT NULL,
+  `provider_user_id` varchar(191) NOT NULL,
+  `email` varchar(254) NOT NULL,
+  `display_name` varchar(100) DEFAULT NULL,
+  `avatar_url` varchar(500) DEFAULT NULL,
+  `linked_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `last_login_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_user_providers_identity` (`provider`,`provider_user_id`),
+  UNIQUE KEY `uq_user_providers_user_provider` (`user_id`,`provider`),
+  KEY `idx_user_providers_email` (`email`),
+  CONSTRAINT `fk_user_providers_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- pending_registrations: web registration waits here until the mailed OTP is
+-- verified. No users row exists before that point.
+CREATE TABLE `pending_registrations` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `email` varchar(254) NOT NULL,
+  `display_name` varchar(100) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  -- HMAC-SHA256(email + code, JWT_SECRET); the raw code is never stored.
+  `otp_hash` char(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `send_count` smallint(5) unsigned NOT NULL DEFAULT 1,
+  `last_sent_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_pending_registrations_email` (`email`),
+  KEY `idx_pending_registrations_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- study_reminders
@@ -411,6 +457,11 @@ CREATE TABLE `shop_items` (
   `unlock_value` varchar(60) DEFAULT NULL,
   `visual_key` varchar(60) NOT NULL,
   `style_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`style_json`)),
+  -- Consumable behaviour used to live in BOOSTER_SPECS; these columns make a
+  -- booster purchasable without a code deploy.
+  `booster_kind` enum('streak_shield','xp_multiplier','rc_multiplier') DEFAULT NULL,
+  `booster_charges` int(10) unsigned NOT NULL DEFAULT 0,
+  `booster_duration_minutes` int(10) unsigned NOT NULL DEFAULT 0,
   `sort_order` int(10) unsigned NOT NULL DEFAULT 0,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -700,7 +751,7 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `display_name`,
 (6,'user-97c2b82e-6861-44c6-9661-4092b5aa2af5','linhhuong703@gmail.com','$2b$12$iXL/ATEG60inHTH3rjNT9eN2MAXji5iCjNaxKJrp0L1Vd8fwwWmQC','nahn',40,0,0,NULL,'learner','2026-10-27 18:39:06.000','2026-10-27 18:44:07.000'),
 (8,'user-0d314ba2-b3b3-4e70-a695-ea7db39c494d','jwefne@gmail.com','$2b$12$shrjqXtM03bSvPj/hLNo2ex.BqZSIQo5juVUTJBp54liU9aTJPLZ.','hay quas',0,0,0,NULL,'learner','2026-10-27 19:12:01.000','2026-10-27 19:12:01.000'),
 (9,'user-b27babf7-7243-4ead-bd1b-df64457c2273','temp@engorace.dev','$2b$12$5DVUihtLW2TuZmO1A1sare.E75ot4JIHWXYdjsb5tqkrb9t8UT5JS','Temp Reviewer',1240,640,12,'2026-11-13','learner','2026-11-03 01:59:02.000','2026-11-13 22:30:02.000'),
-(10,'user-67e09ef4-d2aa-47e2-8e0e-c0b8ffe9d5f5','test@test.com','$2b$12$bEkq/bnSQEA1xReciHM74OkZtvOPIhDVuAiIpsPyIxhMlpNdFPuPi','Test User',900,300,7,'2026-11-13','admin','2026-11-03 03:15:17.000','2026-11-13 21:07:12.000'),
+(10,'user-67e09ef4-d2aa-47e2-8e0e-c0b8ffe9d5f5','test@test.com','$2b$12$SPuYcVWKl3LFW/8jWIJ3BOPMD34Dni76PmgkaBnryKALsL3D6mFkq','Test User',900,300,7,'2026-11-13','admin','2026-11-03 03:15:17.000','2026-11-13 21:07:12.000'),
 (33,'test_full_engorace','test.full@engorace.dev','$2b$10$fuo3.LG0e4wxgz04IBGIJeZHBl5yZgK8ZQ2nCzbV1B2uxF7z3KN3y','Test Full',720,180,12,'2026-11-12','learner','2026-11-03 18:36:14.000','2026-11-12 02:56:46.000'),
 (51,'user-ae4c7d50-a748-4a6b-83d3-7a3650e05dae','tinhminhvt246@gmail.com','$2b$12$JhoMlwqIP1DJ7y6B9zw0MeBGDajyHJEKaEPyVKuoTSVfMJqDJQFZe','conmek123',60,10,0,NULL,'learner','2026-11-04 03:16:35.000','2026-11-04 14:42:13.000'),
 (90,'user-5564c060-6bbc-45f9-a20e-741668a706c5','arena.bot.1793742120932@engorace.dev','$2b$12$0vj.s2qP5/prx.HQfhAU/OOmmlVhYHFkOuqYapOv6mPxa.tv0Zgv6','Arena Bot',0,0,0,NULL,'learner','2026-11-04 04:42:01.000','2026-11-04 04:42:01.000'),
@@ -3150,31 +3201,45 @@ INSERT INTO `match_answers` (`id`, `match_id`, `user_id`, `question_id`, `round`
 (108,36,51,NULL,2,NULL,'avoitable',0,7896,'2026-11-04 18:17:54.000'),
 (109,36,10,NULL,3,NULL,'',0,23468,'2026-11-04 18:18:21.000'),
 (110,36,51,NULL,3,NULL,'environment',1,23468,'2026-11-04 18:18:21.000');
--- shop_items: 22 dòng (6 xe · 6 khung · 6 nền · 4 vật phẩm hỗ trợ; 4 độ hiếm; 5 kiểu mở khoá)
+-- shop_items: 35 dòng (10 xe · 10 khung · 11 nền · 4 vật phẩm hỗ trợ; 4 độ hiếm; 5 kiểu mở khoá)
 INSERT INTO `shop_items` (`id`, `code`, `name`, `description`, `slot`, `rarity`, `price`, `unlock_type`, `unlock_value`, `visual_key`, `style_json`, `sort_order`, `active`, `created_at`) VALUES
 (1,'car_default','Xe vàng kinh điển','Chiếc xe đầu tiên của mọi tay đua Engorace.','car','common',0,'default',NULL,'car_classic_yellow','{"body":"#F2B544","bodyDark":"#D39A2A","trim":"#A96E13","glass":"#5D8497","glassLight":"#83A8B8","wheel":"#42586B","light":"#FFF4C7","trail":"#F2B544"}',10,1,'2026-11-15 09:00:00.000'),
-(2,'car_sport_red','Xe đua lửa','Thân xe đỏ rực, tem đua kéo dài tới đuôi.','car','rare',220,'level','3','car_sport_red','{"body":"#E5484D","bodyDark":"#B32D31","trim":"#7F1D1F","glass":"#45566B","glassLight":"#7C90A8","wheel":"#2B3442","light":"#FFE9A8","trail":"#FF7A5C"}',20,1,'2026-11-15 09:00:00.000'),
-(3,'car_mint','Xe bạc hà','Bạc hà mát lạnh, nổi bật trên nền sương.','car','rare',300,'level','5','car_mint','{"body":"#6FD3B8","bodyDark":"#3FA994","trim":"#1F7A6B","glass":"#4A6C7C","glassLight":"#8FB6C4","wheel":"#33474F","light":"#EAFFF8","trail":"#8BEFD4"}',30,1,'2026-11-15 09:00:00.000'),
+(2,'car_sport_red','Xe thể thao đỏ','Thân xe đỏ gọn, tem đua kéo dài tới đuôi.','car','rare',220,'level','3','car_sport_red','{"body":"#E5484D","bodyDark":"#B32D31","trim":"#7F1D1F","glass":"#45566B","glassLight":"#7C90A8","wheel":"#2B3442","light":"#FFE9A8","trail":"#FF7A5C"}',20,1,'2026-11-15 09:00:00.000'),
+(3,'car_mint','Xe van bạc hà','Van nhỏ bạc hà, cao ráo và len lỏi tốt trong phố.','car','rare',300,'level','5','car_mint','{"body":"#6FD3B8","bodyDark":"#3FA994","trim":"#1F7A6B","glass":"#4A6C7C","glassLight":"#8FB6C4","wheel":"#33474F","light":"#EAFFF8","trail":"#8BEFD4"}',30,1,'2026-11-15 09:00:00.000'),
 (4,'car_navy','Xe navy đêm','Xanh navy sâu, chỉ dành cho người qua chặng 3.','car','epic',420,'stage','3','car_navy','{"body":"#2F4B7C","bodyDark":"#20355A","trim":"#141F38","glass":"#5B7691","glassLight":"#93AEC6","wheel":"#1B2534","light":"#DCE9FF","trail":"#6C9BE8"}',40,1,'2026-11-15 09:00:00.000'),
 (5,'car_aurora','Xe cực quang','Dải cực quang xanh tím chạy dọc thân xe.','car','epic',600,'league','silver','car_aurora','{"body":"#6E7BE8","bodyDark":"#4A55B8","trim":"#2E3593","glass":"#4C5F8C","glassLight":"#96A6E0","wheel":"#2C3350","light":"#E4E7FF","trail":"#8CE0F0"}',50,1,'2026-11-15 09:00:00.000'),
 (6,'car_gold','Xe hoàng kim','Toàn thân vàng kim, của những tay đua cấp 9.','car','legendary',900,'level','9','car_gold','{"body":"#E8BE55","bodyDark":"#C2963A","trim":"#8A6A1F","glass":"#6C6252","glassLight":"#C0B296","wheel":"#4B4438","light":"#FFF6D6","trail":"#FFDE8A"}',60,1,'2026-11-15 09:00:00.000'),
 (7,'frame_default','Khung mặc định','Khung tròn đơn giản, ai cũng có.','frame','common',0,'default',NULL,'frame_plain','{"ring":"#C9E0EB","ringDark":"#A3C9DA","accent":null}',110,1,'2026-11-15 09:00:00.000'),
-(8,'frame_bronze','Khung đồng','Viền đồng ấm cho học viên chăm chỉ.','frame','rare',160,'level','2','frame_bronze','{"ring":"#C98A55","ringDark":"#9A6236","accent":"#E9BE93"}',120,1,'2026-11-15 09:00:00.000'),
-(9,'frame_silver','Khung bạc','Viền bạc sáng bóng.','frame','rare',240,'level','4','frame_silver','{"ring":"#B8C4CE","ringDark":"#8A98A6","accent":"#E6EDF2"}',130,1,'2026-11-15 09:00:00.000'),
-(10,'frame_gold','Khung vàng','Viền vàng cho người hoàn thành 10 bài.','frame','epic',380,'achievement','lessons_10','frame_gold','{"ring":"#E0B34A","ringDark":"#AE8420","accent":"#FFE9A8"}',140,1,'2026-11-15 09:00:00.000'),
-(11,'frame_violet','Khung tím','Viền tím mảnh, mở khi xong chặng 4.','frame','epic',520,'stage','4','frame_violet','{"ring":"#9A7BE0","ringDark":"#6E52B4","accent":"#D9CBFF"}',150,1,'2026-11-15 09:00:00.000'),
-(12,'frame_prism','Khung thủy tinh','Viền nhiều sắc, phần thưởng hạng Vàng.','frame','legendary',600,'league','gold','frame_prism','{"ring":"#7FD8E8","ringDark":"#4E9FB5","accent":"#E7C6F7"}',160,1,'2026-11-15 09:00:00.000'),
+(8,'frame_bronze','Khung hổ lửa','Hổ con cam lửa ôm vành đồng, sọc hổ chạy quanh viền.','frame','rare',160,'level','2','frame_bronze','{"ring":"#F2B544","ringDark":"#C88A22","accent":"#FFF0B8","motif":"laurel"}',120,1,'2026-11-15 09:00:00.000'),
+(9,'frame_silver','Khung gấu túi bạc','Gấu túi xám ôm vòng bạc lấp lánh.','frame','rare',240,'level','4','frame_silver','{"ring":"#D8E2EA","ringDark":"#93A3B3","accent":"#FFFFFF","motif":"stars"}',130,1,'2026-11-15 09:00:00.000'),
+(10,'frame_gold','Khung cún vàng','Cún vàng mũm mĩm với những tia sáng quanh viền.','frame','epic',380,'achievement','lessons_10','frame_gold','{"ring":"#E8BE55","ringDark":"#C2963A","accent":"#FFF3C4","motif":"crown"}',140,1,'2026-11-15 09:00:00.000'),
+(11,'frame_violet','Khung cú tinh tú','Cú nâu đội vòng sao tím, mắt tròn xoe.','frame','epic',520,'stage','4','frame_violet','{"ring":"#9A7BE0","ringDark":"#6E52B4","accent":"#FFE9A8","motif":"stars"}',150,1,'2026-11-15 09:00:00.000'),
+(12,'frame_prism','Khung kỳ lân','Kỳ lân pastel với sừng cầu vồng và đốm sáng thủy tinh.','frame','legendary',600,'league','gold','frame_prism','{"ring":"#7FD8E8","ringDark":"#4E9FB5","accent":"#E7C6F7","motif":"crystal"}',160,1,'2026-11-15 09:00:00.000'),
 (13,'nameplate_default','Nền mặc định','Nền trơn theo màu giao diện.','nameplate','common',0,'default',NULL,'plate_plain','{"scene":"plain"}',210,1,'2026-11-15 09:00:00.000'),
-(14,'nameplate_slate','Nền núi sương','Dãy núi xanh phủ sương lúc bình minh.','nameplate','common',120,'level','1','plate_slate','{"scene":"slate"}',220,1,'2026-11-15 09:00:00.000'),
-(15,'nameplate_cyan','Nền bầu trời','Bầu trời xanh với những đám mây trắng.','nameplate','rare',200,'level','3','plate_cyan','{"scene":"sky"}',230,1,'2026-11-15 09:00:00.000'),
-(16,'nameplate_sunset','Nền hoàng hôn','Hoàng hôn cam hồng trên những đồi cỏ.','nameplate','epic',320,'stage','2','plate_sunset','{"scene":"sunset"}',240,1,'2026-11-15 09:00:00.000'),
-(17,'nameplate_forest','Nền rừng xanh','Rừng xanh mát với ánh nắng xuyên tán lá.','nameplate','epic',420,'achievement','xp_500','plate_forest','{"scene":"forest"}',250,1,'2026-11-15 09:00:00.000'),
-(18,'nameplate_royal','Nền hoàng gia','Bầu trời đêm và cung điện ánh vàng, dành cho Kim Cương.','nameplate','legendary',500,'league','diamond','plate_royal','{"scene":"royal"}',260,1,'2026-11-15 09:00:00.000'),
+(14,'nameplate_slate','Nền núi mây','Dãy núi tuyết nhô lên khỏi biển mây lúc bình minh.','nameplate','common',120,'level','1','plate_slate','{"scene":"slate"}',220,1,'2026-11-15 09:00:00.000'),
+(15,'nameplate_cyan','Nền biển mây','Những đám mây trắng cuồn cuộn dưới nắng.','nameplate','rare',200,'level','3','plate_cyan','{"scene":"sky"}',230,1,'2026-11-15 09:00:00.000'),
+(16,'nameplate_sunset','Nền hoàng hôn','Mặt trời lặn sau đồi cỏ, nhuộm vàng cả chân trời.','nameplate','epic',320,'stage','2','plate_sunset','{"scene":"sunset"}',240,1,'2026-11-15 09:00:00.000'),
+(17,'nameplate_forest','Nền rừng xanh','Rừng thông xanh mát với nắng xuyên qua tán lá.','nameplate','epic',420,'achievement','xp_500','plate_forest','{"scene":"forest"}',250,1,'2026-11-15 09:00:00.000'),
+(18,'nameplate_royal','Nền đêm sao','Dải Ngân Hà và sao băng trên đỉnh núi tuyết.','nameplate','legendary',500,'league','diamond','plate_royal','{"scene":"royal"}',260,1,'2026-11-15 09:00:00.000'),
 -- boosters: consumables, never owned permanently (charges / timed effects)
 (19,'booster_streak_shield','Bảo vệ chuỗi','Thua một trận vẫn giữ nguyên chuỗi thắng.','booster','common',60,'default',NULL,'booster_shield',NULL,310,1,'2026-11-15 09:00:00.000'),
 (20,'booster_xp2','Nhân đôi XP','Nhân đôi XP nhận được trong 30 phút.','booster','rare',80,'default',NULL,'booster_xp',NULL,320,1,'2026-11-15 09:00:00.000'),
 (21,'booster_rc2','Nhân đôi Race Coin','Nhân đôi Race Coin ở trận đấu tiếp theo.','booster','rare',90,'default',NULL,'booster_rc',NULL,330,1,'2026-11-15 09:00:00.000'),
-(22,'booster_starter','Gói khởi động','3 Bảo vệ chuỗi và 1 thẻ nhân đôi XP.','booster','epic',220,'default',NULL,'booster_starter',NULL,340,1,'2026-11-15 09:00:00.000');
+(22,'booster_starter','Gói khởi động','3 Bảo vệ chuỗi và 1 thẻ nhân đôi XP.','booster','epic',220,'default',NULL,'booster_starter',NULL,340,1,'2026-11-15 09:00:00.000'),
+-- 2026-11-20: additional cars, mascot frames and photographic nameplates.
+(23,'car_rickshaw','Xe lam tốc độ','Chiếc xe lam ba bánh sơn xanh, lách qua mọi con phố.','car','rare',280,'level','6','car_rickshaw','{"model":"taxi","body":"#2E8B57","bodyDark":"#1B5E3B","trim":"#E3B93F","glass":"#4E6476","glassLight":"#9DB2C2","wheel":"#2B3442","light":"#FFF6D6","trail":"#7BD389"}',70,1,'2026-11-20 09:00:00.000'),
+(24,'car_monster','Xe quái vật','Bánh khổng lồ và tiếng máy gầm vang cả đường đua.','car','epic',460,'stage','4','car_monster','{"model":"monster","body":"#7BC043","bodyDark":"#4C8A24","trim":"#2F5A13","glass":"#374A2E","glassLight":"#9ABD7A","wheel":"#20262E","light":"#F4FFD6","trail":"#A6E85C"}',80,1,'2026-11-20 09:00:00.000'),
+(25,'car_formula','Xe đua công thức','Bản thu nhỏ của một chiếc F1 đỏ rực, chỉ dành cho tay đua cứng.','car','legendary',720,'league','gold','car_formula','{"model":"formula","body":"#F25C4A","bodyDark":"#B6322A","trim":"#6E1714","glass":"#3A4652","glassLight":"#8FA2B2","wheel":"#1F2630","light":"#FFF0C2","trail":"#FF8A5C"}',90,1,'2026-11-20 09:00:00.000'),
+(26,'car_jeep','Jeep đường dài','Gầm cao, lốp dự phòng, sẵn sàng cho mọi chặng đường.','car','epic',380,'level','8','car_jeep','{"model":"jeep","body":"#D9534F","bodyDark":"#A83A36","trim":"#7A1F1C","glass":"#4B5C63","glassLight":"#9FB4B8","wheel":"#2A2622","light":"#FFF1C9","trail":"#F08A7E"}',100,1,'2026-11-20 09:00:00.000'),
+(27,'frame_sakura','Khung mèo anh đào','Mèo vàng tinh nghịch trong vòng hoa anh đào.','frame','epic',340,'level','6','frame_sakura','{"ring":"#F2A7C3","ringDark":"#C86B92","accent":"#FFE3EF","motif":"sakura"}',170,1,'2026-11-20 09:00:00.000'),
+(28,'frame_dragon','Khung rồng lửa','Rồng ngọc canh vòng nguyệt quế, ánh vàng trên nền xanh.','frame','legendary',560,'stage','5','frame_dragon','{"ring":"#2E8B57","ringDark":"#1B5E3B","accent":"#FFB03A","motif":"dragon"}',180,1,'2026-11-20 09:00:00.000'),
+(29,'frame_ocean','Khung cánh cụt biển','Cánh cụt nhỏ với những bong bóng biển xanh.','frame','rare',300,'level','7','frame_ocean','{"ring":"#3AA6C9","ringDark":"#1F6F8B","accent":"#C8F4FF","motif":"ocean"}',190,1,'2026-11-20 09:00:00.000'),
+(30,'frame_neon','Khung cáo neon','Cáo cam tinh nghịch trong vầng sáng neon tím.','frame','epic',480,'achievement','xp_500','frame_neon','{"ring":"#5B4BC4","ringDark":"#312A78","accent":"#3EF2E0","motif":"neon"}',200,1,'2026-11-20 09:00:00.000'),
+(31,'nameplate_desert','Nền sa mạc','Nắng chiều nhuộm đỏ những mỏm đá sa mạc.','nameplate','rare',260,'stage','3','plate_desert','{"scene":"desert"}',270,1,'2026-11-20 09:00:00.000'),
+(32,'nameplate_space','Nền tinh vân','Tinh vân xanh tím giữa lòng vũ trụ.','nameplate','epic',480,'level','8','plate_space','{"scene":"space"}',280,1,'2026-11-20 09:00:00.000'),
+(33,'nameplate_sakura','Nền hoa anh đào','Cành anh đào nở rộ dưới nắng xuân.','nameplate','epic',400,'level','6','plate_sakura','{"scene":"sakura"}',290,1,'2026-11-20 09:00:00.000'),
+(34,'nameplate_ocean','Nền đại dương','Sóng biển trong veo và bờ cát vàng.','nameplate','rare',300,'level','5','plate_ocean','{"scene":"ocean"}',300,1,'2026-11-20 09:00:00.000'),
+(35,'nameplate_aurora','Nền cực quang','Dải sáng xanh tím trên bầu trời tuyết.','nameplate','legendary',600,'league','gold','plate_aurora','{"scene":"aurora"}',305,1,'2026-11-20 09:00:00.000');
 -- quests: 7 dòng (4 daily · 3 weekly)
 INSERT INTO `quests` (`id`, `code`, `kind`, `title`, `description`, `metric`, `target`, `rc_reward`, `xp_reward`, `rp_reward`, `sort_order`, `active`) VALUES
 (1,'daily_answers_20','daily','Luyện 20 câu','Trả lời 20 câu hỏi trong ngày.','answers',20,20,10,15,10,1),
@@ -3256,3 +3321,110 @@ SET UNIQUE_CHECKS = 1;
 --   season_standings           0
 --   season_payouts             0
 -- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Booster behaviour backfill (was hardcoded in gamification.rewards.ts).
+-- Idempotent so this block can also be applied to an existing database.
+-- ---------------------------------------------------------------------------
+UPDATE `shop_items` SET `booster_kind` = 'streak_shield', `booster_charges` = 1
+ WHERE `code` = 'booster_streak_shield' AND `booster_kind` IS NULL;
+UPDATE `shop_items` SET `booster_kind` = 'xp_multiplier', `booster_duration_minutes` = 30
+ WHERE `code` = 'booster_xp2' AND `booster_kind` IS NULL;
+UPDATE `shop_items` SET `booster_kind` = 'rc_multiplier', `booster_charges` = 1
+ WHERE `code` = 'booster_rc2' AND `booster_kind` IS NULL;
+UPDATE `shop_items` SET `booster_kind` = 'streak_shield', `booster_charges` = 3
+ WHERE `code` = 'booster_starter' AND `booster_kind` IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Video learning seed: vocabulary for every shared lesson that ships segments.
+-- Keys are the catalogue codes so the block works on any database that has
+-- those lessons, and INSERT IGNORE keeps a re-run harmless.
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `video_vocabulary`
+  (`video_id`, `word`, `ipa`, `meaning_vi`, `detail_vi`, `sort_order`)
+SELECT v.id, s.word, s.ipa, s.meaning_vi, s.detail_vi, s.sort_order
+FROM `video_lessons` v
+JOIN (
+  SELECT 'video-small-talk' AS code, 'coworker' AS word, '/ˈkoʊˌwɜːrkər/' AS ipa,
+         'đồng nghiệp' AS meaning_vi,
+         'Người cùng làm việc trong một công ty. "My coworkers are really friendly."' AS detail_vi,
+         1 AS sort_order
+  UNION ALL SELECT 'video-small-talk', 'friendly', '/ˈfrendli/', 'thân thiện',
+         'Dễ gần và tốt với người khác. "Everyone here is friendly and helpful."', 2
+  UNION ALL SELECT 'video-small-talk', 'helpful', '/ˈhelpfl/', 'hay giúp đỡ',
+         'Sẵn sàng giúp người khác khi cần. "They help me feel welcome."', 3
+  UNION ALL SELECT 'video-small-talk', 'atmosphere', '/ˈætməsfɪr/', 'bầu không khí',
+         'Cảm giác chung của một nơi làm việc. "It has an energetic atmosphere."', 4
+  UNION ALL SELECT 'video-small-talk', 'hilarious', '/hɪˈleriəs/', 'rất buồn cười',
+         'Cực kỳ hài hước. "My boss is hilarious."', 5
+  UNION ALL SELECT 'video-small-talk', 'flexible', '/ˈfleksəbl/', 'linh hoạt',
+         'Có thể thay đổi giờ giấc cho phù hợp. "He is really flexible about hours."', 6
+  UNION ALL SELECT 'video-small-talk', 'dress code', '/ˈdres koʊd/', 'quy định trang phục',
+         'Quy tắc về quần áo khi đến nơi làm việc. "There is no real dress code."', 7
+  UNION ALL SELECT 'video-small-talk', 'sunrise', '/ˈsʌnraɪz/', 'bình minh',
+         'Lúc mặt trời mọc. "I love watching the sunrise with my coffee."', 8
+  UNION ALL SELECT 'video-past-trip', 'trip', '/trɪp/', 'chuyến đi',
+         'Một chuyến đi ngắn hoặc chuyến du lịch. "How was your trip?"', 1
+  UNION ALL SELECT 'video-past-trip', 'weather', '/ˈweðər/', 'thời tiết',
+         'Tình trạng khí hậu trong một ngày. "The weather was beautiful."', 2
+  UNION ALL SELECT 'video-past-trip', 'sunny', '/ˈsʌni/', 'nắng',
+         'Có nhiều ánh nắng mặt trời. "It was warm and sunny every day."', 3
+  UNION ALL SELECT 'video-past-trip', 'sightseeing', '/ˈsaɪtsiːɪŋ/', 'đi tham quan',
+         'Đi thăm những điểm nổi tiếng. "I did some sightseeing."', 4
+  UNION ALL SELECT 'video-past-trip', 'delicious', '/dɪˈlɪʃəs/', 'ngon',
+         'Có vị rất ngon. "I ate at some delicious restaurants."', 5
+  UNION ALL SELECT 'video-past-trip', 'reasonable', '/ˈriːznəbl/', 'hợp lý (giá cả)',
+         'Không quá đắt. "I think the price was reasonable."', 6
+  UNION ALL SELECT 'video-past-trip', 'vacation', '/veɪˈkeɪʃn/', 'kỳ nghỉ',
+         'Thời gian nghỉ để đi du lịch. "You had a wonderful vacation."', 7
+  UNION ALL SELECT 'video-past-trip', 'food poisoning', '/fuːd ˈpɔɪzənɪŋ/', 'ngộ độc thực phẩm',
+         'Bị bệnh sau khi ăn thức ăn không an toàn. "I got food poisoning."', 8
+  UNION ALL SELECT 'video-viva-la-vida', 'rule', '/ruːl/', 'cai trị; quy tắc',
+         'Điều khiển hoặc quản lý. "I used to rule the world."', 1
+  UNION ALL SELECT 'video-viva-la-vida', 'rise', '/raɪz/', 'dâng lên',
+         'Đi lên hoặc tăng lên. "Seas would rise when I gave the word."', 2
+  UNION ALL SELECT 'video-viva-la-vida', 'sweep', '/swiːp/', 'quét',
+         'Làm sạch bằng chổi. "Sweep the streets I used to own."', 3
+  UNION ALL SELECT 'video-viva-la-vida', 'own', '/oʊn/', 'sở hữu',
+         'Có thứ gì đó thuộc về mình. "The streets I used to own."', 4
+  UNION ALL SELECT 'video-viva-la-vida', 'world', '/wɜːrld/', 'thế giới',
+         'Toàn bộ hành tinh hoặc mọi người. "I used to rule the world."', 5
+  UNION ALL SELECT 'video-viva-la-vida', 'sleep', '/sliːp/', 'ngủ',
+         'Nghỉ ngơi với mắt nhắm. "Now in the morning I sleep alone."', 6
+  UNION ALL SELECT 'video-viva-la-vida', 'word', '/wɜːrd/', 'lời nói',
+         'Một đơn vị ngôn ngữ. "When I gave the word."', 7
+  UNION ALL SELECT 'video-viva-la-vida', 'morning', '/ˈmɔːrnɪŋ/', 'buổi sáng',
+         'Phần đầu của ngày. "Now in the morning I sleep alone."', 8
+  UNION ALL SELECT 'video-the-nights', 'shadow', '/ˈʃædoʊ/', 'bóng tối',
+         'Vùng tối do vật cản ánh sáng. "When all our shadows disappeared."', 1
+  UNION ALL SELECT 'video-the-nights', 'disappear', '/ˌdɪsəˈpɪr/', 'biến mất',
+         'Không còn nhìn thấy nữa. "All our shadows disappeared."', 2
+  UNION ALL SELECT 'video-the-nights', 'fear', '/fɪr/', 'nỗi sợ',
+         'Cảm giác lo lắng trước nguy hiểm. "Face to face with all our fears."', 3
+  UNION ALL SELECT 'video-the-nights', 'tear', '/tɪr/', 'nước mắt',
+         'Giọt nước từ mắt khi khóc. "We learned our lessons through the tears."', 4
+  UNION ALL SELECT 'video-the-nights', 'memory', '/ˈmeməri/', 'kỷ niệm',
+         'Điều còn nhớ về quá khứ. "Made memories we knew would never fade."', 5
+  UNION ALL SELECT 'video-the-nights', 'dream', '/driːm/', 'giấc mơ',
+         'Hình ảnh trong khi ngủ hoặc điều mong ước. "Dreaming about the things we could be."', 6
+  UNION ALL SELECT 'video-the-nights', 'lesson', '/ˈlesn/', 'bài học',
+         'Điều học được từ trải nghiệm. "We learned our lessons through the tears."', 7
+  UNION ALL SELECT 'video-the-nights', 'play', '/pleɪ/', 'vui chơi',
+         'Làm điều gì đó để giải trí. "The animals inside came out to play."', 8
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'lose sleep', '/luːz sliːp/', 'mất ngủ',
+         'Không ngủ được vì lo nghĩ. "I have been losing sleep."', 1
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'dream', '/driːm/', 'mơ ước',
+         'Nghĩ về điều mình mong muốn. "Dreaming about the things that we could be."', 2
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'pray', '/preɪ/', 'cầu nguyện',
+         'Nói chuyện với thần linh hoặc cầu mong điều tốt. "I have been praying hard."', 3
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'count', '/kaʊnt/', 'đếm',
+         'Xác định số lượng. "We will be counting stars."', 4
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'swing', '/swɪŋ/', 'đu đưa',
+         'Chuyển động qua lại. "Life is like a swinging vine."', 5
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'vine', '/vaɪn/', 'dây leo',
+         'Cây leo có thân dài. "A swinging vine."', 6
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'bold', '/boʊld/', 'tự tin, táo bạo',
+         'Dám làm điều khó. "Young but I am not that bold."', 7
+  UNION ALL SELECT 'yt_hT_nvWreIhg_shared', 'alive', '/əˈlaɪv/', 'còn sống, sống động',
+         'Cảm thấy tràn đầy sức sống. "Everything that kills me makes me feel alive."', 8
+) s ON s.code = v.code;

@@ -1,14 +1,75 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/authenticate';
+import { clientIp, rateLimit } from '../../middleware/rate-limit';
 import * as authController from './auth.controller';
 
 export const authRouter = Router();
 
-authRouter.post('/register', authController.register);
-authRouter.post('/login', authController.login);
-authRouter.post('/google', authController.google);
-authRouter.post('/facebook', authController.facebook);
+/** Brute-force guards. Login is keyed by IP and by IP+email so one attacker
+ *  cannot lock out other learners behind the same IP. */
+const loginIpLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  key: (req) => `auth:login:ip:${clientIp(req)}`,
+  message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau 15 phút.',
+});
+const loginAccountLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  key: (req) => {
+    const email = String((req.body as { email?: unknown } | undefined)?.email ?? '')
+      .trim()
+      .toLowerCase();
+    return `auth:login:acct:${clientIp(req)}:${email || 'none'}`;
+  },
+  message: 'Sai mật khẩu quá nhiều lần cho tài khoản này. Vui lòng thử lại sau 15 phút.',
+});
+const registerIpLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 15,
+  key: (req) => `auth:register:ip:${clientIp(req)}`,
+  message: 'Đã tạo quá nhiều tài khoản trong thời gian ngắn. Vui lòng thử lại sau 1 giờ.',
+});
+
+const verifyOtpLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  key: (req) => {
+    const email = String((req.body as { email?: unknown } | undefined)?.email ?? '')
+      .trim()
+      .toLowerCase();
+    return `auth:register:verify:${clientIp(req)}:${email || 'none'}`;
+  },
+  message: 'Quá nhiều lần nhập mã xác thực. Vui lòng thử lại sau 15 phút.',
+});
+
+const resendOtpLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  key: (req) => `auth:register:resend:${clientIp(req)}`,
+  message: 'Đã yêu cầu gửi lại mã quá nhiều lần. Vui lòng thử lại sau 1 giờ.',
+});
+
+const socialIpLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  key: (req) => `auth:social:ip:${clientIp(req)}`,
+  message: 'Quá nhiều lần đăng nhập mạng xã hội. Vui lòng thử lại sau 15 phút.',
+});
+
+authRouter.post('/register', registerIpLimit, authController.register);
+// Web registration sends a six-digit code; `/register` above stays for the
+// mobile client and any existing integration that has no mail step yet.
+authRouter.post('/register/start', registerIpLimit, authController.startRegistration);
+authRouter.post('/register/verify', verifyOtpLimit, authController.verifyRegistration);
+authRouter.post('/register/resend', resendOtpLimit, authController.resendRegistrationOtp);
+authRouter.post('/login', loginIpLimit, loginAccountLimit, authController.login);
+authRouter.post('/google', socialIpLimit, authController.google);
+authRouter.post('/facebook', socialIpLimit, authController.facebook);
 authRouter.get('/providers', authController.providers);
+authRouter.get('/providers/links', authenticate, authController.linkedProviders);
+authRouter.post('/providers/:provider/link', authenticate, socialIpLimit, authController.linkProvider);
+authRouter.delete('/providers/:provider', authenticate, authController.unlinkProvider);
 authRouter.get('/me', authenticate, authController.me);
 authRouter.patch('/profile', authenticate, authController.updateProfile);
 authRouter.patch('/password', authenticate, authController.changePassword);

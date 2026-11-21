@@ -4,6 +4,7 @@ import { nameplateSkin } from '../../cosmetics'
 export interface NameplateProps {
   /** `visual_key` of the equipped nameplate; plain renders text with no band. */
   visualKey?: string | null
+  style?: Record<string, string | null> | null
   children: ReactNode
   className?: string
   /** Compact variant for dense rows (rankings, arena scoreboard). */
@@ -16,10 +17,10 @@ export interface NameplateProps {
  * rows and the arena scoreboard. The profile paints the same skin as the
  * background of its own blocks instead — see `nameplateSurface.ts`.
  */
-export function Nameplate({ visualKey, children, className, dense = false }: NameplateProps) {
-  const skin = nameplateSkin(visualKey)
+export function Nameplate({ visualKey, style, children, className, dense = false }: NameplateProps) {
+  const skin = nameplateSkin(visualKey, style)
   const hasBand = skin.bg !== 'transparent'
-  const style: CSSProperties | undefined = hasBand
+  const bandStyle: CSSProperties | undefined = hasBand
     ? {
         background: skin.bg,
         color: skin.fg ?? undefined,
@@ -30,7 +31,7 @@ export function Nameplate({ visualKey, children, className, dense = false }: Nam
   return (
     <span
       className={`nameplate${hasBand ? ' is-banded' : ''}${dense ? ' is-dense' : ''}${className ? ` ${className}` : ''}`}
-      style={style}
+      style={bandStyle}
     >
       {children}
     </span>

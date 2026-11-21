@@ -9,6 +9,7 @@ import {
 import { levelForXp } from '../gamification/gamification.levels';
 import { REWARDS } from '../gamification/gamification.rewards';
 import type { LedgerEntry } from '../gamification/gamification.types';
+import { enqueueBattleMistakes } from '../analytics/review.repository';
 
 export interface BattleWord {
   id: number;
@@ -89,12 +90,13 @@ export async function recordAnswer(
   answer: string,
   isCorrect: boolean,
   responseTimeMs: number,
+  wordId: number | null = null,
 ): Promise<void> {
   await pool.execute(
     `INSERT INTO match_answers
-       (match_id, user_id, question_id, round, answer_text, is_correct, response_time_ms)
-     VALUES (?, ?, NULL, ?, ?, ?, ?)`,
-    [matchId, userId, round, answer, isCorrect, responseTimeMs],
+       (match_id, user_id, question_id, word_id, round, answer_text, is_correct, response_time_ms)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+    [matchId, userId, wordId, round, answer, isCorrect, responseTimeMs],
   );
 }
 
@@ -109,6 +111,16 @@ export async function finishMatch(
      WHERE id = ? AND status = 'active'`,
     [status, winnerUserId, matchId],
   );
+}
+
+/**
+ * Missed words become review items. Kept in the repository so the socket only
+ * ever talks to one seam, and a test double never reaches the real database.
+ */
+export async function enqueueReviewMistakes(
+  entries: Array<{ userId: number; wordId: number; isCorrect: boolean }>,
+): Promise<void> {
+  await enqueueBattleMistakes(entries);
 }
 
 export interface BattleParticipant {

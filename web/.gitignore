@@ -17,7 +17,7 @@ memory/
 # Implementation & Review Records
 implement/
 deploy/
-review/
+/review/
 
 # Dependencies
 node_modules/

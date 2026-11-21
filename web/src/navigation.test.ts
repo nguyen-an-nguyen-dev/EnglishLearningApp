@@ -9,7 +9,7 @@ describe('Dashboard Navigation Architecture', () => {
     assert.deepEqual(tabs, ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile'])
   })
 
-  test('Tab labels are defined for every learner tab', () => {
+  test('Review is an action in the profile, not a tab', () => {
     const tabLabels: Record<DashboardTab, string> = {
       study: 'Học Tập',
       videos: 'Học qua Video',
@@ -19,12 +19,7 @@ describe('Dashboard Navigation Architecture', () => {
       shop: 'Gara Engorace',
       profile: 'Profile',
     }
-    assert.equal(tabLabels.study, 'Học Tập')
-    assert.equal(tabLabels.videos, 'Học qua Video')
-    assert.equal(tabLabels.translate, 'Dịch Tài Liệu')
-    assert.equal(tabLabels.compete, 'Thi Đua')
-    assert.equal(tabLabels.rankings, 'Bảng Xếp Hạng')
-    assert.equal(tabLabels.shop, 'Gara Engorace')
+    assert.equal('review' in tabLabels, false, 'no review tab label survives')
     assert.equal(tabLabels.profile, 'Profile')
   })
 })

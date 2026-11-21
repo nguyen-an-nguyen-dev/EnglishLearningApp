@@ -5,23 +5,38 @@ import {
   Flag,
   GridFour,
   SignOut,
+  Storefront,
+  Sword,
+  UsersThree,
   VideoCamera,
 } from '@phosphor-icons/react'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../i18n'
 import { AdminLessonsPanel } from '../components/admin/AdminLessonsPanel'
 import { AdminVideoPanel } from '../components/admin/AdminVideoPanel'
+import { AdminShopPanel } from '../components/admin/AdminShopPanel'
+import { AdminArenaPanel } from '../components/admin/AdminArenaPanel'
+import { AdminUsersPanel } from '../components/admin/AdminUsersPanel'
+import logoUrl from '../assets/logo.png'
 import { AdminOverview } from './AdminOverview'
 import { AdminStats } from './AdminStats'
 
-export type AdminViewId = 'overview' | 'content' | 'videos' | 'stats'
+export type AdminViewId = 'overview' | 'content' | 'videos' | 'shop' | 'arena' | 'users' | 'stats'
 
 const VIEW_STORAGE_KEY = 'engorace_admin_view'
 
 function readStoredView(): AdminViewId {
   try {
     const raw = sessionStorage.getItem(VIEW_STORAGE_KEY)
-    if (raw === 'overview' || raw === 'content' || raw === 'videos' || raw === 'stats') return raw
+    if (
+      raw === 'overview'
+      || raw === 'content'
+      || raw === 'videos'
+      || raw === 'shop'
+      || raw === 'arena'
+      || raw === 'users'
+      || raw === 'stats'
+    ) return raw
   } catch {
     /* private mode */
   }
@@ -30,6 +45,9 @@ function readStoredView(): AdminViewId {
   if (hash.includes('/stats')) return 'stats'
   if (hash.includes('/content')) return 'content'
   if (hash.includes('/videos')) return 'videos'
+  if (hash.includes('/shop')) return 'shop'
+  if (hash.includes('/arena')) return 'arena'
+  if (hash.includes('/users')) return 'users'
   return 'overview'
 }
 
@@ -51,6 +69,9 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
     { id: 'overview', label: t.consoleNavOverview, short: 'Tổng quan', icon: GridFour },
     { id: 'content', label: t.consoleNavContent, short: 'Nội dung', icon: Flag },
     { id: 'videos', label: t.consoleNavVideos, short: 'Video', icon: VideoCamera },
+    { id: 'shop', label: 'Cửa hàng', short: 'Shop', icon: Storefront },
+    { id: 'arena', label: 'Đấu trường', short: 'Arena', icon: Sword },
+    { id: 'users', label: 'Người dùng', short: 'User', icon: UsersThree },
     { id: 'stats', label: t.consoleNavStats, short: 'Thống kê', icon: ChartBar },
   ]
 
@@ -67,7 +88,7 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
     <div className="admin-shell">
       <aside className="admin-sider" aria-label={t.consoleTitle}>
         <div className="admin-sider-brand">
-          <img src="/logo.png" alt="Engorace" />
+          <img src={logoUrl} alt="Engorace" />
           <div className="admin-sider-brand-text">
             <strong>Engorace</strong>
             <span>{t.consoleTitle}</span>
@@ -123,6 +144,9 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
               {view === 'overview' && t.consoleOverviewDesc}
               {view === 'content' && t.adminDesc}
               {view === 'videos' && t.adminVideoDialogDesc}
+              {view === 'shop' && 'Quản lý vật phẩm Gara, giá, độ hiếm và hiệu ứng tiêu hao.'}
+              {view === 'arena' && 'Quản lý từ vựng dùng để sinh câu hỏi Word Battle.'}
+              {view === 'users' && 'Quản lý tiến độ người học mà không đụng tới mật khẩu hay thông tin đăng nhập.'}
               {view === 'stats' && 'Theo dõi người học, giữ chân và hiệu suất nội dung.'}
             </p>
           </div>
@@ -141,6 +165,21 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
           {view === 'videos' && (
             <div className="admin-card admin-panel-card">
               <AdminVideoPanel />
+            </div>
+          )}
+          {view === 'shop' && (
+            <div className="admin-card admin-panel-card">
+              <AdminShopPanel />
+            </div>
+          )}
+          {view === 'arena' && (
+            <div className="admin-card admin-panel-card">
+              <AdminArenaPanel />
+            </div>
+          )}
+          {view === 'users' && (
+            <div className="admin-card admin-panel-card">
+              <AdminUsersPanel />
             </div>
           )}
           {view === 'stats' && <AdminStats />}
@@ -177,7 +216,7 @@ export function AdminNoAccess({ onLogout }: { onLogout: () => void }) {
     <div className="admin-login">
       <div className="admin-login-card" role="alert">
         <div className="admin-login-head">
-          <img src="/logo.png" alt="Engorace" />
+          <img src={logoUrl} alt="Engorace" />
           <h1>{t.consoleNoAccessTitle}</h1>
           <p>{t.consoleNoAccessDesc}</p>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowClockwise,
+  BookOpenText,
   CaretDown,
   CaretUp,
   Check,
@@ -29,6 +30,7 @@ import { videoImportErrorMessage } from '../../utils/videoImportErrors'
 import { formatClock, youtubeThumbnailUrl } from '../../utils/videoPlayback'
 import { AdminDialog } from './AdminDialog'
 import { AdminSkeleton } from './AdminSkeleton'
+import { AdminVideoVocabularyDialog } from './AdminVideoVocabularyDialog'
 
 interface EditDraft {
   title: string
@@ -69,6 +71,7 @@ export function AdminVideoPanel() {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [vocabVideo, setVocabVideo] = useState<AdminSharedVideo | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -300,6 +303,15 @@ export function AdminVideoPanel() {
                   <button
                     type="button"
                     className="admin-icon-btn"
+                    onClick={() => setVocabVideo(video)}
+                    aria-label="Quản lý từ vựng"
+                    title="Quản lý từ vựng"
+                  >
+                    <BookOpenText size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-icon-btn"
                     onClick={() => openEdit(video)}
                     aria-label={t.adminEdit}
                     title={t.adminEdit}
@@ -486,6 +498,12 @@ export function AdminVideoPanel() {
           </form>
         )}
       </AdminDialog>
+
+      <AdminVideoVocabularyDialog
+        key={vocabVideo?.id ?? 'closed'}
+        video={vocabVideo}
+        onClose={() => setVocabVideo(null)}
+      />
     </section>
   )
 }

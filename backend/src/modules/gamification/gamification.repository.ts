@@ -16,16 +16,27 @@ import type {
 /** Either the shared pool or a connection that already holds a transaction. */
 type Executor = Pool | PoolConnection;
 
-export const TIER_THRESHOLDS: Array<{ tier: LeagueTier; min: number }> = [
-  { tier: 'diamond', min: 900 },
-  { tier: 'gold', min: 500 },
-  { tier: 'silver', min: 200 },
-  { tier: 'bronze', min: 0 },
-];
+const TIER_ORDER: LeagueTier[] = ['bronze', 'silver', 'gold', 'diamond'];
 
-export function tierForPoints(points: number): LeagueTier {
-  const value = Number.isFinite(points) && points > 0 ? Math.floor(points) : 0;
-  return TIER_THRESHOLDS.find((entry) => value >= entry.min)?.tier ?? 'bronze';
+/** One step up/down at season settlement; the ends of the ladder stay put. */
+export function promoteTier(tier: LeagueTier): LeagueTier {
+  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(tier) + 1, TIER_ORDER.length - 1)] ?? 'bronze';
+}
+
+export function demoteTier(tier: LeagueTier): LeagueTier {
+  return TIER_ORDER[Math.max(TIER_ORDER.indexOf(tier) - 1, 0)] ?? 'bronze';
+}
+
+/** The tier a learner carries into the current season. */
+export async function getLeagueTier(
+  executor: Executor,
+  userId: number,
+): Promise<LeagueTier> {
+  const [rows] = await executor.execute<Array<RowDataPacket & { league_tier: LeagueTier }>>(
+    'SELECT league_tier FROM users WHERE id = ? LIMIT 1',
+    [userId],
+  );
+  return rows[0]?.league_tier ?? 'bronze';
 }
 
 // ─── Idempotent grants ────────────────────────────────────────────────────────
@@ -123,10 +134,12 @@ async function touchStreakInTx(executor: Executor, userId: number): Promise<void
     streak: number;
     is_today: number;
     is_yesterday: number;
+    gap: number | null;
   }>>(
     `SELECT streak,
             (last_activity_date = CURDATE()) AS is_today,
-            (last_activity_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)) AS is_yesterday
+            (last_activity_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)) AS is_yesterday,
+            DATEDIFF(CURDATE(), last_activity_date) AS gap
      FROM users WHERE id = ? FOR UPDATE`,
     [userId],
   );
@@ -142,13 +155,109 @@ async function touchStreakInTx(executor: Executor, userId: number): Promise<void
     return;
   }
 
-  // The chain broke. A held shield absorbs the break once: the streak number is
-  // kept and a charge is spent, which is exactly what the shop card promises.
-  const shielded = Number(row.streak) > 0 && await consumeBoosterInTx(executor, userId, 'streak_shield');
-  await executor.execute(
-    'UPDATE users SET streak = ?, last_activity_date = CURDATE() WHERE id = ?',
-    [shielded ? Number(row.streak) : 1, userId],
+  // The chain broke. Each missed day needs its own shield. If the learner has
+  // enough, today's real activity continues the chain with +1; otherwise a
+  // partial set of shields is left untouched and the streak restarts.
+  const streak = Number(row.streak);
+  const needed = Math.max(0, Number(row.gap ?? 0) - 1);
+  const shielded = streak > 0 && needed > 0
+    && await spendStreakShields(executor, userId, needed);
+  if (shielded) {
+    await executor.execute(
+      'UPDATE users SET streak = streak + 1, last_activity_date = CURDATE() WHERE id = ?',
+      [userId],
+    );
+    return;
+  }
+
+  if (streak > 0) {
+    await executor.execute(
+      `UPDATE users
+          SET streak = 1, last_activity_date = CURDATE(),
+              streak_lost = ?, streak_lost_at = CURDATE()
+        WHERE id = ?`,
+      [Number(row.streak), userId],
+    );
+  } else {
+    await executor.execute(
+      'UPDATE users SET streak = 1, last_activity_date = CURDATE() WHERE id = ?',
+      [userId],
+    );
+  }
+}
+
+/**
+ * Lazy streak expiry. Opening the app after a missed day must show the loss
+ * immediately, not only after the next lesson. Each missed day costs one shield
+ * charge; without enough shields the current streak becomes 0 and the previous
+ * value is kept for the "lost streak" notice.
+ */
+export async function ensureStreakState(userId: number): Promise<void> {
+  // Cheap unlocked read first: most requests are inside the two-day window and
+  // should not take a row lock.
+  const [previewRows] = await pool.execute<Array<RowDataPacket & {
+    streak: number;
+    gap: number | null;
+  }>>(
+    `SELECT streak, DATEDIFF(CURDATE(), last_activity_date) AS gap
+       FROM users WHERE id = ? LIMIT 1`,
+    [userId],
   );
+  const preview = previewRows[0];
+  if (!preview) return;
+  const previewGap = preview.gap === null ? null : Number(preview.gap);
+  if (Number(preview.streak) <= 0 || (previewGap !== null && previewGap <= 1)) return;
+
+  const connection: PoolConnection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<Array<RowDataPacket & {
+      streak: number;
+      gap: number | null;
+    }>>(
+      `SELECT streak, DATEDIFF(CURDATE(), last_activity_date) AS gap
+         FROM users WHERE id = ? FOR UPDATE`,
+      [userId],
+    );
+    const row = rows[0];
+    if (!row) {
+      await connection.rollback();
+      return;
+    }
+    const streak = Number(row.streak);
+    const gap = row.gap === null ? null : Number(row.gap);
+    if (streak <= 0 || (gap !== null && gap <= 1)) {
+      await connection.commit();
+      return;
+    }
+
+    const needed = Math.max(0, Number(gap ?? 0) - 1);
+    // Duolingo-style: one charge per missed day. Insufficient shields are not
+    // spent at all, so a learner does not lose the ones they kept. A user with
+    // no recorded activity date cannot claim a free bridge (needed === 0).
+    const shielded = needed > 0 && await spendStreakShields(connection, userId, needed);
+    if (shielded) {
+      // Treat the covered days as if the chain only paused until yesterday, so
+      // the next real activity continues the same streak.
+      await connection.execute(
+        'UPDATE users SET last_activity_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id = ?',
+        [userId],
+      );
+    } else {
+      await connection.execute(
+        `UPDATE users
+            SET streak = 0, streak_lost = ?, streak_lost_at = CURDATE()
+          WHERE id = ?`,
+        [streak, userId],
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 // ─── Seasons ─────────────────────────────────────────────────────────────────
@@ -211,11 +320,13 @@ async function addRacePoints(
   );
   const current = Number(rows[0]?.race_points ?? 0);
   const next = current + points;
+  // Tier is carried from the last settlement, not derived from weekly RP.
+  const tier = await getLeagueTier(executor, userId);
   await executor.execute(
     `INSERT INTO season_standings (season_id, user_id, race_points, tier)
      VALUES (?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE race_points = VALUES(race_points), tier = VALUES(tier)`,
-    [seasonId, userId, next, tierForPoints(next)],
+    [seasonId, userId, next, tier],
   );
 }
 
@@ -227,10 +338,10 @@ export async function bumpStandingCounter(
   const seasonId = await getActiveSeasonIdInTx(executor);
   if (seasonId === null) return;
   await executor.execute(
-    `INSERT INTO season_standings (season_id, user_id, ${column})
-     VALUES (?, ?, 1)
+    `INSERT INTO season_standings (season_id, user_id, ${column}, tier)
+     VALUES (?, ?, 1, (SELECT league_tier FROM users WHERE id = ?))
      ON DUPLICATE KEY UPDATE ${column} = ${column} + 1`,
-    [seasonId, userId],
+    [seasonId, userId, userId],
   );
 }
 
@@ -294,35 +405,86 @@ export async function ensureCurrentSeason(): Promise<number> {
 interface StandingRow extends RowDataPacket {
   user_id: number;
   race_points: number;
+  tier: LeagueTier;
 }
 
+/** The weekly league moves exactly six leaders up and six trailers down. */
+export const LEAGUE_PROMOTION_SLOTS = 6;
+export const LEAGUE_DEMOTION_SLOTS = 6;
+
 async function settleSeason(connection: PoolConnection, season: SeasonRow): Promise<void> {
+  // The persistent tier is the source of truth. The snapshot on the standing row
+  // is only a display cache, so a stale snapshot must never decide movement.
   const [standings] = await connection.execute<StandingRow[]>(
-    `SELECT user_id, race_points FROM season_standings
-     WHERE season_id = ? AND race_points > 0
-     ORDER BY race_points DESC, user_id ASC`,
+    `SELECT st.user_id, st.race_points, u.league_tier AS tier
+       FROM season_standings st
+       JOIN users u ON u.id = st.user_id
+      WHERE st.season_id = ? AND st.race_points > 0
+      ORDER BY st.race_points DESC, st.user_id ASC`,
     [season.id],
   );
 
-  for (const [index, standing] of standings.entries()) {
-    const rank = index + 1;
-    const tier = tierForPoints(standing.race_points);
-    const rankBonus = rank === 1 ? 100 : rank === 2 ? 60 : rank === 3 ? 30 : 0;
-    const rc = PAYOUT_RC[tier] + rankBonus;
-    const xp = PAYOUT_XP[tier];
+  // Every tier is its own league. A learner is ranked only against the people
+  // who share their tier, so promotion/demotion slots are decided per group.
+  const byTier = new Map<LeagueTier, StandingRow[]>();
+  for (const standing of standings) {
+    const carried = TIER_ORDER.includes(standing.tier) ? standing.tier : 'bronze';
+    const group = byTier.get(carried);
+    if (group) group.push(standing);
+    else byTier.set(carried, [standing]);
+  }
 
-    const [payout] = await connection.execute<ResultSetHeader>(
-      `INSERT IGNORE INTO season_payouts
-         (season_id, user_id, tier, \`rank\`, race_points, rc_awarded, xp_awarded)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [season.id, standing.user_id, tier, rank, standing.race_points, rc, xp],
-    );
-    if (payout.affectedRows === 0) continue;
+  for (const [carried, group] of byTier) {
+    // Promotion wins when a short group makes the zones overlap. The ends of
+    // the ladder have nowhere to go: diamond has no promotion slots (so its
+    // bottom six drop) and bronze has no demotion slots.
+    const promoteEnd = carried === 'diamond'
+      ? 0
+      : Math.min(LEAGUE_PROMOTION_SLOTS, group.length);
+    // The week's leader is never demoted. Diamond has no promotion block to
+    // shield its top, so on a board of six or fewer the bottom-six rule would
+    // otherwise send the winner down with everyone else.
+    const demoteCount = carried === 'bronze'
+      ? 0
+      : Math.min(
+          Math.max(0, group.length - Math.max(promoteEnd, group.length - LEAGUE_DEMOTION_SLOTS)),
+          Math.max(0, group.length - 1),
+        );
+    const demoteFrom = group.length - demoteCount + 1;
+    for (const [index, standing] of group.entries()) {
+      const rank = index + 1;
+      const tier = rank <= promoteEnd
+        ? promoteTier(carried)
+        : rank >= demoteFrom
+          ? demoteTier(carried)
+          : carried;
+      const rankBonus = rank === 1 ? 100 : rank === 2 ? 60 : rank === 3 ? 30 : 0;
+      const rc = PAYOUT_RC[tier] + rankBonus;
+      const xp = PAYOUT_XP[tier];
 
-    await grantInTx(connection, standing.user_id, [
-      { currency: 'rc', amount: rc, sourceType: 'season_payout', sourceId: season.code },
-      { currency: 'xp', amount: xp, sourceType: 'season_payout', sourceId: season.code },
-    ]);
+      const [payout] = await connection.execute<ResultSetHeader>(
+        `INSERT IGNORE INTO season_payouts
+           (season_id, user_id, tier, \`rank\`, race_points, rc_awarded, xp_awarded)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [season.id, standing.user_id, tier, rank, standing.race_points, rc, xp],
+      );
+      if (payout.affectedRows === 0) continue;
+
+      // Carry the new tier into the next season instead of resetting to bronze.
+      await connection.execute(
+        'UPDATE season_standings SET tier = ? WHERE season_id = ? AND user_id = ?',
+        [tier, season.id, standing.user_id],
+      );
+      await connection.execute(
+        'UPDATE users SET league_tier = ? WHERE id = ?',
+        [tier, standing.user_id],
+      );
+
+      await grantInTx(connection, standing.user_id, [
+        { currency: 'rc', amount: rc, sourceType: 'season_payout', sourceId: season.code },
+        { currency: 'xp', amount: xp, sourceType: 'season_payout', sourceId: season.code },
+      ]);
+    }
   }
 
   await connection.execute("UPDATE seasons SET status = 'paid' WHERE id = ?", [season.id]);
@@ -342,11 +504,19 @@ export interface BalanceRow extends RowDataPacket {
   xp: number;
   coins: number;
   streak: number;
+  streak_lost: number;
+  streak_lost_at: Date | null;
+  /** Persistent league tier, carried across seasons. */
+  league_tier: LeagueTier;
+  /** Whole days between the last activity date and today; null when never active. */
+  last_activity_days_ago: number | null;
 }
 
 export async function getBalance(userId: number): Promise<BalanceRow | undefined> {
   const [rows] = await pool.execute<BalanceRow[]>(
-    'SELECT xp, coins, streak FROM users WHERE id = ? LIMIT 1',
+    `SELECT xp, coins, streak, streak_lost, streak_lost_at, league_tier,
+            DATEDIFF(CURDATE(), last_activity_date) AS last_activity_days_ago
+       FROM users WHERE id = ? LIMIT 1`,
     [userId],
   );
   return rows[0];
@@ -365,7 +535,8 @@ export async function getRacePoints(seasonId: number, userId: number): Promise<n
 export async function listShopItems(): Promise<ShopItemRow[]> {
   const [rows] = await pool.execute<ShopItemRow[]>(
     `SELECT id, code, name, description, slot, rarity, price, unlock_type, unlock_value,
-            visual_key, style_json, sort_order
+            visual_key, style_json, booster_kind, booster_charges, booster_duration_minutes,
+            sort_order
      FROM shop_items WHERE active = 1 ORDER BY sort_order ASC, id ASC`,
   );
   return rows;
@@ -374,7 +545,8 @@ export async function listShopItems(): Promise<ShopItemRow[]> {
 export async function getShopItem(itemId: number): Promise<ShopItemRow | undefined> {
   const [rows] = await pool.execute<ShopItemRow[]>(
     `SELECT id, code, name, description, slot, rarity, price, unlock_type, unlock_value,
-            visual_key, style_json, sort_order
+            visual_key, style_json, booster_kind, booster_charges, booster_duration_minutes,
+            sort_order
      FROM shop_items WHERE id = ? AND active = 1 LIMIT 1`,
     [itemId],
   );
@@ -387,7 +559,8 @@ export async function findShopItemByCode(
 ): Promise<ShopItemRow | undefined> {
   const [rows] = await executor.execute<ShopItemRow[]>(
     `SELECT id, code, name, description, slot, rarity, price, unlock_type, unlock_value,
-            visual_key, style_json, sort_order
+            visual_key, style_json, booster_kind, booster_charges, booster_duration_minutes,
+            sort_order
      FROM shop_items WHERE code = ? AND active = 1 LIMIT 1`,
     [code],
   );
@@ -533,6 +706,23 @@ export async function consumeBoosterInTx(
   return true;
 }
 
+/**
+ * One shield covers exactly one missed day. Returns false and spends nothing
+ * when the learner does not hold enough charges for the whole gap.
+ */
+async function spendStreakShields(executor: Executor, userId: number, count: number): Promise<boolean> {
+  const [rows] = await executor.execute<Array<RowDataPacket & { total: number }>>(
+    `SELECT COALESCE(SUM(charges), 0) AS total FROM user_boosters
+      WHERE user_id = ? AND kind = 'streak_shield' AND charges > 0`,
+    [userId],
+  );
+  if (Number(rows[0]?.total ?? 0) < count) return false;
+  for (let index = 0; index < count; index += 1) {
+    if (!await consumeBoosterInTx(executor, userId, 'streak_shield')) return false;
+  }
+  return true;
+}
+
 /** True when the 30-minute XP card is currently running. */
 export async function hasActiveXpBoost(executor: Executor, userId: number): Promise<boolean> {
   const [rows] = await executor.execute<Array<RowDataPacket & { ok: number }>>(
@@ -633,6 +823,7 @@ function toShopItem(row: ShopItemRow) {
     unlock_value: row.unlock_value,
     visual_key: row.visual_key,
     style: parseStyle(row.style_json),
+    booster_kind: row.booster_kind,
     owned: false,
     equipped: false,
     unlocked: true,
@@ -727,9 +918,14 @@ export interface LeagueRow extends RowDataPacket {
   nameplate_key: string | null;
 }
 
-export async function getLeagueBoard(seasonId: number, limit = 50): Promise<LeagueRow[]> {
+export async function getLeagueBoard(
+  seasonId: number,
+  tier: LeagueTier,
+  limit = 50,
+): Promise<LeagueRow[]> {
   const [rows] = await pool.execute<LeagueRow[]>(
-    `SELECT st.user_id AS userId, u.display_name AS name, st.race_points, st.tier,
+    `SELECT st.user_id AS userId, u.display_name AS name, st.race_points,
+            u.league_tier AS tier,
             f.visual_key AS frame_key, n.visual_key AS nameplate_key
      FROM season_standings st
      JOIN users u ON u.id = st.user_id
@@ -737,20 +933,28 @@ export async function getLeagueBoard(seasonId: number, limit = 50): Promise<Leag
      LEFT JOIN shop_items f ON f.id = ef.item_id
      LEFT JOIN user_equipment en ON en.user_id = st.user_id AND en.slot = 'nameplate'
      LEFT JOIN shop_items n ON n.id = en.item_id
-     WHERE st.season_id = ?
+     WHERE st.season_id = ? AND u.league_tier = ? AND st.race_points > 0
      ORDER BY st.race_points DESC, st.user_id ASC
      LIMIT ?`,
-    [seasonId, limit],
+    [seasonId, tier, limit],
   );
   return rows;
 }
 
-export async function getMyLeagueRank(seasonId: number, userId: number): Promise<number | null> {
+/** Position inside the learner's own tier, not across the global population. */
+export async function getMyLeagueRank(
+  seasonId: number,
+  userId: number,
+  tier: LeagueTier,
+): Promise<number | null> {
   const [rows] = await pool.execute<Array<RowDataPacket & { position: number }>>(
-    `SELECT COUNT(*) + 1 AS position FROM season_standings
-     WHERE season_id = ? AND (race_points > (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?)
-       OR (race_points = (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?) AND user_id < ?))`,
-    [seasonId, seasonId, userId, seasonId, userId, userId],
+    `SELECT COUNT(*) + 1 AS position
+       FROM season_standings st
+       JOIN users u ON u.id = st.user_id
+      WHERE st.season_id = ? AND u.league_tier = ? AND st.race_points > 0
+        AND (st.race_points > (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?)
+          OR (st.race_points = (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?) AND st.user_id < ?))`,
+    [seasonId, tier, seasonId, userId, seasonId, userId, userId],
   );
   return rows[0]?.position === undefined ? null : Number(rows[0].position);
 }

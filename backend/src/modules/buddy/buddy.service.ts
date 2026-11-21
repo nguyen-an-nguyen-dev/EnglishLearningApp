@@ -103,7 +103,22 @@ export function buildNudges(
     });
   }
 
-  // 5. Recurring mistakes beat generic suggestions.
+  // 5. Items already due for recall: the schedule knows they are on the edge of
+  // being forgotten, so this outranks the generic "weak topic" hint.
+  if (stats.reviewDue > 0) {
+    // Kept deliberately plain: the learner sees a nudge, not a report. The
+    // session itself shows how many items are inside.
+    nudges.push({
+      id: 'review-due',
+      kind: 'review-due',
+      tone: 'push',
+      title: 'Có bài ôn tập',
+      body: 'Vài câu bạn từng làm sai đang tới lịch ôn lại.',
+      action: { label: 'Ôn ngay', target: { tab: 'profile' } },
+    });
+  }
+
+  // 6. Recurring mistakes beat generic suggestions.
   const weak = weakTopics[0];
   if (weak && weak.mistakes >= 3) {
     nudges.push({
@@ -116,7 +131,7 @@ export function buildNudges(
     });
   }
 
-  // 6. Saved words nobody has reviewed.
+  // 7. Saved words nobody has reviewed.
   if (stats.savedWords >= 5) {
     nudges.push({
       id: 'saved-words:review',
@@ -132,7 +147,7 @@ export function buildNudges(
     });
   }
 
-  // 7. Listening practice still untouched.
+  // 8. Listening practice still untouched.
   if (stats.nextVideo) {
     nudges.push({
       id: `next-video:${stats.nextVideo.id}`,
@@ -148,7 +163,7 @@ export function buildNudges(
     });
   }
 
-  // 8. Arena only once there is something to apply.
+  // 9. Arena only once there is something to apply.
   if (stats.battlesPlayed === 0 && stats.completedLessons >= 3) {
     nudges.push({
       id: 'arena:first',

@@ -1,34 +1,39 @@
-import { frameSkin } from '../../cosmetics'
+import { frameEntry } from './garage/catalog'
+import { FramePlain } from './garage/frames/frame_plain'
 import { initialOf } from '../../utils/avatar'
 
 export interface AvatarFrameProps {
   name: string | null | undefined
   /** `visual_key` of the equipped frame; unknown keys render the plain ring. */
   visualKey?: string | null
+  /** Admin palette from the shop row; catalog art is canonical, kept for API. */
+  style?: Record<string, string | null> | null
   size?: number
   className?: string
 }
 
 /**
- * The initial-letter avatar, ringed by the equipped frame. The ring is drawn as
- * an inset box-shadow ring on the wrapper so it scales with `size` and leaves
- * the avatar circle itself untouched.
+ * The initial-letter avatar, ringed by the equipped frame.
+ *
+ * Four layers are already composed inside each frame component:
+ * mascot back → avatar slot → material ring → paws/petals/beads. The slot is
+ * fixed at (100,112) r=46, so profile, arena and rankings cannot drift.
+ *
+ * At 30–48 px the matching small variant drops the mascot and ornaments and
+ * keeps only the material ring around the same slot.
  */
 export function AvatarFrame({ name, visualKey, size = 44, className }: AvatarFrameProps) {
-  const skin = frameSkin(visualKey)
+  const entry = frameEntry(visualKey)
+  const Art = entry?.Art ?? FramePlain
+  const isSmall = size <= 48
+  const classes = `avatar-frame has-mascot${isSmall ? ' is-small' : ''}${className ? ` ${className}` : ''}`
   return (
     <span
-      className={`avatar-frame${className ? ` ${className}` : ''}`}
-      style={{
-        width: size,
-        height: size,
-        fontSize: Math.round(size * 0.42),
-        background: skin.ring,
-        boxShadow: `inset 0 0 0 2px ${skin.ringDark}${skin.accent ? `, 0 0 0 2px ${skin.accent}` : ''}`,
-      }}
+      className={classes}
+      style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <span className="avatar-frame-core">{initialOf(name)}</span>
+      <Art letter={initialOf(name)} fontSize={48} small={isSmall} />
     </span>
   )
 }

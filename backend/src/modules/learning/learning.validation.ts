@@ -54,7 +54,12 @@ export function parseCheckAnswerInput(value: unknown): CheckAnswerInput {
   if (typeof body.answer !== 'string' || body.answer.trim().length === 0) {
     throw new HttpError(422, 'Validation failed', ['answer must be a non-empty string.']);
   }
-  return { answer: body.answer.trim() };
+  // Response time is optional telemetry: a client that omits it (or sends a
+  // nonsense value) still gets a normal check, just without a timing sample.
+  const responseMs = typeof body.responseMs === 'number' && Number.isFinite(body.responseMs)
+    ? Math.max(0, Math.min(Math.round(body.responseMs), 10 * 60_000))
+    : undefined;
+  return { answer: body.answer.trim(), responseMs };
 }
 
 export function parseStageId(value: unknown): number {
