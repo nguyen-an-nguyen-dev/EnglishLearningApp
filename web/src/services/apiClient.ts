@@ -21,10 +21,8 @@ export class ApiError extends Error {
 }
 
 /**
- * Fired when the server rejects the stored token (HTTP 401). A backend restart
- * that rotates the signing secret, or a token that simply expired, both hit
- * this path. The auth layer listens and drops the stale session so the UI stops
- * pretending the user is still signed in.
+ * Fired when the server rejects the stored token (HTTP 401). The auth layer
+ * drops the stale session so the UI stops pretending the user is signed in.
  */
 export const SESSION_EXPIRED_EVENT = 'englearn:session-expired'
 
@@ -67,9 +65,8 @@ export async function requestApi<T>(
 }
 
 /**
- * For the handful of endpoints the landing page calls before anyone signs in.
- * Same envelope handling as `requestApi`, but it never attaches a token and
- * never throws just because the caller has no session yet.
+ * Same envelope handling as `requestApi`, but never attaches a token and never
+ * throws when the caller has no session.
  */
 export async function requestPublicApi<T>(
   path: string,
@@ -92,7 +89,7 @@ export async function requestPublicApi<T>(
     )
   }
 
-  // A public payload is allowed to be `null` (e.g. "no preview available yet"),
-  // so only the failure envelope is treated as an error.
+  // A public payload may be null (e.g. "no preview available yet"); only the
+  // failure envelope is treated as an error.
   return body.data as T
 }

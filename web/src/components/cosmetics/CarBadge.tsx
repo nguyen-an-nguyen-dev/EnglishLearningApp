@@ -14,14 +14,7 @@ export interface CarBadgeProps {
   animated?: boolean
 }
 
-/**
- * The roadmap car, reused at UI sizes.
- *
- * This deliberately renders `CarArt` — the exact model that drives the roadmap —
- * so an equipped skin looks identical in the Gara tab, the En Buddy dock/panel
- * and on the map. A second, independently drawn car would drift out of sync
- * whenever the roadmap art changes.
- */
+/** Roadmap car reused at UI sizes. Renders CarArt deliberately, so an equipped skin looks identical in the Gara, En Buddy dock and map. */
 export function CarBadge({ visualKey, style, size = 46, className, animated = false }: CarBadgeProps) {
   const skin = carSkin(visualKey, style)
   // useId keeps the gradient id unique: several badges of the same skin can be

@@ -1,14 +1,4 @@
-/* ==========================================================================
-   EN BUDDY — now a voice, not a bubble in the corner.
-
-   One round microphone sits in the middle of the bottom edge. Tap it and speak
-   what you want to do; a plain destination ("mở bảng xếp hạng") opens at once,
-   anything else is answered in a short panel that floats above the orb. There is
-   no thread, no tab strip and no composer bar pretending to be a messenger.
-
-   Rules kept from index.css: one border per block, left-aligned text, icons
-   without boxes, brand cyan only for actions, amber only for rewards.
-   ========================================================================== */
+/* En Buddy voice orb. Keep this file ASCII-only; visible Vietnamese copy lives in the TSX. */
 
 :root {
   --buddy-ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -23,7 +13,7 @@
   to { opacity: 1; transform: none; }
 }
 
-/* --- The voice, centred on the bottom edge -------------------------------- */
+/* The voice, centred on the bottom edge */
 
 .voice-dock {
   position: fixed;
@@ -126,6 +116,34 @@
   box-shadow: 0 0 0 3px var(--paper);
 }
 
+/* Live waveform (replaces the microphone icon) */
+/* Idle: a calm, staggered breath. Listening: heights are written per frame from
+   the AnalyserNode, so the bars follow the real voice. */
+.audio-bars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.audio-bars i {
+  width: 4px;
+  height: 30%;
+  border-radius: 999px;
+  background: currentColor;
+}
+.audio-bars.is-idle i { animation: audio-idle 2.1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.audio-bars.is-idle i:nth-child(2) { animation-delay: 0.18s; }
+.audio-bars.is-idle i:nth-child(3) { animation-delay: 0.36s; }
+.audio-bars.is-idle i:nth-child(4) { animation-delay: 0.54s; }
+.audio-bars.is-idle i:nth-child(5) { animation-delay: 0.72s; }
+@keyframes audio-idle {
+  0%, 100% { height: 26%; opacity: 0.6; }
+  50% { height: 52%; opacity: 1; }
+}
+.audio-bars.is-active i { animation: none; }
+.voice-mic-btn .audio-bars { gap: 2.5px; }
+.voice-mic-btn .audio-bars i { width: 3px; }
+
 /* Two quiet satellites: mute, and the written panel. */
 .voice-side-btn {
   display: grid;
@@ -176,7 +194,7 @@
   pointer-events: none;
 }
 
-/* --- Panel ---------------------------------------------------------------- */
+/* Panel */
 
 .voice-panel {
   position: fixed;
@@ -236,7 +254,7 @@
   min-width: 0;
 }
 
-/* --- Ask ------------------------------------------------------------------ */
+/* Ask */
 
 .voice-ask-form { display: flex; align-items: center; gap: 8px; min-width: 0; }
 
@@ -294,7 +312,7 @@
 
 .voice-hint-line { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 
-/* --- Reminder / suggestion cards ------------------------------------------ */
+/* Reminder / suggestion cards */
 
 .buddy-nudge {
   display: grid;
@@ -330,7 +348,7 @@
 
 .buddy-nudge-actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 
-/* --- Buttons -------------------------------------------------------------- */
+/* Buttons */
 
 .buddy-solid-btn {
   display: inline-flex;
@@ -413,32 +431,7 @@
 
 .buddy-cta-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* --- Ask ------------------------------------------------------------------ */
-
-.buddy-ask-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.buddy-ask-form input {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-}
-
-.buddy-ask-form input:focus {
-  outline: none;
-  border-color: var(--brand-500);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 24%, transparent);
-}
+/* Ask */
 
 .buddy-send-btn {
   display: grid;
@@ -493,7 +486,7 @@
   white-space: pre-line;
 }
 
-/* --- Reminder offer & list ------------------------------------------------ */
+/* Reminder offer & list */
 
 .buddy-reminder-offer {
   display: grid;
@@ -550,7 +543,7 @@
 .buddy-notify-cta:hover { border-color: var(--brand-500); color: var(--brand-800); }
 .buddy-notify-cta:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 
-/* --- Small text states ---------------------------------------------------- */
+/* Small text states */
 
 .buddy-muted { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
 
@@ -585,9 +578,7 @@
   font-weight: 700;
 }
 
-.buddy-plus { font-size: 15px; line-height: 1; }
-
-/* --- Spotlight: the buddy circling one real element ----------------------- */
+/* Spotlight: the buddy circling one real element */
 
 .buddy-spotlight {
   position: fixed;
@@ -606,7 +597,7 @@
   to { opacity: 1; transform: none; }
 }
 
-/* --- Small screens -------------------------------------------------------- */
+/* Small screens */
 
 @media (max-width: 960px) {
   /* The mobile tab bar owns the bottom edge, so the orb sits just above it. */
@@ -631,6 +622,7 @@
   .voice-panel,
   .voice-caption,
   .voice-orb-halo,
+  .audio-bars.is-idle i,
   .buddy-spotlight { animation: none; }
   .voice-orb,
   .voice-side-btn,

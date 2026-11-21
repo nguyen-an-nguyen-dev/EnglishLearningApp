@@ -86,8 +86,8 @@ async function deliverRegistrationOtp(input: {
     );
   }
 
-  // A production server without SMTP must fail loudly instead of promising an
-  // e-mail that will never arrive. In development the debug code covers this.
+// A production server without SMTP must fail loudly instead of promising an
+// e-mail that will never arrive; in development the debug code covers this.
   if (!delivered && !env.otpDebug) {
     throw new HttpError(
       503,
@@ -109,10 +109,8 @@ async function deliverRegistrationOtp(input: {
   };
 }
 
-/**
- * Web registration, step 1: validate the form, keep it in
- * `pending_registrations` and mail a six-digit code. No user row exists yet.
- */
+// Web registration step 1: validate the form, store it in
+// `pending_registrations` and mail a six-digit code. No user row exists yet.
 export async function startRegistration(input: unknown): Promise<StartRegistrationResult> {
   const data = parseRegisterInput(input);
   if (await authRepository.findByEmail(data.email)) {
@@ -139,10 +137,8 @@ export async function startRegistration(input: unknown): Promise<StartRegistrati
   });
 }
 
-/**
- * Web registration, step 2: consume the code and only now write the user.
- * Returning a token keeps the existing "register then enter the app" UX.
- */
+// Web registration step 2: consume the code and only now write the user;
+// returning a token keeps the "register then enter the app" UX.
 export async function verifyRegistration(
   input: unknown,
 ): Promise<{ token: string; user: AuthUser }> {
@@ -199,7 +195,6 @@ export async function verifyRegistration(
   }
 }
 
-/** Web registration: replace the code and mail it again after the cooldown. */
 export async function resendRegistrationOtp(
   input: unknown,
 ): Promise<StartRegistrationResult> {

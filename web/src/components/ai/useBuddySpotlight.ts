@@ -3,11 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 export const BUDDY_TARGET_ATTR = 'data-buddy-target'
 const HIGHLIGHT_MS = 4_200
 
-/** Marks a real element so the buddy can circle it. */
-export function buddyTarget(token: string): Record<string, string> {
-  return { [BUDDY_TARGET_ATTR]: token }
-}
-
 export function findBuddyTarget(token: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[${BUDDY_TARGET_ATTR}="${CSS.escape(token)}"]`)
 }
@@ -19,9 +14,9 @@ export interface SpotlightState {
 }
 
 /**
- * Follows a highlight token to the element that declares it, scrolls it into
- * view and reports its box so a ring can be drawn over it. The ring is a plain
- * overlay, so nothing about the target's own layout or hit area changes.
+ * Follows a highlight token to its element, scrolls it into view and reports its
+ * box so a ring can be drawn. The ring is a plain overlay, so the target's own
+ * layout and hit area are unchanged.
  */
 export function useBuddySpotlight(token: string | null, enabled: boolean): SpotlightState | null {
   const [spot, setSpot] = useState<SpotlightState | null>(null)

@@ -1,4 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
+import { HIGHLIGHT_PATTERN } from '../reminders/reminders.validation';
 import { CHAT_ACTION_KINDS, CHAT_TABS } from './ai.types';
 import type {
   AiFeedbackInput,
@@ -29,12 +30,14 @@ function parseRawAction(value: unknown): ChatAction | null {
     ? value.tab as ChatTab
     // Review lives inside the profile, so the action still needs a real tab.
     : value.kind === 'open_review' ? 'profile' : undefined;
+  const rawHighlight = typeof value.highlight === 'string' ? value.highlight.trim() : '';
   return {
     kind: value.kind as ChatActionKind,
     label: typeof value.label === 'string' ? value.label.trim().slice(0, 60) : '',
     tab,
     videoId: positiveInt(value.videoId),
     lessonId: positiveInt(value.lessonId),
+    highlight: HIGHLIGHT_PATTERN.test(rawHighlight) ? rawHighlight : undefined,
   };
 }
 
@@ -50,7 +53,12 @@ export function parseReminderSuggestion(value: unknown): ReminderSuggestion | nu
     : null;
 
   const rawClock = typeof value.at_time === 'string' ? value.at_time.trim() : '';
-  const atTime = /^\d{1,2}:\d{2}$/.test(rawClock) ? rawClock : null;
+  const clockMatch = /^(\d{1,2}):(\d{2})$/.exec(rawClock);
+  const atTime = clockMatch
+    && Number(clockMatch[1]) <= 23
+    && Number(clockMatch[2]) <= 59
+    ? rawClock
+    : null;
 
   if (inMinutes === null && atTime === null) return null;
 
@@ -65,10 +73,9 @@ export function parseReminderSuggestion(value: unknown): ReminderSuggestion | nu
 }
 
 /**
- * The model does not always emit `reminder`, even when the learner clearly asked
- * for one ("20 phút nữa nhắc mình ôn sổ từ"). Losing a reminder they asked for is
- * worse than a small guess, so the intent is read from the message itself and the
- * time is parsed with the same rules the reminders module enforces.
+ * The model does not always emit `reminder` even when the learner clearly asked
+ * for one. Losing a reminder they asked for is worse than a small guess, so the
+ * intent and time are re-read from the message here.
  */
 export function inferReminderFromMessage(message: string): ReminderSuggestion | null {
   const text = message.toLowerCase();
@@ -80,11 +87,24 @@ export function inferReminderFromMessage(message: string): ReminderSuggestion | 
   const minutesMatch = text.match(/(\d{1,4})\s*(phút|min|minutes?)/);
   if (minutesMatch) inMinutes = Number(minutesMatch[1]);
 
+  if (inMinutes === null && /nửa\s*(?:tiếng|giờ)/.test(text)) inMinutes = 30;
+
+  if (inMinutes === null) {
+    const hoursMatch = text.match(/(\d{1,2})\s*(?:tiếng|giờ)\s*(?:nữa|sau|tới)/);
+    if (hoursMatch) inMinutes = Number(hoursMatch[1]) * 60;
+  }
+
   if (inMinutes === null) {
     const clockMatch = text.match(/(\d{1,2})\s*(?::|h|giờ)\s*(\d{2})?/);
     if (clockMatch) {
-      const hours = Number(clockMatch[1]);
+      const period = text.match(/(sáng|trưa|chiều|tối|đêm)/)?.[1];
+      let hours = Number(clockMatch[1]);
       const mins = clockMatch[2] ? Number(clockMatch[2]) : 0;
+      if (period === 'chiều' || period === 'tối') {
+        if (hours < 12) hours += 12;
+      } else if (period === 'đêm') {
+        hours = hours === 12 ? 0 : hours < 12 ? hours + 12 : hours;
+      }
       if (hours <= 23 && mins <= 59) {
         atTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
       }
@@ -93,15 +113,25 @@ export function inferReminderFromMessage(message: string): ReminderSuggestion | 
 
   if (inMinutes === null && atTime === null) return null;
 
-  // "nhắc mình ôn sổ từ" -> "Ôn sổ từ"
-  const about = text.match(/nhắc[^,.]*?(?:mình|tôi|tớ)?\s*(?:là\s*)?(?:phải\s*)?(.*)$/);
-  const rawTitle = (about?.[1] ?? '')
-    .replace(/^(học|ôn|mở|làm)\s+/g, '')
+  // Strip the time phrase and pronouns so "nhắc mình 20 phút nữa ôn sổ từ"
+  // becomes "Sổ từ", not a sentence that repeats the whole request.
+  let rest = text.replace(/^.*?(?:nhắc|remind)/, ' ');
+  rest = rest
+    .replace(/^\s*(?:me|to|please)\b/gi, ' ')
+    .replace(/^\s*(?:mình|tôi|tớ|em|anh|chị)\b/gi, ' ')
+    .replace(/^\s*in\s+\d{1,4}\s*(?:minutes?|mins?)\s*/i, ' ')
+    .replace(/^\s*\d{1,4}\s*(?:phút|min|minutes?)\s*(?:nữa)?\s*/i, ' ')
+    .replace(/^\s*\d{1,2}\s*(?::|h|giờ)\s*\d{0,2}\s*(?:sáng|trưa|chiều|tối|đêm)?\s*(?:nữa)?\s*/i, ' ')
+    .replace(/^\s*(?:lúc|vào|sau|trong|khoảng)\s+/i, ' ')
+    .replace(/^\s*(?:nữa|rồi)\s+/i, ' ')
+    .replace(/^\s*(?:phải\s+)?(?:là\s+)?(?:học|ôn|mở|làm|review)\s+/i, ' ')
+    .replace(/\s*(?:sau|trong)\s*\d{1,4}\s*(?:phút|min|minutes?)\s*$/i, ' ')
+    .replace(/^\s*to\s+/i, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  const title = rawTitle.length >= 3 && rawTitle.length <= 80
-    ? rawTitle.charAt(0).toLocaleUpperCase('vi') + rawTitle.slice(1)
+  const title = rest.length >= 3 && rest.length <= 80 && !/^(bài|học|ôn|từ)$/i.test(rest)
+    ? rest.charAt(0).toLocaleUpperCase('vi') + rest.slice(1)
     : 'Quay lại học';
 
   return {
@@ -113,7 +143,7 @@ export function inferReminderFromMessage(message: string): ReminderSuggestion | 
 }
 
 /**
- * The model must return the agreed JSON object. Anything else is a provider
+ * The model must return the agreed JSON object; anything else is a provider
  * failure, not something the UI should try to render.
  */
 export function parseAiReply(value: unknown): AiReply {
@@ -155,7 +185,6 @@ export function parseAiReply(value: unknown): AiReply {
   };
 }
 
-/** Reads the assistant text out of an OpenAI-compatible chat completion. */
 export function providerMessageContent(payload: unknown): string {
   if (!isRecord(payload) || !Array.isArray(payload.choices)) {
     throw new HttpError(502, 'The AI provider returned an invalid response. Please try again.');

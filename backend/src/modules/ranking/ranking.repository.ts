@@ -50,7 +50,6 @@ function parseStyle(raw: string | Record<string, unknown> | null): Record<string
   return result;
 }
 
-/** All-time career board, ordered by total XP. */
 export async function getCareerBoard(): Promise<RankingEntry[]> {
   const [rows] = await pool.execute<CareerRow[]>(
     `SELECT ROW_NUMBER() OVER (ORDER BY u.xp DESC, u.id ASC) AS \`rank\`,
@@ -79,7 +78,6 @@ export async function getCareerBoard(): Promise<RankingEntry[]> {
   }));
 }
 
-/** This week's league board for one tier, ordered by Race Points. */
 export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
   const seasonId = await ensureCurrentSeason();
   const [rows] = await pool.execute<LeagueRow[]>(
@@ -113,10 +111,8 @@ export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
   }));
 }
 
-/**
- * Both boards in one payload. `leaderboard` stays the career board so the
- * existing client keeps working; the weekly league board rides alongside it.
- */
+// `leaderboard` stays the career board so the existing client keeps working;
+// the weekly league board rides alongside it.
 export async function getRanking(currentUserId: number): Promise<RankingResponse> {
   const tier = await getLeagueTier(pool, currentUserId);
   const [career, league] = await Promise.all([getCareerBoard(), getLeagueBoard(tier)]);

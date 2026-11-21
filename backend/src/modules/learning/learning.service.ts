@@ -18,21 +18,12 @@ import type {
   SubmittedAnswer,
 } from './learning.types';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Given the user's full progress map and all lessons ordered globally,
- * compute the lock state of a specific lesson.
- *
- * Rules:
- *  - The very first lesson across all stages is always unlocked.
- *  - Any other lesson is unlocked iff its predecessor is completed.
- *  - A lesson is completed only when its stored score is 100%.
- */
 function isPerfectlyCompleted(progress: { status: string; score: number | null }): boolean {
   return progress.status === 'completed' && Number(progress.score) === 100;
 }
 
+// The first lesson across all stages is always unlocked; every other lesson is
+// unlocked only when its predecessor is completed, and completed means 100%.
 function computeLessonState(
   lessonId: number,
   firstLessonId: number,
@@ -50,8 +41,6 @@ function computeLessonState(
   }
   return { status: 'locked', score: null };
 }
-
-// ─── Stages ───────────────────────────────────────────────────────────────────
 
 export async function getStages(): Promise<Stage[]> {
   const rows = await repo.getAllStages();
@@ -84,8 +73,6 @@ export async function getStageById(stageId: number): Promise<Stage> {
   };
 }
 
-// ─── Lessons ──────────────────────────────────────────────────────────────────
-
 export async function getLessonsByStage(
   stageId: number,
   userId: number,
@@ -104,7 +91,6 @@ export async function getLessonsByStage(
   );
   const firstLessonId = firstLesson?.id ?? 0;
 
-  // For each lesson find its predecessor within this stage
   const lessons: Lesson[] = [];
   for (let i = 0; i < lessonRows.length; i++) {
     const l = lessonRows[i];
@@ -159,8 +145,6 @@ export async function getLessonDetail(lessonId: number, userId: number): Promise
   };
 }
 
-// ─── Questions (for doing a lesson) ──────────────────────────────────────────
-
 export function resolveAudioUrl(
   audioUrl: string | null,
   questionType: string,
@@ -205,7 +189,6 @@ export async function getLessonQuestions(
   const questionIds = questionRows.map((q) => q.id);
   const answerRows = await repo.getAnswersByQuestions(questionIds);
 
-  // Group answers by question_id
   const answersMap = new Map<number, Answer[]>();
   for (const a of answerRows) {
     const list = answersMap.get(a.question_id) ?? [];
@@ -229,8 +212,6 @@ export async function getLessonQuestions(
     answers: q.question_type === 'listening' ? [] : answersMap.get(q.id) ?? [],
   }));
 }
-
-// ─── Progress ─────────────────────────────────────────────────────────────────
 
 interface BalanceLike {
   xp: number;
@@ -318,20 +299,12 @@ export async function getUserProgress(userId: number): Promise<UserProgressRespo
   };
 }
 
-// ─── Completion ───────────────────────────────────────────────────────────────
-
-/**
- * Normalize answer for fuzzy matching (fill_blank, translate, word_order).
- */
 function normalizeAnswer(text: string): string {
   return text.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?;:'"]/g, '');
 }
 
-/**
- * Check if a submitted answer is correct for a given question.
- * For MCQ: the submitted value should be the answer_id (as string).
- * For text types: fuzzy case-insensitive comparison.
- */
+// For MCQ the submitted value is the answer_id as string; for text types it is a
+// fuzzy case-insensitive comparison.
 export function isAnswerCorrect(
   question: { id: number; question_type: string },
   submitted: SubmittedAnswer,
@@ -350,7 +323,6 @@ export function isAnswerCorrect(
       const match = qAnswers.find((a) => a.id === submittedId);
       return match !== undefined && (match.is_correct === true || match.is_correct === 1);
     }
-    // Fallback: match by text
     const match = qAnswers.find(
       (a) => normalizeAnswer(a.answer_text) === normalizeAnswer(submitted.answer),
     );
@@ -412,13 +384,11 @@ export async function completeLesson(
   userId: number,
   input: CompleteLessonInput,
 ): Promise<CompleteLessonResult> {
-  // 1. Verify lesson exists and is accessible
   const lesson = await getLessonDetail(lessonId, userId);
   if (lesson.state.status === 'locked') {
     throw new HttpError(403, 'This lesson is locked. Complete the previous lesson first.');
   }
 
-  // 2. Load questions and answers
   const questionRows = await repo.getQuestionsByLesson(lessonId);
   const totalQuestions = questionRows.length;
 
@@ -429,14 +399,13 @@ export async function completeLesson(
   const questionIds = questionRows.map((q) => q.id);
   const answerRows = await repo.getAnswersByQuestions(questionIds);
 
-  // 3. Validate submitted answer count
   const submittedMap = new Map(input.answers.map((a) => [a.questionId, a]));
 
-  // 4. Calculate correct answers (backend is source of truth)
+  // The backend is the source of truth for correctness.
   let correctCount = 0;
   for (const question of questionRows) {
     const submitted = submittedMap.get(question.id);
-    if (!submitted) continue; // No answer submitted = incorrect
+    if (!submitted) continue;
 
     const correct = isAnswerCorrect(question, submitted, answerRows as Array<{
       id: number;
@@ -447,7 +416,6 @@ export async function completeLesson(
     if (correct) correctCount++;
   }
 
-  // 5. Calculate score (0-100)
   const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
   if (correctCount !== totalQuestions) {
@@ -466,9 +434,8 @@ export async function completeLesson(
     };
   }
 
-  // 6. Persist with transaction. XP, RC, the stage bonus, badges, the streak and
-  //    the weekly standing are all written inside the same transaction, so a
-  //    replay of a finished lesson cannot pay twice.
+  // XP, RC, the stage bonus, badges, the streak and the weekly standing are all
+  // written in one transaction, so a replay cannot pay twice.
   const result = await repo.completeLesson(
     userId,
     lessonId,

@@ -21,9 +21,9 @@ function readLanguage(payload: unknown): string | null {
 }
 
 /**
- * Workers AI Whisper. The endpoint takes the raw bytes as the body; the model
- * name lives in the URL. Every configured account is tried in rotation so one
- * exhausted daily quota does not disable dictation.
+ * Workers AI Whisper. The raw bytes are the body and the model name lives in
+ * the URL; every configured account is tried in rotation so one exhausted daily
+ * quota does not disable dictation.
  */
 async function transcribeWhisper(
   audio: Buffer,
@@ -80,7 +80,7 @@ async function transcribeWhisper(
 
 /**
  * Gemini audio input, used when Workers AI has no account or Whisper failed.
- * Gemini also returns an empty string for silence, which becomes `null`.
+ * Silence is an empty string, which becomes `null`.
  */
 async function transcribeGemini(
   audio: Buffer,
@@ -123,8 +123,7 @@ async function transcribeGemini(
 
 /**
  * Best-effort chain: Whisper first (cheap, purpose-built), then Gemini. A
- * `null` return means the clip contained no speech; a thrown HttpError means
- * every provider failed.
+ * `null` return means no speech; a thrown HttpError means every provider failed.
  */
 export async function transcribeSpeech(
   audio: Buffer,

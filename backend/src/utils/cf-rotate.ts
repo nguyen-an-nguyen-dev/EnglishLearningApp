@@ -22,7 +22,6 @@ function nextUtcMidnight(now = Date.now()): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
 }
 
-/** Remember that this key has used up today's free Workers AI neurons. */
 export function markCfAccountExhausted(apiKey: string): void {
   const key = apiKey.trim();
   if (!key) return;

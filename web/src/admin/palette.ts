@@ -1,10 +1,4 @@
-/**
- * One palette for the whole admin console.
- *
- * Teal ramp = data and structure.
- * Amber / green / red are semantic only: warning, success, danger.
- * Nothing decorative should use the semantic colors.
- */
+/** One palette for the admin console. Teal = data/structure; amber/green/red are semantic only. */
 export const palette = {
   ink: '#0B2E38',
   inkSoft: '#2D4E5A',

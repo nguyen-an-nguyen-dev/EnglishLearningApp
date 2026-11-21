@@ -53,10 +53,8 @@ export interface PendingRegistrationRow extends RowDataPacket {
   last_sent_at: Date;
 }
 
-/**
- * One pending row per e-mail. A retry replaces the previous code instead of
- * stacking rows, so an abandoned flow cannot grow the table.
- */
+// One pending row per e-mail: a retry replaces the previous code instead of
+// stacking rows, so an abandoned flow cannot grow the table.
 export async function upsertPendingRegistration(input: {
   email: string;
   name: string;
@@ -99,7 +97,6 @@ export async function deletePendingRegistration(email: string): Promise<void> {
   await pool.execute('DELETE FROM pending_registrations WHERE email = ?', [email]);
 }
 
-/** Housekeeping before a new request; expired rows have no value. */
 export async function deleteExpiredPendingRegistrations(): Promise<void> {
   await pool.execute('DELETE FROM pending_registrations WHERE expires_at < NOW()');
 }
@@ -151,10 +148,8 @@ export async function createUser(
   return created;
 }
 
-/**
- * Social registration: local account and provider identity are written in one
- * transaction, so a failure can never leave an orphan user or a dangling link.
- */
+// Social registration: local account and provider identity are written in one
+// transaction, so a failure cannot leave an orphan user or a dangling link.
 export async function createUserWithProvider(input: {
   name: string;
   email: string;
@@ -217,8 +212,6 @@ export async function updatePasswordHash(userId: number, passwordHash: string): 
     [passwordHash, userId],
   );
 }
-
-// --- Social identities ----------------------------------------------------
 
 export interface ProviderAccountRow extends RowDataPacket {
   id: number;
@@ -311,10 +304,8 @@ export type UnlinkOutcome =
   | { status: 'last_login_method' }
   | { status: 'user_missing' };
 
-/**
- * Unlink with the account row locked, so two concurrent unlink calls cannot
- * both observe "two providers, no password" and remove the last login method.
- */
+// Unlink with the account row locked, so two concurrent calls cannot both
+// observe "two providers, no password" and remove the last login method.
 export async function unlinkProviderGuarded(
   userId: number,
   provider: SocialProvider,

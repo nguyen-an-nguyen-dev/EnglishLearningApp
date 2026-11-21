@@ -8,12 +8,7 @@ export interface NameplateSurface {
   style?: CSSProperties
 }
 
-/**
- * Turns the equipped nameplate into a block surface instead of a band around
- * one name. The profile head and the sidebar profile row own a real width, so
- * the plate skin is actually visible there; a plain plate leaves the block's
- * usual paper surface untouched.
- */
+/** Turns the equipped nameplate into a block surface instead of a band around one name. Profile head and sidebar profile row own a real width; a plain plate leaves the block’s paper surface untouched. */
 export function nameplateSurface(
   visualKey: string | null | undefined,
   style?: Record<string, string | null> | null,

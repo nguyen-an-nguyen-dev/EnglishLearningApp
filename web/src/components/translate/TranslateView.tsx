@@ -132,9 +132,7 @@ export function TranslateView() {
   }
 
   function restoreHistory(entry: TranslationResult) {
-    // Keep the current language direction untouched and only fill in the fields.
-    // Map each side by language: if the entry was saved in the opposite direction,
-    // its translatedText is the source text now and vice versa.
+    // Keep the current direction; map each side by language so a reversed entry’s translatedText becomes the source.
     const originalIsCurrentSource = entry.sourceLanguage === sourceLanguage
     const inputText = originalIsCurrentSource ? entry.originalText : entry.translatedText
     const resultText = originalIsCurrentSource ? entry.translatedText : entry.originalText

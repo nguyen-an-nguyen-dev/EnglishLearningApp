@@ -12,7 +12,6 @@ function shortDate(label: string): string {
   return match ? `${match[2]}/${match[1]}` : label
 }
 
-/** SVG ring (donut) - stroke based, accessible. */
 export function Donut({
   percent,
   size = 100,
@@ -109,10 +108,7 @@ export function MultiDonut({
   )
 }
 
-/**
- * SVG area + line chart. The width is measured so the drawing is never
- * stretched, which keeps dots round and labels aligned with the plot.
- */
+/** SVG area + line chart. Width is measured so the drawing is never stretched, keeping dots round and labels aligned. */
 export function AreaChart({
   data,
   color = palette.primary,
@@ -210,7 +206,6 @@ export function AreaChart({
   )
 }
 
-/** Horizontal bar row. */
 export function HBar({
   label,
   display,
@@ -238,7 +233,6 @@ export function HBar({
   )
 }
 
-/** Stacked 100% bar with a shared legend. */
 export function StackedBar({ segments }: { segments: Array<{ label: string; value: number; color: string }> }) {
   const total = Math.max(1, segments.reduce((a, s) => a + s.value, 0))
   return (
@@ -300,7 +294,6 @@ export function Heatmap({ data }: { data: Array<{ label: string; value: number }
   )
 }
 
-/** Grouped vertical columns (2-3 series side by side). */
 export function GroupedBars({
   labels,
   series,

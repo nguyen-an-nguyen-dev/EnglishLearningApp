@@ -1,7 +1,7 @@
 import type { LeagueTier } from '../types/gamification'
 
-/** Ladder order, lowest first. */
-export const LEAGUE_TIERS = ['bronze', 'silver', 'gold', 'diamond'] as const
+/** Ladder order, lowest first — the Minecraft-ore league. */
+export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'] as const
 
 export type LeagueZone = 'promote' | 'stay' | 'demote'
 
@@ -17,7 +17,7 @@ export const DEFAULT_LEAGUE_RULES: LeagueRules = {
 }
 
 export function asLeagueTier(value: string | null | undefined): LeagueTier {
-  return value === 'silver' || value === 'gold' || value === 'diamond' ? value : 'bronze'
+  return (LEAGUE_TIERS as readonly string[]).includes(value ?? '') ? (value as LeagueTier) : 'coal'
 }
 
 export function tierIndex(tier: string | null | undefined): number {
@@ -35,18 +35,12 @@ export function previousTier(tier: string | null | undefined): LeagueTier | null
   return index > 0 ? LEAGUE_TIERS[index - 1] : null
 }
 
-/**
- * Raw promotion block size, before the diamond cap. Used as the target line
- * for the “gap to promotion” stat on every tier that can still climb.
- */
+/** Raw promotion block size before the diamond cap; the target for the "gap to promotion" stat. */
 export function promotionEnd(total: number, rules: LeagueRules = DEFAULT_LEAGUE_RULES): number {
   return Math.min(rules.promotion_slots, total)
 }
 
-/**
- * Promotion slots on this tier's board. Diamond is the top of the ladder, so
- * its leaders defend their spot instead of moving up.
- */
+/** Diamond is the top of the ladder, so its leaders defend their spot instead of moving up. */
 export function promotionCount(
   total: number,
   tier: string | null | undefined,
@@ -56,19 +50,16 @@ export function promotionCount(
 }
 
 /**
- * Demotion slots after the promotion block claims overlapping ranks.
- * Bronze is the bottom of the ladder, so nobody drops out of it.
- *
- * The leader is never demoted. Diamond has no promotion block to protect its
- * top, so on a board of six or fewer the bottom-six rule would otherwise send
- * the week's winner down along with everyone else.
+ * Demotion slots after the promotion block claims overlapping ranks. Coal is the
+ * bottom, so nobody drops out. The leader is never demoted: on a short diamond
+ * board the bottom-six rule would otherwise send the week's winner down too.
  */
 export function demotionCount(
   total: number,
   tier: string | null | undefined,
   rules: LeagueRules = DEFAULT_LEAGUE_RULES,
 ): number {
-  if (asLeagueTier(tier) === 'bronze') return 0
+  if (asLeagueTier(tier) === 'coal') return 0
   const promote = promotionCount(total, tier, rules)
   const demote = Math.max(0, total - Math.max(promote, total - rules.demotion_slots))
   return Math.min(demote, Math.max(0, total - 1))
@@ -83,11 +74,8 @@ export function stayCount(
 }
 
 /**
- * Mirrors backend settlement exactly:
- *  - top slots promote (except diamond),
- *  - bottom slots demote (except bronze),
- *  - everyone else stays,
- *  - promotion wins when a short board makes the zones overlap.
+ * Mirrors backend settlement: top slots promote (except diamond), bottom slots
+ * demote (except coal), everyone else stays; promotion wins when zones overlap.
  */
 export function leagueZone(
   rank: number,

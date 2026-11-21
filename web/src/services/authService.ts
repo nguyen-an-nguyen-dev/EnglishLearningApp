@@ -209,7 +209,6 @@ function registrationError(error: unknown, fallback: string): Error {
   return new Error(message, { cause: error });
 }
 
-/** Web registration, step 1: ask the backend to mail a six-digit code. */
 export async function startRegistrationApi(
   payload: RegisterPayload,
 ): Promise<StartRegistrationResult> {
@@ -225,7 +224,7 @@ export async function startRegistrationApi(
   }
 }
 
-/** Web registration, step 2: the code is the only thing that creates the user. */
+/** Step 2: the code is the only thing that creates the user. */
 export async function verifyRegistrationApi(
   payload: VerifyRegistrationPayload,
 ): Promise<LoginResponseData> {

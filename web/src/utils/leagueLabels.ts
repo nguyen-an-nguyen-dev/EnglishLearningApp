@@ -1,28 +1,17 @@
 import type { Dict } from '../i18n'
+import type { LeagueTier } from '../types/gamification'
 import { asLeagueTier } from './league'
 
-export function tierLabel(t: Dict, tier: string | null | undefined): string {
-  switch (asLeagueTier(tier)) {
-    case 'silver':
-      return t.tierSilver
-    case 'gold':
-      return t.tierGold
-    case 'diamond':
-      return t.tierDiamond
-    default:
-      return t.tierBronze
-  }
+const LABEL_KEY: Record<LeagueTier, keyof Dict> = {
+  coal: 'tierCoal',
+  copper: 'tierCopper',
+  iron: 'tierIron',
+  gold: 'tierGold',
+  redstone: 'tierRedstone',
+  lapis: 'tierLapis',
+  diamond: 'tierDiamond',
 }
 
-export function tierTagline(t: Dict, tier: string | null | undefined): string {
-  switch (asLeagueTier(tier)) {
-    case 'silver':
-      return t.leagueTaglineSilver
-    case 'gold':
-      return t.leagueTaglineGold
-    case 'diamond':
-      return t.leagueTaglineDiamond
-    default:
-      return t.leagueTaglineBronze
-  }
+export function tierLabel(t: Dict, tier: string | null | undefined): string {
+  return t[LABEL_KEY[asLeagueTier(tier)]] as string
 }

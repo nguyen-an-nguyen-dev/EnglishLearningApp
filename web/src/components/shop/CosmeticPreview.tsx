@@ -13,11 +13,7 @@ export interface CosmeticPreviewProps {
   size?: number
 }
 
-/**
- * One preview surface per cosmetic slot, all reading the same `cosmetics.ts`
- * palette. Locked items still render their full preview (the shop dims them with
- * CSS), so a learner can always see what they are working toward.
- */
+/** One preview surface per cosmetic slot, all reading the same cosmetics.ts palette. Locked items still render fully; the shop dims them with CSS. */
 export function CosmeticPreview({ slot, visualKey, style, sampleName = 'Engorace', size = 132 }: CosmeticPreviewProps) {
   if (slot === 'car') {
     // Cars are shown in profile, not top-down: the shop art box is landscape,

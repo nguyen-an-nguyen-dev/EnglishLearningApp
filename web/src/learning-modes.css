@@ -1,6 +1,4 @@
-/* ==========================================================================
-   HỌC QUA VIDEO
-   ========================================================================== */
+/* Học qua video */
 /* The video library adopts the sticker system (ink outline + hard shadow)
    scoped to this page, so the rest of the app keeps its cyan palette. */
 .video-page {
@@ -708,9 +706,7 @@
 .video-spinner.is-small { width: 18px; height: 18px; border-width: 2.5px; border-color: rgb(255 255 255 / 35%); border-top-color: #FFFFFF; }
 @keyframes video-spin { to { transform: rotate(360deg); } }
 
-/* A static ring reads as "stuck", not "working". Keep the import spinners
-   turning even when the OS asks for reduced motion: the rotation is small,
-   local, and it is the only progress signal in the dialog. */
+/* A static ring reads as "stuck", not "working"; keep the import spinners turning even under reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .video-spinner,
   .practice-save-spinner {
@@ -829,9 +825,7 @@
 }
 :root[data-video-mono] .video-spinner { border-color: var(--line-strong); border-top-color: var(--ink); }
 :root[data-video-mono] .video-spinner.is-small { border-color: rgb(128 128 128 / 35%); border-top-color: var(--paper); }
-/* The video/notebook desk reuses the shared cyan-slate tokens instead of a
-   private warm ramp. Document surfaces follow :root / [data-theme="dark"];
-   media surfaces stay fixed dark with fixed light ink (they never flip). */
+/* The video/notebook desk reuses the shared cyan-slate tokens; document surfaces follow the theme, media surfaces stay fixed dark. */
 .video-detail {
   --m-paper: var(--paper);
   --m-surface: var(--brand-50);
@@ -1030,9 +1024,7 @@
   box-shadow: none;
   background: #0A131A;
 }
-/* The learner watches the video normally: no overscan, no letterbox bands,
-   no frosted overlay. Captions are switched off through the IFrame API in
-   PracticeView.stripCaptions(), not by hiding the picture. */
+/* The learner watches normally: no overscan, no letterbox, no overlay. Captions are switched off through the IFrame API in PracticeView.stripCaptions(). */
 .practice-stage iframe {
   position: absolute;
   inset: 0;
@@ -1832,9 +1824,7 @@
 :root[data-theme="dark"] .notebook-hero { background: #17171A; border-color: #2B2B2F; }
 
 
-/* ==========================================================================
-   Responsive — video
-   ========================================================================== */
+/* Responsive - video */
 @media (max-width: 1120px) {
   .video-notebook-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .practice-layout { grid-template-columns: 1fr; }

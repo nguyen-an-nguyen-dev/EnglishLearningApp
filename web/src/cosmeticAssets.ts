@@ -1,14 +1,8 @@
 /**
- * Legacy raster cosmetic artwork, keyed by `visual_key`.
- *
- * The live frames are now pure vector art in
- * `src/components/cosmetics/garage/frames`; `FRAME_HEAD` is retained only for
- * historical data and is not imported by `AvatarFrame` any more.
- *
- * Nameplates still use the scenic photographs from Unsplash (Unsplash License).
- * Sources and licences are listed in `public/cosmetics/CREDITS.md`.
- *
- * Keep these paths in sync with the `visual_key` rows in `shop_items`.
+ * Legacy raster cosmetic artwork keyed by `visual_key`. Live frames are vector art
+ * in `components/cosmetics/garage/frames`; `FRAME_HEAD` is kept for old data and is
+ * no longer imported by `AvatarFrame`. Nameplate photos are Unsplash (see
+ * `public/cosmetics/CREDITS.md`). Keep paths in sync with `shop_items` rows.
  */
 
 export const FRAME_HEAD: Record<string, string> = {

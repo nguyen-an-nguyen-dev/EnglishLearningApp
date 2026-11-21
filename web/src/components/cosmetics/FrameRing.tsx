@@ -10,13 +10,7 @@ function hexPoints(radius: number): string {
   }).join(' ')
 }
 
-/**
- * The metal/energy ring under a mascot frame.
- *
- * Each motif gets a different ring language: a classic circle, a double orbit,
- * a dotted star band, a faceted hexagon, or a neon bracket hexagon. The gradient
- * comes from the shop palette, so an admin colour tweak still lands on the ring.
- */
+/** Metal/energy ring under a mascot frame. Each motif gets its own ring language; the gradient comes from the shop palette. */
 export function FrameRing({ motif, skin }: { motif: FrameMotif; skin: FrameSkin }) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const gradientId = `frame-ring-${uid}`

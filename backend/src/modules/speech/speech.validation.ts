@@ -4,9 +4,8 @@ import { SPEECH_MIME_TYPES, type SpeechMimeType } from './speech.types';
 const MAX_AUDIO_SECONDS = 60;
 
 /**
- * The recorder posts raw audio bytes, not multipart, so the only metadata is
- * the Content-Type header. Normalise `audio/webm;codecs=opus` to `audio/webm`
- * and reject anything a transcription model cannot read.
+ * The recorder posts raw bytes, so Content-Type is the only metadata. Normalise
+ * `audio/webm;codecs=opus` to `audio/webm` and reject unreadable formats.
  */
 export function parseSpeechMimeType(raw: string | undefined): SpeechMimeType {
   const base = (raw ?? '').split(';')[0].trim().toLowerCase();

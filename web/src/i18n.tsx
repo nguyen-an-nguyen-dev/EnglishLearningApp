@@ -5,7 +5,6 @@ export type Lang = 'vi' | 'en'
 export const LANG_STORAGE_KEY = 'engorace_lang'
 
 const vi = {
-  /* shell */
   navStudy: 'Học Tập',
   navVideos: 'Học qua Video',
   navVideosShort: 'Video',
@@ -29,7 +28,6 @@ const vi = {
   signOut: 'Đăng xuất',
   signOutAria: 'Đăng xuất tài khoản',
 
-  /* settings */
   settings: 'Cài đặt',
   close: 'Đóng',
   appearance: 'Giao diện',
@@ -39,7 +37,6 @@ const vi = {
   langVi: 'Tiếng Việt',
   langEn: 'English',
 
-  /* study */
   studyEyebrow: 'Lộ trình của bạn',
   studyHi: (name: string) => `Chào ${name},`,
   studyTail: 'mình đi tiếp nhé.',
@@ -56,74 +53,43 @@ const vi = {
   roadmapEmpty: 'Chưa có dữ liệu lộ trình.',
   retry: 'Thử lại',
 
-  /* rankings */
-  rankEyebrow: 'BẢNG XẾP HẠNG',
-  rankTitle: 'Bảng xếp hạng',
-  rankDesc: 'Xếp theo tổng điểm XP của toàn bộ học viên. Mở lại trang để cập nhật.',
-  rankLeagueEyebrow: 'LEAGUE TUẦN',
-  rankLeagueTitle: 'League tuần này',
-  rankLeagueDesc: 'Mỗi tuần bạn đấu với người cùng hạng. 6 đầu lên hạng, 6 cuối xuống hạng, ở giữa giữ hạng. Hạng Đồng không xuống và Kim Cương không lên.',
-  rankLeagueTab: 'League tuần',
-  rankCareerTab: 'Sự nghiệp',
-  rankRacePoints: 'Điểm đua',
+  rankLeagueName: (tier: string) => `Giải đấu ${tier}`,
+  rankPromoteHint: (count: number) => `Lọt top ${count} để thăng hạng giải đấu`,
+  rankDiamondHint: 'Bạn đang ở hạng cao nhất — giữ vững phong độ để trụ lại',
+  rankZonePromote: (from: number, to: number) => `Vùng thăng hạng · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankZoneStay: (from: number, to: number) => `Vùng giữ hạng · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankZoneDemote: (from: number, to: number) => `Vùng xuống hạng · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankParticipants: (total: number) => `${total} học viên`,
+  rankJumpToMe: (rank: number) => `Hạng của bạn: #${rank}`,
+  rankWeekEnded: 'Tuần thi đã kết thúc',
+  rankLadderAria: 'Các hạng giải đấu',
   rankLeagueEmpty: 'Chưa ai ghi điểm tuần này. Hoàn thành một bài học để mở màn.',
   rankUnrankedTitle: (tier: string) => `Bạn chưa có mặt trên bảng ${tier}`,
   rankUnrankedBody: 'Tuần này bạn chưa ghi điểm RP nào. Hoàn thành một bài học là bạn bước vào bảng đấu ngay.',
   rankUnrankedCta: 'Học để vào bảng',
-  rankUnrankedYou: 'Bạn chưa xếp hạng',
-  rankYouHere: 'Bạn ở đây',
+  rankTopThree: 'Top 3 tuần này',
+  rankInPromoteZone: 'Bạn đang trong vùng thăng hạng',
+  rankRpToPromote: (rp: number, count: number) => `Còn ${rp} RP để lọt top ${count}`,
+  rankRpToEscapeDemote: (rp: number) => `Còn ${rp} RP để thoát vùng xuống hạng`,
+  rankRpToSafety: (rp: number) => `Còn ${rp} RP để giữ hạng`,
+  rankGoalDetail: (rank: number, score: string) => `Hạng #${rank} · ${score} RP`,
   arenaRewardTitle: 'Phần thưởng trận đấu',
-  rankStanding: 'Vị trí của bạn',
-  rankOutOf: (total: number) => `trong ${total} học viên`,
-  rankXp: 'Điểm XP',
-  rankGapTop3: 'Cách top 3',
-  rankTop: 'Dẫn đầu',
-  rankReached: 'Đã vào top 3',
   rankLoading: 'Đang tải bảng xếp hạng…',
   rankError: 'Không tải được bảng xếp hạng.',
-  rankEmpty: 'Chưa có ai trên bảng xếp hạng.',
   you: 'Bạn',
 
-  /* league */
-  tierBronze: 'Đồng',
-  tierSilver: 'Bạc',
+  tierCoal: 'Than',
+  tierCopper: 'Đồng',
+  tierIron: 'Sắt',
   tierGold: 'Vàng',
+  tierRedstone: 'Đá đỏ',
+  tierLapis: 'Lưu ly',
   tierDiamond: 'Kim Cương',
   tierUnranked: 'Chưa xếp hạng',
-  leagueTaglineBronze: 'Khởi đầu vững vàng',
-  leagueTaglineSilver: 'Bứt phá đường đua',
-  leagueTaglineGold: 'Tỏa sáng mỗi ngày',
-  leagueTaglineDiamond: 'Đỉnh cao rực rỡ',
-  leagueLadder: 'Cấp bậc league',
-  leagueCurrent: 'Hiện tại',
-  leagueSeason: 'Mùa',
   leagueTimeLeftDays: (days: number, hours: number) => `Còn ${days} ngày ${hours} giờ`,
   leagueTimeLeftHours: (hours: number) => `Còn ${hours} giờ`,
   leagueTimeLeftMinutes: (minutes: number) => `Còn ${minutes} phút`,
-  leagueYourRank: 'Hạng của bạn',
-  leagueWeeklyRp: 'RP tuần này',
-  leagueBoardTitle: 'Bảng đấu tuần này',
-  leaguePromotionZone: 'Vùng thăng hạng',
-  leagueStayZone: 'Vùng giữ hạng',
-  leagueDemotionZone: 'Vùng xuống hạng',
-  leaguePromotionCount: (count: number) => `Top ${count}`,
-  leagueStayCount: (count: number) => `${count} người ở giữa giữ hạng`,
-  leagueDemotionCount: (count: number) => `${count} người cuối`,
-  leagueStatusPromote: 'Lên hạng',
-  leagueStatusDemote: 'Xuống hạng',
-  leagueStatusStay: 'Giữ hạng',
-  leagueStatusTop: 'Hạng cao nhất',
-  leagueStatusNone: 'Chưa có điểm',
-  leagueGapPromotion: 'Cách top 6',
-  leagueGapSafety: 'Cách vạch an toàn',
-  leagueStatusSafe: 'An toàn',
-  leagueAllPromote: 'Bảng có 6 người trở xuống nên tất cả đều nằm trong vùng thăng hạng.',
-  leagueTopTitle: 'Top 6',
-  leagueBottomTitle: '6 cuối bảng',
-  leagueMiddle: (count: number) => `${count} học viên ở giữa`,
-  leagueYouMiddle: 'Bạn đang ở giữa bảng',
 
-  /* profile */
   profileEyebrow: 'HỒ SƠ CÁ NHÂN',
   profileTitle: 'Hồ sơ của bạn',
   profileDesc: 'Tổng quan hành trình học tập và các thiết lập tài khoản.',
@@ -201,7 +167,6 @@ const vi = {
   logoutLong: 'Đăng xuất khỏi tài khoản',
   logoutShort: 'Đăng xuất',
 
-  /* video learning */
   videosEyebrow: 'HỌC QUA VIDEO',
   videosTitle: 'Nghe thật kỹ. Gõ lại thật đúng.',
   videosDesc: 'Bài luyện nghe ngắn với phụ đề ẩn. Nghe từng đoạn, gõ lại câu bạn nghe được và mở khoá đoạn tiếp theo.',
@@ -338,7 +303,6 @@ const vi = {
   practiceRestart: 'Luyện lại',
   practiceBackToLibrary: 'Về thư viện video',
 
-  /* vocabulary arena */
   arenaEyebrow: 'ĐẤU TRƯỜNG TỪ VỰNG',
   arenaTitle: 'Thi đua',
   arenaDesc: 'So tài 1v1 trực tuyến với người học khác trên kho từ vựng A1–B2.',
@@ -407,7 +371,6 @@ const vi = {
   arenaSearchingHint: 'đang ghép trận',
   arenaLobbyTip: 'Cứ 5 giây là gợi ý lại hiện thêm chữ cái. Gõ nhanh là thắng, đừng đợi gợi ý nha!',
 
-  /* translate */
   translateKicker: 'Dịch thuật',
   translateTitle: 'Dịch tài liệu,',
   translateTitleAccent: 'giữ nguyên mạch văn bản.',
@@ -462,7 +425,6 @@ const vi = {
   translatePosInterjection: 'Thán từ',
   translatePosOther: 'Từ loại khác',
 
-  /* AI study buddy — En Buddy (chú xe chở sách) */
   buddyTitle: 'En Buddy',
   buddySubtitle: 'Bạn học của bạn',
   buddyStatus: 'Đang ngồi cạnh bạn đây',
@@ -545,7 +507,6 @@ const vi = {
   buddyPromptNext: 'Sau những gì đã học, lộ trình tiếp theo của mình nên đi theo hướng nào?',
   buddyPromptHere: 'Nhìn màn hình mình đang mở và cho mình biết nên chú ý gì, giải thích ngắn gọn nội dung đang hiển thị.',
 
-  /* admin content console */
   navAdmin: 'Quản trị',
   adminEyebrow: 'QUẢN TRỊ NỘI DUNG',
   adminTitle: 'Quản trị nội dung',
@@ -643,7 +604,6 @@ const vi = {
   adminDeleteQuestionConfirm: 'Xoá câu hỏi này?',
   adminStageNotEmpty: 'Chặng còn bài học nên chưa xoá được. Xoá các bài bên trong trước.',
 
-  /* admin console (separate shell) */
   consoleTitle: 'Quản trị hệ thống',
   consoleLoginTitle: 'Đăng nhập quản trị',
   consoleLoginDesc: 'Khu vực quản trị Engorace — quản lý nội dung và theo dõi số liệu vận hành.',
@@ -664,7 +624,6 @@ const vi = {
   consoleStatsError: 'Không tải được số liệu thống kê.',
   consoleLoading: 'Đang tải...',
 
-  /* landing demo — real shortest lesson, gated after a few segments */
   demoLoading: 'Đang mở bài học thử...',
   demoLoadError: 'Không mở được bài học thử.',
   demoUnavailable: 'Chưa có bài học nào để xem thử.',
@@ -682,7 +641,6 @@ const vi = {
   demoGateCta: 'Tạo tài khoản để học tiếp',
   demoGateReplay: 'Nghe lại phần xem thử',
 
-  /* companion (thay mô hình chat) */
   buddyReminderDue: 'Tới giờ bạn hẹn',
   buddyLater: 'Để sau',
   buddyDismiss: 'Bỏ qua gợi ý này',
@@ -702,7 +660,6 @@ const vi = {
   buddyDeleteReminder: 'Xoá nhắc này',
   buddyBack: 'Quay lại',
 
-  /* footer */
 }
 
 const en: typeof vi = {
@@ -754,71 +711,42 @@ const en: typeof vi = {
   roadmapEmpty: 'No roadmap data yet.',
   retry: 'Retry',
 
-  rankEyebrow: 'LEADERBOARD',
-  rankTitle: 'Leaderboard',
-  rankDesc: 'Ranked by total XP across every learner. Reload the page to refresh.',
-  rankLeagueEyebrow: 'WEEKLY LEAGUE',
-  rankLeagueTitle: 'This week’s league',
-  rankLeagueDesc: 'Each week you compete in your own tier. Top 6 move up, bottom 6 move down, everyone in between holds. Bronze cannot fall and diamond cannot climb.',
-  rankLeagueTab: 'Weekly league',
-  rankCareerTab: 'Career',
-  rankRacePoints: 'Race Points',
+  rankLeagueName: (tier: string) => `${tier} league`,
+  rankPromoteHint: (count: number) => `Reach the top ${count} to climb to the next league`,
+  rankDiamondHint: 'You are in the highest league — hold your form to stay',
+  rankZonePromote: (from: number, to: number) => `Promotion zone · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankZoneStay: (from: number, to: number) => `Safe zone · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankZoneDemote: (from: number, to: number) => `Demotion zone · ${from === to ? `#${from}` : `#${from}–${to}`}`,
+  rankParticipants: (total: number) => `${total} ${total === 1 ? 'learner' : 'learners'}`,
+  rankJumpToMe: (rank: number) => `Your rank: #${rank}`,
+  rankWeekEnded: 'Week ended',
+  rankLadderAria: 'League tiers',
   rankLeagueEmpty: 'Nobody has scored this week yet. Finish a lesson to open the board.',
   rankUnrankedTitle: (tier: string) => `You are not on the ${tier} board yet`,
   rankUnrankedBody: 'You have not earned any RP this week. Finish one lesson and you join the board immediately.',
   rankUnrankedCta: 'Study to join',
-  rankUnrankedYou: 'Not ranked yet',
-  rankYouHere: 'You are here',
+  rankTopThree: "This week's top 3",
+  rankInPromoteZone: 'You are in the promotion zone',
+  rankRpToPromote: (rp: number, count: number) => `${rp} RP to reach the top ${count}`,
+  rankRpToEscapeDemote: (rp: number) => `${rp} RP to escape the demotion zone`,
+  rankRpToSafety: (rp: number) => `${rp} RP to keep your spot`,
+  rankGoalDetail: (rank: number, score: string) => `Rank #${rank} · ${score} RP`,
   arenaRewardTitle: 'Match reward',
-  rankStanding: 'Your position',
-  rankOutOf: (total: number) => `of ${total} learners`,
-  rankXp: 'XP',
-  rankGapTop3: 'Gap to top 3',
-  rankTop: 'Leading',
-  rankReached: 'In the top 3',
   rankLoading: 'Loading the leaderboard…',
   rankError: 'Could not load the leaderboard.',
-  rankEmpty: 'Nobody is on the board yet.',
   you: 'You',
 
-  /* league */
-  tierBronze: 'Bronze',
-  tierSilver: 'Silver',
+  tierCoal: 'Coal',
+  tierCopper: 'Copper',
+  tierIron: 'Iron',
   tierGold: 'Gold',
+  tierRedstone: 'Redstone',
+  tierLapis: 'Lapis',
   tierDiamond: 'Diamond',
   tierUnranked: 'Unranked',
-  leagueTaglineBronze: 'A steady start',
-  leagueTaglineSilver: 'Break away from the pack',
-  leagueTaglineGold: 'Shine every day',
-  leagueTaglineDiamond: 'The brightest summit',
-  leagueLadder: 'League ladder',
-  leagueCurrent: 'Current',
-  leagueSeason: 'Season',
   leagueTimeLeftDays: (days: number, hours: number) => `${days}d ${hours}h left`,
   leagueTimeLeftHours: (hours: number) => `${hours}h left`,
   leagueTimeLeftMinutes: (minutes: number) => `${minutes}m left`,
-  leagueYourRank: 'Your rank',
-  leagueWeeklyRp: 'Weekly RP',
-  leagueBoardTitle: 'This week’s board',
-  leaguePromotionZone: 'Promotion zone',
-  leagueStayZone: 'Staying zone',
-  leagueDemotionZone: 'Demotion zone',
-  leaguePromotionCount: (count: number) => `Top ${count}`,
-  leagueStayCount: (count: number) => `${count} in the middle stay`,
-  leagueDemotionCount: (count: number) => `Bottom ${count}`,
-  leagueStatusPromote: 'Promote',
-  leagueStatusDemote: 'Demote',
-  leagueStatusStay: 'Stay',
-  leagueStatusTop: 'Top tier',
-  leagueStatusNone: 'No points yet',
-  leagueGapPromotion: 'Gap to top 6',
-  leagueGapSafety: 'Gap to safety',
-  leagueStatusSafe: 'Safe',
-  leagueAllPromote: 'Six learners or fewer scored, so everyone is in the promotion zone.',
-  leagueTopTitle: 'Top 6',
-  leagueBottomTitle: 'Bottom 6',
-  leagueMiddle: (count: number) => `${count} learners in between`,
-  leagueYouMiddle: 'You are in the middle of the board',
 
   profileEyebrow: 'PROFILE',
   profileTitle: 'Your profile',
@@ -897,7 +825,6 @@ const en: typeof vi = {
   logoutLong: 'Sign out of your account',
   logoutShort: 'Sign out',
 
-  /* video learning */
   videosEyebrow: 'LEARN THROUGH VIDEO',
   videosTitle: 'Listen closely. Type it exactly.',
   videosDesc: 'Short listening drills with hidden captions. Hear each segment, type what you hear, and unlock the next one.',
@@ -1034,7 +961,6 @@ const en: typeof vi = {
   practiceRestart: 'Practice again',
   practiceBackToLibrary: 'Back to video library',
 
-  /* vocabulary arena */
   arenaEyebrow: 'VOCABULARY ARENA',
   arenaTitle: 'Compete',
   arenaDesc: 'Duel another learner 1v1 online over the A1–B2 vocabulary bank.',
@@ -1103,7 +1029,6 @@ const en: typeof vi = {
   arenaSearchingHint: 'matching now',
   arenaLobbyTip: 'A hint reveals more letters every 5 seconds. Type fast and win — do not wait for the hints!',
 
-  /* translate */
   translateKicker: 'Translation',
   translateTitle: 'Translate documents,',
   translateTitleAccent: 'keep the text intact.',
@@ -1158,7 +1083,6 @@ const en: typeof vi = {
   translatePosInterjection: 'Interjection',
   translatePosOther: 'Other',
 
-  /* AI study buddy — En Buddy (the little book car) */
   buddyTitle: 'En Buddy',
   buddySubtitle: 'Your study buddy',
   buddyStatus: 'Sitting right here with you',
@@ -1241,7 +1165,6 @@ const en: typeof vi = {
   buddyPromptNext: 'Given what I have learned, where should my roadmap go next?',
   buddyPromptHere: 'Look at the screen I have open and tell me what to focus on, and briefly explain what is showing.',
 
-  /* admin content console */
   navAdmin: 'Admin',
   adminEyebrow: 'CONTENT CONSOLE',
   adminTitle: 'Content console',
@@ -1339,7 +1262,6 @@ const en: typeof vi = {
   adminDeleteQuestionConfirm: 'Delete this question?',
   adminStageNotEmpty: 'This stage still has lessons. Delete them first.',
 
-  /* admin console (separate shell) */
   consoleTitle: 'Admin Console',
   consoleLoginTitle: 'Admin sign-in',
   consoleLoginDesc: 'Engorace admin area — manage content and watch operations.',
@@ -1360,7 +1282,6 @@ const en: typeof vi = {
   consoleStatsError: 'Could not load statistics.',
   consoleLoading: 'Loading...',
 
-  /* landing demo — real shortest lesson, gated after a few segments */
   demoLoading: 'Opening the sample lesson...',
   demoLoadError: 'Could not open the sample lesson.',
   demoUnavailable: 'No lesson is available to preview yet.',
@@ -1378,7 +1299,6 @@ const en: typeof vi = {
   demoGateCta: 'Create an account to continue',
   demoGateReplay: 'Replay the preview',
 
-  /* companion (replaces the chat model) */
   buddyReminderDue: 'You asked me to remind you',
   buddyLater: 'Later',
   buddyDismiss: 'Skip this suggestion',

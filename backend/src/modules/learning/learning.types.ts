@@ -1,4 +1,3 @@
-// Row types (from database)
 import type { RowDataPacket } from 'mysql2';
 import type { Badge } from '../badges/badges.types';
 
@@ -57,7 +56,6 @@ export interface ProgressRow extends RowDataPacket {
 }
 
 // API response types
-
 export interface Stage {
   id: number;
   code: string;
@@ -109,7 +107,6 @@ export interface StageWithLessons extends Stage {
 }
 
 // Input types for completion
-
 export interface SubmittedAnswer {
   questionId: number;
   answer: string; // text for fill_blank/translate/word_order, or answer_id string for MCQ

@@ -5,10 +5,7 @@ interface CacheEntry<T> {
 
 const entries = new Map<string, CacheEntry<unknown>>();
 
-/**
- * Small in-memory TTL cache for low-churn public data (provider config,
- * immutable catalogues). User-specific data must not be cached here.
- */
+/** In-memory TTL cache for low-churn public data. Never cache user-specific data here. */
 export async function cachedQuery<T>(
   key: string,
   ttlMs: number,

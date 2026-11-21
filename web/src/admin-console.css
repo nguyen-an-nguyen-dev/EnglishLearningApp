@@ -1,6 +1,4 @@
-/* Admin console - flat operations UI.
-   One teal system, hairline borders, no gradients, no icon tiles, no glass.
-   CSS is ASCII-only; visible Vietnamese copy lives in the TSX files. */
+/* Keep this file ASCII-only; visible Vietnamese copy lives in the TSX. */
 
 .admin-shell,
 .admin-login {
@@ -28,7 +26,6 @@
   --a-danger: #A83A3A;
   --a-danger-tint: #F8E9E9;
 
-  /* Tokens consumed by the reused content panels in admin.css. */
   --paper: #FFFFFF;
   --paper-muted: #F5F8F9;
   --ink: #102A33;
@@ -53,7 +50,6 @@
   --danger-50: #F8E9E9;
   --danger-600: #A83A3A;
 
-  /* Action tokens used by the reused video / content controls. */
   --action-bg: #0A5C70;
   --action-fg: #FFFFFF;
   --action-hover: #084A5A;
@@ -63,7 +59,6 @@
   --shell-bg: #F3F6F7;
   --shell-nav-hover: rgb(10 92 112 / 7%);
 
-  /* Tokens consumed by admin.css forms, rows and dialogs. */
   --admin-radius-lg: 8px;
   --admin-radius-md: 6px;
   --admin-radius-sm: 5px;
@@ -83,7 +78,7 @@
   font-family: var(--font-sans);
 }
 
-/* --- Sidebar ------------------------------------------------------------ */
+/* Sidebar */
 
 .admin-sider {
   position: sticky;
@@ -196,7 +191,7 @@
   color: #FFFFFF;
 }
 
-/* --- Main / topbar ------------------------------------------------------ */
+/* Main / topbar */
 
 .admin-main { min-width: 0; display: flex; flex-direction: column; }
 
@@ -248,7 +243,7 @@
 
 .admin-panel-card { padding: 16px; }
 
-/* --- Page rhythm -------------------------------------------------------- */
+/* Page rhythm */
 
 .admin-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
@@ -296,7 +291,7 @@
   line-height: 1.6;
 }
 
-/* --- Today summary ------------------------------------------------------ */
+/* Today summary */
 
 .admin-summary {
   display: grid;
@@ -381,7 +376,7 @@
 .admin-summary-facts strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .admin-summary-facts span { font-size: 10.5px; color: var(--a-muted); line-height: 1.35; }
 
-/* --- Metric band -------------------------------------------------------- */
+/* Metric band */
 
 .admin-metrics {
   display: grid;
@@ -419,7 +414,7 @@
   color: var(--a-muted);
 }
 
-/* --- Signal band -------------------------------------------------------- */
+/* Signal band */
 
 .admin-signals {
   display: grid;
@@ -442,7 +437,7 @@
 .admin-signal > strong { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .admin-signal > small { font-size: 11px; color: var(--a-muted); line-height: 1.4; }
 
-/* --- Cards / grids ------------------------------------------------------ */
+/* Cards / grids */
 
 .admin-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
 .admin-grid-main { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
@@ -509,7 +504,7 @@
 .admin-card-body > .admin-chart-foot { margin-top: auto; }
 .admin-card-body.is-flush > .admin-table-foot { margin-top: auto; }
 
-/* --- Charts ------------------------------------------------------------- */
+/* Charts */
 
 .admin-area-wrap { width: 100%; min-width: 0; }
 .admin-area-chart { display: block; width: 100%; overflow: visible; }
@@ -641,7 +636,7 @@
 .admin-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .admin-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
 
-/* --- Lists -------------------------------------------------------------- */
+/* Lists */
 
 .admin-mini-list { margin: 0; padding: 0; list-style: none; display: grid; }
 .admin-mini-list li {
@@ -671,7 +666,7 @@
 .admin-stat-list li:last-child { border-bottom: 0; }
 .admin-stat-list li > strong { color: var(--a-ink); font-size: 13.5px; font-variant-numeric: tabular-nums; }
 
-/* --- Action list -------------------------------------------------------- */
+/* Action list */
 
 .admin-action-list { display: flex; flex-direction: column; }
 .admin-action-row {
@@ -714,7 +709,7 @@
   color: var(--a-muted);
 }
 
-/* --- Buttons ------------------------------------------------------------ */
+/* Buttons */
 
 .admin-btn {
   display: inline-flex;
@@ -754,7 +749,7 @@
 .admin-delta.is-down { color: var(--a-danger); }
 .admin-delta.is-flat { color: var(--a-muted); font-weight: 500; }
 
-/* --- Tables ------------------------------------------------------------- */
+/* Tables */
 
 .admin-table-wrap { width: 100%; overflow-x: auto; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
@@ -835,7 +830,7 @@
 .admin-seg button:hover { color: var(--a-ink); }
 .admin-seg button.is-active { background: var(--a-primary-tint); color: var(--a-primary); font-weight: 600; }
 
-/* --- States ------------------------------------------------------------- */
+/* States */
 
 .admin-empty-state { padding: 26px 16px; text-align: center; font-size: 12.5px; color: var(--a-muted); }
 .admin-loading-state { padding: 30px; text-align: center; font-size: 12.5px; color: var(--a-muted); }
@@ -856,7 +851,7 @@
 .admin-pad { padding: 16px; }
 .admin-muted { color: var(--a-muted); }
 
-/* --- Login / no access -------------------------------------------------- */
+/* Login / no access */
 
 .admin-login {
   min-height: 100dvh;
@@ -886,11 +881,11 @@
 .admin-login .admin-form { gap: 14px; }
 .admin-login .admin-btn[type='submit'] { width: 100%; min-height: 40px; }
 
-/* --- Mobile nav --------------------------------------------------------- */
+/* Mobile nav */
 
 .admin-mobile-nav { display: none; }
 
-/* --- Responsive --------------------------------------------------------- */
+/* Responsive */
 
 @media (max-width: 1180px) {
   .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

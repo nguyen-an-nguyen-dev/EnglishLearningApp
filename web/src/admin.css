@@ -1,14 +1,4 @@
-/* ==========================================================================
-   Admin content console - shared videos + stage -> lesson -> question builder.
-
-   Rules this file follows (README section 4):
-   - one bordered block per column; rows inside are separated by a hairline
-   - every colour comes from index.css tokens, so light/dark stay in one gamut
-   - brand cyan is reserved for actions and the selected-row marker; amber only
-     marks the XP reward chip; red only for destructive controls
-   - 4/8/12/16/24/32 spacing scale, one left text edge per column
-   Keep this file ASCII-only: the CSS is written by tools that mangle UTF-8.
-   ========================================================================== */
+/* Keep this file ASCII-only: the CSS tooling mangles UTF-8. */
 
 .admin-page {
   --admin-radius-lg: 8px;
@@ -26,7 +16,7 @@
   min-width: 0;
 }
 
-/* --- Segmented switch (not an action, so it stays neutral) --------------- */
+/* Segmented switch - neutral, not an action. */
 
 .admin-switch {
   display: inline-flex;
@@ -66,7 +56,7 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
-/* --- Panel shell -------------------------------------------------------- */
+/* Panel shell */
 
 .admin-panel {
   display: flex;
@@ -103,7 +93,7 @@
   box-shadow: var(--admin-shadow);
 }
 
-/* --- Columns ------------------------------------------------------------ */
+/* Columns */
 
 .admin-columns {
   display: grid;
@@ -126,8 +116,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  /* Matches the 30px add button (8 + 30 + 8 + 1 border) so the header does not
-     jump in height when the skeleton is replaced by real rows. */
+  /* Matches the 30px add button so the header height does not jump when skeleton rows are replaced. */
   min-height: 47px;
   padding: 8px 8px 8px 14px;
   border-bottom: 1px solid var(--line);
@@ -175,7 +164,7 @@
   padding: 26px 20px;
 }
 
-/* --- Rows --------------------------------------------------------------- */
+/* Rows */
 
 .admin-list {
   display: flex;
@@ -289,7 +278,7 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
-/* --- Row metadata ------------------------------------------------------- */
+/* Row metadata */
 
 /* Plain text metadata, separated by dots; no tinted pills. */
 .admin-chip {
@@ -323,7 +312,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* --- Empty / loading states --------------------------------------------- */
+/* Empty / loading states */
 
 .admin-empty {
   display: grid;
@@ -385,7 +374,7 @@
   to { background-position: -120% 0; }
 }
 
-/* --- Icon buttons ------------------------------------------------------- */
+/* Icon buttons */
 
 .admin-icon-btn {
   display: grid;
@@ -431,7 +420,7 @@
 .admin-link-btn:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 .admin-link-btn:disabled { color: var(--muted); cursor: not-allowed; }
 
-/* --- Dialog ------------------------------------------------------------- */
+/* Dialog */
 
 .admin-dialog {
   position: fixed;
@@ -555,7 +544,7 @@
   font-weight: 600;
 }
 
-/* --- Catalogue panels (shop / arena / video vocabulary) ----------------- */
+/* Catalogue panels */
 
 .admin-shop-toolbar-actions {
   display: flex;
@@ -740,7 +729,7 @@
   .admin-shop-search { flex: 1 1 180px; min-width: 0; }
 }
 
-/* --- Form fields -------------------------------------------------------- */
+/* Form fields */
 
 .admin-form { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
@@ -905,7 +894,7 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 24%, transparent);
 }
 
-/* --- Responsive --------------------------------------------------------- */
+/* Responsive */
 
 @media (min-width: 821px) {
   .admin-column-body {

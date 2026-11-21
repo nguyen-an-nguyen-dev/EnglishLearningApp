@@ -233,7 +233,7 @@ test('translation API supports both directions, words, TXT uploads, validation, 
   const failedTranslation = await translate('This must not be stored', 'en', 'vi');
   assert.equal(failedTranslation.status, 503);
   assert.equal(providerCallCount - callsBefore, 2, 'a busy primary model retries once on the fallback model');
-  assert.equal(providerRequest?.model, 'gemini-3.5-flash', 'fallback model is used for the retry');
+  assert.equal(providerRequest?.model, env.aiFallbackModel, 'fallback model is used for the retry');
   persistentProviderResponse = null;
 
   const historyResponse = await fetch(`${baseUrl}/api/translations`, { headers: auth });

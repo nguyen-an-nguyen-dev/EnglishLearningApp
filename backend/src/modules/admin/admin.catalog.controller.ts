@@ -17,8 +17,6 @@ function fail(error: unknown, next: (error: unknown) => void): void {
   next(error);
 }
 
-// --- Shop items -----------------------------------------------------------
-
 export const listShopItems: RequestHandler = async (_request, response, next) => {
   try {
     const items = await service.listShopItems();
@@ -59,8 +57,6 @@ export const deleteShopItem: RequestHandler = async (request, response, next) =>
   }
 };
 
-// --- Arena vocabulary -----------------------------------------------------
-
 export const listBattleWords: RequestHandler = async (_request, response, next) => {
   try {
     const words = await service.listBattleWords();
@@ -100,8 +96,6 @@ export const deleteBattleWord: RequestHandler = async (request, response, next) 
     fail(error, next);
   }
 };
-
-// --- Video vocabulary -----------------------------------------------------
 
 export const listVideoVocabulary: RequestHandler = async (request, response, next) => {
   try {

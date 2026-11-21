@@ -1,11 +1,7 @@
 import type { Dict } from '../i18n'
 import { ApiError } from '../services/apiClient'
 
-/**
- * The backend answers a failed YouTube import with a stable code list plus, for
- * some codes, a human detail. Both the learner import dialog and the admin
- * console render the same Vietnamese copy from it.
- */
+/** Renders the backend's stable import error codes as shared Vietnamese copy. */
 export function videoImportErrorMessage(error: unknown, t: Dict): string {
   if (error instanceof ApiError) {
     const codes = error.errors

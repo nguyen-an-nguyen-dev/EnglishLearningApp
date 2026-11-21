@@ -21,9 +21,8 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 }
 
 /**
- * Shows the reminder as an OS notification. Only ever called while the tab is
- * open (a browser notification cannot be scheduled for later), so the caller
- * also renders it in-app — whichever one the learner sees first wins.
+ * Shows the reminder as an OS notification. A browser notification cannot be
+ * scheduled for later, so the caller also renders it in-app while the tab is open.
  */
 export function showReminderNotification(reminder: StudyReminder): boolean {
   if (notificationState() !== 'granted') return false
@@ -58,8 +57,4 @@ export function formatReminderTime(iso: string): string {
   tomorrow.setDate(now.getDate() + 1)
   if (due.toDateString() === tomorrow.toDateString()) return `Mai ${time}`
   return `${due.getDate()}/${due.getMonth() + 1} ${time}`
-}
-
-export function minutesUntil(iso: string): number {
-  return Math.round((new Date(iso).getTime() - Date.now()) / 60_000)
 }

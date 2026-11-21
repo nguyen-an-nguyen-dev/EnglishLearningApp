@@ -27,8 +27,7 @@ function formatReminderTime(iso: string, now: Date): string {
 
 /**
  * Nudges are computed from database rows with fixed priorities, never written by
- * the model. That is what keeps them specific ("còn 1 bài ở chặng 2", "12 từ đã
- * lưu chưa ôn") instead of the empty encouragement a chatbot produces.
+ * the model, so each one is specific to the learner's real data.
  */
 export function buildNudges(
   stats: StudyStats,
@@ -40,7 +39,7 @@ export function buildNudges(
   const nudges: Nudge[] = [];
   const daysSince = lastActivityAt ? daysBetween(lastActivityAt, now) : null;
 
-  // 1. A reminder the learner asked for outranks everything else.
+  // A reminder the learner asked for outranks everything else.
   for (const reminder of reminders) {
     nudges.push({
       id: `reminder:${reminder.id}`,
@@ -57,7 +56,6 @@ export function buildNudges(
     });
   }
 
-  // 2. Streak about to break: the learner has a streak and nothing done today.
   const activeToday = lastActivityAt !== null && daysBetween(lastActivityAt, now) === 0;
   if (stats.streak > 0 && !activeToday) {
     nudges.push({
@@ -70,7 +68,7 @@ export function buildNudges(
     });
   }
 
-  // 3. Been away: no points for guilt-tripping, just name the gap.
+  // Been away: name the gap, no guilt-tripping.
   if (daysSince !== null && daysSince >= 3) {
     nudges.push({
       id: 'comeback:gap',
@@ -86,7 +84,6 @@ export function buildNudges(
 
   const next = pickNextLesson(stats);
 
-  // 4. The concrete next step in the roadmap.
   if (next) {
     const remaining = stats.totalLessons - stats.completedLessons;
     nudges.push({
@@ -103,11 +100,11 @@ export function buildNudges(
     });
   }
 
-  // 5. Items already due for recall: the schedule knows they are on the edge of
-  // being forgotten, so this outranks the generic "weak topic" hint.
+  // Due recall outranks the generic "weak topic" hint: the schedule knows these
+  // items are on the edge of being forgotten.
   if (stats.reviewDue > 0) {
-    // Kept deliberately plain: the learner sees a nudge, not a report. The
-    // session itself shows how many items are inside.
+    // Kept plain: the learner sees a nudge, not a report. The session itself
+    // shows how many items are inside.
     nudges.push({
       id: 'review-due',
       kind: 'review-due',
@@ -118,7 +115,7 @@ export function buildNudges(
     });
   }
 
-  // 6. Recurring mistakes beat generic suggestions.
+  // Recurring mistakes beat generic suggestions.
   const weak = weakTopics[0];
   if (weak && weak.mistakes >= 3) {
     nudges.push({
@@ -131,7 +128,6 @@ export function buildNudges(
     });
   }
 
-  // 7. Saved words nobody has reviewed.
   if (stats.savedWords >= 5) {
     nudges.push({
       id: 'saved-words:review',
@@ -147,7 +143,6 @@ export function buildNudges(
     });
   }
 
-  // 8. Listening practice still untouched.
   if (stats.nextVideo) {
     nudges.push({
       id: `next-video:${stats.nextVideo.id}`,
@@ -163,7 +158,7 @@ export function buildNudges(
     });
   }
 
-  // 9. Arena only once there is something to apply.
+  // Arena only once there is something to apply.
   if (stats.battlesPlayed === 0 && stats.completedLessons >= 3) {
     nudges.push({
       id: 'arena:first',
@@ -179,7 +174,6 @@ export function buildNudges(
   return nudges.slice(0, MAX_NUDGES);
 }
 
-/** The one line the car says before the learner opens anything. */
 export function buildGreeting(
   stats: StudyStats,
   reminders: StudyReminder[],
@@ -204,7 +198,6 @@ export function buildGreeting(
   return `${days} ngày rồi chưa mở bài. Quay lại bằng một bài ngắn thôi.`;
 }
 
-/** Saves a reminder the learner accepted from a suggestion. */
 export async function createFromSuggestion(
   userId: number,
   input: CreateReminderInput,
@@ -220,7 +213,6 @@ export async function getNudges(userId: number, now: Date = new Date()): Promise
     aiRepository.getLearnerContext(userId),
   ]);
 
-  // The list endpoint hands the client the same rows with their target parsed.
   const reminders: StudyReminder[] = dueReminders.map((row) => ({
     id: row.id,
     title: row.title,

@@ -28,9 +28,8 @@ export interface CloudflareAccount {
 }
 
 /**
- * Cloudflare Workers AI accounts, in try order: CF_API_KEYS / CF_API_URLS are
- * comma lists paired by index, and the single-account CF_API_KEY / CF_API_URL
- * pair is still honoured.
+ * CF_API_KEYS / CF_API_URLS are comma lists paired by index; the single
+ * CF_API_KEY / CF_API_URL pair is also honoured.
  */
 function cloudflareAccounts(): CloudflareAccount[] {
   const keys = splitList(process.env.CF_API_KEYS);
@@ -55,13 +54,12 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
   aiApiKey: process.env.AI_API_KEY || '',
   aiApiUrl: process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-  // Only two generative models are used, in this order: Sea-Lion on Workers AI,
-  // then Gemini Flash. Adding a third provider means adding it to ai.provider.ts.
-  aiFallbackModel: process.env.AI_FALLBACK_MODEL || 'gemini-3.5-flash',
+  // Generative chain order: Llama 3.3 70B (Workers AI), then Gemini Flash. A new
+  // provider must also be wired up in ai.provider.ts.
+  aiFallbackModel: process.env.AI_FALLBACK_MODEL || 'gemini-2.5-flash',
   aiTimeoutMs: getPort(process.env.AI_TIMEOUT_MS, 40000),
-  // Hard ceiling for one chat turn: generate -> decide -> repair all share it.
-  // Kept below the web client's 35s request timeout so the browser never aborts
-  // a turn the server is still working on.
+  // Hard ceiling for one chat turn (generate -> decide -> repair). Kept below the
+  // web client's 35s request timeout so the browser never aborts a live turn.
   aiTurnBudgetMs: getPort(process.env.AI_TURN_BUDGET_MS, 30000),
   // Gemini Decision 1: closed-set scoring only (no text output). Both the intent
   // router and the answer review in front of the frontend use it.
@@ -70,10 +68,9 @@ export const env = {
   aiDecisionModel: process.env.AI_DECISION_MODEL || 'gemini-decision-1',
   aiDecisionTimeoutMs: getPort(process.env.AI_DECISION_TIMEOUT_MS, 8000),
   cfAccounts: cloudflareAccounts(),
-  cfModel: process.env.CF_MODEL || '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-  // Speech-to-text used when the browser's Web Speech API cannot reach its
-  // service (Chrome fires a "network" error). Workers AI Whisper first, then
-  // Gemini's audio input as the fallback.
+  cfModel: process.env.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  // Speech-to-text fallback for when the browser's Web Speech API fails (Chrome
+  // "network" error): Workers AI Whisper first, then Gemini audio input.
   speechWhisperModel: process.env.SPEECH_WHISPER_MODEL || '@cf/openai/whisper-large-v3-turbo',
   speechTimeoutMs: getPort(process.env.SPEECH_TIMEOUT_MS, 25000),
   // express.raw limit for one recorded clip, in bytes (default 4 MiB).

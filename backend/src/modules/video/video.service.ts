@@ -255,11 +255,9 @@ export async function getSavedWords(userId: number): Promise<SavedWord[]> {
 /** How many segments the no-signup landing preview plays before the gate. */
 export const DEMO_SEGMENT_LIMIT = 3;
 
-/**
- * Public preview used by the landing page: the shortest real lesson, trimmed to
- * its first few segments. Returns `null` when the library has nothing playable,
- * so the caller can hide the panel instead of showing an error.
- */
+// Public preview: the shortest real lesson, trimmed to its first few segments.
+// Returns null when the library has nothing playable, so the caller can hide the
+// panel instead of showing an error.
 export async function getDemoVideo(): Promise<DemoVideo | null> {
   const video = await repo.getShortestSharedVideo();
   if (!video) return null;

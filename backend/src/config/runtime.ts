@@ -7,8 +7,8 @@ export interface RuntimeConfigIssue {
 
 /**
  * Fail fast on configuration that would break a production deployment. Called
- * from server.ts only, so tests and tooling can import `app` without requiring
- * every external provider to be configured.
+ * from server.ts only, so tests and tooling can import `app` without every
+ * external provider being configured.
  */
 export function validateRuntimeConfig(): RuntimeConfigIssue[] {
   const issues: RuntimeConfigIssue[] = [];

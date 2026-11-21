@@ -1,9 +1,6 @@
 export const MAX_TEXT_FILE_BYTES = 20 * 1024;
 
-/**
- * Reads a plain-text upload with a bounded size. Kept in one utility so the
- * translation page (and any future import surface) enforces the same limit.
- */
+/** Reads a plain-text upload with a size cap, shared so every import surface enforces it. */
 export async function readTextFile(
   file: File,
   maxBytes = MAX_TEXT_FILE_BYTES,

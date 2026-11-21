@@ -40,7 +40,6 @@ export async function getVideoById(videoId: number): Promise<VideoLessonRow | un
   return rows[0];
 }
 
-/** Every YouTube video in the catalogue (admin shared + learner imports). */
 export async function listYouTubeVideos(): Promise<Array<{
   id: number;
   code: string;
@@ -61,11 +60,8 @@ export async function listYouTubeVideos(): Promise<Array<{
   }));
 }
 
-/**
- * Replace the caption segments of a video and refresh its English subtitle
- * rollup in one transaction. `text_vi` is expected to be NULL (imported
- * lessons carry no Vietnamese caption layer yet), matching insertVideoRow.
- */
+// Replace a video's caption segments and refresh its English subtitle rollup in
+// one transaction. `text_vi` stays NULL: imported lessons carry no Vietnamese yet.
 export async function replaceSegments(
   videoId: number,
   segments: Array<{ startMs: number; endMs: number; text: string }>,
@@ -92,11 +88,8 @@ export async function replaceSegments(
   }
 }
 
-/**
- * The publicly previewable lesson: shortest shared video that actually has
- * caption segments, so the landing page can show a real dictation round
- * without anyone signing in yet.
- */
+// The publicly previewable lesson: shortest shared video that actually has
+// caption segments, so the landing page can show a real dictation round.
 export async function getShortestSharedVideo(): Promise<VideoLessonRow | undefined> {
   const [rows] = await pool.execute<VideoLessonRow[]>(
     `SELECT ${VIDEO_COLUMNS} FROM video_lessons v
@@ -190,7 +183,6 @@ export async function createImportedVideo(
   });
 }
 
-/** Insert one catalogue row plus its caption segments in a single transaction. */
 export async function insertVideoRow(input: CreatedVideoInput): Promise<number> {
   const connection: PoolConnection = await pool.getConnection();
   try {

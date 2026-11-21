@@ -19,9 +19,8 @@ export function youtubeVideoId(url: string): string | null {
 }
 
 /**
- * The practice player is a listening stage, not a video browser: no controls, no
- * keyboard scrubbing, no fullscreen, no captions, no related videos, no annotations.
- * Playback is driven by the segment script, so every escape hatch is closed.
+ * The practice player is a listening stage, not a video browser: no controls,
+ * captions, related videos or annotations, so every escape hatch is closed.
  */
 export const YOUTUBE_LOCKED_VARS = {
   autoplay: 0,

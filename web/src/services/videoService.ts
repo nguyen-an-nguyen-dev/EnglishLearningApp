@@ -8,10 +8,7 @@ import type {
  VideoLessonSummary,
 } from '../types/video'
 
-/**
- * The landing preview. Public on purpose: visitors have no session yet, and
- * `video: null` simply means the library has nothing to show off.
- */
+/** Public on purpose: visitors have no session yet; `null` means nothing to show. */
 export async function getDemoVideoApi(): Promise<DemoVideo | null> {
   const data = await requestPublicApi<{ video: DemoVideo | null }>('/api/demo/video')
   return data.video

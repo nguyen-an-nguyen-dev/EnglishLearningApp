@@ -106,9 +106,9 @@ test('learner journey reaches wallet, shop and ranking; admin can adjust progres
   }>('/api/ranking', learner.token);
   assert.equal(ranking.status, 200);
   assert.ok(Array.isArray(ranking.body.data!.leaderboard));
-  assert.equal(ranking.body.data!.league_tier, 'bronze');
+  assert.equal(ranking.body.data!.league_tier, 'coal');
   for (const entry of ranking.body.data!.league) {
-    assert.equal(entry.tier, 'bronze', 'the weekly board only contains the learner’s tier');
+    assert.equal(entry.tier, 'coal', 'the weekly board only contains the learner’s tier');
   }
   assert.deepEqual(ranking.body.data!.league_rules, { promotion_slots: 6, demotion_slots: 6 });
 
@@ -136,7 +136,7 @@ test('learner journey reaches wallet, shop and ranking; admin can adjust progres
   assert.equal(refreshed.body.data!.wallet.coins, 50);
   assert.equal(refreshed.body.data!.wallet.streak, 4);
   assert.equal(refreshed.body.data!.wallet.race_points, 10);
-  assert.equal(refreshed.body.data!.wallet.tier, 'bronze');
+  assert.equal(refreshed.body.data!.wallet.tier, 'coal');
 
   // The tier is carried, never recomputed from the week's RP: 10 RP with a
   // persistent diamond tier must still report diamond.

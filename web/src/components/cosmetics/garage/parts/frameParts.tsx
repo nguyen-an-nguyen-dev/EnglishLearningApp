@@ -44,10 +44,7 @@ export function AvatarSlot({ letter = 'K', fontSize = 48 }: { letter?: string; f
   )
 }
 
-/**
- * One material ring for every frame. Only `outer`, colour and optional gold
- * edge change; inner radius 46, outer 60 (default 54) never do.
- */
+/** One material ring for every frame. Only outer, colour and optional gold edge change; inner radius 46 and outer 60 (default 54) never do. */
 export function Ring({
   outer = FRAME.ringOuter,
   fill,

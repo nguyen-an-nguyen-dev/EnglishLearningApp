@@ -24,19 +24,7 @@ function readBaseTilt(element: HTMLElement): { x: number; y: number; z: number }
   }
 }
 
-/**
- * Smoothed pointer tilt for the landing hero card.
- *
- * A CSS keyframe animation would fight with the pointer transform, so both the
- * idle float and the pointer offset are composed here and written once per frame
- * on the element itself. The motion is an exponential ease toward the target
- * (fast at first, then settling), which is what makes it read as weight rather
- * than a snap.
- *
- * Skips pointer tracking on touch, honours `prefers-reduced-motion`, pauses while
- * off-screen, and re-reads the resting angle when the viewport crosses a
- * breakpoint so the CSS tablet/phone tilt is not overwritten by the hook.
- */
+/** Smoothed pointer tilt for the hero card: idle float and pointer offset composed once per frame so CSS never fights the transform. Skips touch, honours reduced motion, pauses off-screen. */
 export function useHeroTilt<T extends HTMLElement>(
   options: HeroTiltOptions = {},
 ): React.RefObject<T | null> {

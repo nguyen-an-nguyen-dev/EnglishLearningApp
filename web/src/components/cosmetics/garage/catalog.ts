@@ -23,10 +23,7 @@ import { FrameDragon, FrameDragonSmall } from './frames/frame_dragon'
 import { FrameOcean, FrameOceanSmall } from './frames/frame_ocean'
 import { FrameNeon, FrameNeonSmall } from './frames/frame_neon'
 
-/**
- * Catalogue keyed by the shop's existing `visual_key`. The `code` and numeric
- * `id` are the rows in `shop_items`; nothing here changes the API.
- */
+/** Catalogue keyed by the shop’s existing visual_key. The code and numeric id are the rows in shop_items. */
 export interface CarEntry {
   id: number
   code: string

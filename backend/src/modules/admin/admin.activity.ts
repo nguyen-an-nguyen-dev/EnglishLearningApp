@@ -1,11 +1,6 @@
-/**
- * Every learner action that counts as "activity" lives here once.
- *
- * Keeping this SQL in a single module means overview stats, inactive-user
- * reports and admin account lists can never disagree about what "last active"
- * means. `progress`/`video_progress` use `updated_at`; the rest are append-only
- * and use `created_at`.
- */
+// Every learner action that counts as "activity" lives here once so overview
+// stats, inactive reports and admin lists can't disagree on "last active".
+// `progress`/`video_progress` use `updated_at`; the rest are append-only.
 export function activityEventRows(): string {
   return `(
     SELECT user_id, updated_at AS ts FROM progress

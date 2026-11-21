@@ -58,9 +58,8 @@ export function isSingleWord(text: string): boolean {
   return /^[\p{L}]+(?:['’-][\p{L}]+)*$/u.test(text.trim());
 }
 
-// Provider latency is dominated by request queueing, not payload size, so a long document is
-// translated as parallel chunks and rejoined. Lines are kept intact where possible to preserve
-// paragraph breaks, and the chunks are joined back with the same newlines.
+// Provider latency is dominated by request queueing, not payload size, so a long
+// document is translated as parallel chunks and rejoined, keeping line breaks.
 export function splitTranslationChunks(
   text: string,
   maxChars = MAX_TRANSLATION_CHUNK_CHARACTERS,

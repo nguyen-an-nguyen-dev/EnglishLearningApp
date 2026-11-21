@@ -33,8 +33,6 @@ import type {
   VideoVocabularyPayload,
 } from '../types/admin'
 
-// ─── Content tree ────────────────────────────────────────────────────────────
-
 export async function getAdminContentApi(): Promise<AdminStage[]> {
   const data = await requestApi<{ stages: AdminStage[] }>('/api/admin/content')
   return data.stages
@@ -46,8 +44,6 @@ export async function getAdminLessonQuestionsApi(lessonId: number): Promise<Admi
   )
   return data.questions
 }
-
-// ─── Stages ──────────────────────────────────────────────────────────────────
 
 export async function createStageApi(payload: StagePayload): Promise<AdminStage> {
   const data = await requestApi<{ stage: AdminStage }>('/api/admin/stages', {
@@ -75,8 +71,6 @@ export async function moveStageApi(stageId: number, direction: MoveDirection): P
     body: JSON.stringify({ direction }),
   })
 }
-
-// ─── Lessons ─────────────────────────────────────────────────────────────────
 
 export async function createLessonApi(payload: LessonPayload): Promise<AdminLessonSummary> {
   const data = await requestApi<{ lesson: AdminLessonSummary }>('/api/admin/lessons', {
@@ -107,8 +101,6 @@ export async function moveLessonApi(lessonId: number, direction: MoveDirection):
     body: JSON.stringify({ direction }),
   })
 }
-
-// ─── Questions ───────────────────────────────────────────────────────────────
 
 export async function createQuestionApi(
   lessonId: number,
@@ -142,8 +134,6 @@ export async function moveQuestionApi(questionId: number, direction: MoveDirecti
     body: JSON.stringify({ direction }),
   })
 }
-
-// ─── Shared video library ────────────────────────────────────────────────────
 
 export async function listAdminVideosApi(): Promise<AdminSharedVideo[]> {
   const data = await requestApi<{ videos: AdminSharedVideo[] }>('/api/admin/videos')
@@ -182,10 +172,6 @@ export async function moveAdminVideoApi(videoId: number, direction: MoveDirectio
   })
 }
 
-// ─── Statistics ────────────────────────────────────────────────────────────
-
-// ─── Shop catalogue ───────────────────────────────────────────────────────
-
 export async function listAdminShopItemsApi(): Promise<AdminShopItem[]> {
   const data = await requestApi<{ items: AdminShopItem[] }>('/api/admin/shop-items')
   return data.items
@@ -214,8 +200,6 @@ export async function deleteAdminShopItemApi(itemId: number): Promise<void> {
   await requestApi<{ deleted: boolean }>(`/api/admin/shop-items/${itemId}`, { method: 'DELETE' })
 }
 
-// ─── Arena vocabulary ─────────────────────────────────────────────────────
-
 export async function listAdminBattleWordsApi(): Promise<AdminBattleWord[]> {
   const data = await requestApi<{ words: AdminBattleWord[] }>('/api/admin/battle-words')
   return data.words
@@ -243,8 +227,6 @@ export async function updateAdminBattleWordApi(
 export async function deleteAdminBattleWordApi(wordId: number): Promise<void> {
   await requestApi<{ deleted: boolean }>(`/api/admin/battle-words/${wordId}`, { method: 'DELETE' })
 }
-
-// ─── Video vocabulary ─────────────────────────────────────────────────────
 
 export async function listAdminVideoVocabularyApi(videoId: number): Promise<AdminVideoVocabulary[]> {
   const data = await requestApi<{ vocabulary: AdminVideoVocabulary[] }>(
@@ -281,8 +263,6 @@ export async function deleteAdminVideoVocabularyApi(vocabularyId: number): Promi
     { method: 'DELETE' },
   )
 }
-
-// ─── User management ─────────────────────────────────────────────────────
 
 export async function listAdminUsersApi(params: {
   search?: string

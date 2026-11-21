@@ -69,6 +69,22 @@ test('AI reply parsing requires concise, typed, non-empty output', () => {
   assert.throws(() => providerMessageContent({ choices: [] }), (error) => error instanceof HttpError && error.statusCode === 502);
 });
 
+test('AI reply parsing keeps a declared highlight and drops an unknown one', () => {
+  const withHighlight = parseAiReply({
+    reply: 'Mở đấu trường nhé.',
+    feedback: [],
+    action: { kind: 'open_tab', tab: 'compete', label: '', highlight: 'control:arena-start' },
+  });
+  assert.equal(withHighlight.action?.highlight, 'control:arena-start');
+
+  const badHighlight = parseAiReply({
+    reply: 'Mở đấu trường nhé.',
+    feedback: [],
+    action: { kind: 'open_tab', tab: 'compete', label: '', highlight: 'body' },
+  });
+  assert.equal(badHighlight.action?.highlight, undefined);
+});
+
 test('AI provider maps successful, empty, invalid, rate-limit, unavailable, network, and timeout results', async () => {
   const originalFetch = globalThis.fetch;
   const requestMessages = [{ role: 'user' as const, content: 'I goed to school.' }];
@@ -354,6 +370,53 @@ test('the offline coach reply names due review items, not just the plan order', 
   assert.doesNotMatch(quiet.reply, /mục này/, 'no due reminder when nothing is due');
 });
 
+test('offline chat and explain answers follow the page, not a study plan', () => {
+  const stats: StudyStats = {
+    totalLessons: 3,
+    completedLessons: 1,
+    completedLessonIds: [1],
+    lessons: [
+      { id: 1, title: 'Bài 1', topic: 'Intro', stageTitle: 'Chặng 1' },
+      { id: 2, title: 'Bài 2', topic: 'Masterclass', stageTitle: 'Chặng 1' },
+      { id: 3, title: 'Bài 3', topic: 'Literature', stageTitle: 'Chặng 2' },
+    ],
+    videosTotal: 0,
+    videosCompleted: 0,
+    nextVideo: null,
+    savedWords: 0,
+    translations: 0,
+    battlesPlayed: 0,
+    battleWins: 0,
+    badges: 0,
+    xp: 20,
+    streak: 0,
+    reviewDue: 0,
+    reviewTotal: 0,
+    reviewWords: 0,
+    ownedVideos: 0,
+    ownedVideoTitles: [],
+  };
+  const learner: LearnerContext = {
+    level: 'beginner',
+    completedTopics: ['Intro'],
+    weakTopics: [],
+    recentMistakes: [],
+    previousFeedback: [],
+  };
+  const snapshot = toStudySnapshot(learner, stats);
+  const steps = buildStudyPlan(snapshot, stats);
+  const context = { tab: 'rankings' as const, focus: 'League tuần · Hạng #3' };
+
+  const chat = buildOfflineCoachReply(snapshot, steps, 'chat', context);
+  assert.match(chat.reply, /League tuần/);
+  assert.doesNotMatch(chat.reply, /Việc tiếp theo/, 'a page question is not a plan request');
+  assert.equal(chat.action, null);
+
+  const explain = buildOfflineCoachReply(snapshot, steps, 'explain', context);
+  assert.match(explain.reply, /giải thích/i);
+  assert.doesNotMatch(explain.reply, /Việc tiếp theo/);
+});
+
 test('chat actions resolve only to real catalogue ids and tabs', () => {
   const stats: StudyStats = {
     totalLessons: 2,
@@ -399,7 +462,25 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
   );
   assert.deepEqual(
     resolveChatAction({ kind: 'open_notebook', label: '' }, stats),
-    { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng' },
+    { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng', highlight: 'control:notebook' },
+  );
+  assert.deepEqual(
+    resolveChatAction({ kind: 'open_notebook', label: '', highlight: 'word:apple' }, stats),
+    { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng', highlight: 'word:apple' },
+  );
+  assert.deepEqual(
+    resolveChatAction({ kind: 'open_tab', label: '', tab: 'compete', highlight: 'control:arena-start' }, stats),
+    { kind: 'open_tab', tab: 'compete', label: 'Vào Thi Đua', highlight: 'control:arena-start' },
+  );
+  assert.equal(
+    resolveChatAction({ kind: 'open_tab', label: '', tab: 'admin' }, stats),
+    null,
+    'the learner is never sent to the admin console',
+  );
+  assert.equal(
+    resolveChatAction({ kind: 'open_video', label: '', videoId: 3, highlight: 'video:999' }, stats)?.highlight,
+    undefined,
+    'a highlight for another video is dropped',
   );
   assert.equal(resolveChatAction(null, stats), null);
 });

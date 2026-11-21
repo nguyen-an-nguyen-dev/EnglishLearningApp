@@ -1,23 +1,15 @@
 import { createTransport, type Transporter } from 'nodemailer';
 import { env } from '../../config/env';
 
-/**
- * Transactional mail for the registration OTP.
- *
- * SMTP is the only sender: Firebase Authentication sends sign-in links, not the
- * six-digit code this flow shows in the modal. Any SMTP account works — Gmail
- * with an App Password, Brevo/Resend's SMTP bridge, MailHog locally, etc.
- *
- * When SMTP is not configured the function falls back to the development log
- * (and the service echoes the code back only while `OTP_DEBUG` is on).
- */
+// Transactional mail for the registration OTP. SMTP is the only sender; when it
+// is not configured the function falls back to the development log (and the
+// service echoes the code back only while `OTP_DEBUG` is on).
 
 let transport: Transporter | null = null;
 
 export function isSmtpConfigured(): boolean {
-  // A host alone is not enough: Gmail (and every transactional provider) needs
-  // credentials too. Until all three are present the OTP falls back to the dev
-  // log/code instead of returning a 502 on every registration attempt.
+  // A host alone is not enough: Gmail and the transactional providers need
+  // credentials too, or every registration attempt would return a 502.
   return Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 }
 
@@ -52,7 +44,6 @@ export async function sendRegistrationOtp(input: {
 }): Promise<boolean> {
   if (!isSmtpConfigured()) {
     if (env.otpDebug) {
-      // Deliberately loud: developers need the code when no mailbox is wired.
       console.warn(`[auth] SMTP is not configured. OTP for ${input.email}: ${input.code}`);
     }
     return false;
@@ -74,8 +65,6 @@ export async function sendRegistrationOtp(input: {
   <body style="margin:0;padding:24px;background:#eaf9ff;font-family:'Segoe UI',Arial,sans-serif;color:#0e3542;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#f1fbff;border:1px solid #cde8f4;border-radius:16px;overflow:hidden;">
       <tr>
-        <!-- Cyan app blue; the wordmark sits on a white chip so its three brand
-             colours stay readable (the light-theme logo palette). -->
         <td style="padding:22px 28px;background:#19b6f0;">
           <span style="display:inline-block;padding:6px 10px;border-radius:8px;background:#ffffff;">
             <strong style="font-size:20px;letter-spacing:-0.02em;">

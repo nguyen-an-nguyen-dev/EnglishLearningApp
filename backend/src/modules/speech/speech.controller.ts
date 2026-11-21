@@ -5,8 +5,8 @@ import * as speechService from './speech.service';
 import { parseSpeechAudio, parseSpeechMimeType } from './speech.validation';
 
 /**
- * `POST /api/speech/transcribe` — raw audio body (no multipart), format carried
- * in Content-Type. The web recorder posts a 60-second WebM/Opus clip.
+ * `POST /api/speech/transcribe` — raw audio body (no multipart), format from
+ * Content-Type.
  */
 export const transcribe: RequestHandler = async (request, response, next) => {
   try {
@@ -29,9 +29,8 @@ export const transcribe: RequestHandler = async (request, response, next) => {
 };
 
 /**
- * `GET /api/speech/status` — lets the web decide whether to use the browser's
- * Web Speech API or post audio to the backend. Deliberately public metadata:
- * no keys, just booleans.
+ * `GET /api/speech/status` — lets the web choose between the browser's Web
+ * Speech API and posting audio here. Public metadata only: booleans, no keys.
  */
 export const status: RequestHandler = (_request, response) => {
   response.json({

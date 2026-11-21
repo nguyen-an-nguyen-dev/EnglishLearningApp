@@ -8,7 +8,6 @@ function requireUser(request: Parameters<RequestHandler>[0]): number {
   return request.auth.userId;
 }
 
-// GET /api/analytics
 export const getAnalytics: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUser(request);
@@ -19,7 +18,6 @@ export const getAnalytics: RequestHandler = async (request, response, next) => {
   }
 };
 
-// GET /api/review
 export const getReviewQueue: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUser(request);
@@ -30,7 +28,6 @@ export const getReviewQueue: RequestHandler = async (request, response, next) =>
   }
 };
 
-// POST /api/review/sync
 export const syncReviewQueue: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUser(request);
@@ -41,7 +38,6 @@ export const syncReviewQueue: RequestHandler = async (request, response, next) =
   }
 };
 
-// POST /api/review/items
 export const addReviewItem: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUser(request);
@@ -64,7 +60,6 @@ export const addReviewItem: RequestHandler = async (request, response, next) => 
   }
 };
 
-// POST /api/review/items/:itemId/answer
 export const answerReviewItem: RequestHandler = async (request, response, next) => {
   try {
     const userId = requireUser(request);

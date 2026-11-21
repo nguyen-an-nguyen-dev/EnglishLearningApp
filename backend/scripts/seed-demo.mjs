@@ -177,7 +177,13 @@ const dateAgo = (daysAgo, hour = 0) => new Date(Date.now() - daysAgo * 86400000 
 const dateIn = (hours) => new Date(Date.now() + hours * 3600000);
 
 const dateOnly = (daysAgo) => `DATE_SUB(CURDATE(), INTERVAL ${daysAgo} DAY)`;
-const tierFor = (points) => (points >= 900 ? 'diamond' : points >= 500 ? 'gold' : points >= 200 ? 'silver' : 'bronze');
+const tierFor = (points) => (points >= 1100 ? 'diamond'
+  : points >= 850 ? 'lapis'
+    : points >= 620 ? 'redstone'
+      : points >= 420 ? 'gold'
+        : points >= 240 ? 'iron'
+          : points >= 100 ? 'copper'
+            : 'coal');
 
 async function insertUser(user, passwordHash) {
   const lastActivity = user.lastDays === null ? 'NULL' : dateOnly(user.lastDays);

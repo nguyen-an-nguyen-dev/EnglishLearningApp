@@ -17,13 +17,7 @@ function TopWheel({ x, y, skin }: { x: number; y: number; skin: CarSkin }) {
   return <rect x={x - 3} y={y - 8} width={6} height={16} rx={3} fill={skin.wheel} />
 }
 
-/**
- * The car that drives the roadmap. Each shop model uses its own silhouette
- * (bonnet length, cabin, wings, wheels) and only shares the palette through
- * `CarSkin`, so a new car is not just a repaint of the yellow one.
- *
- * The sprite is authored for a top-down lane: front at y=-38, tail at y=+34.
- */
+/** The car that drives the roadmap. Each model has its own silhouette; only the palette is shared via CarSkin. Authored top-down: front at y=-38, tail at y=+34. */
 export function CarArt({ glowId, visualKey, style }: CarArtProps) {
   const skin = carSkin(visualKey, style)
 

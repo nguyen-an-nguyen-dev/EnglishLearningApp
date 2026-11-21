@@ -1,9 +1,4 @@
-/**
- * Engorace garage art tokens — one palette for all cars and frame rings.
- *
- * Each flat shape gets: base colour, a 15% darker lower tone, and a 35% white
- * highlight. No gradients, no coloured outlines, no external fonts.
- */
+/** Engorace garage art tokens - one palette for all cars and frame rings. Each flat shape gets a base colour, a 15% darker lower tone, and a 35% white highlight. */
 export const INK = '#14203a'
 export const GLASS = '#bfe9ff'
 export const HEADLIGHT = '#fff3b0'

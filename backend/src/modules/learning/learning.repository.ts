@@ -18,8 +18,6 @@ import type {
   StageRow,
 } from './learning.types';
 
-// ─── Stages ───────────────────────────────────────────────────────────────────
-
 export async function getAllStages(): Promise<StageRow[]> {
   const [rows] = await pool.execute<StageRow[]>(
     `SELECT s.id, s.code, s.title, s.description, s.theme_key, s.accent_color, s.sort_order,
@@ -43,8 +41,6 @@ export async function getStageById(stageId: number): Promise<StageRow | undefine
   return rows[0];
 }
 
-// ─── Lessons ──────────────────────────────────────────────────────────────────
-
 export async function getLessonsByStage(stageId: number): Promise<LessonRow[]> {
   const [rows] = await pool.execute<LessonRow[]>(
     'SELECT id, stage_id, code, title, topic, sort_order FROM lessons WHERE stage_id = ? ORDER BY sort_order ASC',
@@ -61,7 +57,6 @@ export async function getLessonById(lessonId: number): Promise<LessonRow | undef
   return rows[0];
 }
 
-// First lesson of the first stage (sort_order = 1 in each dimension)
 export async function getFirstLesson(): Promise<LessonRow | undefined> {
   const [rows] = await pool.execute<LessonRow[]>(
     `SELECT l.id, l.stage_id, l.code, l.title, l.topic, l.sort_order
@@ -73,7 +68,6 @@ export async function getFirstLesson(): Promise<LessonRow | undefined> {
   return rows[0];
 }
 
-// Previous lesson within the same stage (sort_order - 1), or last lesson of previous stage
 export async function getPreviousLesson(lessonId: number): Promise<LessonRow | undefined> {
   interface Row extends LessonRow {
     stage_sort_order: number;
@@ -88,7 +82,6 @@ export async function getPreviousLesson(lessonId: number): Promise<LessonRow | u
   const current = currentRows[0];
   if (!current) return undefined;
 
-  // Try same-stage previous
   const [sameStagePrev] = await pool.execute<LessonRow[]>(
     `SELECT id, stage_id, code, title, topic, sort_order
      FROM lessons
@@ -98,12 +91,11 @@ export async function getPreviousLesson(lessonId: number): Promise<LessonRow | u
   );
   if (sameStagePrev[0]) return sameStagePrev[0];
 
-  // Try previous stage last lesson
   const [prevStageRows] = await pool.execute<StageRow[]>(
     `SELECT id FROM stages WHERE sort_order < ? ORDER BY sort_order DESC LIMIT 1`,
     [current.stage_sort_order],
   );
-  if (!prevStageRows[0]) return undefined; // This is the very first lesson
+  if (!prevStageRows[0]) return undefined;
 
   const prevStageId = prevStageRows[0].id;
   const [prevStageLast] = await pool.execute<LessonRow[]>(
@@ -113,8 +105,6 @@ export async function getPreviousLesson(lessonId: number): Promise<LessonRow | u
   );
   return prevStageLast[0];
 }
-
-// ─── Questions & Answers ──────────────────────────────────────────────────────
 
 export async function getQuestionsByLesson(lessonId: number): Promise<QuestionRow[]> {
   const [rows] = await pool.execute<QuestionRow[]>(
@@ -162,8 +152,6 @@ export async function recordAnswerAttempt(
   );
 }
 
-// ─── Progress ─────────────────────────────────────────────────────────────────
-
 export async function getUserProgress(userId: number): Promise<ProgressRow[]> {
   const [rows] = await pool.execute<ProgressRow[]>(
     `SELECT id, user_id, lesson_id, status, score, started_at, completed_at, updated_at
@@ -172,8 +160,6 @@ export async function getUserProgress(userId: number): Promise<ProgressRow[]> {
   );
   return rows;
 }
-
-// ─── Completion Transaction ───────────────────────────────────────────────────
 
 export interface CompletionData {
   correctAnswers: number;
@@ -214,7 +200,6 @@ export async function completeLesson(
     if (!userRows[0]) throw new Error('User not found while completing lesson.');
     const levelBefore = levelForXp(Number(userRows[0].xp));
 
-    // 1. Check existing progress
     const [progressRows] = await connection.execute<ProgressRow[]>(
       `SELECT id, status FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1 FOR UPDATE`,
       [userId, lessonId],
@@ -225,7 +210,6 @@ export async function completeLesson(
     const now = new Date();
 
     if (existing) {
-      // Update existing row
       await connection.execute(
         `UPDATE progress
          SET status = 'completed', score = ?, completed_at = ?, updated_at = ?,
@@ -235,7 +219,6 @@ export async function completeLesson(
         [score, now, now, practiceSeconds, userId, lessonId],
       );
     } else {
-      // Insert new progress row
       await connection.execute<ResultSetHeader>(
         `INSERT INTO progress (user_id, lesson_id, status, score, started_at, completed_at, updated_at, practice_seconds, attempts)
          VALUES (?, ?, 'completed', ?, ?, ?, ?, ?, 1)`,

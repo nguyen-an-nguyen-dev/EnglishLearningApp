@@ -1,9 +1,4 @@
-/* ==========================================================================
-   Motion & interaction polish
-   Loaded after every screen stylesheet so it can tune shared timing without
-   redefining each surface. Everything here is transform/opacity based, which
-   keeps animations on the compositor instead of triggering layout.
-   ========================================================================== */
+/* Motion & interaction polish. Loaded after every screen stylesheet; everything here is transform/opacity based to stay on the compositor. */
 :root {
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
@@ -12,7 +7,7 @@
   --motion-slow: 340ms;
 }
 
-/* Page / tab entrance ----------------------------------------------------- */
+/* Page / tab entrance */
 /* Replaces the old 260ms linear fade with a short lift that settles without
    overshoot. translate3d forces the incoming view onto its own layer. */
 @keyframes view-enter {
@@ -35,7 +30,7 @@
   animation: none;
 }
 
-/* Sidebar navigation ------------------------------------------------------ */
+/* Sidebar navigation */
 .nav-item {
   transition:
     background-color var(--motion-mid) var(--motion-ease-soft),
@@ -59,7 +54,7 @@
 }
 .mobile-nav .mobile-nav-active svg { transform: translateY(-1px) scale(1.08); }
 
-/* Buttons and pressed states --------------------------------------------- */
+/* Buttons and pressed states */
 :is(
   .lp-button,
   .video-add-btn,
@@ -115,7 +110,7 @@
   transform: scale(0.94);
 }
 
-/* Cards ------------------------------------------------------------------- */
+/* Cards */
 .video-card {
   transition:
     transform 240ms var(--motion-ease),
@@ -133,7 +128,7 @@
 
 /* League rows carry their own hover/transition in rankings.css. */
 
-/* Overlays and floating panels ------------------------------------------- */
+/* Overlays and floating panels */
 /* The settings popover grows out of its trigger rather than sliding in from
    nowhere, which keeps it feeling attached to the gear button. */
 .settings-panel {
@@ -153,9 +148,7 @@
 /* The floating lesson card only exists in the desktop map layout. Below 961px
    it sits inline in the flow, so it must keep its normal position and size. */
 @media (min-width: 961px) {
-  /* The lesson popover rides on top of the trail. Position variables are
-     written by StudyView on every scroll; turning them into a transform keeps
-     the card on the compositor while the map scrolls underneath. */
+  /* The lesson popover rides on top of the trail; StudyView writes position variables on scroll and they become a transform to stay on the compositor. */
   .learning-page-map .roadmap-stop-card,
   .learning-page-map .roadmap-stop-card.is-above {
     top: 0;
@@ -169,10 +162,7 @@
     transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) translate(-50%, -100%);
   }
 
-  /* Performance: replace the large blurred greeting with a near-opaque
-     surface. Backdrop-filter forces a full-area readback every frame while the
-     trail moves, which is the most expensive paint on this screen. The lesson
-     card is already an opaque stage surface. */
+  /* Performance: replace the large blurred greeting with a near-opaque surface; backdrop-filter forces a full-area readback every frame while the trail moves. */
   .learning-page-map .study-map-greeting {
     background: color-mix(in srgb, var(--stage-card-bg, var(--paper)) 97%, transparent);
     backdrop-filter: none;

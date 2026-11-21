@@ -1,5 +1,16 @@
 /** Mirrors backend/src/modules/buddy/buddy.types.ts and reminders.types.ts. */
 
+/** Every screen the buddy can be asked about, including the admin console. */
+export type ChatTab =
+  | 'study'
+  | 'videos'
+  | 'translate'
+  | 'compete'
+  | 'rankings'
+  | 'shop'
+  | 'profile'
+  | 'admin'
+
 export type NudgeKind =
   | 'reminder'
   | 'streak'

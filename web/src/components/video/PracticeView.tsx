@@ -19,14 +19,7 @@ import { loadYouTubeApi, type YouTubePlayerInstance } from '../../utils/youtube'
 const SEGMENT_END_MARGIN_S = 0.12
 const SEGMENT_START_DRIFT_S = 0.5
 
-/**
- * `cc_load_policy=0` only means "don't force captions on" — YouTube can still
- * render auto captions from the viewer's own preference. Clear the track and
- * unload the renderer as soon as the module exists, then repeat on every
- * player event because the module is loaded lazily and can remount after a
- * seek. The picture stays fully visible: we only turn the captions off, we do
- * not hide the video (the learner explicitly wants to watch it).
- */
+/** cc_load_policy=0 only means "don’t force captions on"; YouTube can still render auto captions. Clear the captions module whenever it (re)mounts, on player events and on a short timer while sound plays. */
 function stripCaptions(player: YouTubePlayerInstance) {
   try {
     player.setOption?.('captions', 'track', {})
@@ -50,11 +43,7 @@ interface PracticePlayerProps {
   onPlay: () => void
 }
 
-/**
- * Our own poster. The YouTube embed paints a title bar, a "Watch on YouTube"
- * badge and a related-video grid whenever it is idle, so the frame stays covered
- * until sound is actually coming out of it.
- */
+/** Our own poster: the idle YouTube embed paints a title bar, a "Watch on YouTube" badge and a related-video grid, so the frame stays covered until sound plays. */
 function StageCover({
   poster,
   label,
@@ -105,11 +94,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     }
   }, [])
 
-  /**
-   * The captions module can remount at any time (seek, quality change, ad
-   * break). While sound is playing we keep clearing it on a short timer, on
-   * top of the one-shot passes triggered by player events.
-   */
+  /** The captions module can remount at any time (seek, quality change, ad break); while sound plays we keep clearing it on a short timer. */
   const startCaptionGuard = useCallback((player: YouTubePlayerInstance) => {
     if (captionGuardRef.current !== null) return
     stripCaptions(player)
@@ -123,10 +108,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
     }
   }, [])
 
-  /**
-   * Keeps the playhead inside the current segment: pauses on the last beat and
-   * pulls it back if the player ever lands outside the script window.
-   */
+  /** Keeps the playhead inside the current segment: pauses on the last beat and pulls it back if the player lands outside the script window. */
   const startTicker = useCallback(() => {
     if (tickerRef.current !== null) return
     tickerRef.current = window.setInterval(() => {
@@ -185,10 +167,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
               if (cancelled) return
               const player = event.target as YouTubePlayerInstance
               stripCaptions(player)
-              // 1 = playing. Buffering (3) must not count as playback: the
-              // embed paints its title, share and "More videos" chrome as soon
-              // as it is revealed, so the cover stays up until sound is
-              // actually playing.
+              // 1 = playing. Buffering (3) must not count as playback, because the embed paints its title, share and "More videos" chrome as soon as it is revealed.
               if (event.data === 1) {
                 startCaptionGuard(player)
                 window.setTimeout(() => { if (!cancelled) stripCaptions(player) }, 350)
@@ -237,8 +216,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
             allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
           />
         )}
-        {/* No IFrame API here: cc_load_policy=0 is the only caption guard, but
-            the video itself stays visible like everywhere else. */}
+        {/* No IFrame API here: cc_load_policy=0 is the only caption guard, but the video stays visible. */}
         <div className="video-fallback-note">
           <p>{t.videoYoutubeFallback}</p>
         </div>
@@ -249,9 +227,7 @@ function YouTubePracticePlayer({ video, segment, playToken, onPlay }: PracticePl
   return (
     <div className="video-stage practice-stage">
       <div className="video-youtube-host" ref={hostRef} />
-      {/* YouTube shows its own pause overlay (history, related videos, logo)
-          whenever the iframe is paused. A custom cover keeps that chrome hidden
-          and still gives the learner a clear replay button. */}
+      {/* YouTube paints its own pause overlay (history, related videos, logo); a custom cover hides that chrome and offers a clear replay button. */}
       {!playing && (
         <StageCover
           poster={poster}
@@ -320,11 +296,7 @@ interface PracticeViewProps {
   savedWords: SavedWord[]
   onSavedWord: (word: SavedWord) => void
   onBack: () => void
-  /**
-   * Landing preview mode. The visitor has no session, so saving a word and
-   * moving past the free segments open the sign-up dialog instead of calling
-   * the API. Rendering is otherwise the real practice screen.
-   */
+  /** Landing preview mode. The visitor has no session, so saving a word and moving past the free segments opens the sign-up dialog instead of calling the API. */
   demo?: {
     /** Segments shown for free. */
     segmentLimit: number
@@ -391,11 +363,7 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo, onV
     if (!complete) return
     if (index + 1 >= segments.length) {
       setFinished(true)
-      // Persist the completion server-side. Dictating every segment means the
-      // learner heard the whole script, so report the full duration: the API
-      // requires at least 90% of it before it accepts a completion. XP is
-      // granted only on the first completion (the backend handles that), and
-      // a failure must not trap the learner on the trophy screen.
+      // Persist the completion server-side: report the full duration (the API requires at least 90%). XP is granted only on the first completion; a failure must not trap the learner.
       if (!demo) {
         completeVideoApi(video.id, video.duration_seconds)
           .then((result) => {

@@ -83,7 +83,7 @@ test('a twelve-person league promotes the top six and demotes the bottom six', a
     userIds.push(
       // Deliberately stale snapshot. Settlement must read users.league_tier,
       // not this cached column, or a drifted row would demote the wrong tier.
-      await createLearner('promo', index, 'silver', seasonId, 1000 - index * 10, 'bronze'),
+      await createLearner('promo', index, 'copper', seasonId, 1000 - index * 10, 'coal'),
     );
   }
 
@@ -96,13 +96,13 @@ test('a twelve-person league promotes the top six and demotes the bottom six', a
   );
   assert.equal(payouts.length, 12);
   for (const payout of payouts) {
-    const expected = payout.rank <= 6 ? 'gold' : 'bronze';
+    const expected = payout.rank <= 6 ? 'iron' : 'coal';
     assert.equal(payout.tier, expected, `rank ${payout.rank}`);
   }
 
   for (const [index, userId] of userIds.entries()) {
     const carried = await repo.getLeagueTier(pool, userId);
-    assert.equal(carried, index < 6 ? 'gold' : 'bronze');
+    assert.equal(carried, index < 6 ? 'iron' : 'coal');
   }
 
   const [snapshots] = await pool.execute<Array<RowDataPacket & { tier: string }>>(
@@ -110,25 +110,25 @@ test('a twelve-person league promotes the top six and demotes the bottom six', a
     [seasonId],
   );
   for (const [index, snapshot] of snapshots.entries()) {
-    assert.equal(snapshot.tier, index < 6 ? 'gold' : 'bronze', 'the snapshot follows the persistent tier');
+    assert.equal(snapshot.tier, index < 6 ? 'iron' : 'coal', 'the snapshot follows the persistent tier');
   }
 });
 
 test('each tier settles as its own league, with no move at the ladder ends', async () => {
   const seasonId = await createFinishedSeason('tiers');
   const groups = [
-    { tier: 'bronze', base: 5000, expected: (rank: number) => (rank <= 6 ? 'silver' : 'bronze') },
-    { tier: 'silver', base: 3000, expected: (rank: number) => (rank <= 6 ? 'gold' : 'bronze') },
+    { tier: 'coal', base: 5000, expected: (rank: number) => (rank <= 6 ? 'copper' : 'coal') },
+    { tier: 'copper', base: 3000, expected: (rank: number) => (rank <= 6 ? 'iron' : 'coal') },
     // Diamond cannot promote, so its top six slots are not promotions: the
-    // leader defends and the bottom six still drop.
-    { tier: 'diamond', base: 100, expected: (rank: number) => (rank === 1 ? 'diamond' : 'gold') },
+    // leader defends and the bottom six still drop (diamond → lapis).
+    { tier: 'diamond', base: 100, expected: (rank: number) => (rank === 1 ? 'diamond' : 'lapis') },
   ] as const;
 
   const idsByTier = new Map<string, number[]>();
   for (const group of groups) {
     const ids: number[] = [];
     for (let index = 0; index < 7; index += 1) {
-      // The bronze group has far more RP than diamond. A global board would
+      // The coal group has far more RP than diamond. A global board would
       // rank them together; per-tier settlement must ignore that noise.
       ids.push(await createLearner(group.tier, index, group.tier, seasonId, group.base - index * 10));
     }
@@ -186,7 +186,7 @@ test('a tiny diamond league still keeps its winner', async () => {
   assert.equal(payouts.length, 4);
   assert.equal(payouts[0].tier, 'diamond', 'the week winner defends the top tier');
   for (const payout of payouts.slice(1)) {
-    assert.equal(payout.tier, 'gold', `rank ${payout.rank} drops as usual`);
+    assert.equal(payout.tier, 'lapis', `rank ${payout.rank} drops as usual`);
   }
   assert.equal(await repo.getLeagueTier(pool, ids[0]), 'diamond');
 });

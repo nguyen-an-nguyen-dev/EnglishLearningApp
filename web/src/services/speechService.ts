@@ -13,7 +13,6 @@ export interface SpeechStatus {
   maxBytes: number
 }
 
-/** Asks the backend whether server-side transcription is configured. */
 export async function getSpeechStatusApi(): Promise<SpeechStatus> {
   const response = await fetch('/api/speech/status')
   const body = (await response.json().catch(() => ({}))) as {
@@ -27,10 +26,10 @@ export async function getSpeechStatusApi(): Promise<SpeechStatus> {
 }
 
 /**
- * Posts raw recorded bytes. Deliberately does not use `requestApi`: that helper
- * forces `Content-Type: application/json`, which would corrupt the audio body.
+ * Posts raw recorded bytes. Does not use `requestApi` because its forced
+ * `Content-Type: application/json` would corrupt the audio body.
  */
-export async function transcribeAudioApi(blob: Blob): Promise<SpeechTranscript> {
+export async function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Promise<SpeechTranscript> {
   const token = authStorage.getToken()
   if (!token) throw new Error('Bạn cần đăng nhập lại.')
 
@@ -41,7 +40,7 @@ export async function transcribeAudioApi(blob: Blob): Promise<SpeechTranscript> 
       'Content-Type': blob.type || 'audio/webm',
     },
     body: blob,
-    signal: AbortSignal.timeout(45_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000),
   })
   const body = (await response.json().catch(() => ({}))) as {
     success?: boolean

@@ -15,11 +15,7 @@ export interface CarArtProps {
   className?: string
 }
 
-/**
- * Shared side-view car parts. Every model composes these; no model redraws a
- * wheel, lamp, bumper or accessory. Parts are authored for 0 0 240 130 with the
- * ground fixed at y=108, nose pointing right.
- */
+/** Shared side-view car parts used by every model, authored for 0 0 240 130 with ground at y=108 and nose pointing right. */
 export function CarSvg({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <svg

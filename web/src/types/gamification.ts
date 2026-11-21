@@ -3,7 +3,8 @@ export type CosmeticSlot = 'car' | 'frame' | 'nameplate'
 export type ShopSlot = CosmeticSlot | 'booster'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type UnlockType = 'default' | 'level' | 'stage' | 'league' | 'achievement'
-export type LeagueTier = 'bronze' | 'silver' | 'gold' | 'diamond'
+/** Minecraft-ore ladder, lowest first: coal → copper → iron → gold → redstone → lapis → diamond. */
+export type LeagueTier = 'coal' | 'copper' | 'iron' | 'gold' | 'redstone' | 'lapis' | 'diamond'
 export type BoosterKind = 'streak_shield' | 'xp_multiplier' | 'rc_multiplier'
 
 export interface ShopItem {

@@ -78,8 +78,8 @@ export function parseSavedWord(value: unknown): string {
   const word = Array.isArray(value) ? value[0] : value;
   if (typeof word !== 'string') throw new HttpError(400, 'Invalid word.');
   // Express already URL-decodes route params, so the raw value is normally the
-  // real word. A bare `%` (e.g. "100%") makes decodeURIComponent throw, which
-  // previously surfaced as a 500; only decode when it is actually valid.
+  // real word. A bare `%` (e.g. "100%") makes decodeURIComponent throw, so only
+  // decode when it is valid.
   let normalized = word;
   try {
     normalized = decodeURIComponent(word);

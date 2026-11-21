@@ -44,9 +44,7 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
     return () => window.removeEventListener('keydown', handleMenuKeyDown)
   }, [menuOpen])
 
-  // The landing has no dark mode: one bright cyan gam from header to footer.
-  // Force the light token set while mounted, then restore the learner's saved
-  // theme so the dashboard is unchanged when they enter the app.
+  // The landing has no dark mode: force the light token set while mounted, then restore the learner’s saved theme.
   useEffect(() => {
     const root = document.documentElement
     const restoreTheme = readPreferredTheme()

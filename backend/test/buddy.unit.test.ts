@@ -4,7 +4,7 @@ import { buildNudges, buildGreeting } from '../src/modules/buddy/buddy.service';
 import type { StudyStats } from '../src/modules/ai/ai.repository';
 import type { StudyReminder } from '../src/modules/reminders/reminders.types';
 import { parseBuddyTarget, parseReminderTiming } from '../src/modules/reminders/reminders.validation';
-import { parseReminderSuggestion } from '../src/modules/ai/ai.parsing';
+import { inferReminderFromMessage, parseReminderSuggestion } from '../src/modules/ai/ai.parsing';
 import { parseSuggestionInput } from '../src/modules/buddy/buddy.validation';
 
 function stats(overrides: Partial<StudyStats> = {}): StudyStats {
@@ -153,6 +153,7 @@ test('only declared targets and highlight tokens are accepted', () => {
 test('a reminder suggestion needs a title and one unambiguous time', () => {
   assert.equal(parseReminderSuggestion({ title: 'Ôn từ' }), null);
   assert.equal(parseReminderSuggestion({ in_minutes: 20 }), null, 'title is required');
+  assert.equal(parseReminderSuggestion({ title: 'Ôn từ', at_time: '99:99' }), null, 'impossible clock');
 
   const ok = parseReminderSuggestion({ title: 'Ôn từ', in_minutes: 20, body: 'Ôn Sổ từ' });
   assert.deepEqual(ok, { title: 'Ôn từ', in_minutes: 20, at_time: null, body: 'Ôn Sổ từ' });
@@ -161,4 +162,21 @@ test('a reminder suggestion needs a title and one unambiguous time', () => {
   const created = parseSuggestionInput({ suggestion: ok, target: { tab: 'videos' } }, now);
   assert.equal(created.dueAt.getTime() - now.getTime(), 20 * 60_000);
   assert.equal(created.title, 'Ôn từ');
+});
+
+test('a reminder inferred from the message keeps the action, not the time phrase', () => {
+  const minutes = inferReminderFromMessage('nhắc mình 20 phút nữa ôn sổ từ');
+  assert.deepEqual(minutes, {
+    title: 'Sổ từ',
+    in_minutes: 20,
+    at_time: null,
+    body: null,
+  });
+
+  const evening = inferReminderFromMessage('8 giờ tối nhắc mình học bài');
+  assert.equal(evening?.at_time, '20:00');
+  assert.equal(evening?.in_minutes, null);
+
+  assert.equal(inferReminderFromMessage('nhắc mình 30 phút nữa')?.title, 'Quay lại học');
+  assert.equal(inferReminderFromMessage('hôm nay học gì?'), null);
 });

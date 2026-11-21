@@ -58,11 +58,7 @@ function levelBandOf(level: string): 'a' | 'b' | 'c' {
   return 'b'
 }
 
-/**
- * The prompt card always reserves a 16:9 media slot: a photo when the word has
- * one, an empty frame otherwise. Keeping the frame in place means the card does
- * not jump once images land in `battle_words.image_url`.
- */
+/** Prompt card always reserves a 16:9 media slot (photo when available, empty frame otherwise), so the card does not jump when images land. */
 function PromptFrame({ src, label }: { src: string | null; label: string }) {
   if (src) {
     return (
@@ -135,12 +131,8 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
   const [wrongAnswer, setWrongAnswer] = useState(false)
   const [scores, setScores] = useState<BattleScore[]>(savedSession?.scores ?? [])
   const [finish, setFinish] = useState<BattleFinish | null>(null)
-  // Rounds the learner did not take, kept for the "words to review" list on the
-  // result screen. `translation` is captured from the question that was on
-  // screen, so the review list reads like a glossary rather than an answer key.
+  // Rounds the learner did not take, kept for the result screen’s "words to review" list.
   const [missedWords, setMissedWords] = useState<Array<{ answer: string; translation: string }>>([])
-  // The round-end event carries the word but not its meaning, so the current
-  // question's translation is stashed here while the round is live.
   const questionTranslationRef = useRef('')
   const [error, setError] = useState<string | null>(null)
   const [answer, setAnswer] = useState('')
@@ -234,11 +226,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
     setConnection({ mode: 'queue', nonce: Date.now() })
   }, [disconnectSocket, t.arenaLoginRequired, token])
 
-  /**
-   * "Ôn lại từ sai" from the result screen: push this match's missed words into
-   * the saved-vocabulary list, then drop back to the lobby. Saving is
-   * best-effort — a failure must not trap the learner on the result screen.
-   */
+  /** "Ôn lại từ sai": push this match’s missed words into saved vocabulary, then return to the lobby. Best-effort - a failure must not trap the learner. */
   const reviewMissed = useCallback(() => {
     const words = missedWords
     resetDuel()
@@ -443,8 +431,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
     const trimmed = answer.trim()
     const socket = socketRef.current
     if (!trimmed || !socket?.connected || !question || roundEnd) return
-    // Only the submitted answer is shared, so the opponent sees what was tried
-    // without watching every keystroke.
+    // Only the submitted answer is shared, so the opponent sees what was tried without every keystroke.
     socket.emit('game:attempt', { text: trimmed.slice(0, 48) })
     socket.emit('game:answer', {
       round: question.round,
@@ -652,8 +639,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
     const reward = finish.rewards?.[currentUserId] ?? null
     const leveledUp = Boolean(reward && reward.level_after > reward.level_before)
     const myScore = scoreFor(currentUserId)
-    // `opponentPlayer` lives in the match branch, so read the rival from the
-    // finished scoreboard instead.
+    // opponentPlayer lives in the match branch, so read the rival from the finished scoreboard instead.
     const rivalEntry = finish.scores.find((entry) => entry.userId !== currentUserId)
     const rivalScore = rivalEntry?.score ?? 0
     const myEntry = finish.scores.find((entry) => entry.userId === currentUserId)
@@ -665,10 +651,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
 
     return (
       <section className={`arena-result-v2 is-${outcome ?? 'draw'}${isCancelled ? ' is-cancelled' : ''}`}>
-        {/* The reference layout: a checkered masthead, the two drivers facing a
-            rotated verdict, two lanes showing how far each one got, then the
-            payout as three cards. Kept as one board so the result reads as a
-            single race, not a stack of panels. */}
+        {/* The reference layout: checkered masthead, the two drivers facing a rotated verdict, two lanes, then the payout as three cards - one board, so the result reads as a single race. */}
         <div className="arena-v2-board">
           <div className="arena-v2-checker" aria-hidden="true" />
 
@@ -778,8 +761,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             {missedWords.length > 0 && (
               <>
                 <span className="gc-label">Từ cần ôn lại</span>
-                {/* Capped at four: a full 0-8 loss would otherwise push the
-                    next-step panel off-screen. */}
+                {/* Capped at four: a full 0-8 loss would otherwise push the next-step panel off-screen. */}
                 <ul className="arena-v2-words">
                   {missedWords.slice(0, 4).map((word) => (
                     <li key={word.answer}>
@@ -835,8 +817,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
 
   return (
     <>
-      {/* The lobby pairs a recent-results strip with the versus card; matchmaking
-          stays in this card so learners can cancel without leaving the lobby. */}
+      {/* Lobby pairs a recent-results strip with the versus card; matchmaking stays here so learners can cancel without leaving. */}
       <section className={`arena-lobby-card${isSearching ? ' is-searching' : ''}`}>
         <div className="arena-v2-checker" aria-hidden="true" />
 
@@ -894,9 +875,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                     <span className="arena-v2-versus-empty">?</span>
                   )}
                   <strong>{isSearching && opponent ? t.arenaQueueOpponent(opponent.name) : isSearching ? t.arenaSearching : t.arenaWaitingSeat}</strong>
-                  {/* The seat keeps the same circle + two text lines in both
-                      states, so starting or cancelling a search never resizes
-                      it and the versus row stays put. */}
+                  {/* The seat keeps the same circle + two text lines in both states, so starting or cancelling a search never resizes it. */}
                   <small role="status">{isSearching ? t.arenaSearchingHint : t.arenaWaitingSeatHint}</small>
                 </div>
               </div>
@@ -914,9 +893,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
         </div>
       </section>
 
-      {/* Rules and Bác Turbo's tip share one board: the rule columns are split
-          by dashed rules instead of three nested cards, and the coach line is
-          the board's footer, so nothing floats in a band of empty paper. */}
+      {/* Rules and Bác Turbo’s tip share one board: rule columns split by dashed rules, the coach line as the board’s footer. */}
       <section className="arena-v2-guide">
         <div className="arena-v2-guide-body">
           <div className="arena-v2-guide-head">

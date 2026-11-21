@@ -5,6 +5,8 @@ import { CosmeticPreview } from './CosmeticPreview'
 import { TurboMascot } from '../cosmetics/TurboMascot'
 import { nameplateSkin } from '../../cosmetics'
 import { useWallet } from '../../context/WalletContext'
+import { useI18n } from '../../i18n'
+import { tierLabel } from '../../utils/leagueLabels'
 import { formatCompact } from '../../utils/format'
 import { LoadingDots } from '../LoadingDots'
 import type { ShopItem, ShopSlot } from '../../types/gamification'
@@ -166,15 +168,9 @@ function GaraCard({
   )
 }
 
-/**
- * Gara Engorace — the shop from the design reference.
- *
- * One vertical flow: header pills (balance/level/tier + "kiếm thêm RC"), the
- * stall banner with Bác Turbo, the tab strip, then one section per slot with an
- * owned counter, consumables last. Balance and level appear here as pills (the
- * reference does) but stay read-only; buying still happens on the cards.
- */
+/** Gara Engorace - the shop. One vertical flow: header pills, the stall banner with Bác Turbo, the tab strip, then one section per slot. Balance and level show as read-only pills. */
 export function GaraShop() {
+  const { t } = useI18n()
   const { shop, wallet, loading, purchase, equip, unequip } = useWallet()
   const [tab, setTab] = useState<GaraTab>('all')
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -243,10 +239,7 @@ export function GaraShop() {
               : 'Cấp tối đa'}</small>
           </span>
           <span className="gc-pill">
-            {wallet?.tier === 'bronze' ? 'Hạng Đồng'
-              : wallet?.tier === 'silver' ? 'Hạng Bạc'
-                : wallet?.tier === 'gold' ? 'Hạng Vàng'
-                  : wallet?.tier === 'diamond' ? 'Hạng Kim Cương' : 'Chưa xếp hạng'}
+            {wallet?.tier ? tierLabel(t, wallet.tier) : t.tierUnranked}
           </span>
         </div>
       </header>
@@ -337,9 +330,7 @@ export function GaraShop() {
           </div>
         </div>
 
-        {/* Turbo stands behind the counter: his torso runs past the stall's
-            bottom edge and the counter board is painted over it, so he reads as
-            the shopkeeper on duty rather than a sticker hovering in the air. */}
+        {/* Turbo stands behind the counter: his torso runs past the stall’s bottom edge and the counter board paints over it. */}
         <div className="gara-stall-mascot">
           <TurboMascot />
         </div>

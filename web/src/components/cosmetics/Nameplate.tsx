@@ -11,12 +11,7 @@ export interface NameplateProps {
   dense?: boolean
 }
 
-/**
- * The band that sits behind a display name. It hugs its own text
- * (inline-flex, own padding) and appears wherever a name is shown: ranking
- * rows and the arena scoreboard. The profile paints the same skin as the
- * background of its own blocks instead — see `nameplateSurface.ts`.
- */
+/** Band behind a display name (inline-flex, own padding), used in ranking rows and the arena scoreboard. The profile paints the same skin as a block surface instead - see nameplateSurface.ts. */
 export function Nameplate({ visualKey, style, children, className, dense = false }: NameplateProps) {
   const skin = nameplateSkin(visualKey, style)
   const hasBand = skin.bg !== 'transparent'

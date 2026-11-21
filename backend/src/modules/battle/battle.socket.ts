@@ -42,11 +42,9 @@ export interface BattleRepository {
   createMatch(playerOneId: number, playerTwoId: number): Promise<number>;
   recordAnswer(matchId: number, userId: number, round: number, answer: string, isCorrect: boolean, responseTimeMs: number, wordId?: number | null): Promise<void>;
   finishMatch(matchId: number, status: 'completed' | 'cancelled', winnerUserId: number | null): Promise<void>;
-  /**
-   * Feeds missed words to the spaced-repetition queue. Optional so a repository
-   * with no review storage (the in-memory one used by tests) still satisfies the
-   * contract instead of silently writing to a real database.
-   */
+  // Feeds missed words to the spaced-repetition queue. Optional so a repository
+  // with no review storage (the in-memory one used by tests) still satisfies
+  // the contract instead of writing to a real database.
   enqueueReviewMistakes?(entries: Array<{ userId: number; wordId: number; isCorrect: boolean }>): Promise<void>;
   settleMatch(
     matchId: number,
@@ -253,14 +251,10 @@ function spreadPositions(length: number): number[] {
   return order;
 }
 
-/**
- * Letters revealed at one hint step (~20% more each step).
- *
- * The full schedule is deliberately NOT sent to the client: a duel now pays
- * Race Coin, and shipping every step up front let a player read the whole
- * answer out of the payload. The server emits each step on its own timer
- * instead, so a round can never be solved from the wire.
- */
+// Letters revealed at one hint step (~20% more each step). The full schedule is
+// deliberately NOT sent to the client: shipping every step up front let a player
+// read the whole answer from the payload, so the server emits each step on its
+// own timer instead.
 export function hintLettersAtStep(word: string, step: number, roundMs: number): HintLetter[] {
   const totalSteps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
   if (step < 1 || step > totalSteps) return [];
@@ -271,7 +265,6 @@ export function hintLettersAtStep(word: string, step: number, roundMs: number): 
     .map((position) => ({ position, letter: word[position] }));
 }
 
-/** How many hint steps have fired `elapsedMs` into the round. */
 export function hintStepsElapsed(roundMs: number, elapsedMs: number): number {
   const totalSteps = Math.min(BATTLE_HINT_STEPS, Math.max(0, Math.floor(roundMs / BATTLE_HINT_STEP_MS) - 1));
   const reached = Math.floor(elapsedMs / BATTLE_HINT_STEP_MS);
@@ -398,13 +391,9 @@ export function attachBattleSocket(
     };
   }
 
-  /**
-   * Persist the match result and pay out both players.
-   *
-   * `rated` is false for forfeits, disconnects and server errors: the result is
-   * still recorded, but no Race Coin/XP is granted, so a player cannot farm the
-   * Arena by quitting and re-queueing.
-   */
+  // Persist the match result and pay out both players. `rated` is false for
+  // forfeits, disconnects and server errors: the result is still recorded, but
+  // no Race Coin/XP is granted, so quitting cannot farm the Arena.
   async function persistMatchEnd(
     match: MatchState,
     status: 'completed' | 'cancelled',
@@ -425,7 +414,6 @@ export function attachBattleSocket(
     );
   }
 
-  /** Build the per-player reward lines that ride along on `game:finish`. */
   function finishRewards(
     match: MatchState,
     settlement: BattleSettlement | null,
@@ -537,7 +525,6 @@ export function attachBattleSocket(
     };
   }
 
-  /** Schedule each hint step on its own timer for the current round. */
   function scheduleHints(match: MatchState): void {
     for (const timer of match.hintTimers) clearTimeout(timer);
     match.hintTimers = [];
@@ -584,7 +571,6 @@ export function attachBattleSocket(
     for (const player of match.players) player.socket.emit('game:question', payload);
   }
 
-  // Nobody guessed in time: the round closes with no winner and the word is revealed anyway.
   function expireRound(match: MatchState): void {
     if (match.status !== 'active' || match.resolving) return;
     match.resolving = true;
@@ -791,11 +777,9 @@ export function attachBattleSocket(
     return false;
   }
 
-  /**
-   * Pull the next waiting player who is still a valid, unclaimed opponent.
-   * Stale entries (disconnected socket, already matched, or a duplicate of the
-   * same user) are dropped instead of being paired into a frozen match.
-   */
+  // Pull the next waiting player who is still a valid, unclaimed opponent; stale
+  // entries (disconnected, already matched, duplicate user) are dropped rather
+  // than paired into a frozen match.
   function takeWaitingOpponent(userId: number): Player | undefined {
     while (waitingPlayers.length > 0) {
       const candidate = waitingPlayers.shift()!;

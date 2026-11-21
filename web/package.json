@@ -9,9 +9,6 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "export:garage": "tsx --tsconfig tsconfig.app.json scripts/export-garage-art.tsx",
-    "check:garage": "tsx --tsconfig tsconfig.app.json scripts/check-garage-art.tsx",
-    "audit:garage": "node scripts/audit-garage-svg.mjs",
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {

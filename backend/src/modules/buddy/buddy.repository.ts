@@ -6,7 +6,6 @@ interface DateRow extends RowDataPacket {
   last_activity: Date | null;
 }
 
-/** The most recent moment the learner actually did something, across features. */
 export async function getLastActivityAt(userId: number): Promise<Date | null> {
   const [rows] = await pool.execute<DateRow[]>(
     `SELECT GREATEST(

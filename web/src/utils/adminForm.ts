@@ -82,10 +82,7 @@ export function answerCountFor(questionType: AdminQuestionType): { min: number; 
   }
 }
 
-/**
- * Mirrors the backend rules so the admin sees the problem before the request:
- * one correct answer, enough options for a choice question, audio for listening.
- */
+/** Mirrors the backend rules so the admin sees the problem before the request. */
 export function validateQuestionDraft(draft: QuestionDraft): QuestionDraftIssue {
   if (!draft.questionText.trim()) return 'required'
 

@@ -14,10 +14,7 @@ export async function getReviewQueueApi(): Promise<ReviewQueue> {
   return requestApi<ReviewQueue>('/api/review')
 }
 
-/**
- * Backfills the queue from mistakes the learner already made. Safe to call more
- * than once: existing items keep their schedule and only refresh their counters.
- */
+/** Backfills the queue from past mistakes. Idempotent: existing items keep their schedule. */
 export async function syncReviewQueueApi(): Promise<{ added: number; counts: ReviewQueue['counts'] }> {
   return requestApi<{ added: number; counts: ReviewQueue['counts'] }>('/api/review/sync', {
     method: 'POST',

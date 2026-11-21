@@ -1,8 +1,4 @@
-// ─── Learning analytics ───────────────────────────────────────────────────────
-//
-// Everything here is derived from what the app already stores. Nothing in this
-// module writes to the learning path: the roadmap stays fixed, and analytics
-// only reads progress, attempts, battles and saved words.
+// Read-only: analytics derives from existing tables and never writes the learning path.
 
 export type InsightCode =
   | 'weak_topic'
@@ -143,8 +139,6 @@ export interface AnalyticsResponse {
   content_flags: ContentFlag[];
   generated_at: string;
 }
-
-// ─── Spaced repetition ────────────────────────────────────────────────────────
 
 export type ReviewKind = 'word' | 'question';
 export type ReviewSource = 'mistake' | 'battle' | 'saved' | 'manual';

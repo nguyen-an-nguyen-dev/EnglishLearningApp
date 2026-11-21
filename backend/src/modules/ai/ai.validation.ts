@@ -69,7 +69,6 @@ function parseContext(value: unknown): ChatContext | null {
   };
 }
 
-/** A chat turn = message + optional study intent + untrusted page context. */
 export function parseChatTurn(value: unknown): ChatTurn {
   return {
     message: parseUserMessage(value),
@@ -79,8 +78,8 @@ export function parseChatTurn(value: unknown): ChatTurn {
 }
 
 /**
- * The companion asks one question at a time: same sanitising as a chat turn, but
- * the payload is flat (`{ question }`) because there is no thread to address.
+ * The companion payload is flat (`{ question }`) because there is no thread to
+ * address; same sanitising as a chat turn.
  */
 export function parseAskInput(value: unknown): ChatTurn {
   const body = asObject(value);

@@ -5,7 +5,6 @@ import path from 'node:path';
 import youtubeDl from 'youtube-dl-exec';
 import { HttpError } from '../../middleware/error-handler';
 
-/** Imported clips must stay strictly under five minutes. */
 export const MAX_IMPORT_DURATION_SECONDS = 300;
 export const MAX_IMPORTS_PER_USER = 20;
 
@@ -149,11 +148,8 @@ export function tidyCaptionText(value: string): string {
     .trim();
 }
 
-/**
- * Lesson text is dictation text: letters, digits and single spaces only. An
- * apostrophe inside a word is deleted without a gap (don't → dont, I'm → Im)
- * so the spelling stays readable while no mark reaches the learner.
- */
+// Lesson text is dictation text: letters, digits and single spaces only. An
+// apostrophe inside a word is deleted without a gap (don't → dont, I'm → Im).
 export function stripPunctuation(text: string): string {
   return text
     .replace(/[’‘`´]/g, "'")
@@ -519,27 +515,18 @@ const YTDLP_FLAGS = (directory: string) => ({
   socketTimeout: 20,
 });
 
-/**
- * yt-dlp ships as a PyInstaller one-file build: every run unpacks itself into a
- * temp directory first. Under a restricted token (sandboxed dev shells, some CI
- * images) that unpack fails with "Could not create temporary directory!" even
- * though the OS temp folder is writable by ordinary processes. Pointing TEMP and
- * TMP at a directory the process demonstrably owns makes the run work, so a
- * failure of that exact shape is retried once against `YTDLP_TEMP_DIR` (default
- * `<backend>/.yt-dlp-tmp`) before it is reported as a real import error.
- */
+// yt-dlp ships as a PyInstaller one-file build that unpacks into a temp directory
+// on each run. Under a restricted token that unpack fails with "Could not create
+// temporary directory!" even though the OS temp folder is writable, so such a
+// failure is retried once against `YTDLP_TEMP_DIR` (default `<backend>/.yt-dlp-tmp`).
 function isTempDirFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /could not create temporary directory|PYI-\d+/i.test(message)
     || /unable to open for writing|Permission denied|EACCES|EPERM/i.test(message);
 }
 
-/**
- * Where yt-dlp is allowed to scratch. The OS temp folder is the right default,
- * but a restricted token can deny writes there for the spawned process while
- * still letting our own process create the directory — so the fallback lives
- * inside the project, where the sandbox always allows writes.
- */
+// A restricted token can deny writes in the OS temp folder for the spawned yt-dlp
+// while our own process can still create the fallback inside the project.
 async function scratchRoots(): Promise<string[]> {
   const roots = [tmpdir()];
   const configured = process.env.YTDLP_TEMP_DIR?.trim();
@@ -565,16 +552,9 @@ interface RawYouTubeSource {
   rawCues: CaptionCue[];
 }
 
-/**
- * Runs yt-dlp from each scratch root in turn. A sandboxed run typically fails
- * twice before it works: the PyInstaller bootloader cannot unpack itself in the
- * OS temp dir, and then the caption files cannot be written next to it. Both
- * present as the same kind of permission failure, so the whole attempt (metadata
- * + captions) is retried from a directory the process demonstrably owns.
- *
- * The captions are read while the directory still exists; it is removed on the
- * way out either way.
- */
+// Runs yt-dlp from each scratch root in turn, because a sandboxed run often fails
+// twice (bootloader unpack, then caption writes) with the same permission error.
+// The temp directory is removed on the way out either way.
 async function fetchRawSource(videoId: string): Promise<RawYouTubeSource> {
   let lastError: unknown;
   for (const root of await scratchRoots()) {
@@ -616,7 +596,6 @@ export async function fetchYouTubeImportSource(
   return buildImportSource(payload, rawCues, videoId, options);
 }
 
-/** Turns the raw yt-dlp payload plus its captions into the import result. */
 function buildImportSource(
   payload: unknown,
   rawCues: CaptionCue[],
