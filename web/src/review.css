@@ -1,8 +1,4 @@
-/* ==========================================================================
-   REVIEW
-   One short redo session opened from the profile. It replays only what the
-   learner already got wrong; the fixed roadmap is never touched.
-   ========================================================================== */
+/* Review: one short redo session opened from the profile, replaying only what the learner got wrong. */
 
 .review-session,
 .review-launch {
@@ -113,7 +109,7 @@
 .review-ghost:hover:not(:disabled) { border-color: var(--brand-500); background: var(--rv-soft); }
 .review-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Session overlay ----------------------------------------------------------- */
+/* Session overlay */
 .review-session-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

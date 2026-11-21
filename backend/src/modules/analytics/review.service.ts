@@ -52,11 +52,8 @@ function levenshtein(a: string, b: string): number {
   return grid[a.length][b.length];
 }
 
-/**
- * Typed recall is unforgiving: one transposed letter should not count as a
- * forgotten word. Short words must match exactly, longer ones tolerate a small
- * edit distance that scales with their length.
- */
+// Typed recall is unforgiving: short words must match exactly, longer ones
+// tolerate a small edit distance that scales with their length.
 export function isReviewAnswerCorrect(expected: string, submitted: string): boolean {
   const target = normalize(expected);
   const given = normalize(submitted);
@@ -69,8 +66,6 @@ export function isReviewAnswerCorrect(expected: string, submitted: string): bool
 
 export async function getQueue(userId: number): Promise<ReviewQueue> {
   const [due, upcoming, counts] = await Promise.all([
-    // Ranking and the cap live in SQL: a learner with thousands of due items
-    // still reads only the handful most worth revisiting.
     repo.listDueShortlist(userId),
     repo.listUpcoming(userId, 10),
     repo.getCounts(userId),

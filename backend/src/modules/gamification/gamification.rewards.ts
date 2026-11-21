@@ -1,8 +1,6 @@
-/**
- * Reward economy in one place. Kept separate from gamification.service so
- * other modules (learning, video, battle) can read the numbers without
- * importing the service (which would create an import cycle).
- */
+// Reward economy in one place. Kept separate from gamification.service so other
+// modules (learning, video, battle) can read the numbers without importing the
+// service, which would create an import cycle.
 export const REWARDS = {
   /** Paid once per lesson, keyed by lesson id. */
   lessonXp: 20,
@@ -32,13 +30,9 @@ export const REWARDS = {
 
 export type BoosterKind = 'streak_shield' | 'xp_multiplier' | 'rc_multiplier';
 
-/**
- * Consumable specs, keyed by `shop_items.code`.
- *
- * `charges` is how many uses one purchase grants; `durationMs` makes the effect
- * timed instead of charge-based. The numbers live here (not in the DB) so
- * tuning the economy never needs a migration.
- */
+// Consumable specs, keyed by `shop_items.code`. `charges` is how many uses one
+// purchase grants; `durationMs` makes the effect timed instead of charge-based.
+// The numbers live here (not in the DB) so tuning the economy needs no migration.
 export const BOOSTER_SPECS: Record<
   string,
   { kind: BoosterKind; charges: number; durationMs: number }
@@ -46,11 +40,8 @@ export const BOOSTER_SPECS: Record<
   booster_streak_shield: { kind: 'streak_shield', charges: 1, durationMs: 0 },
   booster_xp2: { kind: 'xp_multiplier', charges: 0, durationMs: 30 * 60 * 1000 },
   booster_rc2: { kind: 'rc_multiplier', charges: 1, durationMs: 0 },
-  /**
-   * The starter bundle is three shields plus one XP card. It is modelled as a
-   * shield grant here and the XP card is added by the purchase path, so a combo
-   * purchase cannot silently drop half of what the card promises.
-   */
+  // The starter bundle is three shields plus one XP card; the XP card is added
+  // by the purchase path, so a combo cannot silently drop half the card.
   booster_starter: { kind: 'streak_shield', charges: 3, durationMs: 0 },
 } as const;
 

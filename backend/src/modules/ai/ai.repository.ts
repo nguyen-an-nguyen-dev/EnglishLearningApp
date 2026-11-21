@@ -26,7 +26,6 @@ export interface StudyStats {
   completedLessons: number;
   completedLessonIds: number[];
   lessons: Array<{ id: number; title: string; topic: string; stageTitle: string }>;
-  /** Every video in the catalogue, so the buddy can deep-link to a real one. */
   videoCatalog: VideoCatalogEntry[];
   videosTotal: number;
   videosCompleted: number;
@@ -38,7 +37,6 @@ export interface StudyStats {
   badges: number;
   xp: number;
   streak: number;
-  /** Spaced-repetition items whose due date has already passed. */
   reviewDue: number;
   reviewTotal: number;
   reviewWords: number;
@@ -74,7 +72,6 @@ interface VideoDbRow extends RowDataPacket { id: number; title: string; }
 interface VideoCatalogDbRow extends RowDataPacket { id: number; title: string; topic: string; level: string; }
 interface CountOnlyRow extends RowDataPacket { n: number; }
 
-/** Everything the study plan needs, in four round trips. */
 export async function getStudyStats(userId: number): Promise<StudyStats> {
   const [countRows, lessonRows, completedRows, videoRows, ownedCountRows, ownedRows, catalogRows] = await Promise.all([
     pool.execute<CountDbRow[]>(
@@ -204,9 +201,8 @@ export async function getChat(userId: number, chatId: number): Promise<ChatRow |
 }
 
 /**
- * The companion UI has no visible chat thread, but every question is still
- * stored so the buddy remembers what was already asked. One long-lived
- * STUDY_COACH chat per learner keeps that history in one place.
+ * Every question is stored so the buddy remembers what was already asked. One
+ * long-lived STUDY_COACH chat per learner keeps that history in one place.
  */
 export async function ensureCoachChat(userId: number): Promise<number> {
   const [rows] = await pool.execute<IdDbRow[]>(

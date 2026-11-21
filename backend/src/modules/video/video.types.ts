@@ -166,11 +166,9 @@ export interface SaveWordInput {
   videoId?: number;
 }
 
-/**
- * Public, pre-signup preview of one real lesson. Only the first few segments are
- * sent and `text_vi` is dropped, so the landing page can host one honest
- * dictation round without giving the whole library away.
- */
+// Public, pre-signup preview of one real lesson. Only the first few segments are
+// sent and `text_vi` is dropped, so the landing page can host one dictation round
+// without giving the whole library away.
 export interface DemoVideoSegment {
   id: number;
   start_ms: number;

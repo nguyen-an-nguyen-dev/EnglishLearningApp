@@ -15,11 +15,7 @@ interface AdminDialogProps {
   footer?: ReactNode
 }
 
-/**
- * One native `<dialog>` shell for every admin form: centred, scrolls its body,
- * keeps the footer visible, and puts focus on the first field instead of the
- * close button.
- */
+/** Native <dialog> shell for admin forms: scrolls its body, keeps the footer visible, focuses the first field. */
 export function AdminDialog({
   open,
   title,

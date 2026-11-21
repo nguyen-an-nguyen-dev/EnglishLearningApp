@@ -13,11 +13,7 @@ interface Particle {
   color: string
 }
 
-/**
- * A handful of themed particles per frame. They are thin decoration around the
- * ring, never over the avatar core, and each motif animates differently: embers
- * drift up, petals fall, stars twinkle, neon bolts flicker.
- */
+/** Themed particles drawn around the ring, never over the avatar core; each motif animates differently (embers drift, petals fall, stars twinkle, bolts flicker). */
 const PARTICLES: Record<FrameMotif, Particle[]> = {
   none: [],
   laurel: [

@@ -55,8 +55,6 @@ function mapShopItem(row: AdminShopItemRow): AdminShopItem {
   };
 }
 
-// --- Shop items -----------------------------------------------------------
-
 export async function listShopItems(): Promise<AdminShopItem[]> {
   const rows = await repo.getShopItemRows();
   return rows.map(mapShopItem);
@@ -156,8 +154,6 @@ export async function deleteShopItem(itemId: number): Promise<void> {
   if (!deleted) throw new HttpError(404, 'Shop item not found.');
 }
 
-// --- Arena vocabulary -----------------------------------------------------
-
 export async function listBattleWords(): Promise<AdminBattleWord[]> {
   return repo.getBattleWordRows();
 }
@@ -208,8 +204,6 @@ export async function deleteBattleWord(wordId: number): Promise<void> {
   const deleted = await repo.deleteBattleWordRow(wordId);
   if (!deleted) throw new HttpError(404, 'Battle word not found.');
 }
-
-// --- Video vocabulary -----------------------------------------------------
 
 export async function listVideoVocabulary(videoId: number): Promise<AdminVideoVocabulary[]> {
   const video = await repo.getSharedVideoRow(videoId);

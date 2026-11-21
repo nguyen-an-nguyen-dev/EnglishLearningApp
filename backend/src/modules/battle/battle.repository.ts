@@ -113,10 +113,8 @@ export async function finishMatch(
   );
 }
 
-/**
- * Missed words become review items. Kept in the repository so the socket only
- * ever talks to one seam, and a test double never reaches the real database.
- */
+// Missed words become review items. Kept in the repository so the socket only
+// ever talks to one seam and a test double never reaches the real database.
 export async function enqueueReviewMistakes(
   entries: Array<{ userId: number; wordId: number; isCorrect: boolean }>,
 ): Promise<void> {
@@ -144,15 +142,11 @@ export interface BattleSettlement {
   duelCountedToday: boolean;
 }
 
-/**
- * Pay out a finished duel for both players.
- *
- * Rules that keep the Arena from being a coin farm:
- *  - A match that ended by forfeit/disconnect (`rated === false`) pays nothing.
- *  - Once a player has reached the daily rated-duel cap, further wins only
- *    satisfy quests and the league floor, not the win bonus.
- *  - Every entry is keyed by `match:<id>`, so a replayed finish is a no-op.
- */
+// Pay out a finished duel for both players. The Arena is not a coin farm:
+//  - a forfeit/disconnect (`rated === false`) pays nothing;
+//  - past the daily rated-duel cap, further wins only satisfy quests and the
+//    league floor, not the win bonus;
+//  - every entry is keyed by `match:<id>`, so a replayed finish is a no-op.
 export async function settleMatch(
   matchId: number,
   status: 'completed' | 'cancelled',
@@ -273,7 +267,6 @@ export interface MatchSummaryRow {
   recent: RecentMatchResult[];
 }
 
-/** How many matches the "recent form" strip on the result screen shows. */
 const RECENT_FORM_LIMIT = 5;
 
 export async function getMatchSummary(userId: number): Promise<MatchSummaryRow> {
@@ -300,8 +293,7 @@ export async function getMatchSummary(userId: number): Promise<MatchSummaryRow> 
     else break;
   }
 
-  // Recent form: the last few results with the rival's name, so the result
-  // screen can show a real strip instead of inventing history.
+  // The last few results with the rival's name, for the result-screen strip.
   const [formRows] = await pool.execute<RecentFormRow[]>(
     `SELECT m.id,
             m.winner_user_id,

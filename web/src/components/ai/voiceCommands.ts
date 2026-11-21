@@ -1,10 +1,7 @@
 /**
- * Spoken commands that map to one screen, resolved on the device.
- *
- * The assistant model is good at open questions ("hôm nay học gì?") but slow for
- * "mở bảng xếp hạng". A learner who says that expects the screen to open now, so
- * the obvious short commands are matched locally and never reach the network.
- * Anything that is not a plain destination falls through to the model.
+ * Spoken commands that map to one screen, resolved on the device. Short obvious
+ * destinations are matched locally and never reach the network; anything that is
+ * not a plain destination falls through to the model.
  */
 
 export type VoiceTab =
@@ -72,10 +69,10 @@ const SUFFIXES = [
   'a',
 ].sort((a, b) => b.length - a.length)
 
-const ROUTES: Record<string, VoiceCommand> = {}
+const ROUTES = new Map<string, VoiceCommand>()
 
 function add(phrase: string, command: VoiceCommand): void {
-  ROUTES[normalizeSpoken(phrase)] = command
+  ROUTES.set(normalizeSpoken(phrase), command)
 }
 
 // Review is the profile button's session, not a tab.
@@ -84,7 +81,7 @@ for (const phrase of [
   'ôn từ', 'tới lịch ôn', 'lịch ôn', 'review',
 ]) add(phrase, { kind: 'review' })
 
-for (const phrase of ['bảng xếp hạng', 'xếp hạng', 'bảng hạng', 'league', 'bxh', 'hạng của mình']) {
+for (const phrase of ['bảng xếp hạng', 'xếp hạng', 'bảng hạng', 'league', 'bxh']) {
   add(phrase, { kind: 'tab', tab: 'rankings' })
 }
 for (const phrase of ['thi đua', 'đấu trường', 'đấu từ vựng', 'vào trận', '1v1', 'đấu 1v1']) {
@@ -137,17 +134,18 @@ function stripEdges(words: string[]): string[] {
 }
 
 /**
- * The spoken destination, or `null` when the sentence is a real question.
- * Only short, exact destinations are claimed, so "dịch giúp mình câu này"
- * still goes to the model instead of jumping to the translate screen.
+ * The spoken destination, or `null` when the sentence is a real question. Only
+ * short, exact destinations are claimed, so "dịch giúp mình câu này" goes to the
+ * model instead of jumping to the translate screen.
  */
 export function routeVoiceCommand(text: string): VoiceCommand | null {
+  if (/[?？]/.test(text)) return null
   const normalized = normalizeSpoken(text)
   if (!normalized) return null
 
-  const direct = ROUTES[normalized]
+  const direct = ROUTES.get(normalized)
   if (direct) return direct
 
   const trimmed = stripEdges(normalized.split(' ')).join(' ')
-  return ROUTES[trimmed] ?? null
+  return ROUTES.get(trimmed) ?? null
 }

@@ -22,8 +22,6 @@ function requireUserId(request: Parameters<RequestHandler>[0]): number {
   return request.auth.userId;
 }
 
-// ─── Content tree ────────────────────────────────────────────────────────────
-
 export const getContent: RequestHandler = async (_request, response, next) => {
   try {
     const stages = await adminService.getContent();
@@ -42,8 +40,6 @@ export const getLessonQuestions: RequestHandler = async (request, response, next
     next(error);
   }
 };
-
-// ─── Stages ──────────────────────────────────────────────────────────────────
 
 export const createStage: RequestHandler = async (request, response, next) => {
   try {
@@ -87,8 +83,6 @@ export const moveStage: RequestHandler = async (request, response, next) => {
   }
 };
 
-// ─── Lessons ─────────────────────────────────────────────────────────────────
-
 export const createLesson: RequestHandler = async (request, response, next) => {
   try {
     const input = parseLessonInput(request.body);
@@ -130,8 +124,6 @@ export const moveLesson: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
-
-// ─── Questions ───────────────────────────────────────────────────────────────
 
 export const createQuestion: RequestHandler = async (request, response, next) => {
   try {
@@ -175,8 +167,6 @@ export const moveQuestion: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
-
-// ─── Shared video library ────────────────────────────────────────────────────
 
 export const listSharedVideos: RequestHandler = async (_request, response, next) => {
   try {
@@ -229,8 +219,6 @@ export const moveSharedVideo: RequestHandler = async (request, response, next) =
     next(error);
   }
 };
-
-// ─── Statistics (admin console) ─────────────────────────────────────────────
 
 export const getStatsOverview: RequestHandler = async (_request, response, next) => {
   try {

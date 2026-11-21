@@ -37,8 +37,6 @@ export type CefrLevel = (typeof CEFR_LEVELS)[number];
 
 export type MoveDirection = 'up' | 'down';
 
-// ─── Rows ────────────────────────────────────────────────────────────────────
-
 export interface AdminStageRow extends RowDataPacket {
   id: number;
   code: string;
@@ -97,8 +95,6 @@ export interface AdminSharedVideoRow extends RowDataPacket {
   segment_count: number;
   created_at: Date;
 }
-
-// ─── API shapes ──────────────────────────────────────────────────────────────
 
 export interface AdminLessonSummary {
   id: number;
@@ -160,8 +156,6 @@ export interface AdminSharedVideo {
   created_at: string;
 }
 
-// ─── Inputs ──────────────────────────────────────────────────────────────────
-
 export interface StageInput {
   title: string;
   description: string | null;
@@ -212,12 +206,6 @@ export interface SharedVideoPatch {
   cefrLevel?: CefrLevel;
   xpReward?: number;
 }
-
-// --- Statistics (admin console) -------------------------------------------
-// "Activity" = any observable study event in a table that has a user +
-// timestamp: progress, video_progress, learning_answer_attempts, matches
-// (both players), translations, chats, saved_words. There is no login-log
-// table, so last-seen is derived from the most recent of these events.
 
 export interface StatsOverview {
   totalLearners: number;

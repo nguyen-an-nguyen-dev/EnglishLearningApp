@@ -192,7 +192,6 @@ export function AdminLessonsPanel() {
     setNotice({ tone: 'error', text: error instanceof Error ? error.message : t.adminSaveError })
   }
 
-  // ─── Stages ────────────────────────────────────────────────────────────────
 
   function openCreateStage() {
     setFormError(null)
@@ -288,7 +287,6 @@ export function AdminLessonsPanel() {
     }
   }
 
-  // ─── Lessons ───────────────────────────────────────────────────────────────
 
   function openCreateLesson() {
     if (!selectedStage) {
@@ -371,7 +369,6 @@ export function AdminLessonsPanel() {
     }
   }
 
-  // ─── Questions ─────────────────────────────────────────────────────────────
 
   function openCreateQuestion() {
     if (!selectedLesson) {
@@ -455,7 +452,6 @@ export function AdminLessonsPanel() {
     }
   }
 
-  // ─── Labels ────────────────────────────────────────────────────────────────
 
   const questionTypeLabels: Record<AdminQuestionType, string> = {
     multiple_choice: t.adminQuestionTypeMultiple,
@@ -475,7 +471,6 @@ export function AdminLessonsPanel() {
     return isStageTheme(stage.theme_key) ? stage.theme_key : 'river'
   }
 
-  // ─── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (

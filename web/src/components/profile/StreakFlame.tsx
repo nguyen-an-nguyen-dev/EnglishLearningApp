@@ -3,12 +3,7 @@ interface StreakFlameProps {
   className?: string
 }
 
-/**
- * Decorative streak mascot — a smiling flame, matching the streak design
- * reference. It is illustration art (like the booster item art), not a UI icon,
- * so it stays a hand-tuned SVG instead of a Phosphor glyph. `active` adds the
- * gentle flicker so a kept streak looks alive; an empty streak renders dimmed.
- */
+/** Decorative streak mascot (a smiling flame), hand-tuned SVG rather than a Phosphor glyph because it is illustration art. active adds a gentle flicker; an empty streak renders dimmed. */
 export function StreakFlame({ size = 48, className = '', active = true }: StreakFlameProps & { active?: boolean }) {
   return (
     <svg

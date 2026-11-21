@@ -9,14 +9,9 @@ import { isRecord, parseAiReply, providerMessageContent } from './ai.parsing';
 import type { AiReply, ProviderMessage } from './ai.types';
 
 /**
- * The generative chain. There are exactly two models, in this order:
- *
- *   1. `@cf/aisingapore/gemma-sea-lion-v4-27b-it` on Cloudflare Workers AI
- *      (SEA-tuned, no reasoning budget burned before the answer),
- *   2. `gemini-3.5-flash` through the Gemini OpenAI-compatible endpoint.
- *
- * Every configured Workers AI account is tried before the Gemini fallback, so a
- * daily quota on one account does not change the model the learner sees.
+ * The generative chain has exactly two models, in order: Cloudflare Workers AI
+ * Llama 3.3 70B, then `gemini-2.5-flash`. Every configured Workers AI account is
+ * tried first, so a daily quota on one account does not change the model seen.
  */
 export interface ModelTarget {
   name: 'Cloudflare Workers AI' | 'Gemini';
@@ -55,7 +50,6 @@ function modelTargets(): ModelTarget[] {
   ];
 }
 
-/** One request to one target; the JSON contract is the same on both providers. */
 async function requestTarget(
   target: ModelTarget,
   messages: ProviderMessage[],
@@ -135,16 +129,20 @@ async function requestTarget(
 
 /**
  * Try each target in order; the first success wins and the last error is
- * rethrown when every target fails.
+ * rethrown. The whole chain shares one deadline, so a slow provider cannot stack
+ * its timeout on top of the next one.
  */
 export async function generateReply(
   messages: ProviderMessage[],
   options: GenerateOptions,
 ): Promise<AiReply> {
+  const deadline = Date.now() + options.timeoutMs;
   let lastError: unknown;
   for (const target of modelTargets()) {
+    const remaining = deadline - Date.now();
+    if (remaining < 500) break;
     try {
-      return await requestTarget(target, messages, options);
+      return await requestTarget(target, messages, { ...options, timeoutMs: remaining });
     } catch (error) {
       lastError = error;
     }

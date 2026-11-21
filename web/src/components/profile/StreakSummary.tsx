@@ -5,12 +5,7 @@ import { buildStreakWeek } from '../../utils/streakWeek'
 import { StreakShieldArt } from '../StreakShieldArt'
 import { StreakFlame } from './StreakFlame'
 
-/**
- * Compact streak readout for the sidebar profile card: the mascot flame, the
- * running count, and this week's days. It reads `last_activity_days_ago` from
- * the wallet so the strip starts on the last active day instead of assuming
- * every day up to today was kept.
- */
+/** Compact streak readout for the sidebar profile card: flame, count, and this week’s days. Reads last_activity_days_ago so the strip starts on the last active day. */
 export function StreakSummary({ compact = false }: { compact?: boolean }) {
   const { wallet } = useWallet()
   const { t, lang } = useI18n()

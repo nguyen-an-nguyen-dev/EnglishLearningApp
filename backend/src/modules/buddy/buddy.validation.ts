@@ -11,9 +11,9 @@ function asObject(value: unknown): Record<string, unknown> {
 }
 
 /**
- * The learner taps "Đặt nhắc" on a suggestion the buddy made. The server
- * re-resolves the instant from `in_minutes` / `at_time`, so accepting a
- * suggestion can never schedule something the model simply made up.
+ * The learner taps "Đặt nhắc" on a suggestion. The server re-resolves the
+ * instant from `in_minutes` / `at_time`, so accepting a suggestion can never
+ * schedule something the model made up.
  */
 export function parseSuggestionInput(value: unknown, now: Date = new Date()): CreateReminderInput {
   const body = asObject(value);

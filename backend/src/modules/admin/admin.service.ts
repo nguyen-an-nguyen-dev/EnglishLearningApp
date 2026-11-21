@@ -41,8 +41,6 @@ export const DEFAULT_STAGE_THEME: StageThemeKey = 'river';
 export const DEFAULT_SHARED_TOPIC = 'Thư viện chung';
 export const SHARED_VIDEO_XP = 20;
 
-// ─── Mappers ─────────────────────────────────────────────────────────────────
-
 function mapLesson(row: AdminLessonRow): AdminLessonSummary {
   return {
     id: row.id,
@@ -127,8 +125,6 @@ function mapSharedVideo(row: AdminSharedVideoRow): AdminSharedVideo {
   };
 }
 
-// ─── Content tree ────────────────────────────────────────────────────────────
-
 export async function getContent(): Promise<AdminStage[]> {
   const [stageRows, lessonRows] = await Promise.all([
     repo.getStageRows(),
@@ -162,8 +158,6 @@ export async function getLessonQuestions(lessonId: number): Promise<AdminQuestio
   const answers = await repo.getAnswerRows(questionRows.map((row) => row.id));
   return questionRows.map((row) => mapQuestion(row, answers));
 }
-
-// ─── Stages ──────────────────────────────────────────────────────────────────
 
 export async function createStage(input: StageInput): Promise<AdminStage> {
   const themeKey = input.themeKey ?? DEFAULT_STAGE_THEME;
@@ -216,8 +210,6 @@ export async function moveStage(stageId: number, direction: MoveDirection): Prom
   const moved = await repo.moveStage(stageId, direction);
   if (!moved) throw new HttpError(404, 'Stage not found.');
 }
-
-// ─── Lessons ─────────────────────────────────────────────────────────────────
 
 export async function createLesson(input: LessonInput): Promise<AdminLessonSummary> {
   const stage = await repo.getStageRow(input.stageId);
@@ -273,8 +265,6 @@ export async function moveLesson(lessonId: number, direction: MoveDirection): Pr
   if (!moved) throw new HttpError(404, 'Lesson not found.');
 }
 
-// ─── Questions ───────────────────────────────────────────────────────────────
-
 export async function getQuestion(questionId: number): Promise<AdminQuestion> {
   const row = await repo.getQuestionRow(questionId);
   if (!row) throw new HttpError(404, 'Question not found.');
@@ -321,8 +311,6 @@ export async function moveQuestion(questionId: number, direction: MoveDirection)
   const moved = await repo.moveQuestion(questionId, direction);
   if (!moved) throw new HttpError(404, 'Question not found.');
 }
-
-// ─── Shared video library (every learner sees these) ────────────────────────
 
 export async function listSharedVideos(): Promise<AdminSharedVideo[]> {
   const rows = await repo.getSharedVideoRows();
@@ -407,8 +395,6 @@ export async function moveSharedVideo(videoId: number, direction: MoveDirection)
   const moved = await repo.moveSharedVideo(videoId, direction);
   if (!moved) throw new HttpError(404, 'Shared video not found.');
 }
-
-// ─── Statistics ──────────────────────────────────────────────────────────────
 
 function pct(part: number, whole: number): number {
   if (whole <= 0) return 0;

@@ -1,4 +1,3 @@
-/** MariaDB/MySQL error helpers shared by all repositories and services. */
 export interface DatabaseErrorLike {
   code?: string;
   errno?: number;

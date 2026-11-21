@@ -12,16 +12,7 @@ export interface AvatarFrameProps {
   className?: string
 }
 
-/**
- * The initial-letter avatar, ringed by the equipped frame.
- *
- * Four layers are already composed inside each frame component:
- * mascot back → avatar slot → material ring → paws/petals/beads. The slot is
- * fixed at (100,112) r=46, so profile, arena and rankings cannot drift.
- *
- * At 30–48 px the matching small variant drops the mascot and ornaments and
- * keeps only the material ring around the same slot.
- */
+/** Initial-letter avatar ringed by the equipped frame. Frames compose four layers around a fixed (100,112) r=46 slot, so profile, arena and rankings cannot drift; small variants keep only the material ring. */
 export function AvatarFrame({ name, visualKey, size = 44, className }: AvatarFrameProps) {
   const entry = frameEntry(visualKey)
   const Art = entry?.Art ?? FramePlain

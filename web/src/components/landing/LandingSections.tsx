@@ -314,11 +314,7 @@ export function CurriculumSection() {
   )
 }
 
-/* =========================================================================
-   HỌC QUA VIDEO THẬT + ĐẤU TRƯỜNG TỪ VỰNG
-   Panel video dùng <DemoVideoPanel/>: bài ngắn nhất trong thư viện, lấy từ
-   GET /api/demo/video, chạy đúng màn PracticeView rồi mới chặn ở cổng đăng ký.
-   ========================================================================= */
+/* Học qua video thật + đấu trường từ vựng */
 
 interface DuelQuestion {
   prompt: string

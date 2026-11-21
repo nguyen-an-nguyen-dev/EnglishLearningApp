@@ -1,8 +1,7 @@
 /**
- * Microphone recording for the backend speech service. The Web Speech API is
- * free but depends on the browser vendor's speech servers, which can be
- * unreachable (Chrome reports `network`). This wrapper captures a short clip
- * with MediaRecorder so the backend can transcribe it with Whisper/Gemini.
+ * Microphone recording for the backend speech service. The Web Speech API can be
+ * unreachable (Chrome reports `network`), so this captures a short clip with
+ * MediaRecorder for the backend to transcribe with Whisper/Gemini.
  */
 
 const CANDIDATE_TYPES = [
@@ -15,7 +14,9 @@ const CANDIDATE_TYPES = [
 export interface RecorderHandlers {
   /** One finished clip, already typed by the browser. */
   onClip: (blob: Blob) => void
-  onError: (kind: 'denied' | 'unsupported' | 'other') => void
+  onError: (kind: 'denied' | 'unsupported' | 'empty' | 'other') => void
+  /** Optional: the live stream, so the UI can visualise the same capture. */
+  onStream?: (stream: MediaStream) => void
 }
 
 export interface Recorder {
@@ -55,71 +56,92 @@ export function createRecorder(handlers: RecorderHandlers): Recorder {
     }
   }
 
-  let stream: MediaStream | null = null
-  let recorder: MediaRecorder | null = null
-  let chunks: Blob[] = []
-  let discarded = false
-  let timer: number | null = null
+  type Capture = {
+    stream?: MediaStream
+    recorder?: MediaRecorder
+    timer?: number
+    stopping?: boolean
+  }
+  let capture: Capture | null = null
 
-  const releaseStream = () => {
-    if (timer !== null) {
-      window.clearTimeout(timer)
-      timer = null
+  const releaseStream = (session: Capture) => {
+    if (session.timer !== undefined) {
+      window.clearTimeout(session.timer)
+      session.timer = undefined
     }
-    stream?.getTracks().forEach((track) => track.stop())
-    stream = null
+    session.stream?.getTracks().forEach((track) => track.stop())
+    session.stream = undefined
   }
 
   const finish = (deliver: boolean) => {
-    const active = recorder
-    recorder = null
+    const session = capture
+    if (!session || (deliver && session.stopping)) return
+    session.stopping = true
+    if (!deliver) capture = null
+    const active = session.recorder
     if (!active) {
-      releaseStream()
+      capture = null
+      if (deliver) handlers.onError('empty')
       return
     }
-    discarded = !deliver
     try {
       if (active.state !== 'inactive') active.stop()
     } catch {
-      releaseStream()
+      releaseStream(session)
+      if (capture === session) {
+        capture = null
+        handlers.onError('other')
+      }
+    } finally {
+      if (!deliver) releaseStream(session)
     }
   }
 
   return {
     supported: true,
     start() {
+      if (capture) return
+      const session: Capture = {}
+      capture = session
       void navigator.mediaDevices.getUserMedia({ audio: true })
         .then((nextStream) => {
-          stream = nextStream
-          chunks = []
-          discarded = false
+          if (capture !== session) {
+            nextStream.getTracks().forEach((track) => track.stop())
+            return
+          }
+          session.stream = nextStream
+          const chunks: Blob[] = []
+          handlers.onStream?.(nextStream)
           const mimeType = pickMimeType()
           const active = new window.MediaRecorder(nextStream, mimeType ? { mimeType } : undefined)
-          recorder = active
+          session.recorder = active
           active.ondataavailable = (event) => {
             if (event.data.size > 0) chunks.push(event.data)
           }
           active.onerror = () => {
-            releaseStream()
-            recorder = null
+            releaseStream(session)
+            if (capture !== session) return
+            capture = null
             handlers.onError('other')
           }
           active.onstop = () => {
-            releaseStream()
-            if (discarded) return
+            releaseStream(session)
+            if (capture !== session) return
+            capture = null
             const clip = new Blob(chunks, { type: active.mimeType || mimeType || 'audio/webm' })
-            chunks = []
             if (clip.size === 0) {
-              handlers.onError('other')
+              handlers.onError('empty')
               return
             }
             handlers.onClip(clip)
           }
           active.start()
-          timer = window.setTimeout(() => finish(true), MAX_RECORD_MS)
+          session.timer = window.setTimeout(() => finish(true), MAX_RECORD_MS)
         })
         .catch((error: unknown) => {
-          releaseStream()
+          releaseStream(session)
+          if (capture !== session) return
+          capture = null
           const name = error instanceof DOMException ? error.name : ''
           handlers.onError(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'other')
         })

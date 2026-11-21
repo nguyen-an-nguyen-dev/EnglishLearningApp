@@ -15,8 +15,6 @@ import type {
 } from './admin.types';
 import type { QuestionPatchInput } from './admin.validation';
 
-// --- Content tree ---
-
 export async function getStageRows(): Promise<AdminStageRow[]> {
   const [rows] = await pool.execute<AdminStageRow[]>(
     `SELECT s.id, s.code, s.title, s.description, s.theme_key, s.accent_color, s.sort_order,
@@ -100,8 +98,6 @@ export async function nextQuestionSortOrder(lessonId: number): Promise<number> {
   return Number(rows[0]?.value ?? 0) + 1;
 }
 
-// --- Stages ---
-
 export async function insertStage(input: {
   code: string;
   title: string;
@@ -149,8 +145,6 @@ export async function deleteStageRow(stageId: number): Promise<boolean> {
   return result.affectedRows > 0;
 }
 
-// --- Lessons ---
-
 export async function insertLesson(input: {
   stageId: number;
   code: string;
@@ -181,11 +175,8 @@ export async function updateLesson(
   await pool.execute(`UPDATE lessons SET ${sets.join(', ')} WHERE id = ?`, params);
 }
 
-/**
- * Learners' rows hang off `progress` (no cascade) and `match_answers` references
- * `questions` (no cascade), so both are cleared inside the same transaction
- * before the lesson row itself goes away.
- */
+// `progress` and `match_answers` have no cascade, so both are cleared in the
+// same transaction before the lesson row goes away.
 export async function deleteLessonTx(lessonId: number): Promise<boolean> {
   const connection: PoolConnection = await pool.getConnection();
   try {
@@ -210,8 +201,6 @@ export async function deleteLessonTx(lessonId: number): Promise<boolean> {
     connection.release();
   }
 }
-
-// --- Questions & answers ---
 
 export async function getQuestionRows(lessonId: number): Promise<AdminQuestionRow[]> {
   const [rows] = await pool.execute<AdminQuestionRow[]>(
@@ -370,8 +359,6 @@ export async function countQuestionsByLesson(lessonId: number): Promise<number> 
   return Number(rows[0]?.value ?? 0);
 }
 
-// --- Reordering ---
-//
 // `stages.sort_order`, `lessons(stage_id, sort_order)` and
 // `questions(lesson_id, sort_order)` are unique, so a swap parks one row on a
 // free temporary slot instead of colliding mid-update.
@@ -460,8 +447,6 @@ export async function moveQuestion(
   if (!question) return false;
   return moveRow('questions', questionId, direction, { column: 'lesson_id', value: question.lesson_id });
 }
-
-// --- Shared video library ---
 
 const SHARED_VIDEO_COLUMNS = `v.id, v.code, v.title, v.description, v.topic, v.cefr_level, v.provider,
   v.video_url, v.thumbnail_url, v.duration_seconds, v.xp_reward, v.sort_order, v.created_at,
@@ -568,11 +553,8 @@ export async function moveSharedVideo(
   }
 }
 
-// --- Statistics -----------------------------------------------------------
-//
-// Activity = a study event with (user_id, timestamp). The UNION below is
-// the single source of truth for "active learner on day X". Keep it in one
-// helper so overview / trend / inactive never disagree with each other.
+// The UNION in admin.activity is the single source of truth for "active learner
+// on day X"; keep it in one helper so overview / trend / inactive agree.
 
 export interface NumberValueRow extends RowDataPacket {
   value: number | null;
@@ -629,7 +611,6 @@ export async function countActiveWithin(days: number): Promise<number> {
 }
 
 export async function countReturningToday(): Promise<number> {
-  // Active today but registered before today.
   return scalar(
     `SELECT COUNT(DISTINCT s.uid) AS value FROM ${activeUnion('DATE(__TS__) = CURDATE()')} s
      JOIN users u ON u.id = s.uid AND u.role = 'learner' AND DATE(u.created_at) < CURDATE()`,

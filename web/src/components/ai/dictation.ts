@@ -1,9 +1,7 @@
 /**
- * Speech recognition, wrapped so the UI never has to think about vendor
- * prefixes or the permission dance. Chrome/Edge expose the Web Speech API as
- * `webkitSpeechRecognition`; Safari uses `SpeechRecognition`. When neither
- * exists (Firefox today) the hook reports `supported: false` and the orb falls
- * back to typing — it never pretends to listen.
+ * Speech recognition wrapper. Chrome/Edge expose `webkitSpeechRecognition`, Safari
+ * uses `SpeechRecognition`; when neither exists the hook reports `supported: false`
+ * and the orb falls back to typing.
  */
 
 type SpeechRecognitionResultLike = {
@@ -49,17 +47,13 @@ function recognitionCtor(): RecognitionCtor | null {
 /** Vietnamese dictation is the default: the learner speaks Vietnamese. */
 export const SPEECH_LANG = 'vi-VN'
 
-/**
- * Maps a browser error code onto the one thing the learner needs to know, so
- * the orb can explain itself instead of going silent.
- */
+/** Maps a browser error code to what the learner needs to know. */
 export function describeSpeechError(code: string): 'denied' | 'no-speech' | 'unsupported' | 'network' | 'other' {
   if (code === 'not-allowed' || code === 'service-not-allowed') return 'denied'
   if (code === 'no-speech' || code === 'aborted') return 'no-speech'
   if (code === 'language-not-supported') return 'unsupported'
-  // Chrome fires "network" when its speech service cannot be reached. That is
-  // a service outage, not the learner failing to speak — say so, and point at
-  // the typing fallback instead of asking them to repeat themselves.
+  // Chrome's "network" is a service outage, not the learner failing to speak, so
+  // point at the typing fallback instead of asking them to repeat.
   if (code === 'network') return 'network'
   return 'other'
 }
@@ -96,49 +90,58 @@ export function createDictation(handlers: DictationHandlers, lang = SPEECH_LANG)
   recognition.interimResults = true
   recognition.maxAlternatives = 1
 
-  let stopped = false
+  let active = false
+  let delivered = false
 
   recognition.onresult = (event) => {
-    let text = ''
-    let isFinal = false
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+    if (!active || delivered) return
+    const parts: string[] = []
+    let isFinal = event.results.length > 0
+    for (let index = 0; index < event.results.length; index += 1) {
       const result = event.results[index]
-      text += result[0].transcript
-      if (result.isFinal) isFinal = true
+      parts.push(result[0].transcript.trim())
+      isFinal &&= result.isFinal
     }
-    handlers.onTranscript(text.trim(), isFinal)
+    delivered = isFinal
+    handlers.onTranscript(parts.filter(Boolean).join(' '), isFinal)
   }
 
   recognition.onerror = (event) => {
-    // `aborted` also fires when we call cancel() on purpose, so ignore it then.
-    if (stopped && event.error === 'aborted') return
+    if (!active || delivered) return
+    active = false
     handlers.onError(describeSpeechError(event.error))
   }
 
   recognition.onend = () => {
-    if (!stopped) handlers.onEnd()
+    if (!active) return
+    active = false
+    handlers.onEnd()
   }
 
   return {
     supported: true,
     start() {
-      stopped = false
+      if (active) return
+      active = true
+      delivered = false
       try {
         recognition.start()
       } catch {
-        // Calling start() while already listening throws; the UI stays usable.
+        active = false
+        handlers.onError('other')
       }
     },
     stop() {
-      stopped = true
+      if (!active) return
       try {
         recognition.stop()
       } catch {
-        /* already stopped */
+        active = false
+        handlers.onEnd()
       }
     },
     cancel() {
-      stopped = true
+      active = false
       try {
         recognition.abort()
       } catch {

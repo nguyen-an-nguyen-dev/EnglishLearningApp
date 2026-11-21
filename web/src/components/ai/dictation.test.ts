@@ -7,7 +7,6 @@ import {
   type DictationHandlers,
 } from './dictation'
 
-/** Minimal fake of the Web Speech recognition instance the wrapper drives. */
 class FakeRecognition {
   lang = ''
   continuous = false
@@ -112,7 +111,7 @@ test('default language is Vietnamese', () => {
   assert.equal(SPEECH_LANG, 'vi-VN')
 })
 
-test('results are joined from the result index and trimmed before reporting', () => {
+test('a partial update keeps earlier words and waits for the complete final phrase', () => {
   installWindow(FakeRecognition)
   try {
     const captured: FakeRecognition[] = []
@@ -126,7 +125,14 @@ test('results are joined from the result index and trimmed before reporting', ()
       { isFinal: true, transcript: ' hôm nay ' },
       { isFinal: false, transcript: 'học gì' },
     ])
-    assert.deepEqual(calls, [['transcript', 'hôm nay học gì', true]])
+    captured[0].emitResult(1, [
+      { isFinal: true, transcript: ' hôm nay ' },
+      { isFinal: true, transcript: 'học bài nào' },
+    ])
+    assert.deepEqual(calls, [
+      ['transcript', 'hôm nay học gì', false],
+      ['transcript', 'hôm nay học bài nào', true],
+    ])
   } finally {
     restoreWindow()
   }
@@ -177,7 +183,7 @@ test('a speech-service outage is reported as a network error, not as silence', (
   }
 })
 
-test('a natural end is reported, but a deliberate stop or cancel is not', () => {
+test('stopping can flush one final transcript, while cancelling discards late events', () => {
   installWindow(FakeRecognition)
   try {
     const captured: FakeRecognition[] = []
@@ -192,13 +198,17 @@ test('a natural end is reported, but a deliberate stop or cancel is not', () => 
     const stopDictation = createDictation(stopped.h)
     stopDictation.start()
     stopDictation.stop()
-    captured[captured.length - 1].emitEnd()
-    assert.deepEqual(stopped.calls, [])
+    const stoppingEngine = captured[captured.length - 1]
+    stoppingEngine.emitResult(0, [{ isFinal: true, transcript: 'mở bảng xếp hạng' }])
+    stoppingEngine.emitResult(0, [{ isFinal: true, transcript: 'mở bảng xếp hạng' }])
+    stoppingEngine.emitEnd()
+    assert.deepEqual(stopped.calls, [['transcript', 'mở bảng xếp hạng', true], ['end']])
 
     const cancelled = handlers()
     const cancelDictation = createDictation(cancelled.h)
     cancelDictation.start()
     cancelDictation.cancel()
+    captured[captured.length - 1].emitResult(0, [{ isFinal: true, transcript: 'bỏ câu này' }])
     captured[captured.length - 1].emitEnd()
     assert.deepEqual(cancelled.calls, [])
   } finally {

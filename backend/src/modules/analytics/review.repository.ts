@@ -10,8 +10,6 @@ import type {
 } from './analytics.types';
 import { REVIEW_SESSION_LIMIT, initialState, schedule, type ReviewState } from './review.scheduler';
 
-// ─── Row types ────────────────────────────────────────────────────────────────
-
 interface ReviewRow extends RowDataPacket {
   id: number;
   user_id: number;
@@ -86,8 +84,6 @@ function toState(row: ReviewRow): ReviewState {
   };
 }
 
-// ─── Reads ────────────────────────────────────────────────────────────────────
-
 async function hydrate(userId: number, rows: ReviewRow[]): Promise<ReviewItem[]> {
   if (rows.length === 0) return [];
 
@@ -103,9 +99,8 @@ async function hydrate(userId: number, rows: ReviewRow[]): Promise<ReviewItem[]>
          FROM battle_words WHERE id IN (${placeholders})`,
       wordIds,
     );
-    // `battle_words` stores no pronunciation; the IPA the learner saw belongs
-    // to the video where they saved the word. It is a nice-to-have on the card,
-    // so a missing row just means no phonetics.
+    // `battle_words` stores no pronunciation; the IPA comes from the video where
+    // the learner saved the word, so a missing row just means no phonetics.
     const ipaByWord = new Map<string, string>();
     if (wordRows.length > 0) {
       const names = wordRows.map((row) => row.word_en);
@@ -175,7 +170,7 @@ async function hydrate(userId: number, rows: ReviewRow[]): Promise<ReviewItem[]>
     const word = kind === 'word' ? words.get(refId) ?? null : null;
     const question = kind === 'question' ? questions.get(refId) ?? null : null;
     // A deleted word or question leaves an orphan row; skip it rather than
-    // render an empty card the learner cannot act on.
+    // render an empty card.
     if (kind === 'word' && !word) return [];
     if (kind === 'question' && !question) return [];
     return [{
@@ -197,15 +192,9 @@ async function hydrate(userId: number, rows: ReviewRow[]): Promise<ReviewItem[]>
   });
 }
 
-/**
- * The shortlist a learner actually sees. Ordering and the cap both happen in
- * SQL, so a learner with thousands of due items still reads only a handful of
- * rows — the formula mirrors `reviewPriority()` exactly:
- *
- *   overdue days + (lapses × 2 + mistakes) + 1.5 when never recalled
- *
- * The total due count still lives in `getCounts()`, so nothing is lost.
- */
+// Ordering and the cap happen in SQL so a learner with thousands of due items
+// still reads a handful of rows. The formula mirrors `reviewPriority()` exactly:
+// overdue days + (lapses × 2 + mistakes) + 1.5 when never recalled.
 export async function listDueShortlist(
   userId: number,
   limit: number = REVIEW_SESSION_LIMIT,
@@ -237,7 +226,6 @@ export async function listUpcoming(userId: number, limit = 20): Promise<ReviewIt
   return hydrate(userId, rows);
 }
 
-/** Hydrate an explicit set of ids, used after grading a single item. */
 export async function hydrateByIds(userId: number, ids: number[]): Promise<ReviewItem[]> {
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => '?').join(', ');
@@ -286,7 +274,6 @@ export async function findItem(userId: number, itemId: number): Promise<ReviewRo
   return rows[0] ?? null;
 }
 
-/** Words that keep slipping: the raw material for the "forgotten" insight. */
 export async function listLapsedWords(userId: number, limit = 10): Promise<LapsedWord[]> {
   const safeLimit = Math.max(1, Math.trunc(limit));
   const [rows] = await pool.execute<Array<RowDataPacket & LapsedWord>>(
@@ -313,14 +300,9 @@ export async function getCorrectAnswer(questionId: number): Promise<CorrectAnswe
   return rows[0] ?? null;
 }
 
-// ─── Writes ───────────────────────────────────────────────────────────────────
-
-/**
- * Add or refresh an item in the queue. Re-adding an existing item does not
- * reset its schedule: a learner who keeps missing the same word should not be
- * sent back to "new" every time, so only the mistake counter grows and the item
- * becomes due immediately.
- */
+// Re-adding an existing item does not reset its schedule: a learner who keeps
+// missing the same word should not be sent back to "new", so only the mistake
+// counter grows and the item becomes due immediately.
 export async function enqueue(
   userId: number,
   kind: ReviewKind,
@@ -341,7 +323,7 @@ export async function enqueue(
   );
 }
 
-/** Promote missed Word Battle words, ignoring rounds that were never answered. */
+// Ignore rounds that were never answered.
 export async function enqueueBattleMistakes(
   entries: Array<{ userId: number; wordId: number; isCorrect: boolean }>,
 ): Promise<void> {
@@ -366,14 +348,8 @@ export async function enqueueBattleMistakes(
   );
 }
 
-/**
- * Backfill the queue from history that already exists.
- *
- * Without this an existing learner opens the review tab to an empty page even
- * though they have months of mistakes. Both sources are capped: the queue is a
- * practice aid, not an archive, and an unbounded backfill would bury the
- * freshest mistakes under old ones.
- */
+// Both sources are capped: the queue is a practice aid, not an archive, and an
+// unbounded backfill would bury the freshest mistakes under old ones.
 export async function syncHistoricalMistakes(userId: number, limit = 40): Promise<number> {
   const safeLimit = Math.max(1, Math.trunc(limit));
 
@@ -450,7 +426,6 @@ export async function recordGrade(
   return next;
 }
 
-/** Keeps the word's IPA in sync when the learner saved it from a video. */
 export async function getSavedWordIpa(userId: number, word: string): Promise<string | null> {
   const [rows] = await pool.execute<Array<RowDataPacket & { ipa: string | null }>>(
     'SELECT ipa FROM saved_words WHERE user_id = ? AND word = ? LIMIT 1',

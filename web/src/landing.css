@@ -1,10 +1,4 @@
-/* ==========================================================================
-   ENGORACE LANDING — PALE CYAN (light-only)
-   One bright gam from header to footer: a pale tint of the brand cyan instead
-   of pure white, deep teal ink, cyan reserved for actions. The landing page
-   never enters dark mode; the dashboard keeps its own warm latte tokens.
-   Flat surfaces, thin rules, editorial type. No glass, no floating blobs.
-   ========================================================================== */
+/* Engorace landing - pale cyan (light-only). Flat surfaces, thin rules, editorial type. */
 
 html {
   scroll-behavior: smooth;
@@ -27,9 +21,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-/* Landing is light-only. LandingPage.tsx switches the document back to the
-   light token set while mounted, then this rule tints that whole light ramp
-   toward the brand cyan. Scoped here so the dashboard palette is untouched. */
+/* Landing is light-only: LandingPage.tsx switches the document to the light token set, and this rule tints that ramp toward the brand cyan. */
 html.lp-active,
 html.lp-active body { background: #EAF9FF; }
 
@@ -115,9 +107,7 @@ html.lp-active .landing-page-wrapper {
 }
 .lp-skip-link:focus { transform: translateY(0); }
 
-/* ==========================================================================
-   Header — a floating capsule above the pale canvas
-   ========================================================================== */
+/* Header - a floating capsule above the pale canvas */
 .lp-header {
   position: sticky;
   z-index: 50;
@@ -289,9 +279,7 @@ html.lp-active .landing-page-wrapper {
 }
 .lp-section-heading h2 em { font-family: "Fraunces Variable", Georgia, serif; font-style: italic; font-weight: 500; color: var(--brand-600); }
 
-/* ==========================================================================
-   Hero
-   ========================================================================== */
+/* Hero */
 .lp-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
@@ -381,10 +369,7 @@ html.lp-active .landing-page-wrapper {
   padding-bottom: 26px;
 }
 
-/* A 3D scene without a painted backdrop: the stage is transparent, and all the
-   depth comes from the floating card's shadow plus the floor shadow under it.
-   The tilt curve and idle float are driven by `useHeroTilt` (one transform per
-   frame), so nothing here animates `transform` in CSS. */
+/* A 3D scene with no painted backdrop: depth comes from the card’s shadow plus the floor shadow. Tilt and idle float are driven by useHeroTilt. */
 .lp-hero-art-panel {
   position: relative;
   display: flex;
@@ -400,9 +385,7 @@ html.lp-active .landing-page-wrapper {
   perspective-origin: 50% 40%;
 }
 
-/* Floor: with no painted backdrop the card needs a ground to float above, so the
-   shadow is the surface. Two ellipses: a wide soft one (ambient) and a tighter,
-   darker one right under the card (contact). */
+/* Floor: with no painted backdrop the shadow is the ground - a wide soft ellipse (ambient) plus a tighter, darker one (contact). */
 .lp-hero-floor {
   position: absolute;
   right: 8%;
@@ -453,12 +436,7 @@ html.lp-active .landing-page-wrapper {
   transform: translate3d(-26px, 28px, -68px);
 }
 
-/* Those flat sun / horizon bands were removed with the 3D rebuild: the tilt plus
-   the floor shadow carry the depth, and the flat shapes read as clipped
-   stickers behind the card. */
 
-/* The "Bắt đầu từ con số 0" proof bar was removed (07/11): the hero already has
-   the fact strip on the left, and the floating card is the proof. */
 
 /* Lesson preview card */
 .lp-lesson-preview {
@@ -595,9 +573,7 @@ html.lp-active .landing-page-wrapper {
 .lp-preview-submit:disabled { background: #C2E1EF; color: var(--ink-soft); cursor: not-allowed; }
 .lp-preview-check { width: 34px; padding: 0; background: var(--brand-100); color: var(--brand-800); }
 
-/* ==========================================================================
-   Curriculum
-   ========================================================================== */
+/* Curriculum */
 .lp-curriculum-intro {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(250px, 0.75fr);
@@ -733,9 +709,7 @@ html.lp-active .landing-page-wrapper {
   font-weight: 600;
 }
 
-/* ==========================================================================
-   Modes
-   ========================================================================== */
+/* Modes */
 .lp-modes-head { display: block; }
 /* Mode switcher — plain labels on a rule, no card frame */
 .lp-mode-tabs {
@@ -821,11 +795,7 @@ html.lp-active .landing-page-wrapper {
 /* Video mode — one panel, zero nested frames */
 .lp-video-body { display: grid; gap: 24px; }
 
-/* --------------------------------------------------------------------------
-   Live lesson preview inside the "Học qua video" tab.
-   The practice screen itself is styled in learning-modes.css; this block only
-   adds the landing wrapper: free-trial strip + loading / error / empty states.
-   -------------------------------------------------------------------------- */
+/* Live lesson preview inside the "Học qua video" tab. The practice screen is styled in learning-modes.css; this block adds the landing wrapper. */
 .lp-demo { display: grid; gap: 16px; }
 
 .lp-demo-strip {
@@ -1054,9 +1024,7 @@ html.lp-active .landing-page-wrapper {
 .lp-v-feature-item strong { color: var(--ink); font-size: 13px; }
 .lp-v-feature-item span { color: var(--muted); font-size: 12px; line-height: 1.5; }
 
-/* Duel mode — editorial bout sheet
-   Rail carries the match state, stage carries the question.
-   No HP bars, no VS emblem, no avatar frames: the scoreline does the work. */
+/* Duel mode: rail carries the match state, stage the question. No HP bars, no VS emblem, no avatar frames. */
 .lp-arena {
   display: grid;
   grid-template-columns: 172px minmax(0, 1fr);
@@ -1292,9 +1260,7 @@ html.lp-active .landing-page-wrapper {
 .lp-arena-report-copy strong { color: var(--brand-800); font-weight: 700; }
 .lp-arena-report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; }
 
-/* ==========================================================================
-   Final CTA & footer
-   ========================================================================== */
+/* Final CTA & footer */
 .lp-final-cta {
   position: relative;
   display: flex;
@@ -1336,9 +1302,7 @@ html.lp-active .landing-page-wrapper {
 .lp-motion-ready [data-reveal].lp-is-visible { opacity: 1; transform: translateY(0); }
 .lp-motion-ready [data-reveal].lp-is-hidden { opacity: 0; transform: translateY(14px); }
 
-/* ==========================================================================
-   Auth dialog
-   ========================================================================== */
+/* Auth dialog */
 .auth-dialog {
   width: min(430px, calc(100vw - 28px));
   max-height: calc(100dvh - 36px);
@@ -1538,7 +1502,7 @@ html.lp-active .landing-page-wrapper {
 .auth-quick-btn:hover:not(:disabled) { border-color: var(--brand-500); background: #DCF5FF; }
 .auth-quick-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* --- registration OTP step ------------------------------------------------ */
+/* Registration OTP step */
 .auth-otp-head {
   display: flex;
   align-items: flex-start;
@@ -1639,9 +1603,7 @@ html.lp-active .landing-page-wrapper {
 }
 .auth-link-btn:hover { color: var(--brand-800); }
 
-/* ==========================================================================
-   Responsive
-   ========================================================================== */
+/* Responsive */
 @media (max-width: 1080px) {
   .lp-hero h1 { font-size: clamp(44px, 5vw, 58px); }
   .lp-hero-art-panel { min-height: 430px; padding: 30px 24px; }
@@ -1834,6 +1796,4 @@ html.lp-active .landing-page-wrapper {
   }
 }
 
-/* No dark variant here on purpose: the landing is a single bright gam.
-   The theme switch lives in the dashboard only; LandingPage.tsx restores
-   the saved theme as soon as the learner enters the app. */
+/* No dark variant on purpose: the landing is a single bright gam; the theme switch lives in the dashboard. */

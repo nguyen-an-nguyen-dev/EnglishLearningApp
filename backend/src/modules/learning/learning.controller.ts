@@ -8,8 +8,6 @@ import {
   parseQuestionId,
   parseStageId,
 } from './learning.validation';
-
-// GET /api/stages
 export const getStages: RequestHandler = async (_request, response, next) => {
   try {
     const stages = await learningService.getStages();
@@ -18,8 +16,6 @@ export const getStages: RequestHandler = async (_request, response, next) => {
     next(error);
   }
 };
-
-// GET /api/stages/:stageId
 export const getStage: RequestHandler = async (request, response, next) => {
   try {
     const stageId = parseStageId(request.params.stageId);
@@ -29,8 +25,6 @@ export const getStage: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
-
-// GET /api/stages/:stageId/lessons
 export const getLessonsByStage: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
@@ -41,8 +35,6 @@ export const getLessonsByStage: RequestHandler = async (request, response, next)
     next(error);
   }
 };
-
-// GET /api/lessons/:lessonId
 export const getLesson: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
@@ -53,8 +45,6 @@ export const getLesson: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
-
-// GET /api/lessons/:lessonId/questions
 export const getLessonQuestions: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
@@ -65,8 +55,6 @@ export const getLessonQuestions: RequestHandler = async (request, response, next
     next(error);
   }
 };
-
-// POST /api/lessons/:lessonId/questions/:questionId/check
 export const checkLessonAnswer: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
@@ -79,8 +67,6 @@ export const checkLessonAnswer: RequestHandler = async (request, response, next)
     next(error);
   }
 };
-
-// GET /api/progress
 export const getProgress: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
@@ -90,8 +76,6 @@ export const getProgress: RequestHandler = async (request, response, next) => {
     next(error);
   }
 };
-
-// POST /api/lessons/:lessonId/complete
 export const completeLesson: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');

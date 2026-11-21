@@ -3,10 +3,7 @@ import type { AuthUser } from '../types/auth';
 const TOKEN_KEY = 'englearn_token';
 const USER_KEY = 'englearn_user';
 
-/**
- * Session persistence lives in its own module so the low-level API client can
- * read a token without importing the auth service (which imports the client).
- */
+/** Own module so the API client can read a token without importing the auth service. */
 export const authStorage = {
   getToken(): string | null {
     try {

@@ -20,11 +20,8 @@ function emit(level: LogLevel, message: string, meta?: Record<string, unknown>):
   else console.log(line);
 }
 
-/**
- * Single logging entry point. Keeping this dependency-free means every module
- * (including DB and Socket.IO) can log structured lines without importing the
- * Express app or a third-party logger.
- */
+/** Single logging entry point, kept dependency-free so every module (including
+ * DB and Socket.IO) can log structured lines without importing the Express app. */
 export const logger = {
   debug: (message: string, meta?: Record<string, unknown>) => emit('debug', message, meta),
   info: (message: string, meta?: Record<string, unknown>) => emit('info', message, meta),

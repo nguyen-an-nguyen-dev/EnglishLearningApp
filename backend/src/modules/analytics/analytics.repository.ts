@@ -46,8 +46,6 @@ function lastDays(count: number): string[] {
   return days;
 }
 
-// ─── Behaviour ────────────────────────────────────────────────────────────────
-
 interface DailyAnswerRow extends RowDataPacket {
   day: string;
   answers: number;
@@ -69,12 +67,8 @@ interface WindowAccuracyRow extends RowDataPacket {
   correct: number;
 }
 
-/**
- * Daily activity, accuracy trend and study time. `minutes` combines lesson
- * practice seconds with watched video seconds; both are cumulative per lesson
- * or video, so they are attributed to the day the row last changed. That is an
- * approximation, but it is the only per-day signal the schema stores.
- */
+// `minutes` combines lesson practice seconds with watched video seconds; both are
+// cumulative, so they are attributed to the day the row last changed.
 export async function getBehavior(userId: number): Promise<BehaviorStats> {
   const [streakRows] = await pool.execute<StreakRow[]>(
     `SELECT u.streak,
@@ -128,8 +122,7 @@ export async function getBehavior(userId: number): Promise<BehaviorStats> {
     [userId],
   );
 
-  // The window before the current one, so a trend is a real comparison rather
-  // than a single snapshot dressed up as progress.
+  // The window before the current one, so a trend is a real comparison.
   const [previousWindow] = await pool.execute<WindowAccuracyRow[]>(
     `SELECT COUNT(*) AS attempts, COALESCE(SUM(is_correct = 1), 0) AS correct
        FROM learning_answer_attempts
@@ -171,8 +164,6 @@ export async function getBehavior(userId: number): Promise<BehaviorStats> {
   };
 }
 
-// ─── Totals ───────────────────────────────────────────────────────────────────
-
 interface TotalsRow extends RowDataPacket {
   lessons_completed: number;
   lessons_started: number;
@@ -207,8 +198,6 @@ export async function getTotals(userId: number): Promise<Totals> {
   };
 }
 
-// ─── Vocabulary (Word Battle) ─────────────────────────────────────────────────
-
 interface VocabularyRow extends RowDataPacket {
   word_id: number;
   word: string;
@@ -225,15 +214,12 @@ interface VocabularyRow extends RowDataPacket {
   review_repetitions: number | null;
 }
 
-/**
- * A word only becomes measurable once something links an answer to
- * `battle_words`. Word Battle now stores that link; before it existed only the
- * typed text survived, so history starts at the first match after the upgrade.
- */
+// A word is only measurable once an answer links to `battle_words`, so history
+// starts at the first match after that link existed.
 export async function getVocabulary(userId: number, limit = 40): Promise<VocabularyStat[]> {
   const safeLimit = Math.max(1, Math.trunc(limit));
-  // MySQL will not accept an aggregate alias in ORDER BY at the same level, so
-  // the grouped result is wrapped and sorted outside.
+  // MySQL rejects an aggregate alias in ORDER BY at the same level, so the
+  // grouped result is wrapped and sorted outside.
   const [rows] = await pool.execute<VocabularyRow[]>(
     `SELECT * FROM (
        SELECT bw.id AS word_id, bw.word_en AS word, bw.translation_vi AS translation,
@@ -280,8 +266,6 @@ export async function getVocabulary(userId: number, limit = 40): Promise<Vocabul
   });
 }
 
-// ─── Questions ────────────────────────────────────────────────────────────────
-
 interface QuestionRow extends RowDataPacket {
   question_id: number;
   prompt: string;
@@ -323,8 +307,8 @@ export async function getQuestionStats(userId: number, limit = 20): Promise<Ques
 
   const ids = rows.map((row) => num(row.question_id));
   const placeholders = ids.map(() => '?').join(', ');
-  // MCQ answers are stored as the option id, so the distractor text has to be
-  // resolved through `answers`; typed answers are already readable.
+  // MCQ answers are stored as the option id, so distractor text must be resolved
+  // through `answers`; typed answers are already readable.
   const [distractors] = await pool.execute<DistractorRow[]>(
     `SELECT a.question_id,
             COALESCE(ans.answer_text, a.submitted_answer) AS answer,
@@ -369,8 +353,6 @@ export async function getQuestionStats(userId: number, limit = 20): Promise<Ques
   });
 }
 
-// ─── Exercises ────────────────────────────────────────────────────────────────
-
 interface ExerciseRow extends RowDataPacket {
   question_type: string;
   attempts: number;
@@ -404,8 +386,6 @@ export async function getExerciseStats(userId: number): Promise<ExerciseStat[]> 
     };
   });
 }
-
-// ─── Lessons ──────────────────────────────────────────────────────────────────
 
 interface LessonRow extends RowDataPacket {
   lesson_id: number;
@@ -462,14 +442,11 @@ export async function getLessonStats(userId: number): Promise<LessonStat[]> {
       attempts: num(row.attempts),
       practice_seconds: row.practice_seconds === null ? null : num(row.practice_seconds),
       accuracy: ratio(correct, answers),
-      // Opened and answered, but never finished: the lesson was abandoned, not
-      // merely untouched.
+      // Opened and answered but never finished: abandoned, not merely untouched.
       abandoned: status !== 'completed' && num(row.answered_questions) > 0,
     };
   });
 }
-
-// ─── Competition ──────────────────────────────────────────────────────────────
 
 interface CompetitionRow extends RowDataPacket {
   matches: number;
@@ -507,8 +484,6 @@ export async function getCompetition(userId: number): Promise<CompetitionStats> 
   };
 }
 
-// ─── Content health ───────────────────────────────────────────────────────────
-
 interface ContentRow extends RowDataPacket {
   question_id: number;
   prompt: string;
@@ -519,12 +494,8 @@ interface ContentRow extends RowDataPacket {
   correct: number;
 }
 
-/**
- * Questions that look broken rather than hard. These are separated from learner
- * mistakes on purpose: a question with no correct option, two correct options,
- * or a near-zero accuracy across many learners is a content bug, not a gap in
- * one learner's knowledge.
- */
+// Questions that look broken rather than hard: a question with no correct
+// option, two correct options, or near-zero accuracy across many learners.
 export async function getContentFlags(limit = 12): Promise<ContentFlag[]> {
   const safeLimit = Math.max(1, Math.trunc(limit));
   const [rows] = await pool.execute<ContentRow[]>(

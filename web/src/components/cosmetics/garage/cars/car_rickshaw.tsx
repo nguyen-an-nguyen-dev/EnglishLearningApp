@@ -17,11 +17,7 @@ const paint = {
   trim: '#ffd23f',
 }
 
-/**
- * 07 · car_rickshaw — low three-wheel lam: a small front cab, an open rear
- * bench under a scalloped fabric canopy, one front wheel and a dual rear axle
- * (the far wheel is only a faint sliver behind the near one).
- */
+/** 07 · car_rickshaw - low three-wheel lam: small front cab, open rear bench under a scalloped fabric canopy, one front wheel and a dual rear axle. */
 export function CarRickshawArt() {
   return (
     <g>
@@ -33,7 +29,6 @@ export function CarRickshawArt() {
         <circle cx={84} cy={94} r={7.7} fill={METAL} stroke={INK} strokeWidth={STROKE.inner} opacity={0.3} />
       </g>
 
-      {/* Fabric canopy: wavy valance + two stripes. */}
       <path
         d="M64 41C64 34 70 30 78 30H160C168 30 180 34 186 40L183 44Q172 49 161 44Q150 49 139 44Q128 49 117 44Q106 49 95 44Q84 49 73 44Z"
         fill={paint.canopy}
@@ -46,7 +41,6 @@ export function CarRickshawArt() {
       <rect x={70} y={42} width={4} height={35} rx={2} fill={METAL} stroke={INK} strokeWidth={STROKE.detail} />
       <rect x={168} y={42} width={4} height={20} rx={2} fill={METAL} stroke={INK} strokeWidth={STROKE.detail} />
 
-      {/* Low rear passenger platform, not a car boot. */}
       <path
         d="M55 90C51 90 49 87 49 84L50 80C51 77 54 76 58 76H144V87C144 90 141 91 137 91H61C58 91 56 90 55 90Z"
         fill={paint.body}
@@ -58,12 +52,10 @@ export function CarRickshawArt() {
       <rect x={58} y={77} width={82} height={3} rx={1.5} fill={paint.trim} />
       <path d="M60 80V87M136 80V87" stroke={INK} strokeWidth={STROKE.detail} strokeLinecap="round" opacity={0.5} />
 
-      {/* Open bench and backrest. */}
       <path d="M90 76V68C90 66 92 65 94 65H128C130 65 132 67 132 69V76Z" fill={paint.dark} stroke={INK} strokeWidth={STROKE.inner} strokeLinejoin="round" />
       <rect x={88} y={52} width={8} height={24} rx={3} fill={paint.dark} stroke={INK} strokeWidth={STROKE.inner} />
       <path d="M98 76V86M124 76V86" stroke={INK} strokeWidth={STROKE.inner} opacity={0.45} strokeLinecap="round" />
 
-      {/* Small front cab and nose. */}
       <path
         d="M140 90V68C140 64 143 61 149 60H168C179 60 187 65 190 72L191 82C191 87 187 90 182 90H146C142 90 140 89 140 90Z"
         fill={paint.body}
@@ -76,7 +68,6 @@ export function CarRickshawArt() {
       <path d="M160 64V86" stroke={INK} strokeWidth={STROKE.inner} opacity={0.35} strokeLinecap="round" />
       <rect x={163} y={71} width={9} height={4} rx={2} fill={METAL} stroke={INK} strokeWidth={STROKE.detail} />
 
-      {/* Side window + slanted front windshield under the canopy. */}
       <path d="M146 64H160L162 76H146Z" fill={GLASS} stroke={INK} strokeWidth={STROKE.inner} strokeLinejoin="round" />
       <path d="M149 67H157L158 72H149Z" fill={WHITE} opacity={0.35} />
       <path d="M168 44H179L184 62H169Z" fill={GLASS} stroke={INK} strokeWidth={STROKE.inner} strokeLinejoin="round" />

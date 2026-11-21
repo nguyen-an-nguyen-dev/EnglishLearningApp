@@ -1,30 +1,15 @@
 import type { ReviewGrade } from './analytics.types';
 
-/**
- * A small, deterministic SM-2 variant.
- *
- * The real SM-2 formula assumes the learner rates their own recall. Here the
- * grade comes from whether the answer was right and how fast it was, so the
- * numbers are tuned for a quiz rather than a flashcard deck:
- *
- *  - `again` is a lapse: the item returns in minutes and the interval resets.
- *  - `hard` grows the interval only slightly and lowers ease.
- *  - `good` is the normal path: 1 day, 3 days, then interval × ease.
- *  - `easy` skips ahead and raises ease, but ease is capped so intervals cannot
- *    explode after a lucky streak.
- *
- * Keeping this pure means the scheduler can be tested without a database and
- * the same rules can run in the browser for a preview.
- */
+// Deterministic SM-2 variant. The grade comes from correctness and response
+// time, not self-rating, so the numbers are tuned for a quiz; kept pure so the
+// same rules run in tests and the browser.
 
-/** A short session beats a long chore: only the most urgent items make the cut. */
 export const REVIEW_SESSION_LIMIT = 7;
 
 export const MIN_EASE = 1.3;
 export const MAX_EASE = 3.0;
 export const INITIAL_EASE = 2.5;
 
-/** How soon a lapsed item comes back, in minutes. */
 export const LAPSE_MINUTES = 10;
 
 export interface ReviewState {
@@ -43,7 +28,6 @@ function clampEase(value: number): number {
   return Math.min(MAX_EASE, Math.max(MIN_EASE, rounded));
 }
 
-/** Grade an answer from correctness and response time, when it is known. */
 export function gradeAnswer(isCorrect: boolean, responseMs: number | null | undefined): ReviewGrade {
   if (!isCorrect) return 'again';
   // A correct answer that took longer than 12 seconds is recalled with effort:
@@ -115,10 +99,8 @@ export function schedule(
   return { ease, intervalDays, repetitions, lapses, dueAt };
 }
 
-/**
- * How urgent an item is, used to order the queue. A lapsed item that keeps
- * coming back outranks a fresh mistake, and older overdue items float up.
- */
+// A lapsed item that keeps coming back outranks a fresh mistake, and older
+// overdue items float up.
 export function reviewPriority(
   item: { dueAt: Date; lapses: number; mistakeCount: number; repetitions: number },
   now: Date = new Date(),

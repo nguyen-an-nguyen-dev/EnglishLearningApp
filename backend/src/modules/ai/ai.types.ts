@@ -32,13 +32,11 @@ export interface ChatTurn {
   context: ChatContext | null;
 }
 
-/** One message in the OpenAI-compatible payload sent to the generative model. */
 export interface ProviderMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-/** A reminder the model proposed; the client asks for one tap of confirmation. */
 export interface ReminderSuggestion {
   title: string;
   in_minutes: number | null;
@@ -50,15 +48,11 @@ export interface ReminderSuggestion {
 export interface AiReply {
   reply: string;
   feedback: AiFeedbackInput[];
-  /** 2-3 short Vietnamese follow-up questions the learner can tap next. */
   followups: string[];
-  /** Optional deep-link the learner can tap to jump to a real screen/item. */
   action: ChatAction | null;
-  /** Only on the companion flow: a reminder the buddy offered to schedule. */
   reminder: ReminderSuggestion | null;
 }
 
-/** A deep-link the buddy offers so the learner can jump straight there. */
 export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review'] as const;
 export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];
 
@@ -69,6 +63,8 @@ export interface ChatAction {
   videoId?: number;
   lessonId?: number;
   lessonTitle?: string;
+  /** Declared element to circle on the destination screen, e.g. `video:9`. */
+  highlight?: string;
 }
 
 export type StudyStepKind = 'lesson' | 'review' | 'vocab' | 'video' | 'arena' | 'translate';
@@ -108,7 +104,6 @@ export interface StudySnapshot {
   battlesPlayed: number;
   battleWins: number;
   badges: number;
-  /** Spaced-repetition items already due, so the plan can put recall first. */
   reviewDue: number;
   reviewTotal: number;
   reviewWords: number;

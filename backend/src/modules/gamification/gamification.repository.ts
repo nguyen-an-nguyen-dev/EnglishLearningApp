@@ -16,18 +16,17 @@ import type {
 /** Either the shared pool or a connection that already holds a transaction. */
 type Executor = Pool | PoolConnection;
 
-const TIER_ORDER: LeagueTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+const TIER_ORDER: LeagueTier[] = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'];
 
 /** One step up/down at season settlement; the ends of the ladder stay put. */
 export function promoteTier(tier: LeagueTier): LeagueTier {
-  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(tier) + 1, TIER_ORDER.length - 1)] ?? 'bronze';
+  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(tier) + 1, TIER_ORDER.length - 1)] ?? 'coal';
 }
 
 export function demoteTier(tier: LeagueTier): LeagueTier {
-  return TIER_ORDER[Math.max(TIER_ORDER.indexOf(tier) - 1, 0)] ?? 'bronze';
+  return TIER_ORDER[Math.max(TIER_ORDER.indexOf(tier) - 1, 0)] ?? 'coal';
 }
 
-/** The tier a learner carries into the current season. */
 export async function getLeagueTier(
   executor: Executor,
   userId: number,
@@ -36,18 +35,12 @@ export async function getLeagueTier(
     'SELECT league_tier FROM users WHERE id = ? LIMIT 1',
     [userId],
   );
-  return rows[0]?.league_tier ?? 'bronze';
+  return rows[0]?.league_tier ?? 'coal';
 }
 
-// ─── Idempotent grants ────────────────────────────────────────────────────────
-
-/**
- * Write ledger entries for one user inside the caller's transaction.
- *
- * Idempotency lives in the unique key `(user_id, currency, source_type, source_id)`,
- * so replaying the same lesson or match never double-pays: the INSERT IGNORE
- * reports `affectedRows === 0` and the balance is not moved again.
- */
+// Write ledger entries for one user inside the caller's transaction. Idempotency
+// lives in the unique key `(user_id, currency, source_type, source_id)`, so
+// replaying a lesson or match never double-pays.
 export async function grantInTx(
   executor: Executor,
   userId: number,
@@ -97,15 +90,10 @@ export async function grantInTx(
   return { granted, rcEarned, xpEarned, rpEarned };
 }
 
-// ─── Activity + streak ────────────────────────────────────────────────────────
-
-/**
- * Log one activity. `refId` makes the event once-only (lesson 12, match 88);
- * counter kinds such as `answers` pass null and simply append.
- *
- * Streak is touched in the same call so `users.streak` finally tracks something
- * real: same day keeps it, yesterday increments, anything older resets to 1.
- */
+// Log one activity. `refId` makes the event once-only (lesson 12, match 88);
+// counter kinds such as `answers` pass null and simply append. Streak is touched
+// in the same call so `users.streak` tracks: same day keeps it, yesterday
+// increments, anything older resets to 1.
 export async function recordActivityInTx(
   executor: Executor,
   userId: number,
@@ -121,14 +109,9 @@ export async function recordActivityInTx(
   await touchStreakInTx(executor, userId);
 }
 
-/**
- * Advance the daily streak.
- *
- * The whole decision is made in SQL (`CURDATE()` / `DATE_SUB`) so no JavaScript
- * Date-to-string conversion can corrupt the DATE column — mysql2 hands back a
- * Date object for DATE fields, and `String(date)` yields "Sun Nov 15", which
- * MySQL rejects.
- */
+// The whole streak decision is made in SQL (`CURDATE()` / `DATE_SUB`): mysql2
+// hands back a Date object for DATE fields and `String(date)` yields "Sun Nov 15"
+// which MySQL rejects, so no JS Date-to-string conversion is allowed here.
 async function touchStreakInTx(executor: Executor, userId: number): Promise<void> {
   const [rows] = await executor.execute<Array<RowDataPacket & {
     streak: number;
@@ -186,12 +169,10 @@ async function touchStreakInTx(executor: Executor, userId: number): Promise<void
   }
 }
 
-/**
- * Lazy streak expiry. Opening the app after a missed day must show the loss
- * immediately, not only after the next lesson. Each missed day costs one shield
- * charge; without enough shields the current streak becomes 0 and the previous
- * value is kept for the "lost streak" notice.
- */
+// Lazy streak expiry: opening the app after a missed day must show the loss
+// immediately, not only after the next lesson. Each missed day costs one shield
+// charge; without enough shields the streak becomes 0 and the previous value is
+// kept for the "lost streak" notice.
 export async function ensureStreakState(userId: number): Promise<void> {
   // Cheap unlocked read first: most requests are inside the two-day window and
   // should not take a row lock.
@@ -260,8 +241,6 @@ export async function ensureStreakState(userId: number): Promise<void> {
   }
 }
 
-// ─── Seasons ─────────────────────────────────────────────────────────────────
-
 interface SeasonRow extends RowDataPacket {
   id: number;
   code: string;
@@ -296,7 +275,6 @@ function toSqlDate(date: Date): string {
     + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-/** Cheap path used inside grants: the active season, created on first need. */
 async function getActiveSeasonIdInTx(executor: Executor): Promise<number | null> {
   const [rows] = await executor.execute<SeasonRow[]>(
     "SELECT id, code, starts_at, ends_at, status FROM seasons WHERE status = 'active' ORDER BY starts_at DESC LIMIT 1",
@@ -345,14 +323,16 @@ export async function bumpStandingCounter(
   );
 }
 
-const PAYOUT_RC: Record<LeagueTier, number> = { bronze: 100, silver: 200, gold: 350, diamond: 500 };
-const PAYOUT_XP: Record<LeagueTier, number> = { bronze: 20, silver: 40, gold: 70, diamond: 100 };
+const PAYOUT_RC: Record<LeagueTier, number> = {
+  coal: 60, copper: 110, iron: 170, gold: 250, redstone: 330, lapis: 420, diamond: 520,
+};
+const PAYOUT_XP: Record<LeagueTier, number> = {
+  coal: 15, copper: 25, iron: 40, gold: 60, redstone: 80, lapis: 100, diamond: 130,
+};
 
-/**
- * Settle every finished season that has not been paid yet, then make sure a
- * season is running for the current week. Payouts go through the ledger, so a
- * repeated call (or two requests racing) can only ever pay once.
- */
+// Settle every finished season that has not been paid yet, then make sure a
+// season is running for the current week. Payouts go through the ledger, so a
+// repeated call (or two racing requests) can only ever pay once.
 export async function ensureCurrentSeason(): Promise<number> {
   const connection = await pool.getConnection();
   try {
@@ -428,7 +408,7 @@ async function settleSeason(connection: PoolConnection, season: SeasonRow): Prom
   // who share their tier, so promotion/demotion slots are decided per group.
   const byTier = new Map<LeagueTier, StandingRow[]>();
   for (const standing of standings) {
-    const carried = TIER_ORDER.includes(standing.tier) ? standing.tier : 'bronze';
+    const carried = TIER_ORDER.includes(standing.tier) ? standing.tier : 'coal';
     const group = byTier.get(carried);
     if (group) group.push(standing);
     else byTier.set(carried, [standing]);
@@ -437,14 +417,14 @@ async function settleSeason(connection: PoolConnection, season: SeasonRow): Prom
   for (const [carried, group] of byTier) {
     // Promotion wins when a short group makes the zones overlap. The ends of
     // the ladder have nowhere to go: diamond has no promotion slots (so its
-    // bottom six drop) and bronze has no demotion slots.
+    // bottom six drop) and coal has no demotion slots.
     const promoteEnd = carried === 'diamond'
       ? 0
       : Math.min(LEAGUE_PROMOTION_SLOTS, group.length);
     // The week's leader is never demoted. Diamond has no promotion block to
     // shield its top, so on a board of six or fewer the bottom-six rule would
     // otherwise send the winner down with everyone else.
-    const demoteCount = carried === 'bronze'
+    const demoteCount = carried === 'coal'
       ? 0
       : Math.min(
           Math.max(0, group.length - Math.max(promoteEnd, group.length - LEAGUE_DEMOTION_SLOTS)),
@@ -470,7 +450,7 @@ async function settleSeason(connection: PoolConnection, season: SeasonRow): Prom
       );
       if (payout.affectedRows === 0) continue;
 
-      // Carry the new tier into the next season instead of resetting to bronze.
+      // Carry the new tier into the next season instead of resetting to coal.
       await connection.execute(
         'UPDATE season_standings SET tier = ? WHERE season_id = ? AND user_id = ?',
         [tier, season.id, standing.user_id],
@@ -497,8 +477,6 @@ export async function getSeasonRow(seasonId: number): Promise<SeasonRow | undefi
   );
   return rows[0];
 }
-
-// ─── Balance / wallet reads ──────────────────────────────────────────────────
 
 export interface BalanceRow extends RowDataPacket {
   xp: number;
@@ -529,8 +507,6 @@ export async function getRacePoints(seasonId: number, userId: number): Promise<n
   );
   return Number(rows[0]?.race_points ?? 0);
 }
-
-// ─── Shop ────────────────────────────────────────────────────────────────────
 
 export async function listShopItems(): Promise<ShopItemRow[]> {
   const [rows] = await pool.execute<ShopItemRow[]>(
@@ -591,17 +567,9 @@ export async function countOwnedItems(userId: number): Promise<number> {
   return Number(rows[0]?.total ?? 0);
 }
 
-// ─── Boosters (consumables) ──────────────────────────────────────────────────
-
-/**
- * A booster row is one of two shapes:
- *  - charges > 0 with `expires_at` NULL → held, spent on a future event
- *    (streak shield, RC multiplier for the next duel);
- *  - `expires_at` set → a running timed effect (the 30-minute XP card).
- *
- * Buying again while a timed effect runs extends it instead of overwriting, so
- * a second purchase is never silently wasted.
- */
+// A booster row is one of two shapes: charges > 0 with `expires_at` NULL is held
+// and spent on a future event (streak shield, RC multiplier); `expires_at` set is
+// a running timed effect. Buying again while one runs extends it, never overwrites.
 interface BoosterRow extends RowDataPacket {
   item_id: number;
   kind: BoosterKind;
@@ -622,7 +590,6 @@ export async function listBoosters(userId: number): Promise<BoosterRow[]> {
   return rows;
 }
 
-/** Per-item counters for the shop grid: what the learner already holds. */
 export function boosterCountsByItem(rows: BoosterRow[]): Map<number, { charges: number; until: string | null }> {
   const map = new Map<number, { charges: number; until: string | null }>();
   for (const row of rows) {
@@ -683,10 +650,8 @@ export async function addBoosterInTx(
   );
 }
 
-/**
- * Spend one charge of a held booster. Returns true only when a charge was
- * actually consumed, so callers can react to "the shield was there".
- */
+// Spend one charge of a held booster. Returns true only when a charge was
+// actually consumed, so callers can react to "the shield was there".
 export async function consumeBoosterInTx(
   executor: Executor,
   userId: number,
@@ -706,10 +671,8 @@ export async function consumeBoosterInTx(
   return true;
 }
 
-/**
- * One shield covers exactly one missed day. Returns false and spends nothing
- * when the learner does not hold enough charges for the whole gap.
- */
+// One shield covers exactly one missed day. Returns false and spends nothing
+// when the learner does not hold enough charges for the whole gap.
 async function spendStreakShields(executor: Executor, userId: number, count: number): Promise<boolean> {
   const [rows] = await executor.execute<Array<RowDataPacket & { total: number }>>(
     `SELECT COALESCE(SUM(charges), 0) AS total FROM user_boosters
@@ -723,7 +686,6 @@ async function spendStreakShields(executor: Executor, userId: number, count: num
   return true;
 }
 
-/** True when the 30-minute XP card is currently running. */
 export async function hasActiveXpBoost(executor: Executor, userId: number): Promise<boolean> {
   const [rows] = await executor.execute<Array<RowDataPacket & { ok: number }>>(
     `SELECT 1 AS ok FROM user_boosters
@@ -733,7 +695,6 @@ export async function hasActiveXpBoost(executor: Executor, userId: number): Prom
   return rows.length > 0;
 }
 
-/** Every badge the learner holds — the shop uses these for achievement gates. */
 export async function getUserBadgeCodes(userId: number): Promise<string[]> {
   const [rows] = await pool.execute<Array<RowDataPacket & { code: string }>>(
     `SELECT b.code FROM user_badges ub JOIN badges b ON b.id = ub.badge_id WHERE ub.user_id = ?`,
@@ -833,11 +794,8 @@ function toShopItem(row: ShopItemRow) {
   };
 }
 
-/**
- * The JSON column round-trips differently by driver: mysql2 hands back an
- * object for MariaDB's CHECK(json_valid) columns but a string elsewhere, so
- * both shapes are accepted.
- */
+// The JSON column round-trips differently by driver: mysql2 hands back an object
+// for MariaDB's CHECK(json_valid) columns but a string elsewhere, so accept both.
 function parseStyle(raw: string | Record<string, unknown> | null): Record<string, string | null> | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw === 'string') {
@@ -855,8 +813,6 @@ export { toShopItem };
 
 export type { QuestRow };
 
-// ─── Quests ──────────────────────────────────────────────────────────────────
-
 export async function listQuests(kind: 'daily' | 'weekly'): Promise<QuestRow[]> {
   const [rows] = await pool.execute<QuestRow[]>(
     `SELECT id, code, kind, title, description, metric, target, rc_reward, xp_reward, rp_reward, sort_order
@@ -870,10 +826,8 @@ interface MetricCountRow extends RowDataPacket {
   total: number;
 }
 
-/**
- * Progress for one quest in the current period. Daily quests count today,
- * weekly quests the running ISO week, both read off `activity_events`.
- */
+// Progress for one quest in the current period: daily counts today, weekly the
+// running ISO week, both read off `activity_events`.
 export async function questProgress(
   userId: number,
   metric: QuestMetric,
@@ -906,8 +860,6 @@ export function questPeriod(kind: 'daily' | 'weekly', now = new Date()): string 
   }
   return isoWeekCode(now);
 }
-
-// ─── League board ────────────────────────────────────────────────────────────
 
 export interface LeagueRow extends RowDataPacket {
   userId: number;

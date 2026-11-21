@@ -12,36 +12,37 @@ import {
   tierIndex,
 } from './league'
 
-test('the league ladder runs bronze to diamond and clamps at both ends', () => {
-  assert.equal(tierIndex('bronze'), 0)
-  assert.equal(tierIndex('diamond'), 3)
+test('the league ladder runs coal to diamond and clamps at both ends', () => {
+  assert.equal(tierIndex('coal'), 0)
+  assert.equal(tierIndex('diamond'), 6)
   assert.equal(tierIndex('unknown'), 0)
-  assert.equal(nextTier('bronze'), 'silver')
+  assert.equal(nextTier('coal'), 'copper')
+  assert.equal(nextTier('lapis'), 'diamond')
   assert.equal(nextTier('diamond'), null)
-  assert.equal(previousTier('silver'), 'bronze')
-  assert.equal(previousTier('bronze'), null)
+  assert.equal(previousTier('copper'), 'coal')
+  assert.equal(previousTier('coal'), null)
 })
 
 test('the top six promote, the bottom six demote, and the middle stays', () => {
   const total = 25
   for (let rank = 1; rank <= total; rank += 1) {
-    const zone = leagueZone(rank, total, 'silver')
+    const zone = leagueZone(rank, total, 'copper')
     if (rank <= 6) assert.equal(zone, 'promote', `rank ${rank}`)
     else if (rank >= 20) assert.equal(zone, 'demote', `rank ${rank}`)
     else assert.equal(zone, 'stay', `rank ${rank}`)
   }
-  assert.equal(promotionCount(total, 'silver'), 6)
-  assert.equal(demotionCount(total, 'silver'), 6)
-  assert.equal(stayCount(total, 'silver'), 13)
+  assert.equal(promotionCount(total, 'copper'), 6)
+  assert.equal(demotionCount(total, 'copper'), 6)
+  assert.equal(stayCount(total, 'copper'), 13)
 })
 
-test('bronze only has a promotion zone because nobody can fall below it', () => {
+test('coal only has a promotion zone because nobody can fall below it', () => {
   const total = 25
-  assert.equal(promotionCount(total, 'bronze'), 6)
-  assert.equal(demotionCount(total, 'bronze'), 0)
-  assert.equal(stayCount(total, 'bronze'), 19)
+  assert.equal(promotionCount(total, 'coal'), 6)
+  assert.equal(demotionCount(total, 'coal'), 0)
+  assert.equal(stayCount(total, 'coal'), 19)
   for (let rank = 20; rank <= 25; rank += 1) {
-    assert.equal(leagueZone(rank, total, 'bronze'), 'stay', `rank ${rank}`)
+    assert.equal(leagueZone(rank, total, 'coal'), 'stay', `rank ${rank}`)
   }
 })
 
@@ -66,24 +67,24 @@ test('a twelve-person board has no middle because the zones meet', () => {
 })
 
 test('a short board promotes everyone before anyone can demote', () => {
-  assert.equal(promotionCount(5, 'bronze'), 5)
-  assert.equal(demotionCount(5, 'bronze'), 0)
-  assert.equal(stayCount(5, 'bronze'), 0)
+  assert.equal(promotionCount(5, 'coal'), 5)
+  assert.equal(demotionCount(5, 'coal'), 0)
+  assert.equal(stayCount(5, 'coal'), 0)
   for (let rank = 1; rank <= 5; rank += 1) {
-    assert.equal(leagueZone(rank, 5, 'bronze'), 'promote', `rank ${rank}`)
+    assert.equal(leagueZone(rank, 5, 'coal'), 'promote', `rank ${rank}`)
   }
 
   // Seven learners: the sixth promotion still wins the overlap with the single
   // demotion slot, exactly like settlement.
-  assert.equal(promotionCount(7, 'silver'), 6)
-  assert.equal(demotionCount(7, 'silver'), 1)
-  assert.equal(leagueZone(6, 7, 'silver'), 'promote')
-  assert.equal(leagueZone(7, 7, 'silver'), 'demote')
+  assert.equal(promotionCount(7, 'copper'), 6)
+  assert.equal(demotionCount(7, 'copper'), 1)
+  assert.equal(leagueZone(6, 7, 'copper'), 'promote')
+  assert.equal(leagueZone(7, 7, 'copper'), 'demote')
 })
 
 test('the ladder ends keep their short-board safety', () => {
-  // Seven bronze learners: six climb, the seventh has nowhere to fall.
-  assert.equal(leagueZone(7, 7, 'bronze'), 'stay')
+  // Seven coal learners: six climb, the seventh has nowhere to fall.
+  assert.equal(leagueZone(7, 7, 'coal'), 'stay')
   // Seven diamond learners: the leader defends the top, the other six drop.
   assert.equal(leagueZone(1, 7, 'diamond'), 'stay')
   assert.equal(leagueZone(2, 7, 'diamond'), 'demote')

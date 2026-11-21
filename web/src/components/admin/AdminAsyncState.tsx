@@ -16,10 +16,7 @@ interface AdminAsyncStateProps {
   children: ReactNode
 }
 
-/**
- * One loading / error / empty / content switch for every admin list. Keeps the
- * console's state language consistent instead of each panel inventing its own.
- */
+/** Shared loading / error / empty / content switch for admin lists. */
 export function AdminAsyncState({
   loading = false,
   error = null,

@@ -28,7 +28,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(() => authStorage.getUser());
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Validate session on mount
   useEffect(() => {
     let isMounted = true;
     async function verifySession() {
@@ -143,9 +142,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  // Any 401 from the API means the stored token is no longer accepted (expired,
-  // or invalidated by a restart that rotated the signing secret). Drop the
-  // session so the UI stops showing a signed-in shell that cannot load data.
+  // A 401 means the stored token is no longer accepted (expired or invalidated by a
+  // restart that rotated the signing secret), so drop the session.
   useEffect(() => {
     const onExpired = () => {
       setToken(null);

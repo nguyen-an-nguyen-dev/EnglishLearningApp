@@ -3,9 +3,8 @@ import { findRoleById } from '../modules/auth/auth.repository';
 import { HttpError } from './error-handler';
 
 /**
- * Gate for `/api/admin/*`. `authenticate` has already resolved the user id; the
- * role is re-read from the database on every call so revoking admin takes effect
- * without waiting for the JWT to expire.
+ * Gate for `/api/admin/*`. The role is re-read from the database on every call,
+ * so revoking admin takes effect without waiting for the JWT to expire.
  */
 export const requireAdmin: RequestHandler = async (request, _response, next) => {
   try {

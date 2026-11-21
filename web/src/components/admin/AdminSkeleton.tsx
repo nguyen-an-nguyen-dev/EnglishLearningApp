@@ -2,7 +2,6 @@ import { useI18n } from '../../i18n'
 
 interface AdminSkeletonProps {
   rows?: number
-  /** Thumbnail placeholder for the shared-video list. */
   thumb?: boolean
 }
 

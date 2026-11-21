@@ -39,10 +39,7 @@ export function setTheme(next: Theme) {
   listeners.forEach((notify) => notify())
 }
 
-/**
- * Reads the theme from the document so every control (sidebar, profile) stays
- * in sync without threading a provider through the whole tree.
- */
+/** Reads the theme from the document so every control stays in sync without a provider. */
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(readTheme)
 

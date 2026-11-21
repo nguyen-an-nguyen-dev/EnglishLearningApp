@@ -1,18 +1,4 @@
-/* ==========================================================================
-   GARA + ARENA RESULT — the cartoon look from the design reference.
-   Two screens only: a 2px navy ink outline, a hard offset shadow, a rotated
-   verdict ribbon and a checkered finish line. Every other view keeps the flat
-   hairline language, so these two read as "the game part" of Engorace.
-
-   Structure mirrors the reference:
-     Gara  → header pills, stall banner with awning + mascot, tabs, one section
-             per slot with an owned counter, consumables last.
-     Arena → checkered masthead, two seats + ribbon, two race lanes, three
-             reward cards, form/review panel, "Bác Turbo" coaching panel.
-
-   Tokens are local to `.gara-v2`, `.arena-view` and `.arena-result-v2` so
-   neither game screen can leak into the rest of the dashboard.
-   ========================================================================== */
+/* Gara + Arena result - the cartoon look: 2px navy ink outline, hard offset shadow, rotated ribbon, checkered finish. */
 
 .gara-v2,
 .arena-view,
@@ -61,7 +47,7 @@
   --gc-wood: #4a3320;
 }
 
-/* Shared primitives ------------------------------------------------------- */
+/* Shared primitives */
 
 .gc-pill {
   display: inline-flex;
@@ -142,9 +128,7 @@
   cursor: not-allowed;
 }
 
-/* ==========================================================================
-   GARA
-   ========================================================================== */
+/* GARA */
 
 .gara-v2 { display: grid; gap: 26px; }
 
@@ -201,9 +185,7 @@
   background: repeating-linear-gradient(90deg, var(--gc-cyan) 0 54px, #fff 54px 108px);
 }
 .gara-stall-speech { width: 380px; max-width: 100%; display: grid; gap: 12px; }
-/* The slot reserves the tallest answer's height, so the questions below never
-   move; the bubble itself hugs whichever reply is showing and sits at the
-   bottom of that slot, growing upward when the answer is long. */
+/* The slot reserves the tallest answer’s height so the questions below never move; the bubble hugs its reply and grows upward. */
 .gara-bubble-slot {
   display: flex;
   min-height: 180px;
@@ -308,9 +290,7 @@
   .gara-bubble-msg .gara-bubble-note { font-size: 11px; }
 }
 
-/* When the stall cannot fit the bay, the speech and the mascot on one row, the
-   car bay is the first thing to go: Bác Turbo alone keeps the scene intact
-   instead of stacking a huge empty garage above the conversation. */
+/* When the stall cannot fit the bay and the speech on one row, the car bay is dropped first. */
 @container (max-width: 925px) {
   .gara-bay { display: none; }
 }
@@ -320,9 +300,7 @@
 .gara-bay {
   --gara-bay-inset: 32px;
   position: relative;
-  /* Pull the bay against the stall's inner left edge and down onto the counter
-     line; `margin-right: auto` keeps it there instead of letting the stall's
-     space-around centring drift it right. */
+  /* Pull the bay against the stall’s inner left edge; margin-right:auto keeps it there instead of space-around centring it. */
   top: 20px;
   left: calc(-1 * var(--gara-bay-inset));
   width: min(334px, 100%);
@@ -337,9 +315,7 @@
   min-height: 124px;
   padding: 0;
 }
-/* The dark tunnel sits behind the car; the door frame and shutter sit in front.
-   That lets the car be genuinely inside the garage and drive out through the
-   opening instead of sliding in front of a painted door. */
+/* The dark tunnel sits behind the car and the door frame in front, so the car is genuinely inside and drives out. */
 .gara-bay-interior {
   position: absolute;
   z-index: 1;
@@ -367,10 +343,7 @@
   background: #5f7391;
 }
 :root[data-theme="dark"] .gara-bay-door-rail { background: #8ea4c0; }
-/* The doorway the car rolls out of. It paints over the car's rear while the car
-   is still entering, which is what sells "it just left the garage". Tall and
-   square like a roll-up door: a thick dark frame around a pale slatted shutter,
-   with the darker opening left below. */
+/* The doorway paints over the car’s rear while it enters, selling "it just left the garage". */
 .gara-bay-door {
   --gara-door-rail: #5f7391;
   position: absolute;
@@ -398,9 +371,7 @@
   height: 46px;
   border-bottom: 4px solid var(--gc-ink);
   background: repeating-linear-gradient(180deg, #e3ebf4 0 9px, #a9bacf 9px 12px);
-  /* Starts fully shut, then rolls up only as far as the car needs: a slatted
-     panel stays across the top instead of a fully open hole. The right 4px is
-     left free so the steel jamb reads as one continuous column. */
+  /* Starts fully shut, then rolls up only as far as the car needs; the right 4px stays free so the steel jamb reads continuous. */
   animation: gara-door-open 1.3s ease-in-out both;
 }
 @keyframes gara-door-open {
@@ -426,10 +397,7 @@
   from { top: 100%; }
   to { top: 16%; }
 }
-/* Parked to the right of the doorway, so the entrance animation has somewhere
-   to come from and the doorway stays visible once it stops. The car is a fixed
-   size rather than a percentage: at a fixed 260px it stays level with the
-   resized doorway instead of ballooning when the bay fills a narrow screen. */
+/* Parked right of the doorway; a fixed 260px keeps it level with the resized doorway instead of ballooning. */
 .gara-bay-car {
   --car-from: -99%;
   position: relative;
@@ -466,15 +434,9 @@
 @keyframes gara-bay-wheel {
   to { transform: rotate(360deg); }
 }
-/* Reduced motion still gets the arrival — it is the point of the stage — but as a
-   short fade over a third of the distance, with the rims turning instead of the
-   car sweeping across the whole bay. The `!important`s outlast the app-wide
-   duration reset at the bottom of index.css. */
+/* Reduced motion still gets the arrival as a short fade over a third of the distance, rims turning. */
 @media (prefers-reduced-motion: reduce) {
-  /* The garage entrance is the point of this scene, so it keeps its full
-     sequence even when the app-wide guard asks for reduced motion. The class
-     selectors out-rank that guard's `*` and repeat the shorthand with
-     `!important` so the duration is not pinned to 0.01ms. */
+  /* The garage entrance keeps its full sequence even under reduced motion; these selectors out-rank the app-wide guard’s *. */
   .gara-bay-door-shutter { animation: gara-door-open 1.3s ease-in-out both !important; }
   .gara-bay-door::after { animation: gara-door-shadow 1.3s ease-in-out both !important; }
   .gara-bay-car { animation: gara-bay-drive-in 6s cubic-bezier(0.33, 0, 0.2, 1) 1.6s both !important; }
@@ -484,9 +446,7 @@
 }
 .gara-stall-mascot { position: relative; width: 168px; flex: none; align-self: flex-end; }
 .gara-stall-mascot > svg { display: block; width: 100%; height: auto; }
-/* In the stall he stands on the floor behind the counter: his torso runs past
-   the padding edge and the counter board is painted over it, which reads as
-   "shopkeeper behind the till" instead of a floating sticker. */
+/* Turbo stands on the floor behind the counter: his torso runs past the padding edge and the counter board paints over it. */
 .gara-stall > .gara-stall-mascot { z-index: 1; margin-bottom: -34px; }
 .gara-stall-counter {
   position: absolute;
@@ -635,9 +595,7 @@
   color: var(--gc-ink);
   box-shadow: 0 2px 0 var(--gc-ink);
 }
-/* Locked cards keep their art recognisable, but drained of colour and light.
-   The condition itself lives under the card (`.gara-v2-price.is-locked`), so
-   the old full-cover dark panel is gone. */
+/* Locked cards keep their art but drained; the price row carries the condition, so the dark cover panel is gone. */
 .gara-v2-card.is-locked .car-side-preview,
 .gara-v2-card.is-locked .cosmetic-preview-frame,
 .gara-v2-card.is-locked .gara-scenic-art,
@@ -715,9 +673,7 @@
   text-transform: uppercase;
 }
 
-/* Scenic background cards: the whole top of the card is the landscape, the
-   way the reference shop shows Sky/Field tiles. The rarity pill moves to the
-   top-right so it reads like a badge over the art. */
+/* Scenic cards fill the whole top with the landscape; the rarity pill moves top-right to read as a badge over the art. */
 .gara-v2-art.is-scenic { height: 158px; padding: 0; }
 .gara-scenic-art {
   position: absolute;
@@ -756,9 +712,7 @@
 .gara-booster-glyph.is-rc { background: var(--gc-yellow); }
 .gara-booster-glyph.is-starter { background: var(--gc-green); }
 
-/* ==========================================================================
-   ARENA RESULT
-   ========================================================================== */
+/* ARENA RESULT */
 
 .arena-result-v2 { display: grid; gap: 22px; width: 100%; }
 
@@ -1047,11 +1001,9 @@
 .arena-chips .gc-pill small { font-size: 10px; }
 .arena-chips .gc-coin { width: 14px; height: 14px; border-width: 2px; }
 
-/* Lobby ------------------------------------------------------------------- */
+/* Lobby */
 
-/* One arena card: checkered masthead, hero copy on the left, the versus card on
-   the right. Same ink outline + hard shadow as the result board so the lobby and
-   the result read as the same game. */
+/* One arena card: checkered masthead, hero copy left, versus card right; same ink outline + hard shadow as the result board. */
 .arena-lobby-card {
   border: 3px solid var(--gc-ink);
   border-radius: 22px;
@@ -1216,9 +1168,7 @@
 }
 .arena-v2-search-orb .arena-search-halo:nth-of-type(2) { animation-delay: 1.2s; }
 :root[data-theme="dark"] .arena-v2-search-orb .arena-search-halo { border-color: var(--gc-cyan); }
-/* The dashed ring turns on its own so the wait reads as movement; the dots
-   inside stay upright and just bounce. A conic sweep rides on top of the ring
-   because a rotating dashed circle alone is close to invisible. */
+/* The dashed ring turns so the wait reads as movement; dots stay upright and bounce, with a conic sweep on top so it is not near-invisible. */
 .arena-v2-search-orb::before {
   content: '';
   position: absolute;
@@ -1316,9 +1266,7 @@
 }
 .arena-v2-guide-body { padding: 16px 20px 18px; }
 .arena-v2-guide-head { margin-bottom: 12px; }
-/* Three fixed columns rather than `auto-fit`: a numbered list must read across
-   (1 2 3), and `auto-fit` can land on two columns, where the wrapped third item
-   keeps its left border and leaves a dash stranded at the start of the row. */
+/* Three fixed columns, not auto-fit: the numbered list must read across (1 2 3), and auto-fit can strand a border on a wrapped row. */
 .arena-v2-rules {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1356,9 +1304,7 @@
 .arena-v2-rules p { margin: 1px 0 0; color: var(--gc-ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
 :root[data-theme="dark"] .arena-v2-rules p { color: #eaf2ff; }
 
-/* The tip closes the board: a top dashed rule separates it from the numbering.
-   Centred, not bottom-aligned — the mascot is always taller than the bubble, so
-   aligning their feet would strand the speech line in dead space below it. */
+/* The tip closes the board, separated by a top dashed rule. Centred, not bottom-aligned: the mascot is taller than the bubble. */
 .arena-v2-coachline {
   display: flex;
   align-items: center;
@@ -1375,7 +1321,7 @@
    leaves from the same side in every theme. */
 .arena-v2-coachline .gara-bubble::after { bottom: 22px; }
 
-/* Responsive -------------------------------------------------------------- */
+/* Responsive */
 
 @media (min-width: 961px) and (max-height: 800px) {
   .learning-page:has(.arena-view) { padding-top: 18px; padding-bottom: 22px; }
@@ -1478,10 +1424,7 @@
   .gara-v2-card,
   .gc-btn,
   .arena-v2-car { transition: none; }
-  /* Reduced motion asks for no travel, not for a frozen screen. Rotation stops;
-     the opacity pulse keeps saying "still searching". The `!important` defers to
-     the app-wide guard (which pins every animation to 0.01ms) only where the
-     guard is less specific — these pulses must survive it. */
+  /* Reduced motion asks for no travel, not a frozen screen: rotation stops, the opacity pulse keeps saying "still searching". */
   .arena-v2-search-orb i { animation: arena-search-dot-soft 1.6s ease-in-out infinite !important; }
   .arena-v2-search-orb i:nth-of-type(2) { animation-delay: 200ms !important; }
   .arena-v2-search-orb i:nth-of-type(3) { animation-delay: 400ms !important; }

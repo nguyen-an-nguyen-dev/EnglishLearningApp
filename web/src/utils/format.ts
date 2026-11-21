@@ -1,9 +1,7 @@
 /**
- * Compact numbers the way score counters usually read:
- * 860 → "860", 1 250 → "1,2k", 12 500 → "12,5k", 1 250 000 → "1,2m".
- *
- * One decimal at most, trailing ",0" dropped. The value is floored, never
- * rounded up — a score should not claim more XP than the learner has.
+ * Compact numbers the way score counters usually read: 1 250 → "1,2k",
+ * 1 250 000 → "1,2m". One decimal max; the value is floored so a score never
+ * claims more XP than the learner has.
  */
 const UNITS = ['', 'k', 'm', 'b'] as const
 

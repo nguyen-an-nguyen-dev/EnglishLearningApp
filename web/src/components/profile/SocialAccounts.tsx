@@ -95,9 +95,7 @@ export function SocialAccounts() {
           callback: (response) => linkRef.current('google', response.credential),
         })
         slot.replaceChildren()
-        // The SDK button is intentionally transparent and sits underneath the
-        // text link. Keeping the real GIS button preserves the popup flow while
-        // the profile only shows the word "Liên kết".
+        // The Google SDK button sits transparent under the "Liên kết" text link, so the official popup flow keeps working.
         window.google.accounts.id.renderButton(slot, {
           type: 'standard',
           theme: 'outline',

@@ -1,8 +1,4 @@
-/* ==========================================================================
-   THI ĐUA · BẢNG XẾP HẠNG · HỒ SƠ
-   Editorial scoreboard: hairline rules instead of cards, Be Vietnam Pro for numerals,
-   one ink block per screen, a single left axis on every column.
-   ========================================================================== */
+/* THI ĐUA · BẢNG XẾP HẠNG · HỒ SƠ */
 
 /* Strong rule: near-black in light, softened in dark so it does not glare. */
 .arena-view,
@@ -12,7 +8,7 @@
 :root[data-theme="dark"] .rank-view,
 :root[data-theme="dark"] .profile-view { --rule-strong: var(--line-strong); }
 
-/* Shared primitives ------------------------------------------------------- */
+/* Shared primitives */
 .arena-kicker {
   display: inline-flex;
   align-items: center;
@@ -84,7 +80,7 @@
 }
 .arena-link:hover { color: var(--ink); }
 
-/* Header ------------------------------------------------------------------ */
+/* Header */
 .arena-head {
   display: flex;
   align-items: flex-end;
@@ -130,7 +126,7 @@
   white-space: nowrap;
 }
 
-/* Lobby ------------------------------------------------------------------- */
+/* Lobby */
 .arena-lobby {
   display: grid;
   grid-template-columns: minmax(0, 1.28fr) minmax(300px, 0.72fr);
@@ -174,7 +170,7 @@
 .arena-facts li + li { padding-left: 20px; border-left: 1px solid var(--line); }
 .arena-facts svg { flex: none; color: var(--muted); }
 
-/* Ink block: deep cyan-slate, the same family as the dark brand surfaces ---- */
+/* Ink block: deep cyan-slate, same family as the dark brand surfaces. */
 .arena-rules,
 .arena-scoreboard {
   --ink-block: #0E3542;
@@ -216,7 +212,7 @@
   line-height: 1.6;
 }
 
-/* Queue ------------------------------------------------------------------- */
+/* Queue */
 .arena-queue {
   display: grid;
   justify-items: center;
@@ -254,7 +250,7 @@
   100% { opacity: 0; transform: scale(2.2); }
 }
 
-/* Match ------------------------------------------------------------------- */
+/* Match */
 .arena-match-bar {
   display: flex;
   align-items: center;
@@ -544,7 +540,7 @@
 .arena-reveal p { margin: 8px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
 .arena-loading { display: grid; justify-items: center; gap: 12px; padding: 56px 0; color: var(--muted); font-size: 12.5px; }
 
-/* Result ------------------------------------------------------------------ */
+/* Result */
 .arena-verdict { display: grid; justify-items: start; }
 
 /* One ink block for the whole verdict: celebratory, high contrast, and the
@@ -669,29 +665,9 @@
 .arena-option:disabled { cursor: default; }
 .arena-option.is-wrong { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
 
-/* ==========================================================================
-   BẢNG XẾP HẠNG
-   Chỉ một bảng league theo tuần; các vùng thăng/xuống/hạng vẽ ở rankings.css.
-   ========================================================================== */
-.rank-view {
-  --rank-hue-0: #00C7FF;
-  --rank-hue-1: #34D399;
-  --rank-hue-2: #F5B942;
-  --rank-hue-3: #FF7A6B;
-  --rank-hue-4: #5B9CFF;
-  --rank-avatar-ink: #06222B;
-}
-.rank-head {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 26px;
-}
-.rank-head > div { min-width: 0; }
-
-/* The XP podium and career lanes are gone: the only board is the weekly league,
-   drawn in rankings.css. What remains here is the shared heading and state. */
+/* BẢNG XẾP HẠNG */
+/* Only the shared loading / empty state lives here now; the weekly board,
+   ladder and ore colours are drawn in rankings.css. */
 .rank-state {
   display: grid;
   justify-items: center;
@@ -702,9 +678,7 @@
 }
 .rank-state p { margin: 0; font-size: 13px; line-height: 1.6; }
 
-/* ==========================================================================
-   HỒ SƠ
-   ========================================================================== */
+/* HỒ SƠ */
 .profile-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
@@ -1057,9 +1031,7 @@
 }
 .profile-logout:active { transform: translateY(1px); }
 
-/* ==========================================================================
-   Responsive
-   ========================================================================== */
+/* Responsive */
 @media (max-width: 1120px) {
   .arena-lobby { grid-template-columns: 1fr; gap: 34px; }
   .arena-rules { max-width: 560px; }
@@ -1069,11 +1041,6 @@
 }
 @media (max-width: 960px) {
   .arena-head { flex-direction: column; align-items: flex-start; gap: 24px; }
-  .rank-head { flex-direction: column; align-items: flex-start; gap: 18px; }
-  .rank-you { flex-direction: column; align-items: flex-start; gap: 20px; }
-  .rank-facts { width: 100%; }
-  .rank-facts div { flex: 1; padding: 0 18px; }
-  .rank-facts div:first-child { padding-left: 0; }
 }
 @media (max-width: 720px) {
   .arena-head h1 { font-size: 32px; }
@@ -1116,14 +1083,6 @@
   .arena-answer .arena-cta { width: 100%; }
   .arena-slots span { width: 26px; height: 36px; font-size: 18px; }
   .arena-option { font-size: 14px; padding: 14px 0; }
-  .rank-row { grid-template-columns: 26px 26px minmax(0, 1fr) 74px; gap: 9px; padding: 8px 10px; }
-  .rank-bar { display: none; }
-  .rank-step { padding: 0 4px; }
-  .rank-step.is-1 .rank-step-base { height: 74px; }
-  .rank-step.is-2 .rank-step-base { height: 54px; }
-  .rank-step.is-3 .rank-step-base { height: 42px; }
-  .rank-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
-  .rank-facts div { padding: 0; border-left: 0; }
   .profile-identity-head { gap: 14px; margin-bottom: 26px; padding: 16px; border-radius: 16px; }
   .profile-numbers { grid-template-columns: 1fr; gap: 16px; padding: 18px 0; }
   .profile-numbers div { padding-left: 0; border-left: 0; }

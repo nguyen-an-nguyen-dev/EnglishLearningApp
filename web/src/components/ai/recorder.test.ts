@@ -188,7 +188,7 @@ test('a failed capture is reported as a generic error', async () => {
   }
 })
 
-test('an empty recording is an error, not an empty clip', async () => {
+test('an empty recording reports empty so the orb can reset quietly', async () => {
   install()
   try {
     const { h, calls } = handlers()
@@ -198,7 +198,25 @@ test('an empty recording is an error, not an empty clip', async () => {
     const active = FakeRecorder.instances[0]
     active.ondataavailable = null
     recorder.stop()
-    assert.deepEqual(calls, [['error', 'other']])
+    assert.deepEqual(calls, [['error', 'empty']])
+  } finally {
+    restore()
+  }
+})
+
+test('stopping before the microphone opens reports empty and never starts late', async () => {
+  const gate: { release?: (stream: FakeStream) => void } = {}
+  install({ getUserMedia: () => new Promise<FakeStream>((resolve) => { gate.release = resolve }) })
+  try {
+    const { h, calls } = handlers()
+    const recorder = createRecorder(h)
+    recorder.start()
+    recorder.stop()
+    assert.deepEqual(calls, [['error', 'empty']])
+    // The permission prompt resolves after the stop: no recording may begin.
+    gate.release?.(new FakeStream())
+    await tick()
+    assert.equal(FakeRecorder.instances.length, 0)
   } finally {
     restore()
   }
@@ -216,6 +234,30 @@ test('a long utterance is stopped automatically at the 30-second cap', async () 
     timers[0].callback()
     assert.equal(calls.length, 1)
     assert.equal(calls[0][0], 'clip')
+  } finally {
+    restore()
+  }
+})
+
+test('a cancelled permission request cannot attach to a newer recording', async () => {
+  const requests: Array<(stream: FakeStream) => void> = []
+  install({ getUserMedia: () => new Promise<FakeStream>((resolve) => requests.push(resolve)) })
+  try {
+    const { h, calls } = handlers()
+    const recorder = createRecorder(h)
+    recorder.start()
+    recorder.cancel()
+    recorder.start()
+    const stale = new FakeStream()
+    const current = new FakeStream()
+    requests[1](current)
+    requests[0](stale)
+    await tick()
+    assert.equal(stale.tracks[0].stopped, true)
+    assert.equal(current.tracks[0].stopped, false)
+    assert.equal(FakeRecorder.instances.length, 1)
+    recorder.stop()
+    assert.deepEqual(calls.map(([event]) => event), ['clip'])
   } finally {
     restore()
   }

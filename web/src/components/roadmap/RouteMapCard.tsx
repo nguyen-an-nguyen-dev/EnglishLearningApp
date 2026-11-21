@@ -1369,10 +1369,7 @@ export const RouteMapCard = memo(function RouteMapCard({
   const height = roadmapHeight(stages.length)
   const roadPath = useMemo(() => buildRoadPath(nodes, stages.length), [nodes, stages.length])
 
-  // Fog of war. Two stacked banks with one shared soft leading edge:
-  //   light  — everything from the first stage that is not fully completed;
-  //   dense  — everything from the first stage whose lessons are all locked.
-  // The current lesson always stays in the light layer, so it remains readable.
+  // Fog of war: two stacked banks sharing one soft leading edge - light from the first incomplete stage, dense from the first stage whose lessons are all locked. The current lesson stays in the light layer.
   const fog = useMemo(() => {
     const incompleteIndex = stages.findIndex((stage) => (
       stage.lessons.some((lesson) => lesson.status !== 'done')

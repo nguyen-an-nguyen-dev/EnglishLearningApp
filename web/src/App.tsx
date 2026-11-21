@@ -229,9 +229,6 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
   )
 }
 
-/* ------------------------------------------------------------- */
-/* TAB 1: HỌC TẬP                                                */
-/* ------------------------------------------------------------- */
 function StudyView({ user, onOpenLesson }: {
   user: AuthUser | null
   onOpenLesson: (lessonId: number, lessonTitle: string) => void
@@ -320,10 +317,9 @@ function StudyView({ user, onOpenLesson }: {
   }, [stages.length, activeStageIndex])
 
   /**
-   * The lesson card floats over the map, so it has to follow its marker while
-   * the trail scrolls. Writing the CSS variables straight onto the node keeps
-   * the 6-stage SVG out of React's render path: previously every scroll event
-   * re-rendered the whole map, which cost more than half of the frame budget.
+   * The lesson card floats over the map and must follow its marker while the trail
+   * scrolls. Writing CSS variables onto the node keeps the SVG out of React's render
+   * path; re-rendering the whole map on every scroll cost over half the frame budget.
    */
   useLayoutEffect(() => {
     if (selectedId === null) return
@@ -524,9 +520,6 @@ function StudyView({ user, onOpenLesson }: {
   )
 }
 
-/* ------------------------------------------------------------- */
-/* LEARNER APP (separate from the admin console at /admin)       */
-/* ------------------------------------------------------------- */
 function LearnerApp() {
   const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
@@ -558,9 +551,8 @@ function LearnerApp() {
   }
 
   /**
-   * The buddy now navigates by target, not by action kind: every nudge and answer
-   * carries `{ tab, lessonId?, videoId?, highlight? }`, so one handler covers
-   * "open this lesson", "open this video", "open the notebook" and "circle this".
+   * The buddy navigates by target, not by action kind: every nudge and answer carries
+   * `{ tab, lessonId?, videoId?, highlight? }`, so one handler covers every case.
    */
   function handleBuddyNavigate(target: BuddyTarget) {
     const tab = (target.tab ?? effectiveTab) as DashboardTab
@@ -570,7 +562,11 @@ function LearnerApp() {
     if (target.videoId) {
       if (effectiveTab !== 'videos') setActiveTab('videos')
       setVideoRequest({ kind: 'video', videoId: target.videoId, nonce: nextVideoNonce() })
-    } else if (target.highlight === 'control:notebook' || target.highlight === 'control:notebook-open') {
+    } else if (
+      target.highlight === 'control:notebook'
+      || target.highlight === 'control:notebook-open'
+      || target.highlight?.startsWith('word:')
+    ) {
       if (effectiveTab !== 'videos') setActiveTab('videos')
       setVideoRequest({ kind: 'notebook', nonce: nextVideoNonce() })
     } else if (target.lessonId) {

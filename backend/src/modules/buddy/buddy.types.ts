@@ -12,7 +12,6 @@ export type NudgeKind =
   | 'next-video'
   | 'arena';
 
-/** How the buddy should carry itself for this nudge. */
 export type NudgeTone = 'calm' | 'push' | 'proud';
 
 export interface NudgeAction {
@@ -25,9 +24,7 @@ export interface Nudge {
   id: string;
   kind: NudgeKind;
   tone: NudgeTone;
-  /** Short, specific headline: never a generic greeting. */
   title: string;
-  /** One sentence that quotes the learner's real numbers. */
   body: string;
   action: NudgeAction;
   /** Element on the destination screen worth circling, e.g. `lesson:12`. */
@@ -49,7 +46,6 @@ export interface BuddySummary {
 export interface NudgeFeed {
   nudges: Nudge[];
   summary: BuddySummary;
-  /** The single line the car says before any panel is opened. */
   greeting: string;
 }
 

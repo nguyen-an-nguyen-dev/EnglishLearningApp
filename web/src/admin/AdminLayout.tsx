@@ -38,7 +38,7 @@ function readStoredView(): AdminViewId {
       || raw === 'stats'
     ) return raw
   } catch {
-    /* private mode */
+    // storage unavailable in private mode
   }
   // Deep-link from hash, e.g. #/admin/stats
   const hash = typeof window !== 'undefined' ? window.location.hash : ''
@@ -61,7 +61,7 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
       sessionStorage.setItem(VIEW_STORAGE_KEY, view)
       window.history.replaceState(null, '', `#/admin/${view}`)
     } catch {
-      /* storage blocked */
+      // storage blocked
     }
   }, [view])
 

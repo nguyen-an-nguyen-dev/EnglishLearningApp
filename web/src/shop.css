@@ -1,9 +1,4 @@
-/* ==========================================================================
-   GARA ENGORACE — shop, cosmetics and the reward center.
-   Flat showroom: one axis, hairline separators, no card-in-card, no nested
-   backgrounds. Rarity colours and tier colours are tokens so light/dark share
-   one definition.
-   ========================================================================== */
+/* Gara Engorace - shop, cosmetics and reward center. Flat showroom, hairline separators; rarity and tier colours are tokens. */
 
 :root {
   --rarity-common-bg: #E4F4F9; --rarity-common-fg: #3C6775;
@@ -23,7 +18,7 @@
 .shop-view { --rule-strong: var(--ink); }
 :root[data-theme="dark"] .shop-view { --rule-strong: var(--line-strong); }
 
-/* ---- sidebar wallet chip ------------------------------------------------- */
+/* Sidebar wallet chip */
 .wallet-chip {
   display: grid;
   gap: 7px;
@@ -55,7 +50,7 @@
 .wallet-chip-meter > span { display: block; height: 100%; border-radius: 99px; background: var(--brand-600); transition: width 320ms ease; }
 @media (max-width: 960px) { .wallet-chip { display: none; } }
 
-/* ---- wallet bar ---------------------------------------------------------- */
+/* Wallet bar */
 .shop-wallet-bar {
   display: flex;
   flex-wrap: wrap;
@@ -101,7 +96,7 @@
 }
 .shop-tier-dot { width: 14px; height: 14px; flex: none; border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 10%, transparent); }
 
-/* ---- current loadout ----------------------------------------------------- */
+/* Current loadout */
 .shop-loadout { margin-bottom: 30px; }
 .shop-loadout-row {
   display: flex;
@@ -115,7 +110,7 @@
 .shop-loadout-slot { display: grid; gap: 8px; justify-items: center; }
 .shop-loadout-slot small { color: var(--muted); font-size: 11.5px; font-weight: 600; text-align: center; }
 
-/* ---- tabs ---------------------------------------------------------------- */
+/* Tabs */
 .shop-tabs { display: flex; gap: 6px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
 .shop-tab {
   display: inline-flex;
@@ -134,7 +129,7 @@
 .shop-tab:hover { color: var(--ink); }
 .shop-tab.is-active { color: var(--brand-800); border-bottom-color: var(--brand-600); }
 
-/* ---- sidebar wallet line (replaces the email under the display name) ----- */
+/* Sidebar wallet line (replaces the email under the display name) */
 .profile-wallet-line {
   display: inline-flex;
   align-items: center;
@@ -153,10 +148,8 @@
   opacity: 0.85;
 }
 
-/* ---- item grid ----------------------------------------------------------- */
-/* Four-up tile grid: big art on top, rarity chip in the corner, price + one
-   full-width action underneath. The card is the only surface inside the page,
-   so the page itself stays a flat canvas — no nested backgrounds. */
+/* Item grid */
+/* Four-up tile grid: art on top, rarity chip in the corner, price + one full-width action underneath. */
 .gara-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
@@ -299,7 +292,7 @@
 .gara-card-error { margin: 0; color: var(--danger-600); font-size: 10.5px; font-weight: 650; text-align: center; }
 .shop-state { display: grid; place-items: center; gap: 12px; padding: 70px 0; color: var(--muted); }
 
-/* ---- cosmetics ----------------------------------------------------------- */
+/* Cosmetics */
 .avatar-frame {
   position: relative;
   display: grid;
@@ -500,7 +493,7 @@
    it from; a margin keeps the name from running into the tag. */
 .nameplate em { margin-left: 5px; font-style: normal; }
 
-/* ---- arena duel reward --------------------------------------------------- */
+/* Arena duel reward */
 .arena-reward {
   display: flex;
   flex-wrap: wrap;
@@ -516,13 +509,13 @@
 .arena-reward strong { color: var(--brand-700); font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .arena-reward-note { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; font-weight: 600; }
 
-/* ---- ranking league tabs ------------------------------------------------- */
+/* Ranking league tabs */
 .rank-season { display: grid; gap: 4px; justify-items: end; text-align: right; }
 .rank-season strong { font-size: 16px; font-weight: 800; }
 .rank-season-rp { color: var(--muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rank-tier { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
 
-/* ---- responsive ---------------------------------------------------------- */
+/* Responsive */
 @media (max-width: 720px) {
   .gara-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .gara-card { padding: 11px; }
@@ -537,7 +530,7 @@
   .gara-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ---- shared car badge ---------------------------------------------------- */
+/* Shared car badge */
 /* The side-view car used at UI sizes (En Buddy, tab icon). Reads the same skin
    palette as the top-down roadmap car, so one equipped skin lands everywhere. */
 .car-badge { display: block; overflow: visible; }
@@ -550,12 +543,7 @@
   .car-badge.is-animated { animation: none; }
 }
 
-/* ==========================================================================
-   ARENA RESULT — two seats, one verdict.
-   The duel was two people and a score, so the screen is two seats facing the
-   verdict. Flat surface, hairline border, cyan as the only accent: no gradient
-   wash, no glow, no card inside a card.
-   ========================================================================== */
+/* Arena result - two seats, one verdict. Flat surface, hairline border, cyan as the only accent. */
 .arena-result { display: grid; gap: 0; width: 100%; padding: 4px 0 28px; }
 
 .arena-duel-card {
@@ -675,7 +663,7 @@
 }
 .arena-result-note.is-level { color: var(--brand-700); font-weight: 750; }
 
-/* Form strip + next step ----------------------------------------------- */
+/* Form strip + next step */
 .arena-result-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);

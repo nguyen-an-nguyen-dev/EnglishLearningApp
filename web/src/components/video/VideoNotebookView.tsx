@@ -256,8 +256,10 @@ export function VideoNotebookView({ words, onBack, onWordsChange }: VideoNoteboo
         </div>
       ) : (
         <div className="video-notebook-grid">
-          {words.map((word, position) => (
-            <article className="video-notebook-card" key={word.id}>
+          {words.map((word, position) => {
+            const targetSlug = word.word.toLowerCase().replace(/[^a-z0-9_-]/g, '')
+            return (
+            <article className="video-notebook-card" key={word.id} data-buddy-target={targetSlug ? `word:${targetSlug}` : undefined}>
               <span className="notebook-card-index" aria-hidden="true">
                 {String(position + 1).padStart(2, '0')}
               </span>
@@ -289,7 +291,8 @@ export function VideoNotebookView({ words, onBack, onWordsChange }: VideoNoteboo
               <p>{word.meaning_vi || t.videoNotebookNoMeaning}</p>
               {word.detail_vi && <small>{word.detail_vi}</small>}
             </article>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

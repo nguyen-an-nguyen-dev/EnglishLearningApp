@@ -1,7 +1,6 @@
 import { HttpError } from '../../middleware/error-handler';
 import type { BuddyTarget } from './reminders.types';
 
-/** Elements a screen can expose for the buddy to point at. */
 export const HIGHLIGHT_PATTERN = /^(lesson|video|word|tab|control|page):[A-Za-z0-9_-]{1,60}$/;
 const TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile'] as const;
 
@@ -18,7 +17,6 @@ export function parseReminderId(value: unknown): number {
   return id;
 }
 
-/** Turns whatever the model produced into a target the client can act on. */
 export function parseBuddyTarget(value: unknown): BuddyTarget | null {
   const raw = asObject(value);
   const target: BuddyTarget = {};

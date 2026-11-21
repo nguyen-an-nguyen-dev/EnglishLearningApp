@@ -27,9 +27,8 @@ export const errorHandler: ErrorRequestHandler = (error, request, response, _nex
     return;
   }
 
-  // Express's router/body-parser throw their own errors (a malformed URI in a
-  // route param, an oversized body, a bad JSON payload) and tag them with a 4xx
-  // `status`/`statusCode`. Those are client mistakes, not server faults, so honour
+  // Express's router/body-parser throw their own errors (malformed URI, oversized
+  // body, bad JSON) tagged with a 4xx status. Those are client mistakes, so honour
   // the status instead of masking them as a 500.
   const status = (error as { status?: unknown; statusCode?: unknown })?.status
     ?? (error as { statusCode?: unknown })?.statusCode;

@@ -11,7 +11,8 @@ export type BoosterKind = 'streak_shield' | 'xp_multiplier' | 'rc_multiplier';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type UnlockType = 'default' | 'level' | 'stage' | 'league' | 'achievement';
 export type Currency = 'rc' | 'xp' | 'rp';
-export type LeagueTier = 'bronze' | 'silver' | 'gold' | 'diamond';
+/** Minecraft-ore ladder, lowest first: coal → copper → iron → gold → redstone → lapis → diamond. */
+export type LeagueTier = 'coal' | 'copper' | 'iron' | 'gold' | 'redstone' | 'lapis' | 'diamond';
 export type ActivityKind = 'lesson' | 'video' | 'duel_win' | 'duel_play' | 'answers' | 'saved_word' | 'login';
 export type QuestMetric = ActivityKind;
 export type QuestKind = 'daily' | 'weekly';

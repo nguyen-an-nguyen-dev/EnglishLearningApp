@@ -31,8 +31,8 @@ export const translateFile: RequestHandler = async (request, response, next) => 
       request.body?.sourceLanguage,
       request.body?.targetLanguage,
     );
-    // The mobile client reads the picked .txt locally and posts it as JSON, because Expo's fetch
-    // cannot serialize React Native's `{ uri }` FormData parts. Multipart stays supported.
+    // The mobile client posts the .txt content as JSON because Expo's fetch cannot
+    // serialize React Native `{ uri }` FormData parts. Multipart stays supported.
     const file = request.file;
     let text: string;
     let fileName: string;

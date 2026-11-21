@@ -3,12 +3,8 @@ import * as repo from './analytics.repository';
 import { listLapsedWords } from './review.repository';
 import { buildInsights } from './analytics.insights';
 
-/**
- * Everything the learner's own history can say, assembled in one pass.
- *
- * All the ranking rules live in `analytics.insights` (pure, testable); this
- * function only fetches and hands the rows over.
- */
+// Fetches every per-learner row in one pass; the ranking rules live in the pure
+// `analytics.insights`.
 export async function getAnalytics(userId: number): Promise<AnalyticsResponse> {
   const [behavior, totals, vocabulary, questions, exercises, lessons, competition, contentFlags, lapsed] =
     await Promise.all([

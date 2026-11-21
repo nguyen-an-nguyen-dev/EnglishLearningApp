@@ -1,12 +1,4 @@
-/**
- * Procedural scenery for the "Nền" cosmetics.
- *
- * The shop cards want landscape thumbnails, and the equipped plate paints the
- * same scenery behind the profile blocks. The project ships no photo assets and
- * the rest of the cosmetic catalogue is drawn in code, so each scene is a small
- * self-contained SVG encoded as a data URI. That keeps both usages sharp at any
- * size, works in light and dark themes, and needs no network request.
- */
+/** Procedural scenery for the "Nền" cosmetics, drawn as small self-contained SVG data URIs so card thumbnails and the equipped background stay sharp at any size in either theme. */
 export type ScenicScene =
   | 'plain'
   | 'slate'
@@ -602,10 +594,7 @@ export const SCENIC_ART: Record<ScenicScene, string> = {
   aurora: svg(SCENES.aurora),
 }
 
-/**
- * Full plate background: scenery plus a dark scrim so the profile text keeps
- * its contrast over busy parts of the illustration.
- */
+/** Full plate background: scenery plus a dark scrim so profile text keeps its contrast. */
 export function plateScene(scene: ScenicScene, scrim: string, art?: string): string {
   return `linear-gradient(${scrim}, ${scrim}), ${art ?? SCENIC_ART[scene]} center / cover no-repeat`
 }

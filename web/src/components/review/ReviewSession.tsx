@@ -23,11 +23,7 @@ interface ReviewCardProps {
   onNext: () => void
 }
 
-/**
- * One card of the session. It is mounted per item (keyed by the item id), so
- * every piece of state — the typed answer, the picked option, the verdict —
- * belongs to that item and resets by unmounting, not by an effect.
- */
+/** One card of the session, mounted per item (keyed by item id), so all state - typed answer, picked option, verdict - resets by unmounting rather than an effect. */
 function ReviewCard({ item, index, total, onGraded, onNext }: ReviewCardProps) {
   const { lang } = useI18n()
   const copy = copyFor(lang)

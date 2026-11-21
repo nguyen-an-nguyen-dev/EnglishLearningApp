@@ -31,8 +31,6 @@ export type AdminStageTheme = Extract<StageThemeKey, (typeof STAGE_THEME_KEYS)[n
 export const MAX_ANSWERS = 8
 export const MIN_CHOICE_ANSWERS = 2
 
-// ─── Content tree ────────────────────────────────────────────────────────────
-
 export interface AdminLessonSummary {
   id: number
   stage_id: number
@@ -93,8 +91,6 @@ export interface AdminSharedVideo {
   created_at: string
 }
 
-// ─── Payloads ────────────────────────────────────────────────────────────────
-
 export interface StagePayload {
   title: string
   description?: string
@@ -148,8 +144,6 @@ export interface SharedVideoPatchPayload {
 
 export type SharedVideoImportResult = VideoLessonDetail
 
-// ─── Shop catalogue ───────────────────────────────────────────────────────
-
 export const SHOP_SLOTS = ['car', 'frame', 'nameplate', 'booster'] as const
 export type AdminShopSlot = (typeof SHOP_SLOTS)[number]
 
@@ -162,7 +156,7 @@ export type AdminShopUnlockType = (typeof SHOP_UNLOCK_TYPES)[number]
 export const BOOSTER_KINDS = ['streak_shield', 'xp_multiplier', 'rc_multiplier'] as const
 export type AdminBoosterKind = (typeof BOOSTER_KINDS)[number]
 
-export const LEAGUE_TIERS = ['bronze', 'silver', 'gold', 'diamond'] as const
+export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'] as const
 export type AdminLeagueTier = (typeof LEAGUE_TIERS)[number]
 
 export interface AdminShopItem {
@@ -203,8 +197,6 @@ export interface ShopItemPayload {
 
 export type ShopItemPatchPayload = Partial<Omit<ShopItemPayload, 'name'>> & { name?: string }
 
-// ─── Arena vocabulary ─────────────────────────────────────────────────────
-
 export const BATTLE_PARTS_OF_SPEECH = [
   'noun',
   'verb',
@@ -243,8 +235,6 @@ export interface BattleWordPayload {
 
 export type BattleWordPatchPayload = Partial<BattleWordPayload>
 
-// ─── Video vocabulary ─────────────────────────────────────────────────────
-
 export interface AdminVideoVocabulary {
   id: number
   video_id: number
@@ -263,8 +253,6 @@ export interface VideoVocabularyPayload {
 }
 
 export type VideoVocabularyPatchPayload = Partial<VideoVocabularyPayload>
-
-// ─── User management ─────────────────────────────────────────────────────
 
 export type AdminManagedRole = 'learner' | 'admin'
 
@@ -301,8 +289,6 @@ export interface AdminUserPatchPayload {
   race_points?: number
   role?: AdminManagedRole
 }
-
-// ─── Statistics (admin console) ─────────────────────────────────────────────
 
 export interface AdminStatsOverview {
   totalLearners: number

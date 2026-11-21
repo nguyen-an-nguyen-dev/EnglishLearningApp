@@ -16,9 +16,8 @@ interface BuildStreakWeekInput {
 }
 
 /**
- * Maps the running streak onto the current Monday-first week. The chain ends on
- * the last active day, not on "today", so a learner who has not studied yet
- * still sees the days they actually kept; today stays pending until they do.
+ * Maps the streak onto the current Monday-first week. The chain ends on the last
+ * active day, so today stays pending until the learner studies.
  */
 export function buildStreakWeek({
   streak,
@@ -28,9 +27,8 @@ export function buildStreakWeek({
 }: BuildStreakWeekInput): StreakWeekDay[] {
   const todayIndex = (today.getDay() + 6) % 7
   const activeDays = Math.max(0, Math.floor(streak))
-  // Older API payloads have no activity field; assume today so the known chain
-  // still renders instead of an empty week. A clock skew can put the last
-  // activity in the future, which is clamped so tomorrow never paints as done.
+  // Older API payloads have no activity field, so assume today. Clock skew can
+  // put the last activity in the future, clamped so tomorrow never paints as done.
   const lastActive = lastActivityDaysAgo == null
     ? (activeDays > 0 ? 0 : null)
     : Math.max(0, lastActivityDaysAgo)

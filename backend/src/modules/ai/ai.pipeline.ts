@@ -6,14 +6,10 @@ import { MAX_REPLY_TOKENS, generateReply } from './ai.provider';
 import type { AiReply, ChatContext, ChatIntent, ProviderMessage } from './ai.types';
 
 /**
- * One chat turn, three layers:
- *
- *   1. router   — Decisions model may re-read the intent (ai.decisions.ts),
- *   2. generate — Sea-Lion then Gemini (ai.provider.ts),
- *   3. gate     — Decisions model reviews the draft; ship, repair once, or
- *                 replace it with the deterministic answer (ai.decisions.ts).
- *
- * Nothing reaches the frontend without passing layer 3 when it is enabled.
+ * One chat turn: router (ai.decisions.ts) may re-read the intent, generate
+ * tries Sea-Lion then Gemini (ai.provider.ts), and the gate reviews the draft —
+ * ship, repair once, or replace it with the deterministic answer. When the gate
+ * is enabled, nothing reaches the frontend without passing it.
  */
 
 /** The buddy must stay responsive even when a provider is slow. */
@@ -51,10 +47,9 @@ export interface TurnResult {
 }
 
 /**
- * The client sends `chat` when it has no specific intent (it is also the
- * default in validation). That is the only case worth asking the Decisions
- * model about: an explicit intent from the client is already a real signal and
- * is never overridden. Any failure keeps the incoming intent.
+ * Only the client's default `chat` intent is worth re-routing: an explicit
+ * intent is already a real signal and is never overridden. Any failure keeps the
+ * incoming intent.
  */
 export async function resolveTurnIntent(
   message: string,

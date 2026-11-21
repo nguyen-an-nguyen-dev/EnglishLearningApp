@@ -64,11 +64,9 @@ function parseJsonContent(content: string): unknown {
   throw new Error('AI response was not valid JSON.');
 }
 
-/**
- * Strictly validates the AI sentence boundaries: strictly ascending ids inside
- * the transcript, completed with the final fragment id. Any structural problem
- * returns null so the caller keeps the rule-based segments.
- */
+// Strictly validates the AI sentence boundaries: ascending ids inside the
+// transcript, completed with the final fragment id. Any structural problem
+// returns null so the caller keeps the rule-based segments.
 export function parseAiSentenceEnds(value: unknown, unitCount: number): number[] | null {
   const raw = Array.isArray(value)
     ? value
@@ -102,22 +100,15 @@ function joinUnitText(units: TranscriptSegment[]): string {
     .trim();
 }
 
-/**
- * A sentence this short is a reaction ("I see.", "Oh wow.", "Right."), not a line
- * worth dictating on its own, so it joins the sentence before it.
- */
+// A sentence this short is a reaction ("I see.", "Oh wow.", "Right."), not a line
+// worth dictating on its own, so it joins the sentence before it.
 const FRAGMENT_MS = 1_800;
 const FRAGMENT_WORDS = 3;
 
-/**
- * Cuts the transcript at the AI sentence ends, then keeps **one sentence per
- * segment**: dictation reads line by line ("Nghe từng câu"), so gluing several
- * sentences into one 12-second window is exactly the bug learners reported.
- *
- * A sentence only merges into the previous segment when it is a short reaction
- * fragment, and even then the size caps still guard the result. A single
- * sentence longer than the caps simply plays on its own.
- */
+// Cuts the transcript at the AI sentence ends, then keeps one sentence per
+// segment: dictation reads line by line, so gluing several sentences into one
+// window is exactly the bug learners reported. A sentence only merges into the
+// previous segment when it is a short reaction fragment.
 export function buildSegmentsFromEnds(
   units: TranscriptSegment[],
   ends: number[],
@@ -181,11 +172,8 @@ interface AnalysisTarget {
   model: string;
 }
 
-/**
- * Sea-Lion (SE Asia-tuned, no reasoning budget) is the primary: measured 2.8s
- * producing a valid 28-sentence cut. Gemini Flash is the fallback. The chain is
- * shared with the chat answers, so only these two models exist.
- */
+// Sea-Lion (SE Asia-tuned, no reasoning budget) is the primary and Gemini Flash
+// the fallback, the same chain the chat answers use.
 function analysisTargets(): AnalysisTarget[] {
   return [
     ...cfAccountTargets<Omit<AnalysisTarget, 'apiKey' | 'apiUrl'>>({
@@ -252,20 +240,16 @@ async function requestSentenceEnds(
   return parseJsonContent(first.message.content);
 }
 
-/**
- * Asks the AI to mark the end of every spoken sentence in the caption stream.
- * When cues are unavailable the rule-based sentences are used as units. Tries
- * Sea-Lion on Workers AI, then Gemini Flash; any failure (missing key,
- * timeout, provider error, unusable output) silently keeps the rule-based
- * segmentation so importing never fails on AI.
- */
+// Mark the end of every spoken sentence in the caption stream. When cues are
+// unavailable the rule-based sentences are units. Tries Sea-Lion then Gemini;
+// any failure silently keeps the rule-based segmentation so importing never
+// fails on AI.
 export interface SegmentationOutcome {
   segments: TranscriptSegment[];
   /** True when an AI provider actually produced the sentence boundaries. */
   usedAi: boolean;
 }
 
-/** Shared implementation; `refineSegmentsWithAi` wraps it for existing callers. */
 export async function analyzeSegments(
   fallbackSegments: TranscriptSegment[],
   cues?: TranscriptSegment[],
@@ -329,10 +313,6 @@ export async function analyzeSegments(
   return { segments: fallbackSegments, usedAi: sawValidAi };
 }
 
-/**
- * Asks the AI to mark the end of every spoken sentence in the caption stream.
- * Any failure keeps the rule-based segmentation so importing never fails on AI.
- */
 export async function refineSegmentsWithAi(
   fallbackSegments: TranscriptSegment[],
   cues?: TranscriptSegment[],

@@ -11,11 +11,7 @@ import { ReviewSession } from './ReviewSession'
 // a guard so a stale payload can never turn a short session into a chore.
 const SESSION_LIMIT = 7
 
-/**
- * The profile's review button opens this one decision: either there is work to
- * redo (go straight into the session) or there is not (say so and close).
- * No queue list, no reports — the learner asked to practise, not to read data.
- */
+/** The profile’s review button opens one decision: either there is work to redo (start the session) or not (say so and close). No queue list, no reports. */
 export function ReviewLauncher({ onClose }: { onClose: () => void }) {
   const { lang } = useI18n()
   const copy = copyFor(lang)

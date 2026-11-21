@@ -1,9 +1,4 @@
-// ─── Insight engine ───────────────────────────────────────────────────────────
-//
-// Pure functions: given the rows the repository already returned, decide what is
-// worth telling the learner. Keeping this free of SQL is what makes the ranking
-// rules testable — and the ordering below is the product decision, not an
-// accident.
+// Pure functions over already-fetched rows; the ordering below is the product decision.
 
 import type {
   BehaviorStats,
@@ -242,11 +237,8 @@ export function duelInsights(competition: CompetitionStats): Insight[] {
     : [];
 }
 
-/**
- * Content flags are about the exercise, not the learner: a question nobody can
- * answer correctly is a broken item, and telling the learner "you are weak here"
- * would be a lie.
- */
+// Content flags are about the exercise, not the learner: a broken item must not
+// be reported as the learner's weakness.
 export function contentInsights(contentFlags: ContentFlag[]): Insight[] {
   return contentFlags.slice(0, 4).map((flag) => ({
     code: flag.kind === 'too_many_learners_wrong' ? 'content_error' as const : 'content_missing_answer' as const,
@@ -259,13 +251,8 @@ export function contentInsights(contentFlags: ContentFlag[]): Insight[] {
 
 const SEVERITY_RANK: Record<InsightSeverity, number> = { high: 0, medium: 1, low: 2 };
 
-/**
- * Everything the learner's own history can say, in one ordered list.
- *
- * Knowledge gaps come first because they drive practice, then habit and trend,
- * then content health. A UI that shows only the first few insights therefore
- * shows the ones worth acting on.
- */
+// Knowledge gaps first (they drive practice), then habit and trend, then content
+// health, so a UI showing only the first few insights shows actionable ones.
 export function buildInsights(input: InsightInput): Insight[] {
   return [
     ...vocabularyInsights(input.vocabulary),

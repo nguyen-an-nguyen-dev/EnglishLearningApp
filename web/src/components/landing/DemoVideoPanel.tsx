@@ -6,11 +6,7 @@ import { PracticeView } from '../video/PracticeView'
 import type { DemoVideo, VideoLessonDetail } from '../../types/video'
 import { formatClock } from '../../utils/videoPlayback'
 
-/**
- * The public demo runs the same practice screen the signed-in app uses, fed by
- * one real lesson from the library (`GET /api/demo/video`). Only the first few
- * segments come down the wire; finishing them opens the sign-up dialog.
- */
+/** The public demo runs the same practice screen as the signed-in app, fed by one real lesson (GET /api/demo/video). Only the first segments come down the wire; finishing them opens the sign-up dialog. */
 export function DemoVideoPanel({ onRequireAuth }: { onRequireAuth: () => void }) {
   const { t } = useI18n()
   const [reloadKey, setReloadKey] = useState(0)

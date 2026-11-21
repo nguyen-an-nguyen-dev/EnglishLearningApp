@@ -1,7 +1,6 @@
 import type { RequestHandler } from 'express';
 import { logger } from '../utils/logger';
 
-/** One structured line per completed request, with status and latency. */
 export const requestLogger: RequestHandler = (request, response, next) => {
   const startedAt = process.hrtime.bigint();
   response.on('finish', () => {

@@ -16,7 +16,7 @@ POST /api/ai/chats/:id/messages          POST /api/buddy/ask
         ai.prompts.ts  (system prompt + learner JSON + page JSON + history)
                 │
                 ▼
-        ai.provider.ts  ── Cloudflare Workers AI (Sea-Lion) ──► Gemini 3.5 Flash
+        ai.provider.ts  ── Cloudflare Workers AI (Llama 3.3 70B) ──► Gemini 2.5 Flash
                 │
                 ▼
         ai.parsing.ts  (JSON contract: reply / feedback / followups / action / reminder)
@@ -34,7 +34,7 @@ POST /api/ai/chats/:id/messages          POST /api/buddy/ask
 | `ai.routes.ts` / `ai.controller.ts` | HTTP surface only |
 | `ai.validation.ts` | Trims and bounds untrusted input, closes the intent/tab enums |
 | `ai.pipeline.ts` | One turn: budget, intent routing, generate, review, repair, fallback |
-| `ai.provider.ts` | The only generative chain: Sea-Lion → Gemini Flash |
+| `ai.provider.ts` | The only generative chain: Llama 3.3 70B → Gemini Flash |
 | `ai.decisions.ts` | Gemini Decision 1: closed-set intent and answer review (`ship`/`repair`/`reject`) |
 | `ai.prompts.ts` | Prompt text, app guide, voice rules, learner data serialisation |
 | `ai.parsing.ts` | Strict parsing of the model JSON and reminder heuristics |

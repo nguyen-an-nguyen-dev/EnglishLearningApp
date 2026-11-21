@@ -1,10 +1,8 @@
 /**
- * Cosmetic art catalogue, keyed by `visual_key`.
- *
- * The backend only sends a key, ownership and price; every colour and shape
- * lives here so the shop preview, the roadmap car, the avatar frame and the
- * background plate all draw from one definition. Skins are procedural SVG — no
- * external assets — which keeps the look consistent in light and dark.
+ * Cosmetic art catalogue keyed by `visual_key`. The backend sends only a key,
+ * ownership and price; every colour and shape lives here so shop preview, roadmap
+ * car, avatar frame and background plate draw from one definition. Skins are
+ * procedural SVG — no external assets.
  */
 
 import { plateScene, SCENIC_ART } from './components/cosmetics/scenicArt'
@@ -176,10 +174,7 @@ export const FRAME_SKINS: Record<string, FrameSkin> = {
   frame_neon: { ring: '#5B4BC4', ringDark: '#312A78', accent: '#3EF2E0', motif: 'neon' },
 }
 
-/**
- * A scenic plate backed by a photo when one exists, with the procedural scene
- * as the fallback. The scrim keeps white copy readable over bright landscapes.
- */
+/** Scenic plate backed by a photo when one exists, else the procedural scene. */
 function photoPlate(
   key: string,
   scene: ScenicScene,
@@ -281,15 +276,4 @@ export const RARITY_META: Record<string, { label: string; fg: string; bg: string
   rare: { label: 'Hiếm', fg: 'var(--rarity-rare-fg)', bg: 'var(--rarity-rare-bg)' },
   epic: { label: 'Sử thi', fg: 'var(--rarity-epic-fg)', bg: 'var(--rarity-epic-bg)' },
   legendary: { label: 'Huyền thoại', fg: 'var(--rarity-legendary-fg)', bg: 'var(--rarity-legendary-bg)' },
-}
-
-export const TIER_META: Record<string, { label: string; color: string }> = {
-  bronze: { label: 'Đồng', color: '#C98A55' },
-  silver: { label: 'Bạc', color: '#B8C4CE' },
-  gold: { label: 'Vàng', color: '#E0B34A' },
-  diamond: { label: 'Kim Cương', color: '#7FD8E8' },
-}
-
-export function tierMeta(tier: string | null | undefined): { label: string; color: string } {
-  return (tier && TIER_META[tier]) || { label: 'Chưa xếp hạng', color: 'var(--muted)' }
 }

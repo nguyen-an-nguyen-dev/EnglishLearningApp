@@ -54,10 +54,7 @@ export function toStudySnapshot(learner: LearnerContext, stats: StudyStats): Stu
   };
 }
 
-/**
- * Steps are computed from database rows, never invented by the model.
- * Each step carries the tab (and lesson id) the web can jump straight into.
- */
+/** Steps are computed from database rows, never invented by the model. */
 export function buildStudyPlan(snapshot: StudySnapshot, stats: StudyStats): StudyStep[] {
   const steps: StudyStep[] = [];
   const next = snapshot.nextLesson;
@@ -156,10 +153,8 @@ export function buildStudyPlan(snapshot: StudySnapshot, stats: StudyStats): Stud
   return steps.slice(0, 3);
 }
 
-/**
- * The model may only name ids that exist in the real catalogue. Anything else
- * is dropped, so a hallucinated id can never send the learner to a dead screen.
- */
+/** Only ids that exist in the real catalogue survive, so a hallucinated id
+ * cannot send the learner to a dead screen. */
 export function resolveChatAction(action: ChatAction | null, stats: StudyStats): ChatAction | null {
   if (!action) return null;
   if (action.kind === 'open_video') {
@@ -170,6 +165,7 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
       tab: 'videos',
       videoId: video.id,
       label: action.label || `Mở video: ${video.title}`.slice(0, 60),
+      ...(action.highlight === `video:${video.id}` ? { highlight: action.highlight } : {}),
     };
   }
   if (action.kind === 'open_lesson') {
@@ -181,16 +177,26 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
       lessonId: lesson.id,
       lessonTitle: lesson.title,
       label: action.label || `Mở bài: ${lesson.title}`.slice(0, 60),
+      ...(action.highlight === `lesson:${lesson.id}` ? { highlight: action.highlight } : {}),
     };
   }
   if (action.kind === 'open_notebook') {
-    return { kind: 'open_notebook', tab: 'videos', label: action.label || 'Mở Sổ từ vựng' };
+    // The notebook is a view inside the video tab; without the control token
+    // the web would land on the library instead of the saved words.
+    return {
+      kind: 'open_notebook',
+      tab: 'videos',
+      label: action.label || 'Mở Sổ từ vựng',
+      highlight: action.highlight?.startsWith('word:') ? action.highlight : 'control:notebook',
+    };
   }
   if (action.kind === 'open_review') {
     // Review is not a screen of its own; the profile button owns it. The action
     // still says "open_review" so the web can start the session in one tap.
     return { kind: 'open_review', tab: 'profile', label: action.label || 'Mở phiên ôn tập' };
   }
+  // The admin console is not a learner destination, even if the model asks.
+  if (action.tab === 'admin') return null;
   const tab = action.tab ?? 'study';
   const tabLabels: Record<ChatTab, string> = {
     study: 'Vào Lộ trình học',
@@ -202,14 +208,17 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
     profile: 'Vào Hồ sơ',
     admin: 'Vào Quản trị nội dung',
   };
-  return { kind: 'open_tab', tab, label: action.label || tabLabels[tab] };
+  return {
+    kind: 'open_tab',
+    tab,
+    label: action.label || tabLabels[tab],
+    ...(action.highlight ? { highlight: action.highlight } : {}),
+  };
 }
 
 /**
- * When the decision layer rejects a reply and no provider is usable, the buddy
- * still answers from the real rows. This is deliberately not a canned apology:
- * it names the real next lesson, the real weak topic and the screen the learner
- * is on.
+ * The rows-based fallback when the gate rejects and no provider is usable: it
+ * names the real next lesson, weak topic and current screen, not a canned apology.
  */
 export function buildOfflineCoachReply(
   snapshot: StudySnapshot,
@@ -218,6 +227,31 @@ export function buildOfflineCoachReply(
   context: ChatContext | null,
 ): AiReply {
   const first = steps[0];
+  // A question about the current screen is not a request for a study plan.
+  // When the model is unavailable, answer from the page context we do have and
+  // say plainly that the detailed answer needs the model, instead of pretending
+  // the learner asked what to study next.
+  if (intent !== 'plan' && intent !== 'practice') {
+    const lines: string[] = [];
+    if (context?.focus) lines.push(`Bạn đang ở: ${context.focus}.`);
+    if (intent === 'explain') {
+      lines.push('Phần giải thích chi tiết cần AI; thử lại sau một lượt.');
+    } else if (intent === 'how') {
+      lines.push('Chỉ dẫn thao tác chi tiết cần AI; thử lại sau một lượt.');
+    } else {
+      lines.push('Câu trả lời chi tiết cần AI; thử lại sau một lượt.');
+    }
+    if (!context?.focus) {
+      lines.push(`Việc tiếp theo: ${first.title} (${first.minutes} phút). ${first.reason}`);
+    }
+    const followups = intent === 'explain'
+      ? ['Giải thích từ này kỹ hơn', 'Cho mình một ví dụ']
+      : intent === 'how'
+        ? ['Chỉ mình từng bước', 'Mở đúng màn hình đó']
+        : ['Hôm nay mình nên học gì trước?', 'Giải thích chủ đề mình đang xem'];
+    return { reply: lines.join('\n'), feedback: [], followups, action: null, reminder: null };
+  }
+
   const weak = snapshot.weakTopics[0];
   const lines = [
     `Việc tiếp theo: ${first.title} (${first.minutes} phút). ${first.reason}`,
@@ -235,9 +269,7 @@ export function buildOfflineCoachReply(
   if (context?.focus) {
     lines.push(`Bạn đang ở: ${context.focus}.`);
   }
-  if (intent === 'explain') {
-    lines.push('Phần giải thích chi tiết cần AI; thử lại sau một lượt.');
-  } else if (intent === 'practice') {
+  if (intent === 'practice') {
     lines.push('Làm bài tiếp theo trước đã, bài tập riêng cần AI.');
   }
   const followups = intent === 'plan'

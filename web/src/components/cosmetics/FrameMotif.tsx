@@ -42,14 +42,7 @@ function Blossom({ cx, cy, scale, petal, core }: { cx: number; cy: number; scale
   )
 }
 
-/**
- * Ornaments that turn a plain avatar ring into a themed frame.
- *
- * Everything is drawn in the outer band (radius ~41–55 of a 100-unit box), so
- * the initial in the avatar core stays readable. Each motif owns a different
- * silhouette — laurel wreath, wings, crown, gem, blossoms, dragon head, waves,
- * neon brackets — rather than being a recoloured ring.
- */
+/** Ornaments that turn a plain avatar ring into a themed frame, drawn in the outer band (radius ~41-55 of a 100-unit box) so the avatar core stays readable; each motif has its own silhouette. */
 export function FrameMotif({ motif, skin }: { motif: FrameMotifKind; skin: FrameSkin }) {
   const accent = skin.accent ?? '#E6EDF2'
 

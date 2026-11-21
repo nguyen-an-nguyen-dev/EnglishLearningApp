@@ -1,7 +1,6 @@
 /**
- * Pure phase rules for the voice orb. Kept out of the React component so the
- * state machine that used to strand the orb in "thinking" can be tested with
- * nothing but node:test.
+ * Pure phase rules for the voice orb, kept out of the component so the state
+ * machine is testable with node:test.
  */
 
 export type VoicePhase = 'idle' | 'listening' | 'thinking'

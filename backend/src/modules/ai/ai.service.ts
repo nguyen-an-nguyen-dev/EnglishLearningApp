@@ -25,8 +25,6 @@ import type {
 
 const MAX_CONTEXT_MESSAGES = 20;
 
-/* ─── Chat threads ────────────────────────────────────────────────────────── */
-
 export async function listChats(userId: number) {
   return repository.listChats(userId);
 }
@@ -52,8 +50,6 @@ export async function getFeedback(userId: number, chatId: number) {
   if (!chat) throw new HttpError(404, 'Chat not found.');
   return repository.getFeedback(userId, chatId);
 }
-
-/* ─── Coach turn ──────────────────────────────────────────────────────────── */
 
 interface CoachTurn {
   stats: StudyStats;
@@ -95,8 +91,6 @@ function toSavedFeedback(aiReply: AiReply, message: string, messageId: number) {
   }));
 }
 
-/* ─── Study plan ──────────────────────────────────────────────────────────── */
-
 export async function getStudyPlan(userId: number): Promise<StudyPlan> {
   const [learner, stats] = await Promise.all([
     repository.getLearnerContext(userId),
@@ -126,8 +120,6 @@ export async function getStudyPlan(userId: number): Promise<StudyPlan> {
 
   return { snapshot, steps, aiNote, generatedAt: new Date().toISOString() };
 }
-
-/* ─── Chat message ────────────────────────────────────────────────────────── */
 
 export async function sendMessage(
   userId: number,
@@ -187,8 +179,6 @@ export async function sendMessage(
   };
 }
 
-/* ─── Companion (one question, one answer) ────────────────────────────────── */
-
 export interface BuddyAnswer {
   reply: string;
   followups: string[];
@@ -198,10 +188,9 @@ export interface BuddyAnswer {
 }
 
 /**
- * One question, one answer, no visible thread: the companion UI asks the coach
- * and shows the reply inline. The conversation is still stored under the
- * learner's single STUDY_COACH chat, so `GET /api/ai/chats` keeps working and
- * the buddy can look back at what was already asked.
+ * One question, one answer, no visible thread: the companion UI shows the reply
+ * inline. The exchange is still stored under the learner's single STUDY_COACH
+ * chat so the buddy remembers what was already asked.
  */
 export async function askBuddy(
   userId: number,

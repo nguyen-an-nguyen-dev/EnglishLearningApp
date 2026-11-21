@@ -18,7 +18,6 @@ export interface StudyReminder {
   created_at: string;
   delivered_at: string | null;
   dismissed_at: string | null;
-  /** True once `due_at` has passed and it has not been dismissed. */
   is_due: boolean;
 }
 

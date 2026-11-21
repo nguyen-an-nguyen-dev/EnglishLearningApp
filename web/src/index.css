@@ -14,11 +14,7 @@
   --color-ink-500: #2F5C6B;
 }
 
-/* ==========================================================================
-   SHARED TOKENS — one palette for the whole site.
-   Light = cyan mist canvas; Dark = slate charcoal.
-   Cyan #00C7FF is reserved for actions only; neutrals stay cool slate.
-   ========================================================================== */
+/* Shared tokens - one palette for the whole site. Cyan #00C7FF is reserved for actions. */
 :root {
   /* Cool cyan canvas: no warm cream, no icy blue-white, no beige. */
   --brand-50: #F2FAFD;
@@ -94,10 +90,7 @@
   font-weight: 400;
 }
 
-/* --------------------------------------------------------------------------
-   Dark theme — slate charcoal, not warm brown and not blue-black gradient.
-   Cyan actions stay bright; neutrals stay cool slate.
-   -------------------------------------------------------------------------- */
+/* Dark theme - slate charcoal, not warm brown and not blue-black. */
 :root[data-theme="dark"] {
   --brand-50: #0E1720;
   --brand-100: #152430;
@@ -171,9 +164,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   outline-offset: 3px;
 }
 
-/* --------------------------------------------------------------------------
-   Shell
-   -------------------------------------------------------------------------- */
+/* Shell */
 .app-shell {
   min-height: 100dvh;
   display: grid;
@@ -189,7 +180,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   flex-direction: column;
   padding: 24px 16px 16px;
   background: var(--paper);
-  border-right: 1px solid var(--line);
+  border-right: 3px solid var(--sticker-ink);
 }
 
 /* Brand */
@@ -236,13 +227,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 /* Navigation */
 .sidebar-nav { display: grid; gap: 6px; margin-top: 26px; }
-/* The card pinned at the foot of the sidebar must never be pushed off-screen
-   on short laptop viewports, so the nav scrolls inside the leftover space
-   instead of forcing the whole column taller than 100dvh. */
+/* The pinned card must never be pushed off-screen on short viewports, so the nav scrolls in the leftover space. */
 .sidebar > .sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
-/* A stretched flex item would let the grid's default `align-content: stretch`
-   inflate every auto row (a 4px gap rendered as 30px). Rows hug the top and the
-   gap stays what it says. */
+/* Rows hug the top: a stretched flex item would let align-content:stretch inflate every auto row (a 4px gap rendered as 30px). */
 .sidebar > .sidebar-nav { align-content: start; }
 /* The nav still scrolls, but the bar itself is hidden — it fought with the
    sticker card and the wordmark for attention on narrow sidebars. */
@@ -288,7 +275,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .nav-item-active,
 .nav-item-active:hover {
   color: #14203A;
-  background: #19B6F0;
+  background: #FFD23F;
   border-color: var(--sticker-ink);
   box-shadow: 0 3px 0 var(--sticker-ink);
   font-weight: 800;
@@ -297,10 +284,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .nav-item-active::before { content: none; }
 .sidebar-spacer { flex: 0 0 auto; min-height: 12px; }
 
-/* Profile card in the sidebar (see Settings reference). The neo-brutalist
-   sticker system - 3px ink border, hard offset shadow, Be Vietnam Pro - is applied
-   only here and in the settings popover, not the whole app. Tokens are
-   scoped to the card so the rest of the app keeps the cyan-mist palette. */
+/* Sidebar profile card. The neo-brutalist sticker system (3px ink border, hard offset shadow, Be Vietnam Pro) is scoped to this card and the settings popover only. */
 .profile-row,
 .settings-panel {
   --k: #14203a;
@@ -326,9 +310,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   --hill: #1f5a47;
   --cs: #0b1426;
 }
-/* A floating sticker card, inset from the sidebar edges: the 3px ink border and
-   the hard offset shadow are what make it read as a physical card above the nav
-   instead of a footer band welded to the bottom of the column. */
+/* A floating sticker card, inset from the sidebar edges; the 3px ink border and hard offset shadow make it read as a card above the nav. */
 .profile-row {
   position: relative;
   display: block;
@@ -347,9 +329,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .profile-row:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--k); }
 .profile-row:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--k); }
 .profile-row:focus-visible { outline: 2px solid #19b6f0; outline-offset: 2px; }
-/* Equipped nameplate as the card's surface (see `nameplateSurface`). The
-   plate is its own scenery, so the decorative banner steps aside instead of
-   stacking two landscapes in one block. */
+/* The equipped nameplate is the card surface (see nameplateSurface); the decorative banner steps aside rather than stacking two landscapes. */
 .profile-row.is-plated {
   border-color: var(--plate-edge, var(--k));
   background: var(--plate-bg);
@@ -372,9 +352,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .profile-row.is-plated .profile-icon-btn,
 .profile-row.is-plated .logout-icon-btn {
-  /* Every scenic plate sits under a dark scrim with a light foreground, so the
-     action chips flip to tinted glass; the theme's pale chip made the icons
-     nearly invisible (1.05:1) on the plate. */
+  /* Every scenic plate sits under a dark scrim with light foreground, so action chips flip to tinted glass (the pale chip left icons at ~1.05:1). */
   color: var(--plate-fg, #fff);
   background: rgb(8 16 28 / 46%);
   border-color: rgb(255 255 255 / 55%);
@@ -440,9 +418,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   letter-spacing: -0.02em;
   line-height: 1;
 }
-/* One wide meter, with the running XP total printed across its middle so the
-   number sits *in* the bar instead of in a corner chip. White glyphs carry an
-   ink outline, which is what keeps them legible where the fill meets the track. */
+/* The running XP total sits in the bar, not a corner chip. White glyphs carry an ink outline to stay legible where fill meets track. */
 .profile-xp { display: block; margin: 6px 7px 8px; }
 .profile-xp-meter {
   position: relative;
@@ -456,9 +432,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .profile-xp-fill {
   display: block;
   height: 100%;
-  /* No ink edge on the leading edge: the label sits mid-bar, and a hard vertical
-     rule crossing the number was the main thing making it hard to read. The
-     cyan-to-track step is contrast enough. */
+  /* No ink edge on the leading edge: a hard vertical rule through the number hurt readability; the cyan-to-track step is contrast enough. */
   background: #19b6f0;
   transition: width 320ms ease;
 }
@@ -588,15 +562,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   flex: 1;
   flex-direction: column;
   min-width: 0;
-  /* No extra top offset: the copy block must sit on the avatar's vertical
-     midline. The row already starts high enough for two lines to clear the
-     banner, so centring needs no nudge. */
+  /* No extra top offset: the copy block must sit on the avatar’s vertical midline. */
   align-self: center;
 }
-/* The card is only 264px wide: one unbroken line cut most Vietnamese names
-   after two words ("Nguyễn Anh…"). The avatar already sets the row's height, so
-   a second line costs no vertical space; balance keeps the two lines close to
-   equal width instead of leaving a lone syllable on the second one. */
+/* Only 264px wide: an unbroken line cut most Vietnamese names after two words, so names wrap to a balanced second line. */
 .profile-copy strong {
   display: -webkit-box;
   overflow: hidden;
@@ -923,9 +892,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .mobile-settings-btn:hover { background: var(--brand-100); color: var(--brand-700); }
 
-/* --------------------------------------------------------------------------
-   Page frame
-   -------------------------------------------------------------------------- */
+/* Page frame */
 .learning-page {
   flex: 1;
   display: flex;
@@ -950,9 +917,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* The translate desk is exactly 100dvh. A translateY entrance adds 6px of
-   scrollable overflow while it runs, so the page scrollbar flashes then hides.
-   Fade in place for that view only. */
+/* The translate desk is exactly 100dvh; a translateY entrance adds 6px of scroll overflow, so this view fades in place. */
 .learning-page-translate .tab-view-container { animation-name: view-fade-flat; }
 @keyframes view-fade-flat {
   from { opacity: 0; }
@@ -993,9 +958,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   white-space: nowrap;
 }
 
-/* --------------------------------------------------------------------------
-   Study — the whole tab is one learning trail
-   -------------------------------------------------------------------------- */
+/* Study - the whole tab is one learning trail */
 .trail-page { padding-top: 6px; }
 
 .trail-intro { padding-bottom: 30px; }
@@ -1087,9 +1050,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   filter: drop-shadow(0 3px 2px rgb(4 33 46 / 16%));
 }
 
-/* Fog of war: stages whose lessons are all still locked stay hazy until the
-   learner reaches them. The bank starts just before the first untouched stage
-   and fades in, so the current stage and everything behind it stays crisp. */
+/* Fog of war: the bank starts just before the first untouched stage and fades in, so the current stage and everything behind stays crisp. */
 .roadmap-stage-scene.is-misty { filter: saturate(.86); }
 .roadmap-stage-scene.is-foggy { filter: saturate(.68) blur(1.2px); }
 .roadmap-fog-wisp {
@@ -1161,12 +1122,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   text-align: center;
 }
 .roadmap-state p { margin: 0; font-size: 14px; }
-/* --------------------------------------------------------------------------
-Loading dots — one wait signal for every pending region
-Same rhythm as the arena matchmaking orb (1.1s, 180ms stagger), so waiting
-looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
-`.video-spinner` ring on every full-region loading state.
--------------------------------------------------------------------------- */
+/* Loading dots - one wait signal for every pending region, same rhythm (1.1s, 180ms stagger) as the arena matchmaking orb. */
 .loading-dots {
   display: grid;
   justify-items: center;
@@ -1198,10 +1154,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
   font-size: 14px;
 }
 .loading-dots.is-small .loading-dots-label { font-size: 12.5px; }
-/* The app-wide reduced-motion guard pins every animation to 0.01ms, which froze
-   these dots into a static row. Reduced-motion asks for no spatial travel, not
-   for a dead indicator, so keep the opacity pulse (which carries the "still
-   working" signal) and drop the translateY lift. */
+/* The app-wide reduced-motion guard pins animations to 0.01ms, freezing these dots; keep the opacity pulse and drop the lift. */
 @media (prefers-reduced-motion: reduce) {
   /* Specificity (0,1,1) beats the guard's `*`, so the shorthand restores both
      the duration and the infinite repeat that the guard pinned. */
@@ -1518,9 +1471,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
 
 
 
-/* --------------------------------------------------------------------------
-   Mobile nav
-   -------------------------------------------------------------------------- */
+/* Mobile nav */
 .mobile-nav { display: none; }
 
 @media (max-width: 960px) {
@@ -1603,13 +1554,9 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
   }
 }
 
-/* ==========================================================================
-   Dark theme overrides for illustrated panels
-   ========================================================================== */
+/* Dark theme overrides for illustrated panels */
 
-/* --------------------------------------------------------------------------
-   Lesson player — full-screen exercise surface, no map/background behind
-   -------------------------------------------------------------------------- */
+/* Lesson player - full-screen exercise surface */
 .lesson-player {
   position: fixed;
   inset: 0;
@@ -2001,10 +1948,7 @@ looks identical wherever it happens. It replaced the old `.roadmap-spinner` /
   .lesson-payout-cell strong { font-size: 21px; }
 }
 
-/* --------------------------------------------------------------------------
-   Page canvas and navigation — warm latte in light, warm charcoal in dark.
-   Every other surface keeps the shared brand palette.
-   -------------------------------------------------------------------------- */
+/* Page canvas and navigation - warm latte in light, warm charcoal in dark. */
 :root {
   --solid: #0E3542;
   --solid-fg: #FFFFFF;

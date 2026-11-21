@@ -1,4 +1,4 @@
-import type { ChatTab } from '../../services/aiChatService'
+import type { ChatTab } from '../../types/buddy'
 
 export interface BuddyContext {
   tab: ChatTab
@@ -7,13 +7,13 @@ export interface BuddyContext {
 }
 
 /**
- * Reads the live DOM to work out what the learner is actually looking at.
- * Returned strings are treated as untrusted data by the backend prompt.
+ * Reads the live DOM to see what the learner is looking at. The backend treats
+ * the returned strings as untrusted data.
  */
 export function detectLivePageContext(
   activeTab: ChatTab,
   fallbackFocus?: string
-): { focus?: string; detail?: string; badge?: string } {
+): { focus?: string; detail?: string } {
   if (typeof document === 'undefined') {
     return { focus: fallbackFocus || undefined }
   }
@@ -22,7 +22,6 @@ export function detectLivePageContext(
     if (document.querySelector('.settings-panel')) {
       return {
         focus: 'Cài đặt',
-        badge: 'Cài đặt',
         detail: 'Người dùng đang mở bảng Cài đặt: đổi giao diện sáng/tối, ngôn ngữ, thông tin tài khoản và đăng xuất.',
       }
     }
@@ -30,11 +29,9 @@ export function detectLivePageContext(
       const authTab = document.querySelector('.auth-tabs .is-active, .auth-tabs [aria-selected="true"]')?.textContent?.trim() || 'Đăng nhập'
       return {
         focus: `Tài khoản · ${authTab}`,
-        badge: 'Đăng nhập / Đăng ký',
         detail: `Người dùng đang mở hộp thoại xác thực tài khoản (${authTab}); ứng dụng yêu cầu đăng nhập để lưu tiến độ học.`,
       }
     }
-    // 1. Video Lesson / Library
     if (activeTab === 'videos') {
       const videoDetailEl = document.querySelector('.video-detail') as HTMLElement | null
       if (videoDetailEl) {
@@ -66,7 +63,6 @@ export function detectLivePageContext(
 
         return {
           focus: title ? `Video: ${title}` : 'Học qua video',
-          badge: title ? `Video · ${title}` : 'Học qua video',
           detail: details,
         }
       }
@@ -75,19 +71,16 @@ export function detectLivePageContext(
       if (isNotebook) {
         return {
           focus: 'Sổ từ vựng video',
-          badge: 'Sổ từ vựng video',
           detail: 'Người dùng đang xem và ôn tập các từ vựng đã lưu trong lúc luyện nghe video.',
         }
       }
 
       return {
         focus: 'Thư viện video',
-        badge: 'Thư viện video',
         detail: 'Người dùng đang duyệt danh sách thư viện video học tiếng Anh trên YouTube.',
       }
     }
 
-    // 2. Active lesson in LessonPlayer
     const lessonPlayerEl = document.querySelector('.lesson-player') as HTMLElement | null
     if (lessonPlayerEl || document.querySelector('.lesson-header')) {
       const lessonTitle =
@@ -116,12 +109,10 @@ export function detectLivePageContext(
 
       return {
         focus: lessonTitle ? `Bài học: ${lessonTitle}` : 'Bài học',
-        badge: lessonTitle ? `Bài học · ${lessonTitle}` : 'Đang làm bài',
         detail: details,
       }
     }
 
-    // 3. Study roadmap
     if (activeTab === 'study') {
       const mainEl = document.querySelector('.learning-page') as HTMLElement | null
       const currentLesson = mainEl?.dataset.currentLesson || fallbackFocus || ''
@@ -140,12 +131,10 @@ export function detectLivePageContext(
 
       return {
         focus: currentLesson ? `Lộ trình: ${currentLesson}` : 'Lộ trình học',
-        badge: currentLesson ? `Lộ trình · ${currentLesson}` : 'Lộ trình học',
         detail: details,
       }
     }
 
-    // 4. Translate View
     if (activeTab === 'translate') {
       const pageEl = document.querySelector('.translate-page') as HTMLElement | null
       const sourceLang = pageEl?.dataset.sourceLang || 'en'
@@ -174,12 +163,10 @@ export function detectLivePageContext(
 
       return {
         focus: sourceText ? `Dịch (${langDirection})` : 'Dịch tài liệu',
-        badge: `Dịch tài liệu · ${langDirection}`,
         detail: details,
       }
     }
 
-    // 5. Compete / Arena
     if (activeTab === 'compete') {
       const matchEl = document.querySelector('.arena-match') as HTMLElement | null
       if (matchEl) {
@@ -206,7 +193,6 @@ export function detectLivePageContext(
 
         return {
           focus: `Đấu trường · vs ${opponentName}`,
-          badge: `Trận đấu · Vòng ${round}/${totalRounds}`,
           detail: details,
         }
       }
@@ -215,7 +201,6 @@ export function detectLivePageContext(
       if (isQueue) {
         return {
           focus: 'Đấu trường từ vựng',
-          badge: 'Đấu trường · Tìm đối thủ',
           detail: 'Người dùng đang trong hàng chờ ghép trận Đấu trường từ vựng 1v1.',
         }
       }
@@ -228,12 +213,10 @@ export function detectLivePageContext(
 
       return {
         focus: 'Đấu trường từ vựng',
-        badge: 'Đấu trường 1v1',
         detail: `Đang ở sảnh Đấu trường từ vựng 1v1. Thành tích: đã chơi ${played} trận, thắng ${wins} trận (tỉ lệ thắng ${winRate}%), chuỗi thắng ${winStreak} trận.`,
       }
     }
 
-    // 6. Rankings
     if (activeTab === 'rankings') {
       const rankEl = document.querySelector('.rank-view') as HTMLElement | null
       const myRank = rankEl?.dataset.myRank
@@ -242,8 +225,15 @@ export function detectLivePageContext(
       const leaderName = rankEl?.dataset.leaderName || ''
       const leaderScore = rankEl?.dataset.leaderScore || ''
       const tier = rankEl?.dataset.leagueTier || ''
-      const promote = rankEl?.dataset.promoteSlots || '6'
-      const demote = rankEl?.dataset.demoteSlots || '6'
+      if (rankEl?.dataset.boardReady !== 'true') {
+        return { focus: 'League tuần', detail: 'Chưa có dữ liệu bảng xếp hạng tuần này trên màn hình.' }
+      }
+      const zoneNames = { promote: 'thăng hạng', stay: 'giữ hạng', demote: 'xuống hạng' }
+      const zones = (rankEl.dataset.zones ?? '').split(',').flatMap((band) => {
+        const [zone, range] = band.split(':')
+        if (zone !== 'promote' && zone !== 'stay' && zone !== 'demote') return []
+        return [`${zoneNames[zone]}: hạng ${range}`]
+      })
 
       const details = [
         'Người dùng đang xem bảng xếp hạng league tuần này. Chỉ có một bảng theo tuần, không có bảng tổng.',
@@ -251,32 +241,27 @@ export function detectLivePageContext(
         myRank ? `Thứ hạng tuần này: #${myRank} trên ${totalUsers} học viên cùng hạng.` : 'Chưa có thứ hạng tuần này.',
         myRp ? `RP tuần này: ${myRp}.` : '',
         leaderName ? `Người dẫn đầu: ${leaderName} (${leaderScore} RP).` : '',
-        `Vùng xếp hạng: ${promote} đầu lên hạng, ${demote} cuối xuống hạng, ở giữa giữ hạng.`,
+        zones.length ? `Vùng xếp hạng: ${zones.join('; ')}.` : '',
       ]
         .filter(Boolean)
         .join(' | ')
 
       return {
         focus: myRank ? `League tuần · Hạng #${myRank}` : 'League tuần',
-        badge: myRank ? `League · Hạng #${myRank}` : 'League tuần',
         detail: details,
       }
     }
 
-    // 7. Garage shop
     if (activeTab === 'shop') {
       return {
         focus: 'Gara Engorace',
-        badge: 'Gara Engorace',
         detail: 'Người dùng đang ở Gara: mua và lắp xe, khung tên, phụ tùng bằng Race Coin.',
       }
     }
 
-    // 8. Profile
     if (activeTab === 'profile') {
       const profileEl = document.querySelector('.profile-view') as HTMLElement | null
       const userName = profileEl?.dataset.userName || ''
-      const userEmail = profileEl?.dataset.userEmail || ''
       const userXp = profileEl?.dataset.userXp || ''
       const userStreak = profileEl?.dataset.userStreak || ''
       const lessonsDone = profileEl?.dataset.lessonsDone || ''
@@ -288,7 +273,6 @@ export function detectLivePageContext(
       const details = [
         `Người dùng đang xem trang Hồ sơ cá nhân của mình.`,
         userName ? `Tên học viên: ${userName}` : '',
-        userEmail ? `Email: ${userEmail}` : '',
         userXp ? `Tổng điểm XP: ${userXp}` : '',
         userStreak ? `Chuỗi học tập liên tục (Streak): ${userStreak} ngày` : '',
         lessonsTotal ? `Tiến độ hoàn thành: ${lessonsDone}/${lessonsTotal} bài (${progressPercent}%)` : '',
@@ -300,7 +284,6 @@ export function detectLivePageContext(
 
       return {
         focus: userName ? `Hồ sơ · ${userName}` : 'Hồ sơ cá nhân',
-        badge: userName ? `Hồ sơ · ${userName}` : 'Hồ sơ cá nhân',
         detail: details,
       }
     }
@@ -310,7 +293,6 @@ export function detectLivePageContext(
 
   return {
     focus: fallbackFocus || undefined,
-    badge: undefined,
     detail: undefined,
   }
 }

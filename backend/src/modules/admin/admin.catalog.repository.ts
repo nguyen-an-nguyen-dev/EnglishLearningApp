@@ -24,8 +24,6 @@ async function nextOrder(table: string, column: string, where?: string, params: 
   return Number(rows[0]?.value ?? 0) + 10;
 }
 
-// --- Shop items -----------------------------------------------------------
-
 const SHOP_COLUMNS = `id, code, name, description, slot, rarity, price, unlock_type,
   unlock_value, visual_key, style_json, booster_kind, booster_charges,
   booster_duration_minutes, sort_order, active, created_at`;
@@ -133,8 +131,6 @@ export async function deleteShopItemRow(itemId: number): Promise<boolean> {
   return result.affectedRows > 0;
 }
 
-// --- Arena vocabulary -----------------------------------------------------
-
 const BATTLE_COLUMNS = `id, word_en, translation_vi, part_of_speech, cefr_level,
   explanation_vi, example_en, example_vi, image_url, sort_order`;
 
@@ -206,8 +202,6 @@ export async function deleteBattleWordRow(wordId: number): Promise<boolean> {
   const [result] = await pool.execute<ResultSetHeader>('DELETE FROM battle_words WHERE id = ?', [wordId]);
   return result.affectedRows > 0;
 }
-
-// --- Video vocabulary -----------------------------------------------------
 
 const VIDEO_VOCAB_COLUMNS = 'id, video_id, word, ipa, meaning_vi, detail_vi, sort_order';
 

@@ -1,8 +1,4 @@
-/* ==========================================================================
-   DỊCH TÀI LIỆU — editorial translation desk.
-   One ruled document, one margin rail. No cards, no shadows, no pills:
-   hairlines, numbered sections, serif output, monospace metadata.
-   ========================================================================== */
+/* Dịch tài liệu - editorial translation desk: one ruled document, one margin rail, hairlines and numbered sections, no cards. */
 .translate-page {
   display: flex;
   flex: 1;
@@ -22,7 +18,7 @@
   background: var(--paper);
 }
 
-/* Margin rail --------------------------------------------------------------- */
+/* Margin rail */
 .translate-rail {
   display: flex;
   flex-direction: column;
@@ -80,7 +76,7 @@
   text-wrap: pretty;
 }
 
-/* Language pair -------------------------------------------------------------- */
+/* Language pair */
 .translate-pair {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -132,7 +128,7 @@
   transform: scale(1.12);
 }
 
-/* Translation history --------------------------------------------------------- */
+/* Translation history */
 .translate-history {
   display: flex;
   flex: 1;
@@ -316,7 +312,7 @@
   50% { opacity: 0.45; transform: scale(0.72); }
 }
 
-/* Sheet ---------------------------------------------------------------------- */
+/* Sheet */
 .translate-sheet {
   display: flex;
   min-width: 0;
@@ -379,7 +375,7 @@
   .translate-sheet-body { overflow-y: auto; }
 }
 
-/* Numbered section heads ------------------------------------------------------ */
+/* Numbered section heads */
 .translate-block { display: flex; min-width: 0; flex-direction: column; }
 .translate-block-head {
   display: flex;
@@ -405,7 +401,7 @@
 }
 .translate-block-rule { height: 1px; flex: 1; background: var(--line); }
 
-/* Source input ---------------------------------------------------------------- */
+/* Source input */
 .translate-form { display: flex; flex-direction: column; gap: 16px; }
 
 .translate-textarea {
@@ -497,7 +493,7 @@
 .translate-cta:active:not(:disabled) { transform: translateY(1px); }
 .translate-cta:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* File dropzone ---------------------------------------------------------------- */
+/* File dropzone */
 .translate-dropzone {
   position: relative;
   display: grid;
@@ -570,7 +566,7 @@
   line-height: 1.55;
 }
 
-/* Result ----------------------------------------------------------------------- */
+/* Result */
 .translate-block.is-result {
   flex: 1;
   min-height: 0;
@@ -619,7 +615,7 @@
   white-space: pre-wrap;
 }
 
-/* Empty / loading --------------------------------------------------------------- */
+/* Empty / loading */
 .translate-empty {
   display: grid;
   align-content: start;
@@ -668,7 +664,7 @@
   to { background-position: -120% 0; }
 }
 
-/* File source disclosure --------------------------------------------------------- */
+/* File source disclosure */
 .translate-source {
   padding-top: 13px;
   border-top: 1px solid var(--line);
@@ -703,7 +699,7 @@
   white-space: pre-wrap;
 }
 
-/* Margin note — word details ------------------------------------------------------ */
+/* Margin note - word details */
 .translate-note {
   display: grid;
   gap: 6px;
@@ -755,7 +751,7 @@
   line-height: 1.6;
 }
 
-/* Confirmation dialog -------------------------------------------------------------- */
+/* Confirmation dialog */
 .translate-clear-dialog {
   width: min(440px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
@@ -851,7 +847,7 @@
   .translate-clear-confirm { width: 100%; justify-content: center; }
 }
 
-/* Light theme: firmer rail/paper split ------------------------------------------- */
+/* Light theme: firmer rail/paper split */
 :root:not([data-theme='dark']) .translate-page {
   --line: #D4E6EE;
   --line-strong: #B0CEDA;
@@ -866,7 +862,7 @@
   background-color: color-mix(in srgb, var(--brand-500) 6%, transparent);
 }
 
-/* Responsive --------------------------------------------------------------------- */
+/* Responsive */
 @media (max-width: 1080px) {
   .translate-desk {
     grid-template-columns: 1fr;

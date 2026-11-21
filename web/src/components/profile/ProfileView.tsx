@@ -23,10 +23,7 @@ export function ProfileView({ onLogout, onOpenReview }: { onLogout: () => void; 
   const { wallet, refresh } = useWallet()
   const [badges, setBadges] = useState<EarnedBadge[]>([])
 
-  // The wallet is loaded once for the whole app; equipping a nameplate in the
-  // Gara (or another tab) can leave this view with the old surface. Pull the
-  // latest wallet when the profile opens so the head always wears the plate
-  // that is actually equipped.
+  // The wallet is loaded once app-wide, so equipping a nameplate elsewhere leaves this view stale; re-pull it when the profile opens.
   useEffect(() => {
     refresh()
   }, [refresh])

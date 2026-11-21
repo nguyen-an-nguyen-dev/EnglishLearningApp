@@ -12,15 +12,16 @@ import type {
   Wallet,
 } from './gamification.types';
 
-const TIER_ORDER = ['bronze', 'silver', 'gold', 'diamond'];
+const TIER_ORDER = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'];
 const TIER_LABEL: Record<string, string> = {
-  bronze: 'Đồng',
-  silver: 'Bạc',
+  coal: 'Than',
+  copper: 'Đồng',
+  iron: 'Sắt',
   gold: 'Vàng',
+  redstone: 'Đá đỏ',
+  lapis: 'Lưu ly',
   diamond: 'Kim Cương',
 };
-
-// ─── Wallet ──────────────────────────────────────────────────────────────────
 
 export async function getWallet(userId: number): Promise<Wallet> {
   await repo.ensureStreakState(userId);
@@ -60,15 +61,13 @@ export async function getWallet(userId: number): Promise<Wallet> {
     race_points: racePoints,
     // The tier is a persistent rank carried across seasons; weekly RP only
     // decides movement inside the league, never the tier itself.
-    tier: balance.league_tier ?? 'bronze',
+    tier: balance.league_tier ?? 'coal',
     season_code: season?.code ?? null,
     equipment,
     owned_count: ownedCount,
     boosters: repo.boosterStock(boosterRows),
   };
 }
-
-// ─── Shop ────────────────────────────────────────────────────────────────────
 
 function unlockLabel(item: ShopItemRow): string {
   switch (item.unlock_type) {
@@ -77,7 +76,7 @@ function unlockLabel(item: ShopItemRow): string {
     case 'stage':
       return `Hoàn thành chặng ${item.unlock_value ?? '?'}`;
     case 'league':
-      return `Hạng ${TIER_LABEL[item.unlock_value ?? 'bronze'] ?? 'Đồng'} mùa này`;
+      return `Hạng ${TIER_LABEL[item.unlock_value ?? 'coal'] ?? 'Than'} mùa này`;
     case 'achievement':
       return item.unlock_value === 'lessons_10'
         ? 'Mở bằng huy hiệu 10 bài'
@@ -117,7 +116,7 @@ function isUnlocked(item: ShopItemRow, context: UnlockContext): boolean {
     case 'stage':
       return context.completedStages >= Number(item.unlock_value ?? 1);
     case 'league':
-      return TIER_ORDER.indexOf(context.tier) >= TIER_ORDER.indexOf(item.unlock_value ?? 'bronze');
+      return TIER_ORDER.indexOf(context.tier) >= TIER_ORDER.indexOf(item.unlock_value ?? 'coal');
     case 'achievement':
       return item.unlock_value !== null && context.badgeCodes.includes(item.unlock_value);
     default:
@@ -213,12 +212,9 @@ export async function purchaseItem(userId: number, itemId: number): Promise<{ it
   }
 }
 
-/**
- * Buying a consumable is not the same as buying a cosmetic: it never enters
- * `user_inventory` (that table means "permanent ownership"), it tops up a
- * charge counter or extends a deadline. Repeat buys are allowed on purpose —
- * that is the whole point of a consumable.
- */
+// Buying a consumable differs from a cosmetic: it never enters `user_inventory`
+// (that table means permanent ownership), it tops up a charge counter or extends
+// a deadline. Repeat buys are allowed on purpose.
 async function purchaseBooster(userId: number, item: ShopItemRow): Promise<{ item: ShopItem; coins: number }> {
   // Behaviour is read from the catalogue row so an admin can add a consumable
   // without touching BOOSTER_SPECS. The old map stays as a fallback for rows
@@ -304,8 +300,6 @@ export async function unequipSlot(userId: number, slot: string): Promise<ShopIte
   view.equipped = true;
   return view;
 }
-
-// ─── Quests ──────────────────────────────────────────────────────────────────
 
 export async function getRewards(userId: number): Promise<{ streak: number; daily: QuestView[]; weekly: QuestView[] }> {
   await repo.ensureStreakState(userId);
@@ -399,8 +393,6 @@ export async function claimQuest(userId: number, code: string): Promise<{ quest:
     coins: Number(balance?.coins ?? 0),
   };
 }
-
-// ─── League ──────────────────────────────────────────────────────────────────
 
 export async function getLeague(userId: number): Promise<LeagueView> {
   const seasonId = await repo.ensureCurrentSeason();
