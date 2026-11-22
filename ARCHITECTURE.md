@@ -5,7 +5,7 @@
 - **Backend**: Node.js + TypeScript + Express 5 + MariaDB (`mysql2`) + Socket.IO.
 - **Web**: React 19 + TypeScript + Vite + Tailwind 4, CSS variables/design tokens.
 - **Mobile**: Expo/React Native (auth, lessons, battle, video).
-- **Data**: `backend/database/final.sql` is the reproducible snapshot; incremental changes live in `backend/database/migrations/`.
+- **Data**: `backend/database/init.sql` creates the schema and `backend/database/seeds.sql` loads the reference/content/activity snapshot.
 
 ## Folder structure
 
@@ -20,7 +20,7 @@ backend/
     routes/        platform routes (health)
     utils/         logger, database error helpers, Cloudflare rotation
   test/            Node test runner integration/unit suites
-  scripts/         migrations and maintenance scripts
+  scripts/         maintenance and database verification scripts
 web/
   src/
     admin/         admin shell, navigation, stats, login

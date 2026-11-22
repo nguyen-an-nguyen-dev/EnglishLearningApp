@@ -388,9 +388,9 @@ interface StandingRow extends RowDataPacket {
   tier: LeagueTier;
 }
 
-/** The weekly league moves exactly six leaders up and six trailers down. */
-export const LEAGUE_PROMOTION_SLOTS = 6;
-export const LEAGUE_DEMOTION_SLOTS = 6;
+/** The weekly league moves the top three up and the bottom three down. */
+export const LEAGUE_PROMOTION_SLOTS = 3;
+export const LEAGUE_DEMOTION_SLOTS = 3;
 
 async function settleSeason(connection: PoolConnection, season: SeasonRow): Promise<void> {
   // The persistent tier is the source of truth. The snapshot on the standing row
@@ -417,12 +417,12 @@ async function settleSeason(connection: PoolConnection, season: SeasonRow): Prom
   for (const [carried, group] of byTier) {
     // Promotion wins when a short group makes the zones overlap. The ends of
     // the ladder have nowhere to go: diamond has no promotion slots (so its
-    // bottom six drop) and coal has no demotion slots.
+    // bottom three drop) and coal has no demotion slots.
     const promoteEnd = carried === 'diamond'
       ? 0
       : Math.min(LEAGUE_PROMOTION_SLOTS, group.length);
     // The week's leader is never demoted. Diamond has no promotion block to
-    // shield its top, so on a board of six or fewer the bottom-six rule would
+    // shield its top, so on a board of four or fewer the bottom-three rule would
     // otherwise send the winner down with everyone else.
     const demoteCount = carried === 'coal'
       ? 0

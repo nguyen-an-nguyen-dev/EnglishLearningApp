@@ -1,527 +1,368 @@
-/* Weekly league - the ore ladder: seven-ore ladder, season clock, then learners split into promotion / stable / demotion bands. */
-
-/* Ore colour ramps */
-.rank-view [data-league-tier='coal']     { --tier: #5A606B; --tier-deep: #2B303A; --tier-text: #3C424E; --tier-glow: rgb(90 96 107 / 32%); --crest-fg: #E9EEF3; }
-.rank-view [data-league-tier='copper']   { --tier: #D9823E; --tier-deep: #9C4A18; --tier-text: #8A451C; --tier-glow: rgb(217 130 62 / 30%); --crest-fg: #FFF3E6; }
-.rank-view [data-league-tier='iron']     { --tier: #CDD6DF; --tier-deep: #7C8B99; --tier-text: #5A6A77; --tier-glow: rgb(205 214 223 / 36%); --crest-fg: #37404A; }
-.rank-view [data-league-tier='gold']     { --tier: #F2C130; --tier-deep: #A27612; --tier-text: #8C650C; --tier-glow: rgb(242 193 48 / 34%); --crest-fg: #5A3E00; }
-.rank-view [data-league-tier='redstone'] { --tier: #E23B3B; --tier-deep: #9E1B1B; --tier-text: #B02424; --tier-glow: rgb(226 59 59 / 32%); --crest-fg: #FFF0F0; }
-.rank-view [data-league-tier='lapis']    { --tier: #3A63E0; --tier-deep: #22379C; --tier-text: #2A44B0; --tier-glow: rgb(58 99 224 / 32%); --crest-fg: #EAF0FF; }
-.rank-view [data-league-tier='diamond']  { --tier: #4FD6E0; --tier-deep: #1E8C99; --tier-text: #1B7788; --tier-glow: rgb(79 214 224 / 34%); --crest-fg: #04414A; }
-:root[data-theme='dark'] .rank-view [data-league-tier='coal']     { --tier-text: #C7CDD6; }
-:root[data-theme='dark'] .rank-view [data-league-tier='copper']   { --tier-text: #F0B37E; }
-:root[data-theme='dark'] .rank-view [data-league-tier='iron']     { --tier-text: #E2EAF1; }
-:root[data-theme='dark'] .rank-view [data-league-tier='gold']     { --tier-text: #F4D06A; }
-:root[data-theme='dark'] .rank-view [data-league-tier='redstone'] { --tier-text: #F5A0A0; }
-:root[data-theme='dark'] .rank-view [data-league-tier='lapis']    { --tier-text: #9DB2FF; }
-:root[data-theme='dark'] .rank-view [data-league-tier='diamond']  { --tier-text: #9BEDF8; }
-
+/* Rankings: ink-outlined league boards based on the supplied leaderboard reference. */
 .rank-view {
-  --rank-you: #126389;
-  --rank-you-bg: #EAF7FF;
-  --rank-you-line: #B7DFF4;
-  --rank-gold: #F5C448;
-  --rank-silver: #C4D0DC;
-  --rank-bronze: #EAA46E;
+  --rank-ink: #14203a;
+  --rank-muted: #4a5b78;
+  --rank-canvas: #e9f6fb;
+  --rank-paper: #fff;
+  --rank-line: #e2eaf4;
+  --rank-highlight: #fff3b8;
+  --rank-up-bg: #d7f5e4;
+  --rank-up-ink: #0b7a4b;
+  --rank-down-bg: #ffe1e1;
+  --rank-down-ink: #a5202c;
+  width: 100%;
+  background: var(--rank-canvas);
+  color: var(--rank-ink);
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
 }
 :root[data-theme='dark'] .rank-view {
-  --rank-you: #9DDCFF;
-  --rank-you-bg: #173349;
-  --rank-you-line: #2B5770;
+  --rank-ink: #eaf2ff;
+  --rank-muted: #a9bbd4;
+  --rank-canvas: #0e1720;
+  --rank-paper: #16253f;
+  --rank-line: #2b3b56;
+  --rank-highlight: #4d3b17;
+  --rank-up-bg: #143a2c;
+  --rank-up-ink: #62dfa6;
+  --rank-down-bg: #40202c;
+  --rank-down-ink: #ff9ba0;
 }
+.rank-view [data-league-tier='coal'] { --tier: #5b6068; --tier-deep: #343943; --crest-fg: #fff; }
+.rank-view [data-league-tier='copper'] { --tier: #e8956a; --tier-deep: #ad542a; --crest-fg: #fff; }
+.rank-view [data-league-tier='iron'] { --tier: #b8c2cf; --tier-deep: #788594; --crest-fg: #273247; }
+.rank-view [data-league-tier='gold'] { --tier: #ffd23f; --tier-deep: #c38b00; --crest-fg: #392800; }
+.rank-view [data-league-tier='redstone'] { --tier: #e23b3b; --tier-deep: #9e1b1b; --crest-fg: #fff; }
+.rank-view [data-league-tier='lapis'] { --tier: #3a63e0; --tier-deep: #22379c; --crest-fg: #fff; }
+.rank-view [data-league-tier='diamond'] { --tier: #19b6f0; --tier-deep: #087eae; --crest-fg: #07354a; }
 
-.league-board {
+.rank-page {
   display: flex;
+  width: min(100%, 660px);
   flex-direction: column;
-  gap: 24px;
-  width: 100%;
-  max-width: 640px;
+  gap: 20px;
   margin: 0 auto;
+  padding: 8px 0 18px;
+  color: var(--rank-ink);
 }
-
-/* Ladder */
-.lad {
+.rank-tabs {
   display: flex;
+  align-self: center;
+  gap: 4px;
+  padding: 4px;
+  border: 3px solid #14203a;
+  border-radius: 12px;
+  background: var(--rank-paper);
+}
+.rank-tab {
+  min-height: 38px;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rank-muted);
+  font: 700 14px/1.2 "Be Vietnam Pro", system-ui, sans-serif;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.rank-tab.is-active { background: #ffd23f; color: #14203a; }
+.rank-tab:hover:not(.is-active) { background: color-mix(in srgb, var(--rank-muted) 10%, transparent); }
+.rank-tab:focus-visible,
+.rank-retry:focus-visible { outline: 3px solid #19b6f0; outline-offset: 3px; }
+
+.lad.ores {
+  display: flex;
+  width: 100%;
   align-items: flex-end;
   justify-content: center;
-  gap: clamp(4px, 1.2vw, 14px);
-  width: 100%;
-  margin-bottom: 12px;
+  gap: 10px;
 }
-.lad-item {
+.lad.ores .tr {
   display: flex;
+  min-width: 0;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  flex: 0 1 60px;
-  min-width: 0;
-  padding: 6px 0 8px;
-  border-bottom: 3px solid transparent;
+  color: var(--rank-muted);
+  text-align: center;
 }
-.lad-item.is-current { border-color: var(--tier); }
-.lad-name {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+.lad.ores .tr > span:not(.ore-crest) {
+  font: 700 11px/1.25 "Be Vietnam Pro", system-ui, sans-serif;
   white-space: nowrap;
 }
-.lad-name.is-current { color: var(--tier-text); }
-.lad .ore-crest { --crest-size: 44px; }
-.lad .ore-crest.is-current { --crest-size: 62px; }
-
-/* Ore crest */
-.ore-crest {
-  --crest-size: 54px;
-  display: inline-grid;
-  width: var(--crest-size);
-  height: calc(var(--crest-size) * 1.12);
-  flex: none;
-  padding: 2px;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--tier) 55%, white), var(--tier-deep));
-  clip-path: polygon(50% 0%, 94% 12%, 94% 54%, 50% 100%, 6% 54%, 6% 12%);
-  filter: drop-shadow(0 8px 10px -8px var(--tier-glow));
+.lad.ores .ore-crest {
+  --crest-size: 40px;
+  filter: drop-shadow(0 4px 0 #14203a);
+  transition: filter 140ms ease, transform 140ms ease;
 }
-.ore-crest.is-gem { clip-path: polygon(50% 4%, 90% 24%, 90% 64%, 50% 96%, 10% 64%, 10% 24%); }
-.ore-crest-inner {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  background:
-    radial-gradient(88% 70% at 28% 10%, rgb(255 255 255 / 42%), transparent 62%),
-    linear-gradient(155deg, var(--tier), var(--tier-deep));
-  color: var(--crest-fg, #FFFFFF);
-  clip-path: polygon(50% 0%, 94% 12%, 94% 54%, 50% 100%, 6% 54%, 6% 12%);
-}
-.ore-crest-inner svg { width: 42%; height: 42%; }
-.ore-crest.is-gem .ore-crest-inner { clip-path: polygon(50% 4%, 90% 24%, 90% 64%, 50% 96%, 10% 64%, 10% 24%); }
-.ore-crest.is-locked { filter: grayscale(1); opacity: 0.42; }
-
-/* Header */
-.league-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 20px 0 24px;
-  border-bottom: 2px solid var(--line);
-}
-.league-header h1 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 32px;
+.lad.ores .tr.cur .ore-crest { --crest-size: 64px; transform: translateY(-2px); }
+.lad.ores .tr.cur > span:not(.ore-crest) {
+  padding: 2px 8px;
+  border: 2px solid #14203a;
+  border-radius: 6px;
+  background: #ffd23f;
+  color: #14203a;
   font-weight: 800;
-  line-height: 1.2;
+}
+.lad.ores .tr.lk { opacity: 0.55; }
+.lad.ores .tr.lk .ore-crest { filter: grayscale(1) drop-shadow(0 3px 0 #14203a); }
+
+.rank-heading { text-align: center; }
+.rank-heading h1 {
+  margin: 0;
+  color: var(--rank-ink);
+  font: 800 34px/1.1 "Baloo 2", "Be Vietnam Pro", sans-serif;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
-.league-header p {
-  margin: 0;
-  max-width: 46ch;
-  color: var(--muted);
-  font-size: 14.5px;
+.rank-subtitle {
+  margin: 6px 0 0;
+  color: var(--rank-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.rank-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  padding: 3px 14px;
+  border: 2px solid #14203a;
+  border-radius: 999px;
+  background: var(--rank-paper);
+  box-shadow: 0 3px 0 #14203a;
+  color: var(--rank-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.rank-countdown svg { color: #d9660a; }
+.rank-movement-summary {
+  margin: 4px 0 0;
+  color: var(--rank-muted);
+  font-size: 13px;
   font-weight: 600;
 }
-.league-clock {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  color: var(--warn-600, #B26B00);
-  font-size: 14px;
-  font-weight: 800;
-}
 
-/* Weekly goal meter */
-.league-goal {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--paper);
-  box-shadow: var(--shadow-card);
+.rank-board-panel { min-width: 0; }
+.rank-zones { display: flex; flex-direction: column; gap: 16px; }
+.rank-zone-card,
+.rank-career-list {
+  overflow: hidden;
+  border: 3px solid #14203a;
+  border-radius: 18px;
+  background: var(--rank-paper);
+  box-shadow: 0 3px 0 #14203a;
 }
-.league-goal-top {
+.rank-zone-heading {
   display: flex;
+  min-height: 44px;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 18px;
+  border-bottom: 3px solid #14203a;
+  font: 800 13px/1.3 "Be Vietnam Pro", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.league-goal-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-}
-.league-goal.is-promote .league-goal-icon { background: var(--ok-50); color: var(--ok-600); }
-.league-goal.is-safe .league-goal-icon { background: var(--brand-50); color: var(--brand-700); }
-.league-goal.is-danger .league-goal-icon { background: var(--danger-50); color: var(--danger-600); }
-.league-goal-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.league-goal-copy strong {
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.3;
-}
-.league-goal-copy span {
-  color: var(--muted);
+.rank-zone-heading svg { flex: none; }
+.rank-zone-heading small {
+  margin-left: auto;
   font-size: 12px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-align: right;
+  text-transform: none;
 }
-.league-goal-meter {
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-}
-.league-goal-meter span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--tier);
-  transition: width 600ms var(--motion-ease);
-}
-.league-goal.is-danger .league-goal-meter span { background: var(--danger-600); }
+.zone-promote .rank-zone-heading { background: var(--rank-up-bg); color: var(--rank-up-ink); }
+.zone-stay .rank-zone-heading { background: var(--rank-line); color: var(--rank-muted); }
+.zone-demote .rank-zone-heading { background: var(--rank-down-bg); color: var(--rank-down-ink); }
+.zone-promote .rank-row { background: color-mix(in srgb, #38c98a 7%, var(--rank-paper)); }
+.zone-demote .rank-row { background: color-mix(in srgb, #ff5a5f 6%, var(--rank-paper)); }
+.zone-promote .rank-row.is-current-user,
+.zone-stay .rank-row.is-current-user,
+.zone-demote .rank-row.is-current-user { background: var(--rank-highlight); }
 
-/* Podium */
-.league-podium {
+.rank-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-.league-podium-title {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-align: center;
-  text-transform: uppercase;
-}
-.league-podium-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.podium-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 20px 12px 18px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--paper);
-  box-shadow: var(--shadow-card);
-  text-align: center;
-  transition: border-color var(--motion-mid) var(--motion-ease), box-shadow var(--motion-mid) var(--motion-ease), transform var(--motion-mid) var(--motion-ease);
-}
-.podium-card:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-float);
-  transform: translateY(-2px);
-}
-.podium-card.is-empty {
-  min-height: 200px;
-  border-style: dashed;
-  background: transparent;
-  box-shadow: none;
-}
-.podium-card.is-gold { border-color: color-mix(in srgb, var(--rank-gold) 55%, var(--line)); }
-.podium-card.is-silver { border-color: color-mix(in srgb, var(--rank-silver) 60%, var(--line)); }
-.podium-card.is-bronze { border-color: color-mix(in srgb, var(--rank-bronze) 55%, var(--line)); }
-.podium-card.is-me {
-  border-color: var(--rank-you-line);
-  box-shadow: 0 0 0 1.5px var(--rank-you-line), var(--shadow-card);
-}
-.podium-card.is-me:hover { box-shadow: 0 0 0 1.5px var(--rank-you-line), var(--shadow-float); }
-.podium-card:focus-visible { outline: 2px solid var(--rank-you); outline-offset: 3px; }
-.podium-rank {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-}
-.podium-card.is-gold .podium-rank { color: #B8860B; }
-.podium-card.is-silver .podium-rank { color: #7C8B99; }
-.podium-card.is-bronze .podium-rank { color: #B06A3B; }
-:root[data-theme='dark'] .podium-card.is-gold .podium-rank { color: #F4D06A; }
-:root[data-theme='dark'] .podium-card.is-silver .podium-rank { color: #C4D0DC; }
-:root[data-theme='dark'] .podium-card.is-bronze .podium-rank { color: #E8A87E; }
-.podium-rank b {
-  color: var(--ink);
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-.podium-name {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 13.5px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.podium-score {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin: 2px 0 0;
-  color: var(--ink);
-  font-size: 20px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.podium-score small {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-/* Zone bands */
-.league-standings {
-  display: grid;
-  gap: 20px;
-}
-.league-zone {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  margin: 0 0 8px;
-  font-size: 11.5px;
-  font-weight: 800;
-  text-align: center;
-  text-transform: uppercase;
-}
-.league-zone::before,
-.league-zone::after { content: ''; flex: 1; border-top: 2px dashed currentColor; opacity: 0.34; }
-.league-zone svg { flex: none; }
-.league-zone.is-promote { color: var(--ok-600); }
-.league-zone.is-stay { color: var(--muted); }
-.league-zone.is-demote { color: var(--danger-600); }
-
-/* Standings list */
-.league-list {
-  display: grid;
-  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.league-row {
+.rank-row {
   display: grid;
-  grid-template-columns: 44px 38px minmax(0, 1fr) auto;
+  min-height: 56px;
+  grid-template-columns: 44px 42px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  min-height: 60px;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--paper);
-  box-shadow: var(--shadow-card);
-  font-weight: 700;
-  transition: border-color var(--motion-mid) var(--motion-ease), box-shadow var(--motion-mid) var(--motion-ease), transform var(--motion-mid) var(--motion-ease);
-}
-/* No nameplate equipped: a quiet tier-tinted wash so every card feels finished. */
-.league-row.has-default,
-.podium-card.has-default {
-  background:
-    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--tier) 16%, transparent), transparent 70%),
-    linear-gradient(135deg, color-mix(in srgb, var(--tier) 10%, var(--paper)), color-mix(in srgb, var(--tier) 4%, var(--paper)));
-}
-.league-row.has-default { border-color: color-mix(in srgb, var(--tier) 34%, var(--line)); }
-.league-row:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-float);
-  transform: translateY(-1px);
-}
-.league-row.is-me {
-  border-color: var(--rank-you-line);
-  background: var(--rank-you-bg);
-  box-shadow: 0 0 0 1.5px var(--rank-you-line), var(--shadow-card);
-  font-weight: 800;
-}
-.league-row.is-me:hover { box-shadow: 0 0 0 1.5px var(--rank-you-line), var(--shadow-float); }
-.league-row.is-me .league-name { font-weight: 800; }
-.league-row[data-zone='promote'] .league-rank { color: var(--ok-600); }
-.league-row[data-zone='demote'] .league-rank { color: var(--danger-600); }
-.league-row:focus-visible { outline: 2px solid var(--rank-you); outline-offset: 2px; }
-.league-rank {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  margin: 0 auto;
-  border-radius: 50%;
-  color: var(--muted);
+  padding: 0 20px;
+  border-bottom: 1px solid var(--rank-line);
+  color: var(--rank-ink);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
+}
+.rank-row:last-child { border-bottom: 0; }
+.rank-row.is-current-user {
+  background: var(--rank-highlight);
+  box-shadow: inset 4px 0 0 #ffd23f;
+}
+.rank-row-place {
+  color: var(--rank-muted);
+  font: 800 18px/1 "Baloo 2", "Be Vietnam Pro", sans-serif;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.league-person {
+.rank-medal {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  margin: auto;
+  border: 2px solid #14203a;
+  border-radius: 50%;
+  color: #14203a;
+  font: 800 15px/1 "Baloo 2", "Be Vietnam Pro", sans-serif;
+}
+.medal-1 { background: #ffd23f; }
+.medal-2 { background: #c9d6ea; }
+.medal-3 { background: #e8a46a; }
+.rank-avatar {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 2px solid #14203a;
+  border-radius: 50%;
+  background: #dff3ff;
+  box-shadow: 0 0 0 3px var(--avatar-tone);
+  color: #14203a;
+  font: 800 17px/1 "Baloo 2", "Be Vietnam Pro", sans-serif;
+}
+.rank-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar-tone-0 { --avatar-tone: #19b6f0; }
+.avatar-tone-1 { --avatar-tone: #ff9f2e; }
+.avatar-tone-2 { --avatar-tone: #a78bfa; }
+.avatar-tone-3 { --avatar-tone: #38c98a; }
+.avatar-tone-4 { --avatar-tone: #ff5a5f; }
+.avatar-tone-5 { --avatar-tone: #ffd23f; }
+.rank-person {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  min-width: 0;
 }
-.league-person .nameplate { min-width: 0; max-width: 100%; }
-.league-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.league-score {
-  color: var(--ink);
-  font-size: 16px;
-  font-weight: 800;
+.rank-person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-you-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #ffd23f;
+  color: #14203a;
+  font: 800 10px/1.5 "Be Vietnam Pro", system-ui, sans-serif;
+}
+.rank-score {
+  color: var(--rank-ink);
+  font: 800 17px/1 "Baloo 2", "Be Vietnam Pro", sans-serif;
   font-variant-numeric: tabular-nums;
-  text-align: right;
   white-space: nowrap;
 }
-.league-score small {
-  margin-left: 3px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
+.rank-score small {
+  margin-left: 4px;
+  color: var(--rank-muted);
+  font: 800 11px/1 "Be Vietnam Pro", system-ui, sans-serif;
   letter-spacing: 0.06em;
 }
-
-/* Personal plate: the equipped nameplate art becomes the whole card surface. */
-.league-row.has-plate,
-.podium-card.has-plate { color: var(--plate-fg, #F3FAFF); }
-.league-row.has-plate .league-rank,
-.league-row.has-plate .league-name,
-.league-row.has-plate .league-score,
-.podium-card.has-plate .podium-name,
-.podium-card.has-plate .podium-score,
-.podium-card.has-plate .podium-rank b { color: var(--plate-fg, #F3FAFF); }
-.league-row.has-plate .league-score small,
-.podium-card.has-plate .podium-score small {
-  color: color-mix(in srgb, var(--plate-fg, #FFFFFF) 72%, transparent);
-}
-/* Zone tints yield to the plate so the personal backdrop stays readable. */
-.league-row.has-plate[data-zone] .league-rank { color: var(--plate-fg, #F3FAFF); }
-.league-row.has-plate.is-me { border-color: var(--rank-you-line); }
-
-.league-board-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 12px;
-  margin-top: -4px;
-  color: var(--muted);
+.rank-footer {
+  color: var(--rank-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  text-align: center;
 }
-.league-board-meta p { margin: 0; }
-.league-jump {
-  display: inline-flex;
+.rank-state,
+.rank-empty {
+  display: flex;
+  min-height: 100px;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin: 0;
-  min-height: 44px;
-  padding: 0 10px;
-  border: 1px solid var(--rank-you-line);
-  border-radius: 8px;
-  background: var(--rank-you-bg);
-  color: var(--rank-you);
-  font: inherit;
-  cursor: pointer;
-}
-.league-jump:hover { border-color: var(--rank-you); }
-.league-jump:focus-visible { outline: 2px solid var(--rank-you); outline-offset: 3px; }
-
-/* Empty / unranked */
-.rank-state.is-league-empty {
+  justify-content: center;
   gap: 10px;
-  margin: 0;
-  padding: 40px 24px;
-  border: 2px dashed var(--line-strong);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--ink) 2%, var(--paper));
+  padding: 24px;
+  border: 3px solid #14203a;
+  border-radius: 18px;
+  background: var(--rank-paper);
+  box-shadow: 0 3px 0 #14203a;
+  color: var(--rank-muted);
+  text-align: center;
 }
-.league-unranked {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 14px 16px;
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--brand-500) 8%, var(--paper));
-}
-.league-unranked-copy { min-width: 0; }
-.league-unranked-copy strong {
-  display: block;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 800;
-}
-.league-unranked-copy p {
-  margin: 4px 0 0;
-  max-width: 62ch;
-  color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-.league-unranked-cta {
+.rank-state p,
+.rank-empty p { margin: 0; }
+.rank-retry {
   display: inline-flex;
-  flex: none;
+  min-height: 40px;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--brand-600);
-  color: #FFFFFF;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 800;
+  padding: 7px 14px;
+  border: 2px solid #14203a;
+  border-radius: 10px;
+  background: #19b6f0;
+  box-shadow: 0 3px 0 #14203a;
+  color: #14203a;
+  font: 800 14px "Baloo 2", "Be Vietnam Pro", sans-serif;
   cursor: pointer;
-  transition: background-color 160ms ease, transform 160ms ease;
 }
-.league-unranked-cta:hover { background: var(--brand-700); transform: translateY(-1px); }
-.league-unranked-cta:active { transform: translateY(0); }
-.league-unranked-cta:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 3px; }
+.rank-retry:hover { background: #45c7f4; }
 
-/* Responsive */
-@media (max-width: 640px) {
-  .league-board { gap: 20px; }
-  .lad .ore-crest { --crest-size: 34px; }
-  .lad .ore-crest.is-current { --crest-size: 44px; }
-  .league-header h1 { font-size: 25px; }
-  .league-header p { font-size: 13px; }
-  .league-goal { padding: 12px 14px 14px; }
-  .league-goal-icon { width: 36px; height: 36px; }
-  .league-podium-cards { gap: 8px; }
-  .podium-card { padding: 14px 8px 12px; gap: 6px; border-radius: 14px; }
-  .podium-card.is-empty { min-height: 170px; }
-  .podium-name { font-size: 12px; }
-  .podium-score { font-size: 17px; }
-  .league-row { grid-template-columns: 36px 38px minmax(0, 1fr) auto; gap: 8px; padding: 6px 10px; min-height: 56px; }
-  .league-score { font-size: 14px; }
-  .league-unranked { flex-direction: column; align-items: flex-start; gap: 12px; }
+:root[data-theme='dark'] .rank-tabs,
+:root[data-theme='dark'] .rank-zone-card,
+:root[data-theme='dark'] .rank-career-list,
+:root[data-theme='dark'] .rank-countdown,
+:root[data-theme='dark'] .rank-state,
+:root[data-theme='dark'] .rank-empty {
+  border-color: #a9bbd4;
+  box-shadow: 0 3px 0 #a9bbd4;
 }
-@media (max-width: 420px) {
-  .lad .ore-crest { --crest-size: 28px; }
-  .lad .ore-crest.is-current { --crest-size: 36px; }
-  .lad-name { white-space: normal; }
-  .league-person { flex-wrap: wrap; gap: 2px 6px; }
-  .league-podium-cards { grid-template-columns: 1fr; }
+:root[data-theme='dark'] .rank-zone-heading { border-color: #a9bbd4; }
+:root[data-theme='dark'] .rank-row { border-color: var(--rank-line); }
+:root[data-theme='dark'] .rank-countdown { color: var(--rank-ink); }
+
+@media (max-width: 560px) {
+  .rank-page { gap: 18px; padding-top: 4px; }
+  .rank-tabs { max-width: 100%; }
+  .rank-tab { padding-inline: 14px; }
+  .lad.ores { gap: 3px; }
+  .lad.ores .ore-crest { --crest-size: 32px; }
+  .lad.ores .tr.cur .ore-crest { --crest-size: 46px; }
+  .lad.ores .tr > span:not(.ore-crest) {
+    font-size: 9px;
+    letter-spacing: -0.03em;
+    white-space: normal;
+  }
+  .rank-heading h1 { font-size: 30px; }
+  .rank-zone-heading { gap: 7px; padding-inline: 11px; font-size: 11px; letter-spacing: 0.045em; }
+  .rank-zone-heading small { font-size: 10px; }
+  .rank-row {
+    min-height: 54px;
+    grid-template-columns: 34px 36px minmax(0, 1fr) auto;
+    gap: 9px;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+  .rank-avatar { width: 34px; height: 34px; font-size: 15px; }
+  .rank-score { font-size: 15px; }
+  .rank-score small { font-size: 10px; }
+}
+@media (max-width: 360px) {
+  .lad.ores .tr > span:not(.ore-crest) { font-size: 8px; }
+  .rank-row { grid-template-columns: 28px 32px minmax(0, 1fr) auto; gap: 7px; padding-inline: 7px; }
+  .rank-zone-heading small { max-width: 50%; }
+  .rank-score { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .league-unranked-cta,
-  .league-row,
-  .podium-card,
-  .league-goal-meter span { transition-duration: 1ms; }
+  .rank-tab,
+  .lad.ores .ore-crest { transition-duration: 1ms; }
 }

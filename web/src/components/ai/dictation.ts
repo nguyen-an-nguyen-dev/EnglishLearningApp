@@ -44,6 +44,11 @@ function recognitionCtor(): RecognitionCtor | null {
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
 }
 
+/** True when this browser can dictate without the backend recorder. */
+export function isDictationSupported(): boolean {
+  return recognitionCtor() !== null
+}
+
 /** Vietnamese dictation is the default: the learner speaks Vietnamese. */
 export const SPEECH_LANG = 'vi-VN'
 

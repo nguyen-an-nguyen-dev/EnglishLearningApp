@@ -618,6 +618,27 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .profile-icon-btn:focus-visible,
 .logout-icon-btn:focus-visible { outline: 2px solid #19b6f0; outline-offset: 2px; }
+.user-avatar {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  overflow: hidden;
+  place-items: center;
+  border: 2px solid var(--app-scrollbar-ink, #14203a);
+  border-radius: 50%;
+  background: #cdeeff;
+}
+.user-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.avatar-frame-image {
+  position: absolute;
+  z-index: 3;
+  top: 35%;
+  left: 29%;
+  width: 42% !important;
+  height: 42% !important;
+  border-width: 1px;
+  box-shadow: 0 1px 0 #14203a;
+}
 .logout-icon-btn:hover {
   background: var(--danger-50);
   color: var(--danger-600);
@@ -1359,6 +1380,25 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 /* Full-screen roadmap: map fills the content area, info floats on top */
 @media (min-width: 961px) {
+  /* Journey scrolls inside its map canvas. Lock the document/shell so it cannot
+     create a second vertical scrollbar beside the map's own scroll rail. */
+  html:has(.learning-page-map),
+  body:has(.learning-page-map) {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+  .app-shell:has(.learning-page-map) {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+  .app-main:has(.learning-page-map) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
   .learning-page-map {
     max-width: 1600px;
     height: 100dvh;
@@ -1386,7 +1426,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     border-radius: 0;
     box-shadow: none;
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
+    scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
     overscroll-behavior: contain;
   }
   .learning-page-map .roadmap-card { width: 100%; min-width: 0; }
@@ -2005,6 +2045,26 @@ body:has(.app-shell),
   .roadmap-card { min-width: 0; }
 }
 
+/* Main navigation matches the reference mockup's 3px ink frame. */
+.sidebar {
+  background: var(--paper);
+  border-right: 3px solid var(--sticker-ink);
+}
+.nav-item,
+.nav-item:hover,
+.nav-item-active,
+.nav-item-active:hover {
+  border-width: 3px;
+  border-radius: 12px;
+}
+.nav-item-active,
+.nav-item-active:hover {
+  border-color: var(--sticker-ink);
+  background: #ffd23f;
+  color: #14203a;
+  box-shadow: 0 3px 0 var(--sticker-ink);
+}
+
 /* Thông báo làm lại câu sai trong bài học */
 .lesson-round-notice {
   margin: 12px auto 0;
@@ -2015,4 +2075,79 @@ body:has(.app-shell),
   color: #0E3542;
   font-size: 0.95rem;
   text-align: center;
+}
+
+/* Keep the shell rails in the same ink outline as the reference navigation. */
+.sidebar {
+  background: var(--paper);
+  border-right: 3px solid var(--sticker-ink);
+}
+
+/* Branded scrollbars across the learner app; the admin console has its own shell. */
+:root:has(.app-shell) {
+  --app-scrollbar-ink: #14203a;
+  --app-scrollbar-track: #dbe5f1;
+  --app-scrollbar-thumb: #19b6f0;
+}
+:root[data-theme="dark"]:has(.app-shell) {
+  --app-scrollbar-ink: #060b16;
+  --app-scrollbar-track: #22324f;
+  --app-scrollbar-thumb: #19b6f0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html:has(.app-shell) {
+    scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+  }
+  .app-shell,
+  .app-shell * {
+    scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+    scrollbar-width: thin;
+  }
+  .app-shell :where(.roadmap-scroll, .sidebar-nav, .voice-panel-body, .lesson-question-scroll, .lesson-result, .review-session-body, .translate-rail, .translate-sheet-body) {
+    scrollbar-gutter: stable;
+  }
+  html:has(.app-shell)::-webkit-scrollbar,
+  .app-shell::-webkit-scrollbar,
+  .app-shell *::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  html:has(.app-shell)::-webkit-scrollbar-track,
+  .app-shell::-webkit-scrollbar-track,
+  .app-shell *::-webkit-scrollbar-track {
+    border: 2px solid var(--paper);
+    border-radius: 999px;
+    background: var(--app-scrollbar-track);
+  }
+  html:has(.app-shell)::-webkit-scrollbar-thumb,
+  .app-shell::-webkit-scrollbar-thumb,
+  .app-shell *::-webkit-scrollbar-thumb {
+    min-height: 36px;
+    border: 2px solid var(--app-scrollbar-ink);
+    border-radius: 999px;
+    background: var(--app-scrollbar-thumb);
+  }
+  html:has(.app-shell)::-webkit-scrollbar-thumb:hover,
+  html:has(.app-shell)::-webkit-scrollbar-thumb:active,
+  .app-shell::-webkit-scrollbar-thumb:hover,
+  .app-shell *::-webkit-scrollbar-thumb:hover,
+  .app-shell::-webkit-scrollbar-thumb:active,
+  .app-shell *::-webkit-scrollbar-thumb:active {
+    background: #ffd23f;
+  }
+  html:has(.app-shell)::-webkit-scrollbar-button,
+  .app-shell::-webkit-scrollbar-button,
+  .app-shell *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  html:has(.app-shell)::-webkit-scrollbar-corner,
+  .app-shell::-webkit-scrollbar-corner,
+  .app-shell *::-webkit-scrollbar-corner {
+    background: var(--app-scrollbar-track);
+  }
 }

@@ -65,6 +65,9 @@ export function isReviewAnswerCorrect(expected: string, submitted: string): bool
 }
 
 export async function getQueue(userId: number): Promise<ReviewQueue> {
+  // Keep the queue current when a learner opens Review. This makes recent
+  // lesson mistakes and battle misses available without a separate sync step.
+  await repo.syncHistoricalMistakes(userId);
   const [due, upcoming, counts] = await Promise.all([
     repo.listDueShortlist(userId),
     repo.listUpcoming(userId, 10),

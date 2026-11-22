@@ -78,6 +78,14 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   facebookAppId: process.env.FACEBOOK_APP_ID || '',
   facebookAppSecret: process.env.FACEBOOK_APP_SECRET || '',
+  cloudinaryCloudName: (process.env.CLOUDINARY_CLOUD_NAME || '').trim(),
+  cloudinaryApiKey: (process.env.CLOUDINARY_API_KEY || '').trim(),
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  cloudinaryConfigured: Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME?.trim()
+    && process.env.CLOUDINARY_API_KEY?.trim()
+    && process.env.CLOUDINARY_API_SECRET,
+  ),
   // Transactional mail for the web registration OTP. SMTP is optional in
   // development: `otpDebug` logs the code and echoes it to the caller instead.
   smtpHost: (process.env.SMTP_HOST || '').trim(),

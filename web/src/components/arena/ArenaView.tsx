@@ -31,7 +31,6 @@ import type {
 import { formatCompact } from '../../utils/format'
 import { matchOutcome } from '../../utils/arena'
 import { setArenaLeaveGuard } from '../../utils/arenaGuard'
-import { initialOf } from '../../utils/avatar'
 import {
   clearBattleSession,
   readBattleSession,
@@ -504,6 +503,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
           <div className="arena-side">
             <AvatarFrame
               name={player?.name ?? t.arenaYou}
+              avatarUrl={user?.avatar_url}
               visualKey={wallet?.equipment.frame?.visual_key ?? null}
               style={wallet?.equipment.frame?.style ?? null}
               size={44}
@@ -534,9 +534,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
               <strong className="arena-side-score">{scoreFor(opponentPlayer?.userId ?? opponentId)}</strong>
               <small>{t.arenaRoundWins}</small>
             </div>
-            <span className="arena-avatar" aria-hidden="true">
-              {initialOf(opponentPlayer?.name ?? t.arenaOpponent)}
-            </span>
+            <AvatarFrame name={opponentPlayer?.name ?? t.arenaOpponent} size={46} className="arena-avatar" />
           </div>
         </div>
 
@@ -659,6 +657,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             <div className="arena-v2-seat is-you">
               <AvatarFrame
                 name={myName}
+                avatarUrl={user?.avatar_url}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
               style={wallet?.equipment.frame?.style ?? null}
                 size={64}
@@ -856,6 +855,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                 <div className="arena-v2-versus-slot">
                   <AvatarFrame
                     name={user?.name ?? null}
+                    avatarUrl={user?.avatar_url}
                     visualKey={wallet?.equipment.frame?.visual_key ?? null}
               style={wallet?.equipment.frame?.style ?? null}
                     size={92}

@@ -12,8 +12,8 @@ export interface LeagueRules {
 
 /** Fallback used before the ranking payload arrives; the API owns the real values. */
 export const DEFAULT_LEAGUE_RULES: LeagueRules = {
-  promotion_slots: 6,
-  demotion_slots: 6,
+  promotion_slots: 3,
+  demotion_slots: 3,
 }
 
 export function asLeagueTier(value: string | null | undefined): LeagueTier {
@@ -52,7 +52,7 @@ export function promotionCount(
 /**
  * Demotion slots after the promotion block claims overlapping ranks. Coal is the
  * bottom, so nobody drops out. The leader is never demoted: on a short diamond
- * board the bottom-six rule would otherwise send the week's winner down too.
+ * board the bottom-three rule would otherwise send the week's winner down too.
  */
 export function demotionCount(
   total: number,

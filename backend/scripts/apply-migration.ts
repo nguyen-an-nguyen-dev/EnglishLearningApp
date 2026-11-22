@@ -4,10 +4,12 @@ import { resolve } from 'node:path';
 import { createConnection } from 'mysql2/promise';
 
 /**
- * Tiny migration runner for this project (no migration framework is bundled).
+ * Tiny upgrade runner for existing databases (no migration framework is bundled).
+ * Fresh databases should use database/init.sql followed by database/seeds.sql;
+ * init.sql already includes every migration that exists at the time it is built.
  * Read one .sql file, split on statement terminators, execute in order.
  *
- *   npx tsx scripts/apply-migration.ts database/migrations/2026-11-19-content-social.sql
+ *   npx tsx scripts/apply-migration.ts path/to/change.sql
  */
 function statements(sql: string): string[] {
   return sql

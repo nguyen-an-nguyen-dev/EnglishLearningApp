@@ -23,25 +23,25 @@ test('the league ladder runs coal to diamond and clamps at both ends', () => {
   assert.equal(previousTier('coal'), null)
 })
 
-test('the top six promote, the bottom six demote, and the middle stays', () => {
+test('the top three promote, the bottom three demote, and the middle stays', () => {
   const total = 25
   for (let rank = 1; rank <= total; rank += 1) {
     const zone = leagueZone(rank, total, 'copper')
-    if (rank <= 6) assert.equal(zone, 'promote', `rank ${rank}`)
-    else if (rank >= 20) assert.equal(zone, 'demote', `rank ${rank}`)
+    if (rank <= 3) assert.equal(zone, 'promote', `rank ${rank}`)
+    else if (rank >= 23) assert.equal(zone, 'demote', `rank ${rank}`)
     else assert.equal(zone, 'stay', `rank ${rank}`)
   }
-  assert.equal(promotionCount(total, 'copper'), 6)
-  assert.equal(demotionCount(total, 'copper'), 6)
-  assert.equal(stayCount(total, 'copper'), 13)
+  assert.equal(promotionCount(total, 'copper'), 3)
+  assert.equal(demotionCount(total, 'copper'), 3)
+  assert.equal(stayCount(total, 'copper'), 19)
 })
 
 test('coal only has a promotion zone because nobody can fall below it', () => {
   const total = 25
-  assert.equal(promotionCount(total, 'coal'), 6)
+  assert.equal(promotionCount(total, 'coal'), 3)
   assert.equal(demotionCount(total, 'coal'), 0)
-  assert.equal(stayCount(total, 'coal'), 19)
-  for (let rank = 20; rank <= 25; rank += 1) {
+  assert.equal(stayCount(total, 'coal'), 22)
+  for (let rank = 23; rank <= 25; rank += 1) {
     assert.equal(leagueZone(rank, total, 'coal'), 'stay', `rank ${rank}`)
   }
 })
@@ -49,58 +49,64 @@ test('coal only has a promotion zone because nobody can fall below it', () => {
 test('diamond only has a demotion zone because nobody can climb above it', () => {
   const total = 25
   assert.equal(promotionCount(total, 'diamond'), 0)
-  assert.equal(demotionCount(total, 'diamond'), 6)
-  assert.equal(stayCount(total, 'diamond'), 19)
-  for (let rank = 1; rank <= 6; rank += 1) {
+  assert.equal(demotionCount(total, 'diamond'), 3)
+  assert.equal(stayCount(total, 'diamond'), 22)
+  for (let rank = 1; rank <= 3; rank += 1) {
     assert.equal(leagueZone(rank, total, 'diamond'), 'stay', `rank ${rank}`)
   }
-  assert.equal(leagueZone(20, total, 'diamond'), 'demote')
+  assert.equal(leagueZone(23, total, 'diamond'), 'demote')
 })
 
-test('a twelve-person board has no middle because the zones meet', () => {
+test('a twelve-person board keeps six learners in the middle', () => {
   const total = 12
-  assert.equal(promotionEnd(total), 6)
-  assert.equal(demotionCount(total, 'gold'), 6)
-  assert.equal(stayCount(total, 'gold'), 0)
-  assert.equal(leagueZone(6, total, 'gold'), 'promote')
-  assert.equal(leagueZone(7, total, 'gold'), 'demote')
+  assert.equal(promotionEnd(total), 3)
+  assert.equal(demotionCount(total, 'gold'), 3)
+  assert.equal(stayCount(total, 'gold'), 6)
+  assert.equal(leagueZone(3, total, 'gold'), 'promote')
+  assert.equal(leagueZone(10, total, 'gold'), 'demote')
 })
 
-test('a short board promotes everyone before anyone can demote', () => {
-  assert.equal(promotionCount(5, 'coal'), 5)
-  assert.equal(demotionCount(5, 'coal'), 0)
-  assert.equal(stayCount(5, 'coal'), 0)
-  for (let rank = 1; rank <= 5; rank += 1) {
-    assert.equal(leagueZone(rank, 5, 'coal'), 'promote', `rank ${rank}`)
+test('short boards use available slots without overlapping movement zones', () => {
+  assert.equal(promotionCount(2, 'coal'), 2)
+  assert.equal(demotionCount(2, 'coal'), 0)
+  assert.equal(stayCount(2, 'coal'), 0)
+  for (let rank = 1; rank <= 2; rank += 1) {
+    assert.equal(leagueZone(rank, 2, 'coal'), 'promote', `rank ${rank}`)
   }
+  assert.equal(promotionCount(5, 'copper'), 3)
+  assert.equal(demotionCount(5, 'copper'), 2)
+  assert.equal(leagueZone(4, 5, 'copper'), 'demote')
+  assert.equal(leagueZone(5, 5, 'copper'), 'demote')
 
-  // Seven learners: the sixth promotion still wins the overlap with the single
-  // demotion slot, exactly like settlement.
-  assert.equal(promotionCount(7, 'copper'), 6)
-  assert.equal(demotionCount(7, 'copper'), 1)
-  assert.equal(leagueZone(6, 7, 'copper'), 'promote')
-  assert.equal(leagueZone(7, 7, 'copper'), 'demote')
+  // The middle rank stays when both three-person movement zones fit.
+  assert.equal(promotionCount(7, 'copper'), 3)
+  assert.equal(demotionCount(7, 'copper'), 3)
+  assert.equal(leagueZone(3, 7, 'copper'), 'promote')
+  assert.equal(leagueZone(4, 7, 'copper'), 'stay')
+  assert.equal(leagueZone(5, 7, 'copper'), 'demote')
 })
 
 test('the ladder ends keep their short-board safety', () => {
-  // Seven coal learners: six climb, the seventh has nowhere to fall.
-  assert.equal(leagueZone(7, 7, 'coal'), 'stay')
-  // Seven diamond learners: the leader defends the top, the other six drop.
+  // Seven coal learners: three climb and four stay at the floor.
+  assert.equal(leagueZone(4, 7, 'coal'), 'stay')
+  // Seven diamond learners: the top four stay, the bottom three drop.
   assert.equal(leagueZone(1, 7, 'diamond'), 'stay')
-  assert.equal(leagueZone(2, 7, 'diamond'), 'demote')
-  assert.equal(demotionCount(7, 'diamond'), 6)
-  assert.equal(stayCount(7, 'diamond'), 1)
+  assert.equal(leagueZone(4, 7, 'diamond'), 'stay')
+  assert.equal(leagueZone(5, 7, 'diamond'), 'demote')
+  assert.equal(demotionCount(7, 'diamond'), 3)
+  assert.equal(stayCount(7, 'diamond'), 4)
 })
 
 test('the week leader is never demoted, even on a tiny diamond board', () => {
-  // Diamond has no promotion block to shield its top, so a naive bottom-six
+  // Diamond has no promotion block to shield its top, so a naive bottom-three
   // rule would demote the whole board — including whoever just won the week.
   for (const total of [1, 2, 5, 6]) {
-    assert.equal(demotionCount(total, 'diamond'), total - 1, `diamond board of ${total}`)
-    assert.equal(stayCount(total, 'diamond'), 1, `diamond board of ${total}`)
+    const demoted = Math.min(3, total - 1)
+    assert.equal(demotionCount(total, 'diamond'), demoted, `diamond board of ${total}`)
+    assert.equal(stayCount(total, 'diamond'), total - demoted, `diamond board of ${total}`)
     assert.equal(leagueZone(1, total, 'diamond'), 'stay', `winner on ${total}`)
     for (let rank = 2; rank <= total; rank += 1) {
-      assert.equal(leagueZone(rank, total, 'diamond'), 'demote', `rank ${rank} of ${total}`)
+      assert.equal(leagueZone(rank, total, 'diamond'), rank > total - demoted ? 'demote' : 'stay', `rank ${rank} of ${total}`)
     }
   }
 })
@@ -116,5 +122,5 @@ test('server-owned rules can resize the zones', () => {
 })
 
 test('the fallback rules stay aligned with settlement', () => {
-  assert.deepEqual(DEFAULT_LEAGUE_RULES, { promotion_slots: 6, demotion_slots: 6 })
+  assert.deepEqual(DEFAULT_LEAGUE_RULES, { promotion_slots: 3, demotion_slots: 3 })
 })

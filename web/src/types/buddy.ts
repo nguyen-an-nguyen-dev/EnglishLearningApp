@@ -91,9 +91,12 @@ export interface BuddyAnswer {
     label: string
     tab?: BuddyTarget['tab']
     videoId?: number
+    videoTitle?: string
     lessonId?: number
     lessonTitle?: string
     highlight?: string
   } | null
   suggestion: ReminderSuggestion | null
+  /** 'navigate' means: switch screen and show a short toast, never open the chat panel. */
+  route?: 'open_prompt' | 'navigate'
 }

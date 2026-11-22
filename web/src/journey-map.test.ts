@@ -117,6 +117,14 @@ describe('Roadmap data', () => {
     assert.equal(markerSide(1), 1)
   })
 
+  test('keeps all lesson node coordinates unchanged across the 3D background', () => {
+    const nodes = buildMapNodes(buildRoadmap(makeStages()))
+    assert.deepEqual(nodes.map(({ x, y }) => [x, y]), Array.from({ length: 36 }, (_, index) => [
+      index % 2 === 0 ? 534 : 586,
+      Math.floor(index / 6) * 670 + 110 + (index % 6) * 96,
+    ]))
+  })
+
   test('builds the full car path with one increasing length per lesson', () => {
     const stages = buildRoadmap(makeStages())
     const nodes = buildMapNodes(stages)
