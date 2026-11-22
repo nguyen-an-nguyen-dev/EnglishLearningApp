@@ -1,4 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
+import { decideBuddyRoute } from './ai.decisions';
 import { inferReminderFromMessage } from './ai.parsing';
 import { answerTurn, resolveTurnIntent } from './ai.pipeline';
 import { createPlanMessages, planData, toCoachMessages, toTutorMessages } from './ai.prompts';
@@ -6,6 +7,8 @@ import * as repository from './ai.repository';
 import {
   buildOfflineCoachReply,
   buildStudyPlan,
+  pickNextLesson,
+  resolveNavigationRequest,
   resolveChatAction,
   toStudySnapshot,
 } from './ai.study';
@@ -24,6 +27,48 @@ import type {
 } from './ai.types';
 
 const MAX_CONTEXT_MESSAGES = 20;
+
+function navigationReply(action: ChatAction): AiReply {
+  return {
+    reply: `Mình tìm thấy đúng mục rồi. Chọn “${action.label}” để mở, hoặc hủy nếu bạn đổi ý.`,
+    feedback: [],
+    followups: [],
+    action,
+    reminder: null,
+  };
+}
+
+/** Short toast copy for a direct navigation: no chat panel, no long answer. */
+function openedReply(action: ChatAction): AiReply {
+  return {
+    reply: `Đã mở “${action.label}” cho bạn.`,
+    feedback: [],
+    followups: [],
+    action,
+    reminder: null,
+  };
+}
+
+/**
+ * When the decision model says "navigate" but the request names no catalog item,
+ * send the learner to the next real lesson instead of opening a chat thread.
+ * `explain` is deliberately excluded: it needs a written answer.
+ */
+function navigationForIntent(intent: ChatIntent, stats: StudyStats): ChatAction | null {
+  if (intent !== 'plan' && intent !== 'practice' && intent !== 'how') return null;
+  const next = pickNextLesson(stats);
+  const lesson = next ? stats.lessons.find((item) => item.id === next.id) : null;
+  if (lesson) {
+    return {
+      kind: 'open_lesson',
+      tab: 'study',
+      lessonId: lesson.id,
+      lessonTitle: lesson.title,
+      label: `Mở bài: ${lesson.title}`.slice(0, 60),
+    };
+  }
+  return { kind: 'open_tab', tab: 'study', label: 'Mở lộ trình học' };
+}
 
 export async function listChats(userId: number) {
   return repository.listChats(userId);
@@ -144,15 +189,18 @@ export async function sendMessage(
   if (isCoach) {
     const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner);
     stats = coach.stats;
-    aiReply = (await answerTurn({
-      messages: coach.messages,
-      message,
-      intent: turnIntent,
-      context,
-      flavor: 'coach',
-      offline: coach.offline,
-      learnerData: coach.learnerData,
-    })).reply;
+    const navigation = resolveNavigationRequest(message, coach.stats);
+    aiReply = navigation
+      ? navigationReply(navigation)
+      : (await answerTurn({
+          messages: coach.messages,
+          message,
+          intent: turnIntent,
+          context,
+          flavor: 'coach',
+          offline: coach.offline,
+          learnerData: coach.learnerData,
+        })).reply;
   } else {
     aiReply = (await answerTurn({
       messages: toTutorMessages(history, message, chat.topic, learner),
@@ -185,6 +233,8 @@ export interface BuddyAnswer {
   action: ChatAction | null;
   feedback: AiReply['feedback'];
   suggestion: ReminderSuggestion | null;
+  /** The web uses this to avoid opening the chat panel for pure navigation. */
+  route: 'open_prompt' | 'navigate';
 }
 
 /**
@@ -204,18 +254,55 @@ export async function askBuddy(
     repository.getLearnerContext(userId),
   ]);
 
-  const turnIntent = await resolveTurnIntent(message, intent, context);
+  // Both decisions use the Google decision model; run them together so the
+  // extra routing question does not add a second network round trip.
+  const [turnIntent, routeDecision] = await Promise.all([
+    resolveTurnIntent(message, intent, context),
+    decideBuddyRoute(message, intent, context),
+  ]);
+  const decidedNavigate = routeDecision?.confident === true && routeDecision.route === 'navigate';
+  const decidedChat = routeDecision?.confident === true && routeDecision.route === 'open_prompt';
   const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner);
 
-  const aiReply = (await answerTurn({
-    messages: coach.messages,
-    message,
-    intent: turnIntent,
-    context,
-    flavor: 'coach',
-    offline: coach.offline,
-    learnerData: coach.learnerData,
-  })).reply;
+  let aiReply: AiReply;
+  if (decidedNavigate) {
+    const target = resolveNavigationRequest(message, coach.stats) ?? navigationForIntent(turnIntent, coach.stats);
+    aiReply = target
+      ? openedReply(resolveChatAction(target, coach.stats) ?? target)
+      : (await answerTurn({
+          messages: coach.messages,
+          message,
+          intent: turnIntent,
+          context,
+          flavor: 'coach',
+          offline: coach.offline,
+          learnerData: coach.learnerData,
+        })).reply;
+  } else if (decidedChat) {
+    aiReply = (await answerTurn({
+      messages: coach.messages,
+      message,
+      intent: turnIntent,
+      context,
+      flavor: 'coach',
+      offline: coach.offline,
+      learnerData: coach.learnerData,
+    })).reply;
+  } else {
+    // Gate disabled or unsure: keep the deterministic navigation fallback.
+    const navigation = resolveNavigationRequest(message, coach.stats);
+    aiReply = navigation
+      ? navigationReply(navigation)
+      : (await answerTurn({
+          messages: coach.messages,
+          message,
+          intent: turnIntent,
+          context,
+          flavor: 'coach',
+          offline: coach.offline,
+          learnerData: coach.learnerData,
+        })).reply;
+  }
 
   const saved = await repository.saveConversation(
     userId,
@@ -225,11 +312,13 @@ export async function askBuddy(
     aiReply.feedback.map((item) => ({ ...item, original_text: message })),
   );
 
+  const action = resolveChatAction(aiReply.action, coach.stats);
   return {
     reply: aiReply.reply,
     followups: aiReply.followups,
-    action: resolveChatAction(aiReply.action, coach.stats),
+    action,
     feedback: toSavedFeedback(aiReply, message, saved.userMessage.id),
     suggestion: aiReply.reminder ?? inferReminderFromMessage(message),
+    route: decidedNavigate ? 'navigate' : decidedChat ? 'open_prompt' : action ? 'navigate' : 'open_prompt',
   };
 }

@@ -14,6 +14,7 @@ import type { AdminManagedRole, AdminManagedUser, AdminUserPatchPayload } from '
 import { formatCompact } from '../../utils/format'
 import { AdminDialog } from './AdminDialog'
 import { AdminAsyncState } from './AdminAsyncState'
+import { Avatar } from '../Avatar'
 
 const ROLE_LABEL: Record<AdminManagedRole, string> = {
   learner: 'Học viên',
@@ -193,9 +194,7 @@ export function AdminUsersPanel() {
         <ul className="admin-list is-video">
           {users.map((user) => (
             <li className="admin-row" key={user.id}>
-              <span className="admin-user-avatar" aria-hidden="true">
-                {user.name.trim().slice(0, 1).toUpperCase() || '?'}
-              </span>
+              <Avatar size={36} className="admin-user-avatar" />
               <div className="admin-row-main">
                 <strong>{user.name}</strong>
                 <div className="admin-row-meta">

@@ -15,5 +15,6 @@ export const AUTH_ENDPOINTS = {
   provider: (provider: SocialProvider) => `/api/auth/providers/${provider}`,
   me: '/api/auth/me',
   profile: '/api/auth/profile',
+  avatar: '/api/auth/avatar',
   password: '/api/auth/password',
 } as const;

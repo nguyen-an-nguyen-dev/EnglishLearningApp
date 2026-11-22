@@ -76,7 +76,7 @@ async function createLearner(
   return user.insertId;
 }
 
-test('a twelve-person league promotes the top six and demotes the bottom six', async () => {
+test('a twelve-person league promotes the top three and demotes the bottom three', async () => {
   const seasonId = await createFinishedSeason('p');
   const userIds: number[] = [];
   for (let index = 0; index < 12; index += 1) {
@@ -96,13 +96,13 @@ test('a twelve-person league promotes the top six and demotes the bottom six', a
   );
   assert.equal(payouts.length, 12);
   for (const payout of payouts) {
-    const expected = payout.rank <= 6 ? 'iron' : 'coal';
+    const expected = payout.rank <= 3 ? 'iron' : payout.rank >= 10 ? 'coal' : 'copper';
     assert.equal(payout.tier, expected, `rank ${payout.rank}`);
   }
 
   for (const [index, userId] of userIds.entries()) {
     const carried = await repo.getLeagueTier(pool, userId);
-    assert.equal(carried, index < 6 ? 'iron' : 'coal');
+    assert.equal(carried, index < 3 ? 'iron' : index >= 9 ? 'coal' : 'copper');
   }
 
   const [snapshots] = await pool.execute<Array<RowDataPacket & { tier: string }>>(
@@ -110,18 +110,17 @@ test('a twelve-person league promotes the top six and demotes the bottom six', a
     [seasonId],
   );
   for (const [index, snapshot] of snapshots.entries()) {
-    assert.equal(snapshot.tier, index < 6 ? 'iron' : 'coal', 'the snapshot follows the persistent tier');
+    assert.equal(snapshot.tier, index < 3 ? 'iron' : index >= 9 ? 'coal' : 'copper', 'the snapshot follows the persistent tier');
   }
 });
 
 test('each tier settles as its own league, with no move at the ladder ends', async () => {
   const seasonId = await createFinishedSeason('tiers');
   const groups = [
-    { tier: 'coal', base: 5000, expected: (rank: number) => (rank <= 6 ? 'copper' : 'coal') },
-    { tier: 'copper', base: 3000, expected: (rank: number) => (rank <= 6 ? 'iron' : 'coal') },
-    // Diamond cannot promote, so its top six slots are not promotions: the
-    // leader defends and the bottom six still drop (diamond → lapis).
-    { tier: 'diamond', base: 100, expected: (rank: number) => (rank === 1 ? 'diamond' : 'lapis') },
+    { tier: 'coal', base: 5000, expected: (rank: number) => (rank <= 3 ? 'copper' : 'coal') },
+    { tier: 'copper', base: 3000, expected: (rank: number) => (rank <= 3 ? 'iron' : rank >= 5 ? 'coal' : 'copper') },
+    // Diamond cannot promote; its top four defend and its bottom three drop.
+    { tier: 'diamond', base: 100, expected: (rank: number) => (rank >= 5 ? 'lapis' : 'diamond') },
   ] as const;
 
   const idsByTier = new Map<string, number[]>();
@@ -165,7 +164,7 @@ test('each tier settles as its own league, with no move at the ladder ends', asy
 });
 
 test('a tiny diamond league still keeps its winner', async () => {
-  // Diamond has no promotion block to shield its top, so a naive bottom-six
+  // Diamond has no promotion block to shield its top, so a naive bottom-three
   // rule would demote the whole board — including whoever just won the week.
   const seasonId = await createFinishedSeason('tiny');
   const ids: number[] = [];

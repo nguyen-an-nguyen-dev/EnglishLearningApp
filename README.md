@@ -18,7 +18,7 @@ and an admin content console.
 ## Repository layout
 
 ```
-backend/        Express API, modules, migrations and Node test suites
+backend/        Express API, modules and Node test suites
 web/            React web application and admin console
 mobile/         Expo mobile application
 docs/           Specs, UML, audit notes (local documentation)
@@ -29,9 +29,11 @@ CODE_STANDARDS.md Naming, layering, UI and testing rules
 
 ## Local setup
 
-1. **Database**: import the reproducible snapshot.
+1. **Database**: create the schema, then load the data. `init.sql` contains the
+   current schema; `seeds.sql` contains data only.
    ```bash
-   mysql -u root -p < backend/database/final.sql
+   mysql -u root -p < backend/database/init.sql
+   mysql -u root -p english_learning < backend/database/seeds.sql
    ```
 2. **Backend env**: copy/complete `backend/.env` with at least:
    ```env
@@ -43,6 +45,10 @@ CODE_STANDARDS.md Naming, layering, UI and testing rules
    DB_NAME=english_learning
    JWT_SECRET=<at least 32 characters>
    CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+   # Optional; fill these values from the Cloudinary Console
+   CLOUDINARY_CLOUD_NAME=
+   CLOUDINARY_API_KEY=
+   CLOUDINARY_API_SECRET=
    ```
 3. **Install & run**:
    ```bash
@@ -50,22 +56,39 @@ CODE_STANDARDS.md Naming, layering, UI and testing rules
    cd web && npm install && npm run dev
    ```
 
-Incremental migrations live in `backend/database/migrations/` and are applied with:
-```bash
-cd backend
-npx tsx scripts/apply-migration.ts database/migrations/2026-11-19-content-social.sql
-```
+For an existing database, back it up before applying a targeted migration.
+`init.sql` remains the complete schema for fresh databases; the migration above
+adds the avatar columns to an existing database.
+
+Avatar uploads require the three optional Cloudinary values above. Leave all
+three blank to keep the app running without uploads; the endpoint then returns
+a clear not-configured response. The API secret stays on the backend. For an
+existing database, apply `backend/database/migrations/2026-11-22-user-avatars.sql`
+once after taking a backup; a fresh database gets the columns from `init.sql`.
 
 ## Demo dataset
 
-The local database includes a complete visual demo (27 users, leaderboard,
-5 shared videos with captions, progress, matches, chats, inventory and badges).
-Recreate or refresh it with:
+The seed includes the captured reference/content/activity dataset. Add or refresh
+the 70 deterministic league demo learners with:
 ```bash
 cd backend
 npm run seed:demo
 ```
-Demo accounts and exact contents are documented in `DEMO_DATA.md`.
+Demo accounts and exact contents are documented in `DEMO_DATA.md`. The command
+only upserts `demo_*` learner accounts and their active-season standings; it
+preserves existing users and activity.
+
+To verify the current split files against a fresh scratch database (the script
+drops `english_learning_verify` when it finishes):
+
+```bash
+cd backend
+npm run db:verify
+```
+
+`backend/database/seeds.sql` is a point-in-time data snapshot: a live database may
+contain newer activity. The incremental migration files remain available for
+upgrades.
 
 ## Quality commands
 
@@ -145,12 +168,9 @@ empty credentials is treated as unconfigured so the dev fallback still works.
 For local development without SMTP, leave `SMTP_HOST` empty and `OTP_DEBUG=true`:
 the backend logs the code and the second step displays it for testing.
 
-Apply the pending-registration table before running the new flow:
-
-```bash
-cd backend
-npx tsx scripts/apply-migration.ts database/migrations/2026-11-20-registration-otp.sql
-```
+Fresh installs already include pending registrations in `init.sql`. An older
+database needs the `pending_registrations` table added manually before OTP
+registration works.
 
 ## Social login configuration
 

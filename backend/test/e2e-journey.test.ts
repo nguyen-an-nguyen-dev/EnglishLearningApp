@@ -110,7 +110,7 @@ test('learner journey reaches wallet, shop and ranking; admin can adjust progres
   for (const entry of ranking.body.data!.league) {
     assert.equal(entry.tier, 'coal', 'the weekly board only contains the learner’s tier');
   }
-  assert.deepEqual(ranking.body.data!.league_rules, { promotion_slots: 6, demotion_slots: 6 });
+  assert.deepEqual(ranking.body.data!.league_rules, { promotion_slots: 3, demotion_slots: 3 });
 
   const listed = await call<{ users: Array<{ id: number; email: string }> }>(
     `/api/admin/users?search=${encodeURIComponent(learner.email)}`,

@@ -1,9 +1,10 @@
 import { frameEntry } from './garage/catalog'
 import { FramePlain } from './garage/frames/frame_plain'
-import { initialOf } from '../../utils/avatar'
+import { Avatar } from '../Avatar'
 
 export interface AvatarFrameProps {
   name: string | null | undefined
+  avatarUrl?: string | null
   /** `visual_key` of the equipped frame; unknown keys render the plain ring. */
   visualKey?: string | null
   /** Admin palette from the shop row; catalog art is canonical, kept for API. */
@@ -13,7 +14,7 @@ export interface AvatarFrameProps {
 }
 
 /** Initial-letter avatar ringed by the equipped frame. Frames compose four layers around a fixed (100,112) r=46 slot, so profile, arena and rankings cannot drift; small variants keep only the material ring. */
-export function AvatarFrame({ name, visualKey, size = 44, className }: AvatarFrameProps) {
+export function AvatarFrame({ avatarUrl, visualKey, size = 44, className }: AvatarFrameProps) {
   const entry = frameEntry(visualKey)
   const Art = entry?.Art ?? FramePlain
   const isSmall = size <= 48
@@ -24,7 +25,8 @@ export function AvatarFrame({ name, visualKey, size = 44, className }: AvatarFra
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <Art letter={initialOf(name)} fontSize={48} small={isSmall} />
+      <Art letter="" fontSize={48} small={isSmall} />
+      <Avatar src={avatarUrl} size={size * 0.42} className="avatar-frame-image" />
     </span>
   )
 }

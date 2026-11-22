@@ -25,21 +25,15 @@ export function FrameSvg({ label, className, children }: { label: string; classN
   )
 }
 
-export function AvatarSlot({ letter = 'K', fontSize = 48 }: { letter?: string; fontSize?: number }) {
+export function AvatarSlot(props: { letter?: string; fontSize?: number }) {
+  // The original frame art API passes a name initial. Keep accepting it for
+  // compatibility while rendering the shared silhouette instead.
+  void props
   return (
     <g>
       <circle cx={FRAME.cxAvatar} cy={FRAME.avatarY} r={FRAME.avatarR} fill={INK} />
-      <text
-        x={FRAME.cxAvatar}
-        y={FRAME.avatarY + fontSize * 0.35}
-        textAnchor="middle"
-        fill={WHITE}
-        fontFamily="'Be Vietnam Pro', system-ui, sans-serif"
-        fontSize={fontSize}
-        fontWeight={800}
-      >
-        {letter}
-      </text>
+      <circle cx={FRAME.cxAvatar} cy={FRAME.avatarY - 10} r="13" fill={WHITE} />
+      <path d={`M${FRAME.cxAvatar - 25} ${FRAME.avatarY + 30}q4-25 25-25t25 25v8h-50z`} fill={WHITE} />
     </g>
   )
 }

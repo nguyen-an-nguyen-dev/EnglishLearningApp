@@ -11,6 +11,7 @@ import {
   VideoCamera,
 } from '@phosphor-icons/react'
 import { useAuth } from '../context/AuthContext'
+import { Avatar } from '../components/Avatar'
 import { useI18n } from '../i18n'
 import { AdminLessonsPanel } from '../components/admin/AdminLessonsPanel'
 import { AdminVideoPanel } from '../components/admin/AdminVideoPanel'
@@ -75,7 +76,6 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
     { id: 'stats', label: t.consoleNavStats, short: 'Thống kê', icon: ChartBar },
   ]
 
-  const initial = user?.name ? user.name.trim()[0].toUpperCase() : 'A'
   const today = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })
   const todayLabel = today.charAt(0).toUpperCase() + today.slice(1)
 
@@ -116,7 +116,7 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
 
         <div className="admin-sider-foot">
           <div className="admin-sider-user">
-            <span className="admin-sider-avatar">{initial}</span>
+            <Avatar src={user?.avatar_url} size={36} className="admin-sider-avatar" />
             <span className="admin-sider-user-copy">
               <strong>{user?.name}</strong>
               <small>{user?.email}</small>

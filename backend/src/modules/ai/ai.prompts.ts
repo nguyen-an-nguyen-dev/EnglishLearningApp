@@ -117,6 +117,7 @@ const VOICE_GUIDE = [
   '- Câu ngắn như người thật; tối đa 3 câu (dài hơn chỉ khi giải thích ngữ pháp).',
   '- Không nhắc lại câu hỏi của người học; không hứa tính năng ngoài APP_GUIDE.',
   '- Người học sai thì nói thẳng chỗ sai rồi đưa câu đúng, không rào đón.',
+  '- CHỈ dùng tiếng Việt hoặc tiếng Anh. Không bao giờ trả lời, dịch sang, hay giải thích bằng ngôn ngữ khác (Pháp, Trung, Nhật, Tây Ban Nha...). Nếu người học viết bằng ngôn ngữ khác, vẫn trả lời tiếng Việt như thường.',
 ].join('\n');
 
 const APP_GUIDE = [

@@ -17,6 +17,13 @@ export function validateRuntimeConfig(): RuntimeConfigIssue[] {
   }
   if (!env.dbUser) issues.push({ field: 'DB_USER', message: 'is required' });
   if (!env.dbName) issues.push({ field: 'DB_NAME', message: 'is required' });
+  const cloudinaryValues = [env.cloudinaryCloudName, env.cloudinaryApiKey, env.cloudinaryApiSecret];
+  if (cloudinaryValues.some(Boolean) && !env.cloudinaryConfigured) {
+    issues.push({
+      field: 'CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET',
+      message: 'must be configured together or all left empty',
+    });
+  }
   if (env.corsOrigins.length === 0) {
     issues.push({ field: 'CORS_ORIGINS', message: 'needs at least one origin in production' });
   }

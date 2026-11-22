@@ -4,6 +4,7 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
+  avatar_url: string | null;
   xp: number;
   /** Race Coin balance, spendable in the shop. */
   coins: number;
@@ -82,6 +83,7 @@ export interface AuthContextType {
   resendRegistrationOtp: (email: string) => Promise<StartRegistrationResult>;
   changePassword: (payload: { currentPassword: string; newPassword: string }) => Promise<void>;
   updateProfile: (payload: { name: string; email: string }) => Promise<void>;
+  uploadAvatar: (file: File, onProgress?: (percent: number) => void) => Promise<void>;
   refreshUser: () => Promise<void>;
   logout: () => void;
 }

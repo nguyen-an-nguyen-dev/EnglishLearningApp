@@ -6,6 +6,8 @@ import { HttpError } from '../../middleware/error-handler';
 import { isDuplicateKeyError } from '../../utils/db-errors';
 import { ensureStreakState } from '../gamification/gamification.repository';
 import { sendRegistrationOtp } from './auth.mailer';
+import { cloudinaryAvatarStore, CloudinaryNotConfiguredError } from '../../utils/cloudinary';
+import { localAvatarStore } from '../../utils/localAvatarStore';
 import * as authRepository from './auth.repository';
 import {
   parseEmailInput,
@@ -545,6 +547,80 @@ export async function updateProfile(userId: number, input: unknown): Promise<Aut
     }
     throw error;
   }
+}
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Kept for the route guard. Uploads are always available: Cloudinary when its
+ * credentials are set, otherwise the local `/media/avatars` store.
+ */
+export function assertAvatarUploadsEnabled(): void {
+  // No-op — the local store is an unconditional fallback.
+}
+
+export function validateAvatarBuffer(buffer: Buffer): void {
+  if (buffer.length === 0) {
+    throw new HttpError(422, 'Choose an image to upload.', ['AVATAR_REQUIRED']);
+  }
+  if (buffer.length > MAX_AVATAR_BYTES) {
+    throw new HttpError(413, 'Avatar image exceeds the 5 MB limit.', ['AVATAR_TOO_LARGE']);
+  }
+  const jpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const png = buffer.length >= 8
+    && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const webp = buffer.length >= 12
+    && buffer.toString('ascii', 0, 4) === 'RIFF'
+    && buffer.toString('ascii', 8, 12) === 'WEBP';
+  if (!jpeg && !png && !webp) {
+    throw new HttpError(422, 'Avatar must be a JPEG, PNG or WebP image.', ['AVATAR_INVALID_TYPE']);
+  }
+}
+
+export async function updateAvatar(userId: number, buffer: Buffer): Promise<AuthUser> {
+  validateAvatarBuffer(buffer);
+
+  const existing = await authRepository.findAvatarAssetByUserId(userId);
+  if (!existing) throw new HttpError(401, 'Invalid authentication token.');
+
+  // Cloudinary stays the preferred store, but a rejected upload (bad
+  // credentials, an unreachable service, an unconfigured install) must not
+  // stop the learner from changing their photo: fall back to local storage.
+  let store: { upload(buffer: Buffer, userId: number): Promise<{ secure_url: string; public_id: string }>; remove(publicId: string): Promise<void> } = localAvatarStore;
+  let uploaded: { secure_url: string; public_id: string };
+  try {
+    if (cloudinaryAvatarStore.isConfigured()) {
+      try {
+        uploaded = await cloudinaryAvatarStore.upload(buffer, userId);
+        store = cloudinaryAvatarStore;
+      } catch (cloudinaryError) {
+        console.warn('Cloudinary avatar upload failed; using local storage instead.', cloudinaryError);
+        uploaded = await localAvatarStore.upload(buffer, userId);
+      }
+    } else {
+      uploaded = await localAvatarStore.upload(buffer, userId);
+    }
+  } catch (error) {
+    if (error instanceof CloudinaryNotConfiguredError) {
+      throw new HttpError(503, 'Avatar uploads are not configured on this server.', ['CLOUDINARY_NOT_CONFIGURED']);
+    }
+    throw new HttpError(502, 'The avatar image could not be uploaded. Please try again.', ['AVATAR_UPLOAD_FAILED']);
+  }
+
+  let updated: AuthUser | undefined;
+  try {
+    updated = await authRepository.saveAvatar(userId, uploaded.secure_url, uploaded.public_id);
+    if (!updated) throw new HttpError(401, 'Invalid authentication token.');
+  } catch (error) {
+    await store.remove(uploaded.public_id).catch(() => undefined);
+    throw error;
+  }
+
+  const oldPublicId = existing.avatar_public_id;
+  if (oldPublicId && oldPublicId !== uploaded.public_id) {
+    await store.remove(oldPublicId).catch(() => undefined);
+  }
+  return updated;
 }
 
 export async function changePassword(userId: number, input: unknown): Promise<void> {

@@ -12,6 +12,7 @@ interface CareerRow extends RowDataPacket {
   rank: number;
   userId: number;
   name: string;
+  avatar: string | null;
   xp: number;
   frame_key: string | null;
   frame_style: string | Record<string, unknown> | null;
@@ -23,6 +24,7 @@ interface LeagueRow extends RowDataPacket {
   rank: number;
   userId: number;
   name: string;
+  avatar: string | null;
   race_points: number;
   tier: string;
   frame_key: string | null;
@@ -53,7 +55,7 @@ function parseStyle(raw: string | Record<string, unknown> | null): Record<string
 export async function getCareerBoard(): Promise<RankingEntry[]> {
   const [rows] = await pool.execute<CareerRow[]>(
     `SELECT ROW_NUMBER() OVER (ORDER BY u.xp DESC, u.id ASC) AS \`rank\`,
-            u.id AS userId, u.display_name AS name, u.xp,
+            u.id AS userId, u.display_name AS name, u.avatar_url AS avatar, u.xp,
             f.visual_key AS frame_key, f.style_json AS frame_style,
             n.visual_key AS nameplate_key, n.style_json AS nameplate_style
      FROM users u
@@ -67,7 +69,7 @@ export async function getCareerBoard(): Promise<RankingEntry[]> {
     rank: Number(row.rank),
     userId: Number(row.userId),
     name: row.name,
-    avatar: null,
+    avatar: row.avatar ?? null,
     xp: Number(row.xp),
     race_points: null,
     tier: null,
@@ -82,7 +84,7 @@ export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
   const seasonId = await ensureCurrentSeason();
   const [rows] = await pool.execute<LeagueRow[]>(
     `SELECT ROW_NUMBER() OVER (ORDER BY st.race_points DESC, st.user_id ASC) AS \`rank\`,
-            st.user_id AS userId, u.display_name AS name, st.race_points,
+            st.user_id AS userId, u.display_name AS name, u.avatar_url AS avatar, st.race_points,
             u.league_tier AS tier,
             f.visual_key AS frame_key, f.style_json AS frame_style,
             n.visual_key AS nameplate_key, n.style_json AS nameplate_style
@@ -100,7 +102,7 @@ export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
     rank: Number(row.rank),
     userId: Number(row.userId),
     name: row.name,
-    avatar: null,
+    avatar: row.avatar ?? null,
     xp: 0,
     race_points: Number(row.race_points),
     tier: String(row.tier),

@@ -133,6 +133,26 @@ export const updateProfile: RequestHandler = async (request, response, next) => 
   }
 };
 
+export const updateAvatar: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    if (!request.file) throw new HttpError(422, 'Choose a JPEG, PNG or WebP image.', ['AVATAR_REQUIRED']);
+    const user = await authService.updateAvatar(request.auth.userId, request.file.buffer);
+    response.json({ success: true, data: { user } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const ensureAvatarUploadConfigured: RequestHandler = (_request, _response, next) => {
+  try {
+    authService.assertAvatarUploadsEnabled();
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const changePassword: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');

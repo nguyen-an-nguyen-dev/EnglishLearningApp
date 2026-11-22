@@ -9,6 +9,8 @@ export interface UserRow extends RowDataPacket {
   id: number;
   display_name: string;
   email: string;
+  avatar_url: string | null;
+  avatar_public_id: string | null;
   password_hash: string;
   xp: number;
   coins: number;
@@ -17,13 +19,14 @@ export interface UserRow extends RowDataPacket {
   password_set: boolean | 0 | 1;
 }
 
-const USER_COLUMNS = 'id, display_name, email, password_hash, xp, coins, streak, role, password_set';
+const USER_COLUMNS = 'id, display_name, email, avatar_url, avatar_public_id, password_hash, xp, coins, streak, role, password_set';
 
 function toAuthUser(row: UserRow): AuthUser {
   return {
     id: row.id,
     name: row.display_name,
     email: row.email,
+    avatar_url: row.avatar_url ?? null,
     xp: row.xp,
     coins: Number(row.coins ?? 0),
     level: levelForXp(Number(row.xp)),
@@ -202,6 +205,28 @@ export async function updateProfile(
   await pool.execute(
     'UPDATE users SET display_name = ?, email = ? WHERE id = ?',
     [name, email, userId],
+  );
+  return findProfileById(userId);
+}
+
+export async function findAvatarAssetByUserId(
+  userId: number,
+): Promise<{ avatar_url: string | null; avatar_public_id: string | null } | undefined> {
+  const [rows] = await pool.execute<(RowDataPacket & { avatar_url: string | null; avatar_public_id: string | null })[]>(
+    'SELECT avatar_url, avatar_public_id FROM users WHERE id = ? LIMIT 1',
+    [userId],
+  );
+  return rows[0];
+}
+
+export async function saveAvatar(
+  userId: number,
+  avatarUrl: string,
+  publicId: string,
+): Promise<AuthUser | undefined> {
+  await pool.execute(
+    'UPDATE users SET avatar_url = ?, avatar_public_id = ? WHERE id = ?',
+    [avatarUrl, publicId, userId],
   );
   return findProfileById(userId);
 }

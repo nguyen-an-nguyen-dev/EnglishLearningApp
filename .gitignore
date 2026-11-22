@@ -3,12 +3,15 @@ dist/
 web-build/
 .expo/
 backend/tmp-audio/
+backend/public/avatars/
 
 .env
 .env.*
 !.env.example
 
 npm-debug.log*
+*.log
+backend/database/backups/
 
 # Tài liệu đồ án
 docs/

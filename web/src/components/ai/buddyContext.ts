@@ -221,33 +221,37 @@ export function detectLivePageContext(
       const rankEl = document.querySelector('.rank-view') as HTMLElement | null
       const myRank = rankEl?.dataset.myRank
       const totalUsers = rankEl?.dataset.totalUsers || ''
-      const myRp = rankEl?.dataset.myScore || ''
+      const myScore = rankEl?.dataset.myScore || ''
       const leaderName = rankEl?.dataset.leaderName || ''
       const leaderScore = rankEl?.dataset.leaderScore || ''
       const tier = rankEl?.dataset.leagueTier || ''
+      const isCareer = rankEl?.dataset.board === 'career'
       if (rankEl?.dataset.boardReady !== 'true') {
-        return { focus: 'League tuần', detail: 'Chưa có dữ liệu bảng xếp hạng tuần này trên màn hình.' }
+        return { focus: isCareer ? 'Sự nghiệp' : 'League tuần', detail: 'Chưa có dữ liệu bảng xếp hạng trên màn hình.' }
       }
       const zoneNames = { promote: 'thăng hạng', stay: 'giữ hạng', demote: 'xuống hạng' }
-      const zones = (rankEl.dataset.zones ?? '').split(',').flatMap((band) => {
+      const zones = isCareer ? [] : (rankEl.dataset.zones ?? '').split(',').flatMap((band) => {
         const [zone, range] = band.split(':')
         if (zone !== 'promote' && zone !== 'stay' && zone !== 'demote') return []
-        return [`${zoneNames[zone]}: hạng ${range}`]
+        return [zoneNames[zone] + ': hạng ' + range]
       })
 
+      const unit = isCareer ? 'XP' : 'RP'
       const details = [
-        'Người dùng đang xem bảng xếp hạng league tuần này. Chỉ có một bảng theo tuần, không có bảng tổng.',
-        tier ? `Hạng hiện tại: ${tier}.` : '',
-        myRank ? `Thứ hạng tuần này: #${myRank} trên ${totalUsers} học viên cùng hạng.` : 'Chưa có thứ hạng tuần này.',
-        myRp ? `RP tuần này: ${myRp}.` : '',
-        leaderName ? `Người dẫn đầu: ${leaderName} (${leaderScore} RP).` : '',
-        zones.length ? `Vùng xếp hạng: ${zones.join('; ')}.` : '',
+        isCareer
+          ? 'Người dùng đang xem bảng xếp hạng sự nghiệp, xếp theo tổng XP tích luỹ.'
+          : 'Người dùng đang xem bảng xếp hạng league tuần này.',
+        tier && !isCareer ? 'Hạng hiện tại: ' + tier + '.' : '',
+        myRank ? (isCareer ? 'Hạng sự nghiệp: #' : 'Thứ hạng tuần này: #') + myRank + ' trên ' + totalUsers + ' học viên.' : 'Chưa có thứ hạng trong bảng này.',
+        myScore ? unit + ' của người dùng: ' + myScore + '.' : '',
+        leaderName ? 'Người dẫn đầu: ' + leaderName + ' (' + leaderScore + ' ' + unit + ').' : '',
+        zones.length ? 'Vùng xếp hạng: ' + zones.join('; ') + '.' : '',
       ]
         .filter(Boolean)
         .join(' | ')
 
       return {
-        focus: myRank ? `League tuần · Hạng #${myRank}` : 'League tuần',
+        focus: isCareer ? (myRank ? 'Sự nghiệp · Hạng #' + myRank : 'Bảng xếp hạng sự nghiệp') : (myRank ? 'League tuần · Hạng #' + myRank : 'League tuần'),
         detail: details,
       }
     }

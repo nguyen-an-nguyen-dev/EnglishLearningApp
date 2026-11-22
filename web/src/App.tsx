@@ -164,6 +164,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
             <div className="profile-avatar-wrap">
               <AvatarFrame
                 name={displayName}
+                avatarUrl={user?.avatar_url}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
                 style={wallet?.equipment.frame?.style ?? null}
                 size={82}

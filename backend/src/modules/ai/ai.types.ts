@@ -61,6 +61,7 @@ export interface ChatAction {
   label: string;
   tab?: ChatTab;
   videoId?: number;
+  videoTitle?: string;
   lessonId?: number;
   lessonTitle?: string;
   /** Declared element to circle on the destination screen, e.g. `video:9`. */

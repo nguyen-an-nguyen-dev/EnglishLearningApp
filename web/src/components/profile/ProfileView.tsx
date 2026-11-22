@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Brain, Medal, SignOut } from '@phosphor-icons/react'
+import type { ChangeEvent } from 'react'
+import { ArrowRight, Brain, Camera, Medal, SignOut } from '@phosphor-icons/react'
+import { ApiError } from '../../services/apiClient'
 import { AccountActions } from '../AccountActions'
 import { useAuth } from '../../context/AuthContext'
 import { useLearning } from '../../context/LearningContext'
@@ -18,10 +20,55 @@ type StageState = 'done' | 'current' | 'locked'
 
 export function ProfileView({ onLogout, onOpenReview }: { onLogout: () => void; onOpenReview: () => void }) {
   const { t } = useI18n()
-  const { user } = useAuth()
+  const { user, uploadAvatar } = useAuth()
   const { stages, loading } = useLearning()
   const { wallet, refresh } = useWallet()
   const [badges, setBadges] = useState<EarnedBadge[]>([])
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null)
+  const [avatarMessage, setAvatarMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [avatarInputKey, setAvatarInputKey] = useState(0)
+
+  useEffect(() => () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+  }, [avatarPreview])
+
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    if (!file) return
+    setAvatarMessage(null)
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setAvatarMessage({ text: t.avatarUploadInvalid, error: true })
+      setAvatarInputKey((key) => key + 1)
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarMessage({ text: t.avatarUploadTooLarge, error: true })
+      setAvatarInputKey((key) => key + 1)
+      return
+    }
+
+    setAvatarPreview(URL.createObjectURL(file))
+    setAvatarProgress(0)
+    try {
+      await uploadAvatar(file, setAvatarProgress)
+      setAvatarPreview(null)
+      setAvatarMessage({ text: t.avatarUploadSuccess, error: false })
+    } catch (error) {
+      const codes = error instanceof ApiError ? error.errors : []
+      const message = codes.includes('CLOUDINARY_NOT_CONFIGURED')
+        ? t.avatarUploadNotConfigured
+        : codes.includes('AVATAR_TOO_LARGE')
+          ? t.avatarUploadTooLarge
+          : codes.includes('AVATAR_INVALID_TYPE') || codes.includes('AVATAR_REQUIRED')
+            ? t.avatarUploadInvalid
+            : t.avatarUploadFailed
+      setAvatarMessage({ text: message, error: true })
+    } finally {
+      setAvatarProgress(null)
+      setAvatarInputKey((key) => key + 1)
+    }
+  }
 
   // The wallet is loaded once app-wide, so equipping a nameplate elsewhere leaves this view stale; re-pull it when the profile opens.
   useEffect(() => {
@@ -73,6 +120,7 @@ export function ProfileView({ onLogout, onOpenReview }: { onLogout: () => void; 
     current: t.statusCurrent,
     locked: t.statusLocked,
   }
+  const avatarInputId = `profile-avatar-upload-${avatarInputKey}`
 
   return (
     <div
@@ -96,10 +144,27 @@ export function ProfileView({ onLogout, onOpenReview }: { onLogout: () => void; 
       </header>
 
       <section className={`profile-identity-head${plate.className}`} style={plate.style}>
-        <AvatarFrame name={displayName} visualKey={frameKey} style={frameStyle} size={92} />
+        <label className="profile-avatar-edit" htmlFor={avatarInputId} title={t.avatarUpload} aria-label={t.avatarUpload}>
+          <AvatarFrame name={displayName} avatarUrl={avatarPreview ?? user?.avatar_url} visualKey={frameKey} style={frameStyle} size={160} />
+        </label>
         <div className="profile-identity-copy">
           <h2>{displayName}</h2>
           <p>{user?.email}</p>
+          <label className={`avatar-upload-button${avatarProgress !== null ? ' is-uploading' : ''}`} htmlFor={avatarInputId}>
+            <Camera size={16} weight="bold" />
+            {avatarProgress !== null ? t.avatarUploading(avatarProgress) : t.avatarUpload}
+          </label>
+          <input
+            key={avatarInputKey}
+            id={avatarInputId}
+            className="avatar-upload-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleAvatarChange}
+            disabled={avatarProgress !== null}
+          />
+          {avatarProgress !== null && <progress className="avatar-upload-progress" max="100" value={avatarProgress} aria-label={t.avatarUploading(avatarProgress)} />}
+          {avatarMessage && <p className={`avatar-upload-message${avatarMessage.error ? ' is-error' : ''}`} role="status">{avatarMessage.text}</p>}
         </div>
       </section>
 

@@ -8,6 +8,7 @@ import { generateReply } from '../src/modules/ai/ai.provider';
 import {
   buildOfflineCoachReply,
   buildStudyPlan,
+  resolveNavigationRequest,
   resolveChatAction,
   toStudySnapshot,
 } from '../src/modules/ai/ai.study';
@@ -450,11 +451,11 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
   assert.equal(resolveChatAction({ kind: 'open_lesson', label: '', lessonId: 99 }, stats), null, 'unknown lesson id is dropped');
   assert.deepEqual(
     resolveChatAction({ kind: 'open_video', label: '', videoId: 3 }, stats),
-    { kind: 'open_video', tab: 'videos', videoId: 3, label: 'Mở video: Viva La Vida' },
+    { kind: 'open_video', tab: 'videos', videoId: 3, videoTitle: 'Viva La Vida', label: 'Mở video: Viva La Vida' },
   );
   assert.deepEqual(
     resolveChatAction({ kind: 'open_lesson', label: 'Học bài 7', lessonId: 7 }, stats),
-    { kind: 'open_lesson', tab: 'study', lessonId: 7, lessonTitle: 'Bài 7', label: 'Học bài 7' },
+    { kind: 'open_lesson', tab: 'study', lessonId: 7, lessonTitle: 'Bài 7', label: 'Mở bài: Bài 7' },
   );
   assert.deepEqual(
     resolveChatAction({ kind: 'open_tab', label: '', tab: 'compete' }, stats),
@@ -483,4 +484,14 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
     'a highlight for another video is dropped',
   );
   assert.equal(resolveChatAction(null, stats), null);
+
+  assert.deepEqual(resolveNavigationRequest('Mở video về music', stats), {
+    kind: 'open_video', tab: 'videos', videoId: 3, videoTitle: 'Viva La Vida', label: 'Mở video: Viva La Vida',
+  });
+  assert.deepEqual(resolveNavigationRequest('Mở bài về travel', stats), {
+    kind: 'open_lesson', tab: 'study', lessonId: 8, lessonTitle: 'Bài 8', label: 'Mở bài: Bài 8',
+  });
+  assert.equal(resolveNavigationRequest('Ôn tập giúp mình', stats)?.kind, 'open_review');
+  assert.equal(resolveNavigationRequest('Mở bảng xếp hạng', stats)?.tab, 'rankings');
+  assert.equal(resolveNavigationRequest('Giải thích bảng xếp hạng là gì?', stats), null);
 });

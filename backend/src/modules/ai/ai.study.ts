@@ -164,7 +164,8 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
       kind: 'open_video',
       tab: 'videos',
       videoId: video.id,
-      label: action.label || `Mở video: ${video.title}`.slice(0, 60),
+      videoTitle: video.title,
+      label: `Mở video: ${video.title}`.slice(0, 60),
       ...(action.highlight === `video:${video.id}` ? { highlight: action.highlight } : {}),
     };
   }
@@ -176,7 +177,7 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
       tab: 'study',
       lessonId: lesson.id,
       lessonTitle: lesson.title,
-      label: action.label || `Mở bài: ${lesson.title}`.slice(0, 60),
+      label: `Mở bài: ${lesson.title}`.slice(0, 60),
       ...(action.highlight === `lesson:${lesson.id}` ? { highlight: action.highlight } : {}),
     };
   }
@@ -214,6 +215,95 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
     label: action.label || tabLabels[tab],
     ...(action.highlight ? { highlight: action.highlight } : {}),
   };
+}
+
+function normalizeDestination(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isQuestionAboutDestination(text: string): boolean {
+  return /\b(la gi|the nao|tai sao|giai thich|what is|why|how does)\b/.test(text);
+}
+
+const DESTINATION_STOP_WORDS = new Set([
+  'video','clip','bai','hoc','ve','cho','minh','toi','muon','mo','tim','xem','giup','vui','long','hay','the','mot','nao',
+  'trang','thu','vien','noi','dung','chu','de','library','watch','listening','listen','play','lesson','study','learn','take','me','go','to','next','open','about','please','a','the',
+]);
+
+function hasSpecificTopic(text: string): boolean {
+  return text.split(' ').some((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
+}
+
+function scoreCatalogMatch(query: string, candidate: string): number {
+  const words = query.split(' ').filter((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
+  if (words.length === 0) return 0;
+  const haystack = ` ${candidate} `;
+  return words.reduce((score, word) => score + (haystack.includes(` ${word} `) ? 2 : haystack.includes(word) ? 1 : 0), 0);
+}
+
+/**
+ * Deterministic navigation takes precedence over generative copy. Every video
+ * and lesson target comes from the current database-backed study snapshot.
+ */
+export function resolveNavigationRequest(message: string, stats: StudyStats): ChatAction | null {
+  const text = normalizeDestination(message);
+  if (!text || isQuestionAboutDestination(text)) return null;
+  const command = /\b(mo|tim|xem|vao|chuyen|hoc|on|open|find|watch|study|review|take me|go to)\b/.test(text);
+
+  if (/(on tap|on lai|bai can on|phien on tap|review)/.test(text)) {
+    return { kind: 'open_review', tab: 'profile', label: 'Bắt đầu ôn tập' };
+  }
+
+  const videoMentioned = /\b(video|clip|watch|listening)\b/.test(text);
+  if (videoMentioned) {
+    const ranked = stats.videoCatalog
+      .map((video) => ({ video, score: scoreCatalogMatch(text, normalizeDestination(`${video.title} ${video.topic}`)) }))
+      .sort((a, b) => b.score - a.score || a.video.id - b.video.id);
+    const match = ranked[0];
+    if (match && match.score > 0) {
+      return { kind: 'open_video', tab: 'videos', videoId: match.video.id, videoTitle: match.video.title, label: `Mở video: ${match.video.title}`.slice(0, 80) };
+    }
+    const next = stats.nextVideo;
+    if (next && command && !hasSpecificTopic(text) && !/(thu vien|library)/.test(text)) {
+      return { kind: 'open_video', tab: 'videos', videoId: next.id, videoTitle: next.title, label: `Mở video: ${next.title}`.slice(0, 80) };
+    }
+    return { kind: 'open_tab', tab: 'videos', label: 'Mở thư viện video' };
+  }
+
+  const routes: Array<{ tab: ChatTab; match: RegExp }> = [
+    { tab: 'rankings', match: /(bang xep hang|xep hang|leaderboard|ranking|league)/ },
+    { tab: 'translate', match: /(dich tai lieu|dich van ban|translate|translation)/ },
+    { tab: 'compete', match: /(thi dua|dau truong|dau tu vung|arena|1v1)/ },
+    { tab: 'shop', match: /(gara|cua hang|shop|garage|mua xe)/ },
+    { tab: 'profile', match: /(ho so|trang ca nhan|tai khoan|profile)/ },
+  ];
+  const route = routes.find((item) => item.match.test(text));
+  if (route) {
+    const labels: Record<ChatTab, string> = {
+      study: 'Mở lộ trình học', videos: 'Mở thư viện video', translate: 'Mở bàn dịch',
+      compete: 'Mở đấu trường', rankings: 'Mở bảng xếp hạng', shop: 'Mở Gara',
+      profile: 'Mở hồ sơ', admin: 'Quản trị',
+    };
+    return { kind: 'open_tab', tab: route.tab, label: labels[route.tab] };
+  }
+
+  const lessonMentioned = /(lo trinh|roadmap|hoc tap|bai hoc|bai ve|hoc bai|hoc ve|lesson)/.test(text);
+  if (lessonMentioned) {
+    const ranked = stats.lessons
+      .map((lesson) => ({ lesson, score: scoreCatalogMatch(text, normalizeDestination(`${lesson.title} ${lesson.topic} ${lesson.stageTitle}`)) }))
+      .sort((a, b) => b.score - a.score || a.lesson.id - b.lesson.id);
+    const match = ranked[0];
+    const next = pickNextLesson(stats);
+    const lesson = match && match.score > 0
+      ? match.lesson
+      : !hasSpecificTopic(text) && next && stats.lessons.find((item) => item.id === next.id);
+    if (lesson) {
+      return { kind: 'open_lesson', tab: 'study', lessonId: lesson.id, lessonTitle: lesson.title, label: `Mở bài: ${lesson.title}`.slice(0, 80) };
+    }
+    return { kind: 'open_tab', tab: 'study', label: 'Mở lộ trình học' };
+  }
+  return null;
 }
 
 /**
@@ -278,7 +368,9 @@ export function buildOfflineCoachReply(
   // The offline answer stays actionable too: point at the real first step, so
   // the button matches the sentence the learner just read.
   const target = first.target;
-  const action: ChatAction = target.videoId
+  const action: ChatAction = first.id === 'review-due'
+    ? { kind: 'open_review', tab: 'profile', label: 'Bắt đầu ôn tập' }
+    : target.videoId
     ? { kind: 'open_video', tab: 'videos', videoId: target.videoId, label: 'Mở video' }
     : target.lessonId
       ? { kind: 'open_lesson', tab: 'study', lessonId: target.lessonId, lessonTitle: target.lessonTitle, label: 'Mở bài học' }

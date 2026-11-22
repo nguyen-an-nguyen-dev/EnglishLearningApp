@@ -17,6 +17,7 @@ import {
   loginWithFacebookApi,
   changePasswordApi,
   updateProfileApi,
+  uploadAvatarApi,
   authStorage,
 } from '../services/authService';
 import { SESSION_EXPIRED_EVENT } from '../services/apiClient';
@@ -124,6 +125,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authStorage.setUser(updated);
   }, [token]);
 
+  const uploadAvatar = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
+    if (!token) throw new Error('You need to sign in again.');
+    const updated = await uploadAvatarApi(token, file, onProgress);
+    setUser(updated);
+    authStorage.setUser(updated);
+  }, [token]);
+
   const refreshUser = useCallback(async () => {
     const savedToken = authStorage.getToken();
     if (!savedToken) return;
@@ -166,10 +174,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resendRegistrationOtp,
       changePassword,
       updateProfile,
+      uploadAvatar,
       refreshUser,
       logout,
     }),
-    [user, token, isLoading, refreshUser, changePassword, updateProfile],
+    [user, token, isLoading, refreshUser, changePassword, updateProfile, uploadAvatar],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

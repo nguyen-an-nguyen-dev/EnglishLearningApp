@@ -9,7 +9,7 @@ import type {
   StartRegistrationResult,
   VerifyRegistrationPayload,
 } from '../types/auth';
-import { ApiError, requestApi, requestPublicApi } from './apiClient';
+import { ApiError, requestApi, requestPublicApi, SESSION_EXPIRED_EVENT } from './apiClient';
 import { AUTH_ENDPOINTS } from './endpoints';
 import { authStorage } from './authStorage';
 import { cachedQuery } from './queryCache';
@@ -277,6 +277,46 @@ export async function updateProfileApi(
   );
   if (!isAuthUser(data.user)) throw new Error('Không lưu được thông tin.');
   return data.user;
+}
+
+export function uploadAvatarApi(
+  token: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<AuthUser> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('avatar', file);
+    request.open('POST', AUTH_ENDPOINTS.avatar);
+    request.setRequestHeader('Authorization', `Bearer ${token}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () => reject(new Error('Network request failed.'));
+    request.onabort = () => reject(new Error('Upload cancelled.'));
+    request.onload = () => {
+      let envelope: { success?: boolean; data?: { user?: AuthUser }; message?: string; errors?: string[] };
+      try {
+        envelope = JSON.parse(request.responseText) as typeof envelope;
+      } catch {
+        reject(new ApiError('The server returned an invalid response.', request.status));
+        return;
+      }
+      if (request.status === 401) window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      if (request.status < 200 || request.status >= 300 || !envelope.success || !envelope.data?.user) {
+        reject(new ApiError(envelope.message || 'Avatar upload failed.', request.status, envelope.errors ?? []));
+        return;
+      }
+      if (!isAuthUser(envelope.data.user)) {
+        reject(new Error('The server returned an invalid user profile.'));
+        return;
+      }
+      onProgress?.(100);
+      resolve(envelope.data.user);
+    };
+    request.send(form);
+  });
 }
 
 function getCachedUserForToken(token: string): AuthUser | null {

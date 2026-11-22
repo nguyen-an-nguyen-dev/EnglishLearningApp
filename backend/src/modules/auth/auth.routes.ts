@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import type { RequestHandler } from 'express';
 import { authenticate } from '../../middleware/authenticate';
 import { clientIp, rateLimit } from '../../middleware/rate-limit';
 import * as authController from './auth.controller';
+import multer from 'multer';
+import { HttpError } from '../../middleware/error-handler';
 
 export const authRouter = Router();
 
@@ -57,6 +60,28 @@ const socialIpLimit = rateLimit({
   message: 'Quá nhiều lần đăng nhập mạng xã hội. Vui lòng thử lại sau 15 phút.',
 });
 
+const avatarFile = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_request, file, callback) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      callback(new HttpError(422, 'Avatar must be a JPEG, PNG or WebP image.', ['AVATAR_INVALID_TYPE']));
+      return;
+    }
+    callback(null, true);
+  },
+}).single('avatar');
+
+const parseAvatarFile: RequestHandler = (request, response, next) => {
+  avatarFile(request, response, (error: unknown) => {
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      next(new HttpError(413, 'Avatar image exceeds the 5 MB limit.', ['AVATAR_TOO_LARGE']));
+      return;
+    }
+    next(error);
+  });
+};
+
 authRouter.post('/register', registerIpLimit, authController.register);
 // Web registration sends a six-digit code; `/register` above stays for the
 // mobile client and any existing integration that has no mail step yet.
@@ -72,4 +97,5 @@ authRouter.post('/providers/:provider/link', authenticate, socialIpLimit, authCo
 authRouter.delete('/providers/:provider', authenticate, authController.unlinkProvider);
 authRouter.get('/me', authenticate, authController.me);
 authRouter.patch('/profile', authenticate, authController.updateProfile);
+authRouter.post('/avatar', authenticate, authController.ensureAvatarUploadConfigured, parseAvatarFile, authController.updateAvatar);
 authRouter.patch('/password', authenticate, authController.changePassword);
