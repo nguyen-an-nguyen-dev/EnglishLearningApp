@@ -14,10 +14,12 @@ import {
 
 test('the league ladder runs coal to diamond and clamps at both ends', () => {
   assert.equal(tierIndex('coal'), 0)
-  assert.equal(tierIndex('diamond'), 6)
+  assert.equal(tierIndex('diamond'), 5)
   assert.equal(tierIndex('unknown'), 0)
   assert.equal(nextTier('coal'), 'copper')
-  assert.equal(nextTier('lapis'), 'diamond')
+  assert.equal(nextTier('redstone'), 'diamond')
+  assert.equal(tierIndex('lapis'), tierIndex('redstone'))
+  assert.equal(previousTier('diamond'), 'redstone')
   assert.equal(nextTier('diamond'), null)
   assert.equal(previousTier('copper'), 'coal')
   assert.equal(previousTier('coal'), null)

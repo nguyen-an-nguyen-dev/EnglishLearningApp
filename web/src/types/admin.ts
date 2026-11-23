@@ -91,12 +91,6 @@ export interface AdminSharedVideo {
   created_at: string
 }
 
-export interface StagePayload {
-  title: string
-  description?: string
-  theme_key?: AdminStageTheme
-}
-
 export interface StagePatchPayload {
   title?: string
   description?: string
@@ -156,7 +150,7 @@ export type AdminShopUnlockType = (typeof SHOP_UNLOCK_TYPES)[number]
 export const BOOSTER_KINDS = ['streak_shield', 'xp_multiplier', 'rc_multiplier'] as const
 export type AdminBoosterKind = (typeof BOOSTER_KINDS)[number]
 
-export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'] as const
+export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'diamond'] as const
 export type AdminLeagueTier = (typeof LEAGUE_TIERS)[number]
 
 export interface AdminShopItem {

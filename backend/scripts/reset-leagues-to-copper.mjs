@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import mysql from 'mysql2/promise';
 
-const tiers = ['coal','copper','iron','gold','redstone','lapis','diamond'];
+const tiers = ['coal','copper','iron','gold','redstone','diamond'];
 const connection = await mysql.createConnection({
   host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root', password: process.env.DB_PASSWORD || '',

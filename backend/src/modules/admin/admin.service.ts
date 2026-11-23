@@ -31,15 +31,16 @@ import {
   type QuestionInput,
   type SharedVideoImportInput,
   type SharedVideoPatch,
-  type StageInput,
   type StagePatch,
-  type StageThemeKey,
 } from './admin.types';
 import { isDuplicateKeyError } from '../../utils/db-errors';
 
-export const DEFAULT_STAGE_THEME: StageThemeKey = 'river';
 export const DEFAULT_SHARED_TOPIC = 'Thư viện chung';
 export const SHARED_VIDEO_XP = 20;
+
+function isRoadmapStage(code: string): boolean {
+  return /^stage-[1-6]$/.test(code);
+}
 
 function mapLesson(row: AdminLessonRow): AdminLessonSummary {
   return {
@@ -159,27 +160,6 @@ export async function getLessonQuestions(lessonId: number): Promise<AdminQuestio
   return questionRows.map((row) => mapQuestion(row, answers));
 }
 
-export async function createStage(input: StageInput): Promise<AdminStage> {
-  const themeKey = input.themeKey ?? DEFAULT_STAGE_THEME;
-  const code = nextAvailableCode(input.title, new Set(await repo.listStageCodes()), 'chang');
-  const sortOrder = await repo.nextStageSortOrder();
-  let stageId: number;
-  try {
-    stageId = await repo.insertStage({
-      code,
-      title: input.title,
-      description: input.description,
-      themeKey,
-      accentColor: THEME_ACCENTS[themeKey],
-      sortOrder,
-    });
-  } catch (error) {
-    if (isDuplicateKeyError(error)) throw new HttpError(409, 'Stage code already exists.', ['CODE_TAKEN']);
-    throw error;
-  }
-  return getStageDetail(stageId);
-}
-
 export async function updateStage(stageId: number, patch: StagePatch): Promise<AdminStage> {
   const existing = await repo.getStageRow(stageId);
   if (!existing) throw new HttpError(404, 'Stage not found.');
@@ -195,6 +175,9 @@ export async function updateStage(stageId: number, patch: StagePatch): Promise<A
 export async function deleteStage(stageId: number): Promise<void> {
   const existing = await repo.getStageRow(stageId);
   if (!existing) throw new HttpError(404, 'Stage not found.');
+  if (isRoadmapStage(existing.code)) {
+    throw new HttpError(409, 'Đây là một trong sáu chặng cố định của lộ trình.', ['FIXED_ROADMAP_STAGES']);
+  }
   const lessonCount = await repo.countLessonsByStage(stageId);
   if (lessonCount > 0) {
     throw new HttpError(
@@ -211,9 +194,16 @@ export async function moveStage(stageId: number, direction: MoveDirection): Prom
   if (!moved) throw new HttpError(404, 'Stage not found.');
 }
 
-export async function createLesson(input: LessonInput): Promise<AdminLessonSummary> {
-  const stage = await repo.getStageRow(input.stageId);
+async function requireLessonStage(stageId: number): Promise<void> {
+  const stage = await repo.getStageRow(stageId);
   if (!stage) throw new HttpError(404, 'Stage not found.');
+  if (!isRoadmapStage(stage.code)) {
+    throw new HttpError(409, 'Chọn một trong sáu chặng của lộ trình cho bài học này.', ['FIXED_ROADMAP_STAGES']);
+  }
+}
+
+export async function createLesson(input: LessonInput): Promise<AdminLessonSummary> {
+  await requireLessonStage(input.stageId);
   const code = nextAvailableCode(input.title, new Set(await repo.listLessonCodes()), 'bai');
   const sortOrder = await repo.nextLessonSortOrder(input.stageId);
   try {
@@ -239,8 +229,7 @@ export async function updateLesson(lessonId: number, patch: LessonPatch): Promis
 
   let sortOrder: number | undefined;
   if (patch.stageId !== undefined && patch.stageId !== Number(existing.stage_id)) {
-    const targetStage = await repo.getStageRow(patch.stageId);
-    if (!targetStage) throw new HttpError(404, 'Stage not found.');
+    await requireLessonStage(patch.stageId);
     sortOrder = await repo.nextLessonSortOrder(patch.stageId);
   }
 

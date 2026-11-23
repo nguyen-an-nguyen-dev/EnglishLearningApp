@@ -1,4 +1,9 @@
-# Engorace — Architecture & Refactoring Guide
+# Engorace architecture
+
+Engorace delivers online English lessons, listening and vocabulary practice,
+and learning progress tracking. En Buddy adds AI-assisted explanations and
+study suggestions within the application. The lesson roadmap and grading
+rules are part of the core learning module.
 
 ## Stack
 
@@ -40,7 +45,16 @@ docs/              specs, UML, audits (local documentation)
 3. **Services** own business rules, transactions orchestration and permission decisions.
 4. **Repositories** own SQL; no HTTP or UI concerns. All user input is bound.
 5. **Types/validation** are colocated with each module; shared cross-cutting helpers live in `utils/`.
-6. **Web services** are the only place that calls `fetch`; components never build API URLs.
+6. **Web API services** normally share `services/apiClient.ts` for JSON requests. Speech audio and Arena sockets have dedicated clients.
+
+## Web entry points
+
+`web/src/main.tsx` mounts the language, auth, learning and wallet providers.
+`App.tsx` renders the public landing page or the learner shell and loads the
+admin console for `/admin` or its hash route. In development Vite proxies
+`/api`, `/media` and `/socket.io` to Express. `backend/src/app.ts` mounts the
+HTTP routers, and `server.ts` attaches the Arena Socket.IO server to the HTTP
+server.
 
 ## Core business flows
 
@@ -51,10 +65,57 @@ docs/              specs, UML, audits (local documentation)
 - Unlink runs in a transaction and refuses to remove the last sign-in method.
 - `users.password_set` distinguishes social-only accounts, enabling “set first password”.
 
-### Learning / video
-- Lesson completion is scored; only 100% unlocks the next lesson.
-- Video import extracts YouTube captions, segments them (AI with rule fallback), stores segments and optional vocabulary.
-- Vocabulary seeds/admin rows power the in-lesson word panel, saved-word lookup and the public landing demo.
+### Lesson roadmap and practice
+
+`LearningContext` loads `GET /api/progress` through `learningService.ts`.
+`roadmap.ts` maps the API states to the learner map, and `RouteMapCard.tsx`
+renders the stages and lesson checkpoints. The backend orders lessons by stage
+order, lesson order and lesson ID. It assigns four states from the last lesson
+completed at 100%:
+
+| State | Meaning |
+| --- | --- |
+| `completed` | The learner already completed the lesson at 100%. |
+| `unlocked` | The checkpoint immediately after the furthest completed lesson, or the first checkpoint for a new learner. |
+| `available` | An unfinished lesson before that checkpoint, such as a lesson added to an earlier stage. |
+| `locked` | A lesson beyond the next checkpoint. |
+
+`LessonPlayer.tsx` fetches the questions and calls the
+`POST /api/lessons/:lessonId/questions/:questionId/check` endpoint to grade each answer. The
+backend records the attempt and tries to add misses to the persistent review
+queue. The web run has three hearts. An incorrect answer spends a heart and
+returns up to three positions later in the queue while hearts remain. After
+the last heart is spent, the learner sees the feedback before the run ends.
+
+When the normal run clears, the player sends the latest answer per question
+to `POST /api/lessons/:lessonId/complete`. The server grades the submission
+again and requires every question to be correct. The repository records a
+successful completion and applies rewards in one transaction. The base lesson
+reward is 20 XP, 15 RC and 10 RP on the first completion and 10 XP on each
+successful replay. Stage rewards are handled separately. The result includes
+`is_first_completion`. A short review from the result screen
+practices the missed questions without submitting a lesson completion.
+
+### Analytics, scheduled review and En Buddy
+
+`ProfileView.tsx` uses `analyticsService.ts` to read learning analytics and the
+review queue. `ReviewSession.tsx` submits review answers separately from lesson
+completion. The backend can backfill review items from past mistakes and uses
+answer correctness and response time to update the next review date.
+
+`VoiceOrb.tsx` calls `/api/buddy/nudges`, `/api/buddy/ask` and the reminders API.
+The backend builds study steps from stored progress, error counts and items
+due for review. The model generates contextual explanations and chat replies,
+and the coach can fall back to a response generated from stored data. A
+proposed reminder is saved when the learner confirms it. The roadmap and
+coach currently select the next lesson independently. See the
+[AI module notes](backend/src/modules/ai/README.md) for the difference.
+
+### Video, translation and Arena
+
+- The video UI uses `/api/videos` for the shared library, personal YouTube imports and playback progress. The backend stores caption segments, using rule-based segmentation when the model fails. Saved words appear in the learner's notebook.
+- `TranslateView.tsx` uses `/api/translate` and `/api/translate/file` for English–Vietnamese translation. `/api/translations` serves the learner's history and supports clearing it.
+- The Arena UI connects through `battleService.ts`. The Socket.IO server authenticates the connection, matches learners and runs the rounds. The backend saves match results and serves summaries through `/api/battle/summary`.
 
 ### Streak
 - `streak` advances only once per day; yesterday → +1.
@@ -68,7 +129,7 @@ docs/              specs, UML, audits (local documentation)
 - Cosmetics render from `style_json`, so admin-created cars/frames/nameplates need no CSS registry entry.
 
 ### Admin
-- Content tree, videos + video vocabulary, shop catalogue, arena vocabulary, user progression.
+- Content tree and ordering, shared videos and video vocabulary, shop catalogue, Arena vocabulary, user progression and statistics dashboards.
 - User management exposes XP, RC, streak, RP and role only. Passwords/emails/names are rejected with `PROTECTED_FIELD`.
 - All admin routes require a live DB role check (`admin`), not just a JWT claim.
 
@@ -90,9 +151,8 @@ docs/              specs, UML, audits (local documentation)
 
 ## Quality gates
 
-- `backend`: `npm run typecheck`, `npm test` (119 tests).
-- `web`: `npm run lint`, `npm run typecheck`, `npm test` (54 tests), `npm run build`.
-- CI workflow: `.github/workflows/ci.yml` (MariaDB service + both apps).
+- `backend`: `npm run typecheck`, `npm test`.
+- `web`: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 - Tests include API integration, auth/security, admin permissions, streaks, shop
   transactions and a cross-module E2E journey.
 

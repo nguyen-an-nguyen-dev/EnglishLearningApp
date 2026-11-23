@@ -1,40 +1,52 @@
+import { useEffect, useRef, useState } from 'react'
+import './streak-flame.css'
+
+export type StreakFlameState = 'happy' | 'sad' | 'ice' | 'grey'
+
 interface StreakFlameProps {
   size?: number
-  className?: string
+  state: StreakFlameState
 }
 
-/** Decorative streak mascot (a smiling flame), hand-tuned SVG rather than a Phosphor glyph because it is illustration art. active adds a gentle flicker; an empty streak renders dimmed. */
-export function StreakFlame({ size = 48, className = '', active = true }: StreakFlameProps & { active?: boolean }) {
+export function StreakFlame({ size = 48, state }: StreakFlameProps) {
+  const flameRef = useRef<HTMLSpanElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const height = size * 86 / 64
+
+  useEffect(() => {
+    const flame = flameRef.current
+    if (!flame || typeof IntersectionObserver === 'undefined') return
+
+    let inView = false
+    const updatePlayback = () => setPlaying(inView && !document.hidden)
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting
+      updatePlayback()
+    })
+    observer.observe(flame)
+    document.addEventListener('visibilitychange', updatePlayback)
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('visibilitychange', updatePlayback)
+    }
+  }, [])
+
   return (
-    <svg
-      className={`streak-flame${active ? ' is-active' : ''}${className ? ` ${className}` : ''}`}
-      width={size}
-      height={size * 1.25}
-      viewBox="0 0 64 80"
-      role="img"
+    <span
+      ref={flameRef}
+      className="streak-flame"
+      data-playing={playing ? 'true' : undefined}
+      style={{ width: size, height }}
       aria-hidden="true"
-      focusable="false"
     >
-      <path
-        d="M32 4C34 20 52 28 52 50A20 20 0 0 1 12 50C12 40 18 34 22 28C24 34 28 36 30 36C28 24 28 14 32 4Z"
-        fill="var(--flame-outer, #ff9f2e)"
-        stroke="var(--flame-ink, #14203a)"
-        strokeWidth="4"
-        strokeLinejoin="round"
+      <img
+        key={state}
+        className="streak-flame-sprite"
+        src={`/media/flames/flame-${state}.svg`}
+        width={size}
+        height={height * 5}
+        alt=""
       />
-      <path
-        d="M32 40C34 48 42 50 42 58A10 10 0 0 1 22 58C22 52 28 48 32 40Z"
-        fill="var(--flame-inner, #ffd23f)"
-      />
-      <circle cx="28" cy="56" r="2.4" fill="var(--flame-ink, #14203a)" />
-      <circle cx="36" cy="56" r="2.4" fill="var(--flame-ink, #14203a)" />
-      <path
-        d="M29 61Q32 64 35 61"
-        stroke="var(--flame-ink, #14203a)"
-        strokeWidth="2"
-        fill="none"
-        strokeLinecap="round"
-      />
-    </svg>
+    </span>
   )
 }

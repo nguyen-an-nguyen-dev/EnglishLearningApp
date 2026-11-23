@@ -6,13 +6,14 @@ import {
   buildMapNodes,
   buildRoadPath,
   buildRoadmap,
+  buildRoadmapGeometry,
   findCurrentLesson,
   flattenLessons,
   lessonY,
   markerSide,
-  roadmapHeight,
   roadCenterX,
-  stageTop,
+  stageBand,
+  stageHeightFor,
 } from './roadmap.ts'
 
 function makeStages(): Stage[] {
@@ -71,6 +72,27 @@ describe('Roadmap data', () => {
     assert.equal(stages[1].completedCount, 0)
   })
 
+  test('a lesson inserted behind the frontier renders as new, not as the current stop', () => {
+    const raw = makeStages()
+    // The admin appends a lesson to stage 1; the API reports it `available`
+    // because the learner already cleared everything in that stage.
+    raw[0].lessons.push({
+      ...raw[0].lessons[0],
+      id: 99,
+      code: 's1-lesson-7',
+      title: 'Backfilled',
+      sort_order: 7,
+      state: { status: 'available', score: null },
+    })
+
+    const stages = buildRoadmap(raw)
+    assert.deepEqual(
+      stages[0].lessons.map((lesson) => lesson.status),
+      ['done', 'done', 'current', 'locked', 'locked', 'locked', 'new'],
+    )
+    assert.equal(findCurrentLesson(stages)?.id, 3, 'the car stays on the current lesson')
+  })
+
   test('uses stage theme and accent from the API, with fallbacks for unknown themes', () => {
     const stages = makeStages()
     stages[0].theme_key = 'not-a-theme'
@@ -82,7 +104,7 @@ describe('Roadmap data', () => {
     assert.equal(roadmap[5].theme, 'sakura')
   })
 
-  test('finds the first unlocked lesson as the current one', () => {
+  test('finds the unlocked lesson as the current one', () => {
     const stages = buildRoadmap(makeStages())
     const current = findCurrentLesson(stages)
 
@@ -91,22 +113,62 @@ describe('Roadmap data', () => {
     assert.equal(current?.lessonIndex, 2)
   })
 
+  test('keeps the six-lesson band exactly as tall as it always was', () => {
+    assert.equal(stageHeightFor(6), ROADMAP_LAYOUT.minStageHeight)
+    assert.equal(stageHeightFor(1), ROADMAP_LAYOUT.minStageHeight)
+    assert.equal(stageHeightFor(0), ROADMAP_LAYOUT.minStageHeight)
+  })
+
+  test('a stage with a seventh lesson grows instead of spilling into the next scene', () => {
+    const six = buildRoadmapGeometry([{ lessons: new Array(6).fill(null) }])
+    const seven = buildRoadmapGeometry([{ lessons: new Array(7).fill(null) }])
+
+    assert.ok(seven.bands[0].height > six.bands[0].height, 'the band grows')
+    assert.ok(
+      seven.height - six.height >= ROADMAP_LAYOUT.lessonGap,
+      'the extra pin gets a full row of room',
+    )
+  })
+
   test('lays every stage out over its own background band', () => {
-    const stageCount = 6
-    const lessonsPerStage = 6
-    const height = roadmapHeight(stageCount)
+    const stages = buildRoadmap(makeStages())
+    const geometry = buildRoadmapGeometry(stages)
 
-    assert.equal(height, ROADMAP_LAYOUT.topPad + stageCount * ROADMAP_LAYOUT.stageHeight + ROADMAP_LAYOUT.bottomPad)
-
-    for (let stageIndex = 0; stageIndex < stageCount; stageIndex += 1) {
-      const top = stageTop(stageIndex)
-      const bottom = top + ROADMAP_LAYOUT.stageHeight
-      for (let lessonIndex = 0; lessonIndex < lessonsPerStage; lessonIndex += 1) {
-        const y = lessonY(stageIndex, lessonIndex)
-        assert.ok(y > top, `lesson ${lessonIndex} starts inside stage ${stageIndex}`)
-        assert.ok(y < bottom, `lesson ${lessonIndex} ends inside stage ${stageIndex}`)
+    for (let stageIndex = 0; stageIndex < stages.length; stageIndex += 1) {
+      const band = stageBand(geometry, stageIndex)
+      assert.equal(band.lessonCount, 6)
+      for (let lessonIndex = 0; lessonIndex < 6; lessonIndex += 1) {
+        const y = lessonY(geometry, stageIndex, lessonIndex)
+        assert.ok(y > band.top, `lesson ${lessonIndex} starts inside stage ${stageIndex}`)
+        assert.ok(y < band.top + band.height, `lesson ${lessonIndex} ends inside stage ${stageIndex}`)
       }
     }
+
+    const last = stageBand(geometry, stages.length - 1)
+    assert.equal(last.top + last.height, geometry.height - ROADMAP_LAYOUT.bottomPad)
+  })
+
+  test('adding a lesson to an early stage pushes the later stages down', () => {
+    const raw = makeStages()
+    const before = buildRoadmapGeometry(buildRoadmap(raw))
+
+    raw[0].lessons.push({
+      ...raw[0].lessons[0],
+      id: 99,
+      code: 's1-lesson-7',
+      title: 'Backfilled',
+      sort_order: 7,
+    })
+    const stages = buildRoadmap(raw)
+    const after = buildRoadmapGeometry(stages)
+
+    assert.ok(after.height > before.height)
+    assert.equal(after.bands[0].lessonCount, 7)
+    assert.equal(
+      after.bands[1].top,
+      stageBand(before, 1).top + (after.bands[0].height - before.bands[0].height),
+      'stage 2 starts lower by exactly the growth of stage 1',
+    )
   })
 
   test('alternates the road and marker sides so the route snakes down the map', () => {
@@ -117,18 +179,27 @@ describe('Roadmap data', () => {
     assert.equal(markerSide(1), 1)
   })
 
-  test('keeps all lesson node coordinates unchanged across the 3D background', () => {
-    const nodes = buildMapNodes(buildRoadmap(makeStages()))
+  test('keeps every lesson node inside its own stage band', () => {
+    const stages = buildRoadmap(makeStages())
+    const geometry = buildRoadmapGeometry(stages)
+    const nodes = buildMapNodes(stages, geometry)
+
+    assert.equal(nodes.length, 36)
     assert.deepEqual(nodes.map(({ x, y }) => [x, y]), Array.from({ length: 36 }, (_, index) => [
       index % 2 === 0 ? 534 : 586,
-      Math.floor(index / 6) * 670 + 110 + (index % 6) * 96,
+      Math.floor(index / 6) * ROADMAP_LAYOUT.minStageHeight + 110 + (index % 6) * 96,
     ]))
+    for (const node of nodes) {
+      const band = stageBand(geometry, node.stageIndex)
+      assert.ok(node.y > band.top && node.y < band.top + band.height)
+    }
   })
 
   test('builds the full car path with one increasing length per lesson', () => {
     const stages = buildRoadmap(makeStages())
-    const nodes = buildMapNodes(stages)
-    const path = buildRoadPath(nodes, stages.length)
+    const geometry = buildRoadmapGeometry(stages)
+    const nodes = buildMapNodes(stages, geometry)
+    const path = buildRoadPath(nodes, geometry)
 
     assert.equal(nodes.length, 36)
     assert.ok(path.d.startsWith('M'))

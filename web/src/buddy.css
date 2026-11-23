@@ -847,8 +847,18 @@
 .voice-panel-body::-webkit-scrollbar-thumb { border: 2px solid var(--pn); border-radius: 9px; background: var(--line); }
 .learning-page-map .roadmap-scroll {
   scroll-padding-block-end: calc(104px + env(safe-area-inset-bottom));
-  padding-block-end: calc(104px + env(safe-area-inset-bottom));
 }
+
+.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock {
+  right: 16px;
+  left: auto;
+  align-items: flex-end;
+  transform: none;
+}
+.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-orb { width: 62px; height: 62px; }
+.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-orb-core { width: 58px; height: 58px; }
+.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock .audio-bars { gap: 3px; }
+.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock-hint { display: none; }
 
 @media (max-width: 960px) {
   .voice-dock { left: 50%; bottom: calc(82px + env(safe-area-inset-bottom)); }

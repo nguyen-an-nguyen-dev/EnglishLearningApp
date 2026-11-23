@@ -49,6 +49,24 @@ export async function getLessonsByStage(stageId: number): Promise<LessonRow[]> {
   return rows;
 }
 
+/**
+ * Every lesson id in curriculum order (stage sort order, then lesson sort order).
+ * The learner's frontier is measured against this list, not against a single
+ * stage, so adding a lesson to an old stage cannot move the road backwards.
+ */
+export async function getOrderedLessonIds(): Promise<number[]> {
+  interface Row extends RowDataPacket {
+    id: number;
+  }
+  const [rows] = await pool.execute<Row[]>(
+    `SELECT l.id
+     FROM lessons l
+     JOIN stages s ON s.id = l.stage_id
+     ORDER BY s.sort_order ASC, l.sort_order ASC, l.id ASC`,
+  );
+  return rows.map((row) => Number(row.id));
+}
+
 export async function getLessonById(lessonId: number): Promise<LessonRow | undefined> {
   const [rows] = await pool.execute<LessonRow[]>(
     'SELECT id, stage_id, code, title, topic, sort_order FROM lessons WHERE id = ? LIMIT 1',
@@ -154,7 +172,7 @@ export async function recordAnswerAttempt(
 
 export async function getUserProgress(userId: number): Promise<ProgressRow[]> {
   const [rows] = await pool.execute<ProgressRow[]>(
-    `SELECT id, user_id, lesson_id, status, score, started_at, completed_at, updated_at
+    `SELECT id, user_id, lesson_id, status, score, started_at, completed_at, updated_at, attempts
      FROM progress WHERE user_id = ?`,
     [userId],
   );
@@ -201,11 +219,12 @@ export async function completeLesson(
     const levelBefore = levelForXp(Number(userRows[0].xp));
 
     const [progressRows] = await connection.execute<ProgressRow[]>(
-      `SELECT id, status FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1 FOR UPDATE`,
+      `SELECT id, status, attempts FROM progress WHERE user_id = ? AND lesson_id = ? LIMIT 1 FOR UPDATE`,
       [userId, lessonId],
     );
     const existing = progressRows[0];
     const isFirstCompletion = !existing || existing.status !== 'completed';
+    const attemptNumber = Number(existing?.attempts ?? 0) + 1;
 
     const now = new Date();
 
@@ -226,8 +245,9 @@ export async function completeLesson(
       );
     }
 
-    // 2. Every currency goes through the ledger so a replay is a no-op. The
-    //    lesson's own XP/RC are keyed by lesson id; the stage bonus by stage id.
+    // 2. The first completion pays the full lesson reward. A replay pays half
+    //    XP only, keyed by lesson + attempt; RC, RP and the stage bonus stay
+    //    one-time. Every currency still goes through the ledger.
     const [stageRows] = await connection.execute<Array<RowDataPacket & { stage_id: number }>>(
       'SELECT stage_id FROM lessons WHERE id = ? LIMIT 1',
       [lessonId],
@@ -240,7 +260,14 @@ export async function completeLesson(
           { currency: 'rc', amount: REWARDS.lessonRc, sourceType: 'lesson', sourceId: String(lessonId) },
           { currency: 'rp', amount: REWARDS.rpLesson, sourceType: 'lesson', sourceId: String(lessonId) },
         ]
-      : [];
+      : [
+          {
+            currency: 'xp',
+            amount: REWARDS.lessonReplayXp,
+            sourceType: 'lesson_replay',
+            sourceId: `${lessonId}:${attemptNumber}`,
+          },
+        ];
 
     // 3. Stage completion is decided inside the transaction: the previous
     //    out-of-transaction check could see a stale, half-committed stage.

@@ -1,9 +1,11 @@
 # Engorace — English Learning Platform
 
-Engorace is a full-stack English-learning product: a React web app, an Expo mobile
-client, an Express/TypeScript API and a MariaDB database. It combines a lesson
-roadmap, video listening practice, a vocabulary arena, a cosmetic shop, streaks
-and an admin content console.
+Engorace is an online English-learning application for web and mobile.
+Learners progress through structured lessons, practice listening with videos,
+and build vocabulary through exercises and real-time word matches. The app
+integrates En Buddy, an AI assistant that can answer questions, explain
+exercises and suggest what to practice next. The web app also includes weekly
+rankings, a cosmetic shop and an admin console.
 
 ## Stack
 
@@ -23,8 +25,6 @@ web/            React web application and admin console
 mobile/         Expo mobile application
 docs/           Specs, UML, audit notes (local documentation)
 ARCHITECTURE.md Folder structure and business flows
-REFACTOR-AUDIT.md Audit findings, fixes and verification evidence
-CODE_STANDARDS.md Naming, layering, UI and testing rules
 ```
 
 ## Local setup
@@ -56,27 +56,25 @@ CODE_STANDARDS.md Naming, layering, UI and testing rules
    cd web && npm install && npm run dev
    ```
 
-For an existing database, back it up before applying a targeted migration.
-`init.sql` remains the complete schema for fresh databases; the migration above
-adds the avatar columns to an existing database.
+Vite proxies `/api`, `/media` and `/socket.io` to `http://localhost:3000`.
+Open `/admin` for the admin console.
 
-Avatar uploads require the three optional Cloudinary values above. Leave all
-three blank to keep the app running without uploads; the endpoint then returns
-a clear not-configured response. The API secret stays on the backend. For an
-existing database, apply `backend/database/migrations/2026-11-22-user-avatars.sql`
-once after taking a backup; a fresh database gets the columns from `init.sql`.
+The backend prefers Cloudinary for avatar uploads when configured and can fall
+back to local storage under `/media/avatars`. For an existing database missing
+the avatar columns, apply `backend/database/migrations/2026-11-22-user-avatars.sql`
+after backing it up. Fresh databases get those columns from `init.sql`.
 
 ## Demo dataset
 
 The seed includes the captured reference/content/activity dataset. Add or refresh
-the 70 deterministic league demo learners with:
+the 60 deterministic league demo learners with:
 ```bash
 cd backend
 npm run seed:demo
 ```
-Demo accounts and exact contents are documented in `DEMO_DATA.md`. The command
-only upserts `demo_*` learner accounts and their active-season standings; it
-preserves existing users and activity.
+The script requires an active season and upserts `demo_*` learner accounts and
+their active-season standings. See [the seed script](backend/scripts/seed-demo.mjs)
+for the generated accounts.
 
 To verify the current split files against a fresh scratch database (the script
 drops `english_learning_verify` when it finishes):
@@ -96,21 +94,24 @@ upgrades.
 # backend
 cd backend
 npm run typecheck
-npm test          # Node test runner + tsx, 119 tests
+npm test          # Node test runner + tsx
 
 # web
 cd web
 npm run lint
 npm run typecheck
-npm test          # 54 tests
+npm test
 npm run build
 ```
 
 ## Main flows
 
 - **Auth/social**: web registration verifies a six-digit code sent over SMTP; password login, Google/Facebook identity login, explicit link/unlink in Profile. Existing e-mails are never silently linked, and an explicit link only accepts the provider account that uses the same e-mail.
-- **Learning**: stages → lessons → questions, only a perfect score unlocks the next lesson.
-- **Video**: shared library, caption segmentation, vocabulary panel and saved-word notebook.
+- **Learning**: the backend derives lesson access from the furthest lesson completed at 100%. An unfinished lesson inserted earlier in the roadmap remains available for catch-up. The web lesson player starts each run with three hearts, checks answers through the API, and brings missed questions back later in the run. A completed replay earns base XP only.
+- **Review**: wrong answers can enter a persistent review queue. The profile shows learning analytics and opens review sessions. The lesson result also offers immediate practice of missed questions within that lesson.
+- **En Buddy**: a rule-based plan uses progress, mistakes and items due for review. The web assistant can explain a next step, open a supported destination and offer a reminder for the learner to confirm.
+- **Video**: shared library and personal YouTube imports, caption segmentation, playback progress, vocabulary panel and saved-word notebook.
+- **Translation**: English–Vietnamese text and file translation with a saved history.
 - **Arena**: DB-backed battle vocabulary, real-time Socket.IO rounds.
 - **Shop**: DB-backed catalogue, transactional purchases, boosters, cosmetics with `style_json`.
 - **Streak**: daily chain, one shield charge per missed day (Duolingo-style), and explicit loss notice after a break.
@@ -185,5 +186,5 @@ FACEBOOK_APP_SECRET=   # recommended: validates app-bound Facebook tokens
 Until configured, provider endpoints correctly return `503 not configured`.
 The full provider architecture is covered by mocked-token integration tests.
 
-See `ARCHITECTURE.md` for module boundaries and `REFACTOR-AUDIT.md` for the
-audit/refactoring record.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the web-to-backend flows and
+[the AI module documentation](backend/src/modules/ai/README.md) for En Buddy.

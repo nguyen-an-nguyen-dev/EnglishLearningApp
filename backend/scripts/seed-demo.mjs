@@ -2,14 +2,13 @@
 import bcrypt from 'bcrypt';
 import mysql from 'mysql2/promise';
 
-const TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'];
+const TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'diamond'];
 const NAMES = [
   ['Nguyễn Gia Bảo','Trần Khánh Vy','Lê Minh Khang','Phạm Ngọc Hà','Võ Đức Anh','Đặng Thảo Nhi','Bùi Quang Huy','Hoàng Mai Chi','Phan Tuấn Kiệt','Đỗ Bảo Ngọc'],
   ['Nguyễn Minh Anh','Lê Thu Hà','Trần Hoàng Nam','Đỗ Khánh Linh','Phạm Quốc Bảo','Vũ Gia Hân','Bùi Tuấn Kiệt','Ngô Bảo Châu','Đặng Minh Thư','Hoàng Anh Tuấn'],
   ['Lý Gia Bảo','Phan Thùy Dương','Tạ Quang Huy','Dương Khánh Vy','Mai Quốc Việt','Đinh Hải Yến','Lương Bảo Ngọc','Châu Minh Khôi','Huỳnh Thanh Tâm','Võ Thảo Nguyên'],
   ['Cao Đức Thịnh','Lâm Gia Huy','Nguyễn Thu Trang','Phùng Tuấn Anh','Kiều Diễm My','Trương Nhật Minh','Đặng Hoài An','Đỗ Phương Linh','Vũ Thành Đạt','Phạm Yến Nhi'],
   ['Nguyễn Hải Đăng','Trần Bảo Trân','Lê Hoàng Phúc','Phạm Thanh Tâm','Võ Ngọc Diệp','Đặng Quốc Khánh','Bùi Minh Châu','Hoàng Đức Long','Phan Quỳnh Anh','Đỗ Nhật Hào'],
-  ['Lý Tuệ Minh','Phạm Gia Linh','Nguyễn Thành Công','Trần Mỹ Duyên','Lê Quang Vinh','Vũ Phương Thảo','Đặng Minh Đức','Bùi Khánh Ngân','Cao Hoàng Sơn','Ngô Tú Uyên'],
   ['Nguyễn Nhật Nam','Trần Ngọc Ánh','Lê Đức Minh','Phạm Khánh Hòa','Võ Thanh Bình','Đặng Bảo Long','Bùi Hải Yến','Hoàng Gia Phúc','Phan Minh Tâm','Đỗ Thùy Linh'],
 ];
 const conn = await mysql.createConnection({
@@ -58,7 +57,7 @@ try {
     }
   }
   await conn.commit();
-  console.log(`Upserted 70 demo learners across ${TIERS.length} tiers; other users and activity were preserved.`);
+  console.log(`Upserted ${TIERS.length * 10} demo learners across ${TIERS.length} tiers; other users and activity were preserved.`);
 } catch (error) {
   await conn.rollback();
   console.error('Demo learner seed failed; transaction rolled back.');

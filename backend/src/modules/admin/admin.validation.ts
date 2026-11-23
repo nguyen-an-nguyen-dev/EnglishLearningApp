@@ -15,7 +15,6 @@ import {
   type QuestionInput,
   type SharedVideoImportInput,
   type SharedVideoPatch,
-  type StageInput,
   type StagePatch,
   type StageThemeKey,
 } from './admin.types';
@@ -82,16 +81,6 @@ function parseTheme(raw: unknown, errors: string[]): StageThemeKey | undefined {
     return undefined;
   }
   return raw as StageThemeKey;
-}
-
-export function parseStageInput(value: unknown): StageInput {
-  const body = asObject(value);
-  const errors: string[] = [];
-  const title = requiredText(body.title, 'title', 120, errors);
-  const description = optionalText(body.description, 'description', 500, errors);
-  const themeKey = parseTheme(body.theme_key ?? body.themeKey, errors);
-  if (errors.length) throw new HttpError(422, 'Validation failed', errors);
-  return { title: title as string, description: description ? description : null, themeKey };
 }
 
 export function parseStagePatch(value: unknown): StagePatch {

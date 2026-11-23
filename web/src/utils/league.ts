@@ -1,7 +1,7 @@
 import type { LeagueTier } from '../types/gamification'
 
 /** Ladder order, lowest first — the Minecraft-ore league. */
-export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'] as const
+export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'diamond'] as const
 
 export type LeagueZone = 'promote' | 'stay' | 'demote'
 
@@ -17,6 +17,7 @@ export const DEFAULT_LEAGUE_RULES: LeagueRules = {
 }
 
 export function asLeagueTier(value: string | null | undefined): LeagueTier {
+  if (value === 'lapis') return 'redstone'
   return (LEAGUE_TIERS as readonly string[]).includes(value ?? '') ? (value as LeagueTier) : 'coal'
 }
 

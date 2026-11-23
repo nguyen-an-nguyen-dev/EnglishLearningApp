@@ -825,8 +825,9 @@
 }
 :root[data-video-mono] .video-spinner { border-color: var(--line-strong); border-top-color: var(--ink); }
 :root[data-video-mono] .video-spinner.is-small { border-color: rgb(128 128 128 / 35%); border-top-color: var(--paper); }
-/* The video/notebook desk reuses the shared cyan-slate tokens; document surfaces follow the theme, media surfaces stay fixed dark. */
-.video-detail {
+/* The video/notebook desk reuses the shared cyan-slate tokens; document surfaces follow the theme, media surfaces stay fixed dark. Declared on the practice root too, because the landing page renders PracticeView outside .video-detail. */
+.video-detail,
+.practice-practice {
   --m-paper: var(--paper);
   --m-surface: var(--brand-50);
   --m-surface-2: var(--brand-100);

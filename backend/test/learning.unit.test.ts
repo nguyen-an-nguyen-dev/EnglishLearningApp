@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAnswerCorrect, resolveAudioUrl } from '../src/modules/learning/learning.service';
+import { buildLessonStates, isAnswerCorrect, resolveAudioUrl } from '../src/modules/learning/learning.service';
 
 test('listening audio object paths resolve to public Supabase Storage URLs', () => {
   assert.equal(
@@ -91,5 +91,51 @@ test('fill_choice questions fall back to answer text matching', () => {
   assert.equal(
     isAnswerCorrect({ id: 9, question_type: 'fill_choice' }, { questionId: 9, answer: ' Drinks ' }, rows),
     true,
+  );
+});
+
+test('a fresh learner only sees the first lesson unlocked', () => {
+  const states = buildLessonStates([1, 2, 3, 4, 5, 6], new Set());
+
+  assert.equal(states.get(1)?.status, 'unlocked');
+  assert.deepEqual(
+    [2, 3, 4, 5, 6].map((id) => states.get(id)?.status),
+    ['locked', 'locked', 'locked', 'locked', 'locked'],
+  );
+});
+
+test('exactly one lesson is the frontier; completed ones behind it stay done', () => {
+  const states = buildLessonStates([1, 2, 3, 4, 5, 6], new Set([1, 2]));
+
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6].map((id) => states.get(id)?.status),
+    ['completed', 'completed', 'unlocked', 'locked', 'locked', 'locked'],
+  );
+});
+
+test('a lesson inserted into an old stage stays open and never re-locks the road', () => {
+  // The learner finished the first six lessons and is working on stage 5.
+  // Id 99 is a lesson the admin appended to stage 1 afterwards; it sorts at
+  // index 6, ahead of every lesson the learner has already cleared.
+  const ordered = [1, 2, 3, 4, 5, 6, 99, 7, 8, 9, 10, 11, 12];
+  const completed = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+  const states = buildLessonStates(ordered, completed);
+
+  assert.equal(states.get(99)?.status, 'available', 'backfilled lesson is optional catch-up work');
+  assert.equal(states.get(9)?.status, 'unlocked', 'the frontier is unchanged');
+  assert.equal(states.get(10)?.status, 'locked');
+  assert.equal(
+    [1, 2, 3, 4, 5, 6].every((id) => states.get(id)?.status === 'completed'),
+    true,
+  );
+});
+
+test('nothing is unlocked once the whole curriculum is complete', () => {
+  const ordered = [1, 2, 3, 4];
+  const states = buildLessonStates(ordered, new Set(ordered));
+
+  assert.deepEqual(
+    ordered.map((id) => states.get(id)?.status),
+    ['completed', 'completed', 'completed', 'completed'],
   );
 });

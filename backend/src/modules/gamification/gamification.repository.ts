@@ -1,5 +1,6 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../../db/pool';
+import { LEAGUE_TIERS, leagueTierQueryValues, normalizeLeagueTier } from './gamification.types';
 import type {
   ActivityKind,
   BoosterKind,
@@ -16,15 +17,13 @@ import type {
 /** Either the shared pool or a connection that already holds a transaction. */
 type Executor = Pool | PoolConnection;
 
-const TIER_ORDER: LeagueTier[] = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'];
-
 /** One step up/down at season settlement; the ends of the ladder stay put. */
 export function promoteTier(tier: LeagueTier): LeagueTier {
-  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(tier) + 1, TIER_ORDER.length - 1)] ?? 'coal';
+  return LEAGUE_TIERS[Math.min(LEAGUE_TIERS.indexOf(tier) + 1, LEAGUE_TIERS.length - 1)] ?? 'coal';
 }
 
 export function demoteTier(tier: LeagueTier): LeagueTier {
-  return TIER_ORDER[Math.max(TIER_ORDER.indexOf(tier) - 1, 0)] ?? 'coal';
+  return LEAGUE_TIERS[Math.max(LEAGUE_TIERS.indexOf(tier) - 1, 0)] ?? 'coal';
 }
 
 export async function getLeagueTier(
@@ -35,7 +34,7 @@ export async function getLeagueTier(
     'SELECT league_tier FROM users WHERE id = ? LIMIT 1',
     [userId],
   );
-  return rows[0]?.league_tier ?? 'coal';
+  return normalizeLeagueTier(rows[0]?.league_tier);
 }
 
 // Write ledger entries for one user inside the caller's transaction. Idempotency
@@ -324,10 +323,10 @@ export async function bumpStandingCounter(
 }
 
 const PAYOUT_RC: Record<LeagueTier, number> = {
-  coal: 60, copper: 110, iron: 170, gold: 250, redstone: 330, lapis: 420, diamond: 520,
+  coal: 60, copper: 110, iron: 170, gold: 250, redstone: 330, diamond: 520,
 };
 const PAYOUT_XP: Record<LeagueTier, number> = {
-  coal: 15, copper: 25, iron: 40, gold: 60, redstone: 80, lapis: 100, diamond: 130,
+  coal: 15, copper: 25, iron: 40, gold: 60, redstone: 80, diamond: 130,
 };
 
 // Settle every finished season that has not been paid yet, then make sure a
@@ -408,7 +407,7 @@ async function settleSeason(connection: PoolConnection, season: SeasonRow): Prom
   // who share their tier, so promotion/demotion slots are decided per group.
   const byTier = new Map<LeagueTier, StandingRow[]>();
   for (const standing of standings) {
-    const carried = TIER_ORDER.includes(standing.tier) ? standing.tier : 'coal';
+    const carried = normalizeLeagueTier(standing.tier);
     const group = byTier.get(carried);
     if (group) group.push(standing);
     else byTier.set(carried, [standing]);
@@ -885,10 +884,10 @@ export async function getLeagueBoard(
      LEFT JOIN shop_items f ON f.id = ef.item_id
      LEFT JOIN user_equipment en ON en.user_id = st.user_id AND en.slot = 'nameplate'
      LEFT JOIN shop_items n ON n.id = en.item_id
-     WHERE st.season_id = ? AND u.league_tier = ? AND st.race_points > 0
+     WHERE st.season_id = ? AND u.league_tier IN (?, ?) AND st.race_points > 0
      ORDER BY st.race_points DESC, st.user_id ASC
      LIMIT ?`,
-    [seasonId, tier, limit],
+    [seasonId, ...leagueTierQueryValues(tier), limit],
   );
   return rows;
 }
@@ -903,10 +902,10 @@ export async function getMyLeagueRank(
     `SELECT COUNT(*) + 1 AS position
        FROM season_standings st
        JOIN users u ON u.id = st.user_id
-      WHERE st.season_id = ? AND u.league_tier = ? AND st.race_points > 0
+      WHERE st.season_id = ? AND u.league_tier IN (?, ?) AND st.race_points > 0
         AND (st.race_points > (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?)
           OR (st.race_points = (SELECT race_points FROM season_standings WHERE season_id = ? AND user_id = ?) AND st.user_id < ?))`,
-    [seasonId, tier, seasonId, userId, seasonId, userId, userId],
+    [seasonId, ...leagueTierQueryValues(tier), seasonId, userId, seasonId, userId, userId],
   );
   return rows[0]?.position === undefined ? null : Number(rows[0].position);
 }

@@ -11,8 +11,19 @@ export type BoosterKind = 'streak_shield' | 'xp_multiplier' | 'rc_multiplier';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type UnlockType = 'default' | 'level' | 'stage' | 'league' | 'achievement';
 export type Currency = 'rc' | 'xp' | 'rp';
-/** Minecraft-ore ladder, lowest first: coal → copper → iron → gold → redstone → lapis → diamond. */
-export type LeagueTier = 'coal' | 'copper' | 'iron' | 'gold' | 'redstone' | 'lapis' | 'diamond';
+/** League order, lowest first. */
+export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'diamond'] as const;
+export type LeagueTier = (typeof LEAGUE_TIERS)[number];
+
+export function normalizeLeagueTier(value: string | null | undefined): LeagueTier {
+  if (value === 'lapis') return 'redstone';
+  return LEAGUE_TIERS.find((tier) => tier === value) ?? 'coal';
+}
+
+/** Include legacy Lapis rows in Redstone during a rolling deployment. */
+export function leagueTierQueryValues(tier: LeagueTier): [LeagueTier, string] {
+  return [tier, tier === 'redstone' ? 'lapis' : tier];
+}
 export type ActivityKind = 'lesson' | 'video' | 'duel_win' | 'duel_play' | 'answers' | 'saved_word' | 'login';
 export type QuestMetric = ActivityKind;
 export type QuestKind = 'daily' | 'weekly';

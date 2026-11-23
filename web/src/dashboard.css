@@ -2,11 +2,9 @@
 
 /* Strong rule: near-black in light, softened in dark so it does not glare. */
 .arena-view,
-.rank-view,
-.profile-view { --rule-strong: var(--ink); }
+.rank-view { --rule-strong: var(--ink); }
 :root[data-theme="dark"] .arena-view,
-:root[data-theme="dark"] .rank-view,
-:root[data-theme="dark"] .profile-view { --rule-strong: var(--line-strong); }
+:root[data-theme="dark"] .rank-view { --rule-strong: var(--line-strong); }
 
 /* Shared primitives */
 .arena-kicker {
@@ -679,53 +677,6 @@
 .rank-state p { margin: 0; font-size: 13px; line-height: 1.6; }
 
 /* HỒ SƠ */
-.profile-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
-  align-items: start;
-}
-.profile-identity { padding-right: 48px; }
-.profile-account { padding-left: 40px; border-left: 1px solid var(--line); }
-
-/* Identity banner — full width so the equipped nameplate has a real surface
-   to fill. The wallet sits inside it, right-aligned. */
-.profile-identity-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 34px;
-  padding: 20px 24px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--paper);
-  box-shadow: var(--shadow-card);
-}
-/* The equipped nameplate is the banner background (see `nameplateSurface`);
-   the band around the name itself is gone. */
-.profile-identity-head.is-plated {
-  border-color: var(--plate-edge, transparent);
-  background: var(--plate-bg);
-  color: var(--plate-fg, var(--ink));
-}
-.profile-identity-head.is-plated .profile-identity-copy h2,
-.profile-identity-head.is-plated .profile-identity-copy p,
-.profile-identity-head.is-plated .profile-role { color: inherit; }
-.profile-identity-head.is-plated .profile-identity-copy p { opacity: 0.78; }
-.profile-identity-head.is-plated .profile-role { opacity: 0.88; }
-.profile-avatar {
-  display: grid;
-  width: 68px;
-  height: 68px;
-  flex: none;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--solid);
-  color: var(--solid-fg);
-  font-family: var(--font-sans);
-  font-size: 26px;
-  font-weight: 500;
-}
 .profile-identity-copy { min-width: 0; }
 .avatar-upload-button {
   display: inline-flex;
@@ -757,7 +708,6 @@
   line-height: 0;
 }
 .profile-avatar-edit:focus-within { outline: 3px solid var(--brand-500); outline-offset: 5px; }
-.avatar-upload-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .avatar-upload-progress { display: block; width: min(240px, 100%); height: 8px; margin-top: 8px; accent-color: #19b6f0; }
 .avatar-upload-message { margin: 6px 0 0; color: var(--ok-700, #08764e); font-size: 12px; font-weight: 700; }
 .avatar-upload-message.is-error { color: var(--danger-600, #a51e28); }
@@ -770,57 +720,6 @@
   line-height: 1.1;
 }
 .profile-identity-copy p { margin: 5px 0 0; overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; }
-.profile-role {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-  color: var(--brand-700);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.profile-numbers {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0;
-  padding: 20px 0;
-  border-top: 1px solid var(--rule-strong);
-  border-bottom: 1px solid var(--line);
-}
-.profile-numbers div { padding-left: 22px; border-left: 1px solid var(--line); }
-.profile-numbers div:first-child { padding-left: 0; border-left: 0; }
-.profile-numbers dd {
-  margin: 0;
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-size: 30px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-.profile-numbers dt {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-/* Streak overview used to be a full card here; the sidebar profile card now
-   carries the same facts, so only the mascot flame survives in this file. */
-
-/* The mascot flame flickers gently; dimmed when no streak is active. */
-.streak-flame { display: block; transform-origin: 50% 85%; }
-.streak-flame.is-active { animation: streak-mascot-flicker 2.6s ease-in-out infinite; }
-.streak-flame:not(.is-active) { opacity: 0.45; filter: grayscale(0.5); }
-@keyframes streak-mascot-flicker {
-  0%, 100% { transform: scale(1) rotate(-1deg); }
-  50% { transform: scale(1.05) rotate(1.5deg); }
-}
-
 .profile-boosters {
   display: grid;
   gap: 8px;
@@ -875,16 +774,6 @@
   transform: translateY(-1px);
 }
 .profile-review:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 3px; }
-.profile-review-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--brand-600);
-  color: #FFFFFF;
-}
 .profile-review-copy { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .profile-review-copy strong { font-size: 14px; font-weight: 800; }
 .profile-review-copy small { color: var(--muted); font-size: 12px; line-height: 1.45; }
@@ -1069,9 +958,6 @@
 @media (max-width: 1120px) {
   .arena-lobby { grid-template-columns: 1fr; gap: 34px; }
   .arena-rules { max-width: 560px; }
-  .profile-grid { grid-template-columns: 1fr; }
-  .profile-identity { padding-right: 0; }
-  .profile-account { margin-top: 38px; padding: 30px 0 0; border-top: 1px solid var(--line); border-left: 0; }
 }
 @media (max-width: 960px) {
   .arena-head { flex-direction: column; align-items: flex-start; gap: 24px; }
@@ -1117,11 +1003,4 @@
   .arena-answer .arena-cta { width: 100%; }
   .arena-slots span { width: 26px; height: 36px; font-size: 18px; }
   .arena-option { font-size: 14px; padding: 14px 0; }
-  .profile-identity-head { gap: 14px; margin-bottom: 26px; padding: 16px; border-radius: 16px; }
-  .profile-avatar-edit .avatar-frame { width: 124px !important; height: 124px !important; }
-  .profile-numbers { grid-template-columns: 1fr; gap: 16px; padding: 18px 0; }
-  .profile-numbers div { padding-left: 0; border-left: 0; }
-  .profile-numbers dd { font-size: 24px; }
-  .profile-stage { grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; }
-  .profile-stage-count { display: none; }
 }

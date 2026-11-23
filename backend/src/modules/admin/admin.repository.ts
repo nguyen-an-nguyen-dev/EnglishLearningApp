@@ -61,11 +61,6 @@ interface CodeRow extends RowDataPacket {
   code: string;
 }
 
-export async function listStageCodes(): Promise<string[]> {
-  const [rows] = await pool.execute<CodeRow[]>('SELECT code FROM stages');
-  return rows.map((row) => row.code);
-}
-
 export async function listLessonCodes(): Promise<string[]> {
   const [rows] = await pool.execute<CodeRow[]>('SELECT code FROM lessons');
   return rows.map((row) => row.code);
@@ -73,13 +68,6 @@ export async function listLessonCodes(): Promise<string[]> {
 
 interface NumberRow extends RowDataPacket {
   value: number | null;
-}
-
-export async function nextStageSortOrder(): Promise<number> {
-  const [rows] = await pool.execute<NumberRow[]>(
-    'SELECT COALESCE(MAX(sort_order), 0) AS value FROM stages',
-  );
-  return Number(rows[0]?.value ?? 0) + 1;
 }
 
 export async function nextLessonSortOrder(stageId: number): Promise<number> {
@@ -96,22 +84,6 @@ export async function nextQuestionSortOrder(lessonId: number): Promise<number> {
     [lessonId],
   );
   return Number(rows[0]?.value ?? 0) + 1;
-}
-
-export async function insertStage(input: {
-  code: string;
-  title: string;
-  description: string | null;
-  themeKey: string;
-  accentColor: string;
-  sortOrder: number;
-}): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO stages (code, title, description, theme_key, accent_color, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.code, input.title, input.description, input.themeKey, input.accentColor, input.sortOrder],
-  );
-  return result.insertId;
 }
 
 export async function updateStage(

@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2';
 
-export type LeagueTierKey = 'coal' | 'copper' | 'iron' | 'gold' | 'redstone' | 'lapis' | 'diamond';
+export type LeagueTierKey = 'coal' | 'copper' | 'iron' | 'gold' | 'redstone' | 'diamond';
 
 export interface RankingEntry {
   rank: number;

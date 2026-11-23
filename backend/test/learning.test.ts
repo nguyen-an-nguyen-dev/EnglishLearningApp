@@ -176,10 +176,11 @@ test('lesson completion requires every answer to be correct before unlocking the
 
   const successfulAttempt = await submit(lessonId, correctSubmission);
   assert.equal(successfulAttempt.status, 200);
-  const successfulResult = await successfulAttempt.json() as { data: { lesson_status: string; stage_completed: boolean; xp_earned: number; score: number } };
+  const successfulResult = await successfulAttempt.json() as { data: { lesson_status: string; stage_completed: boolean; xp_earned: number; score: number; is_first_completion: boolean } };
   assert.equal(successfulResult.data.lesson_status, 'completed');
   assert.equal(successfulResult.data.score, 100);
   assert.equal(successfulResult.data.xp_earned, 20);
+  assert.equal(successfulResult.data.is_first_completion, true);
   assert.equal(successfulResult.data.stage_completed, stageLessonIds.length === 1);
 
   const [nextLessonRows] = await testPool.execute<RowDataPacket[]>(
@@ -238,10 +239,11 @@ test('lesson completion requires every answer to be correct before unlocking the
 
   const replayAttempt = await submit(lessonId, correctSubmission);
   assert.equal(replayAttempt.status, 200);
-  const replayResult = await replayAttempt.json() as { data: { lesson_status: string; stage_completed: boolean; xp_earned: number } };
+  const replayResult = await replayAttempt.json() as { data: { lesson_status: string; stage_completed: boolean; xp_earned: number; is_first_completion: boolean } };
   assert.equal(replayResult.data.lesson_status, 'completed');
   assert.equal(replayResult.data.stage_completed, false);
-  assert.equal(replayResult.data.xp_earned, 0);
+  assert.equal(replayResult.data.is_first_completion, false);
+  assert.equal(replayResult.data.xp_earned, 10);
 });
 
 test('listening questions return playable audio plus a shuffled word bank to rebuild the sentence', async () => {

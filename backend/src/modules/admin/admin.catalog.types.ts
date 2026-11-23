@@ -13,7 +13,7 @@ export type ShopUnlockTypeValue = (typeof SHOP_UNLOCK_TYPES)[number];
 
 export const BOOSTER_KINDS = ['streak_shield', 'xp_multiplier', 'rc_multiplier'] as const;
 
-export const LEAGUE_TIERS = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'] as const;
+export { LEAGUE_TIERS } from '../gamification/gamification.types';
 
 export const BATTLE_PARTS_OF_SPEECH = [
   'noun',

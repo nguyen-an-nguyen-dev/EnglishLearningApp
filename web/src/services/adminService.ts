@@ -28,7 +28,6 @@ import type {
   ShopItemPatchPayload,
   ShopItemPayload,
   StagePatchPayload,
-  StagePayload,
   VideoVocabularyPatchPayload,
   VideoVocabularyPayload,
 } from '../types/admin'
@@ -43,14 +42,6 @@ export async function getAdminLessonQuestionsApi(lessonId: number): Promise<Admi
     `/api/admin/lessons/${lessonId}/questions`,
   )
   return data.questions
-}
-
-export async function createStageApi(payload: StagePayload): Promise<AdminStage> {
-  const data = await requestApi<{ stage: AdminStage }>('/api/admin/stages', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-  return data.stage
 }
 
 export async function updateStageApi(stageId: number, payload: StagePatchPayload): Promise<AdminStage> {
