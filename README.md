@@ -24,7 +24,6 @@ backend/        Express API, modules and Node test suites
 web/            React web application and admin console
 mobile/         Expo mobile application
 docs/           Specs, UML, audit notes (local documentation)
-ARCHITECTURE.md Folder structure and business flows
 ```
 
 ## Local setup
@@ -186,5 +185,4 @@ FACEBOOK_APP_SECRET=   # recommended: validates app-bound Facebook tokens
 Until configured, provider endpoints correctly return `503 not configured`.
 The full provider architecture is covered by mocked-token integration tests.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the web-to-backend flows and
-[the AI module documentation](backend/src/modules/ai/README.md) for En Buddy.
+See [the AI module documentation](backend/src/modules/ai/README.md) for En Buddy.
