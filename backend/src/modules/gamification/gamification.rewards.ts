@@ -5,6 +5,8 @@ export const REWARDS = {
   /** Paid once per lesson, keyed by lesson id. */
   lessonXp: 20,
   lessonRc: 15,
+  /** Paid for every replay of an already-completed lesson (XP only). */
+  lessonReplayXp: 10,
   /** Paid once per stage, keyed by stage id. */
   stageRc: 40,
   stageXp: 40,

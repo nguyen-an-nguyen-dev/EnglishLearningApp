@@ -1,4 +1,4 @@
-export type LessonStatus = 'locked' | 'unlocked' | 'completed'
+export type LessonStatus = 'locked' | 'unlocked' | 'available' | 'completed'
 
 export interface LessonState {
   status: LessonStatus
@@ -77,6 +77,8 @@ export interface CompleteLessonResult {
   total_questions: number
   xp_earned: number
   rc_earned: number
+  /** False when this was a replay of an already completed lesson. */
+  is_first_completion: boolean
   lesson_status: 'completed' | 'retry'
   stage_completed: boolean
   /** Set when this completion finished the whole stage. */

@@ -73,6 +73,7 @@ export interface CompleteLessonResult {
   correct_answers: number;
   total_questions: number;
   xp_earned: number;
+  is_first_completion: boolean;
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
   badges_awarded: Array<{

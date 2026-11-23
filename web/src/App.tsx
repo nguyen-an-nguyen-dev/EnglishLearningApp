@@ -45,11 +45,11 @@ import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
   STAGE_VISUALS,
+  buildRoadmapGeometry,
   findCurrentLesson,
   findCurrentStageIndex,
   flattenLessons,
-  roadmapHeight,
-  stageTop,
+  stageBand,
 } from './roadmap'
 import type { RoadmapLesson } from './roadmap'
 
@@ -241,6 +241,7 @@ function StudyView({ user, onOpenLesson }: {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [cardAbove, setCardAbove] = useState(false)
   const lessons = useMemo(() => flattenLessons(stages), [stages])
+  const geometry = useMemo(() => buildRoadmapGeometry(stages), [stages])
   const currentLesson = useMemo(() => findCurrentLesson(stages), [stages])
   const currentLessonStageIndex = currentLesson?.stageIndex
   const currentLessonIndex = currentLesson?.lessonIndex
@@ -253,30 +254,61 @@ function StudyView({ user, onOpenLesson }: {
   const cardRef = useRef<HTMLElement | null>(null)
   const cardAboveRef = useRef(false)
   const didAutoScroll = useRef(false)
+  const lastCurrentLessonId = useRef<number | null>(null)
+  const previousGeometry = useRef<typeof geometry | null>(null)
 
   useEffect(() => {
     if (didAutoScroll.current || stages.length === 0) return
     const container = mapScrollRef.current
     if (!container || container.scrollHeight <= container.clientHeight + 8) return
-    const ratio = stageTop(activeStageIndex) / roadmapHeight(stages.length)
+    const ratio = stageBand(geometry, activeStageIndex).top / geometry.height
     container.scrollTop = ratio * container.scrollHeight
     didAutoScroll.current = true
-  }, [stages, activeStageIndex])
+  }, [stages, geometry, activeStageIndex])
+
+  /**
+   * Editing the curriculum (an admin adds a lesson to an old stage) resizes the
+   * bands above the reader. Shift the scroll by the same amount of growth so the
+   * scene they were looking at stays put instead of jumping.
+   */
+  useLayoutEffect(() => {
+    const previous = previousGeometry.current
+    previousGeometry.current = geometry
+    if (!previous || previous === geometry || previous.height === geometry.height) return
+
+    const container = mapScrollRef.current
+    if (!container || container.scrollHeight <= container.clientHeight + 8) return
+    const renderedHeight = container.querySelector<SVGElement>('.roadmap-map')?.getBoundingClientRect().height ?? 0
+    const scale = renderedHeight > 0 ? renderedHeight / geometry.height : 0
+    if (!scale) return
+
+    const centerY = (container.scrollTop + container.clientHeight / 2) / scale
+    const bandIndex = previous.bands.findIndex((band) => centerY < band.top + band.height)
+    if (bandIndex < 0) return
+    const delta = stageBand(geometry, bandIndex).top - previous.bands[bandIndex].top
+    if (delta !== 0) container.scrollTop += delta * scale
+  }, [geometry])
 
   useEffect(() => {
-    if (!didAutoScroll.current || currentLessonStageIndex === undefined || currentLessonIndex === undefined) return
+    const lessonId = currentLesson?.id ?? null
+    // Only chase the car when the learner actually advances; a silent refresh
+    // must not yank the map away from wherever they scrolled to.
+    if (lastCurrentLessonId.current === lessonId) return
+    lastCurrentLessonId.current = lessonId
+    if (!didAutoScroll.current || lessonId === null) return
+    if (currentLessonStageIndex === undefined || currentLessonIndex === undefined) return
     const container = mapScrollRef.current
     if (!container || container.scrollHeight <= container.clientHeight + 8) return
     const ratio = (
-      stageTop(currentLessonStageIndex)
+      stageBand(geometry, currentLessonStageIndex).top
       + ROADMAP_LAYOUT.stageTopPad
       + currentLessonIndex * ROADMAP_LAYOUT.lessonGap
-    ) / roadmapHeight(stages.length)
+    ) / geometry.height
     container.scrollTo({
       top: Math.max(0, ratio * container.scrollHeight - container.clientHeight / 2),
       behavior: 'smooth',
     })
-  }, [currentLessonStageIndex, currentLessonIndex, stages.length])
+  }, [currentLesson?.id, currentLessonStageIndex, currentLessonIndex, geometry])
 
   useEffect(() => {
     const scrollContainer = mapScrollRef.current
@@ -292,10 +324,14 @@ function StudyView({ user, onOpenLesson }: {
         return
       }
 
-      const stageHeightPx = map.getBoundingClientRect().height / stages.length
-      if (stageHeightPx <= 0) return
-      const index = Math.floor((container.scrollTop + container.clientHeight / 2) / stageHeightPx)
-      const next = Math.min(stages.length - 1, Math.max(0, index))
+      // Bands no longer share one height, so map the viewport centre back into
+      // SVG space and pick the band that actually contains it.
+      const renderedHeight = map.getBoundingClientRect().height
+      const scale = renderedHeight > 0 ? renderedHeight / geometry.height : 0
+      if (!scale) return
+      const centerY = (container.scrollTop + container.clientHeight / 2) / scale
+      const hit = geometry.bands.findIndex((band) => centerY < band.top + band.height)
+      const next = hit === -1 ? stages.length - 1 : Math.min(stages.length - 1, Math.max(0, hit))
       setVisibleStageIndex((previous) => (previous === next ? previous : next))
     }
 
@@ -315,7 +351,7 @@ function StudyView({ user, onOpenLesson }: {
       container.removeEventListener('scroll', scheduleSync)
       window.removeEventListener('resize', scheduleSync)
     }
-  }, [stages.length, activeStageIndex])
+  }, [stages.length, geometry, activeStageIndex])
 
   /**
    * The lesson card floats over the map and must follow its marker while the trail
@@ -395,7 +431,12 @@ function StudyView({ user, onOpenLesson }: {
     const stageNumber = String(lesson.stageIndex + 1).padStart(2, '0')
     const stageLessonCount = stages[lesson.stageIndex]?.totalCount ?? 0
     const prefix = `${t.stage(stageNumber)} · ${lang === 'en' ? 'lesson' : 'bài'} ${lesson.lessonIndex + 1}/${stageLessonCount}`
-    return `${prefix}: ${lesson.title}${lesson.status === 'locked' ? ` (${t.statusLocked})` : ''}`
+    const suffix = lesson.status === 'locked'
+      ? ` (${t.statusLocked})`
+      : lesson.status === 'new'
+        ? ` (${t.statusNew})`
+        : ''
+    return `${prefix}: ${lesson.title}${suffix}`
   }, [stages, t, lang])
 
   const visibleStage = stages[visibleStageIndex] ?? stages[activeStageIndex] ?? stages[0]
@@ -414,14 +455,18 @@ function StudyView({ user, onOpenLesson }: {
       ? t.stopLocked
       : selectedLesson?.status === 'done'
         ? t.stopReview
-        : t.stopContinue
+        : selectedLesson?.status === 'new'
+          ? t.stopNew
+          : t.stopContinue
 
   const statusLabel =
     selectedLesson?.status === 'done'
       ? t.statusDone
       : selectedLesson?.status === 'locked'
         ? t.statusLocked
-        : t.statusCurrent
+        : selectedLesson?.status === 'new'
+          ? t.statusNew
+          : t.statusCurrent
 
   return (
     <div className="tab-view-container trail-page study-screen">
@@ -706,7 +751,11 @@ function LearnerApp() {
               <RankingsView onStartStudying={() => setActiveTab('study')} />
             )}
             {effectiveTab === 'profile' && (
-              <ProfileView onLogout={handleLogout} onOpenReview={() => setReviewOpen(true)} />
+              <ProfileView
+                onLogout={handleLogout}
+                onOpenReview={() => setReviewOpen(true)}
+                onOpenLesson={(id, title) => setActiveLesson({ id, title })}
+              />
             )}
             {activeLesson && (
               <LessonPlayer

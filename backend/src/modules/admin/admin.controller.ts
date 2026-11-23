@@ -12,7 +12,6 @@ import {
   parseSharedVideoImport,
   parseSharedVideoPatch,
   parseStageId,
-  parseStageInput,
   parseStagePatch,
   parseVideoId,
 } from './admin.validation';
@@ -41,14 +40,8 @@ export const getLessonQuestions: RequestHandler = async (request, response, next
   }
 };
 
-export const createStage: RequestHandler = async (request, response, next) => {
-  try {
-    const input = parseStageInput(request.body);
-    const stage = await adminService.createStage(input);
-    response.status(201).json({ success: true, data: { stage } });
-  } catch (error) {
-    next(error);
-  }
+export const createStage: RequestHandler = (_request, _response, next) => {
+  next(new HttpError(409, 'Lộ trình có sáu chặng cố định. Hãy thêm bài học vào một chặng có sẵn.', ['FIXED_ROADMAP_STAGES']));
 };
 
 export const updateStage: RequestHandler = async (request, response, next) => {

@@ -8,7 +8,6 @@ const LABEL_KEY: Record<LeagueTier, keyof Dict> = {
   iron: 'tierIron',
   gold: 'tierGold',
   redstone: 'tierRedstone',
-  lapis: 'tierLapis',
   diamond: 'tierDiamond',
 }
 

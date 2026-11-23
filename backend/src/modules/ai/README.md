@@ -64,6 +64,23 @@ catalogue (`resolveChatAction`).
 provider cannot stack past the web client's 35s request timeout. When the budget
 is spent the deterministic offline answer is returned instead.
 
+## Study plan and web integration
+
+- `GET /api/ai/study-plan` builds a snapshot and up to three study steps from
+  stored progress, errors grouped by lesson topic, saved words, video
+  progress and due review items. `buildStudyPlan` computes those steps without
+  a model call. Topic ranking uses the number of wrong attempts per topic.
+- The web `VoiceOrb` uses `GET /api/buddy/nudges` and `POST /api/buddy/ask`
+  through `web/src/services/buddyService.ts`. The coach can use the current
+  page context and validates lesson or video destinations against the
+  catalog. The learner confirms a reminder before the web client saves it.
+- `pickNextLesson` currently returns the first unfinished lesson after a
+  completed predecessor, including the first lesson when unfinished. The
+  learning API instead finds the checkpoint after the furthest completed
+  lesson. If unfinished content is inserted into an earlier stage, the
+  coach can suggest that catch-up lesson while the roadmap points further
+  ahead.
+
 ## Rules that keep the gate safe
 
 - The gate can never break a turn: a disabled or failing Decisions API means the

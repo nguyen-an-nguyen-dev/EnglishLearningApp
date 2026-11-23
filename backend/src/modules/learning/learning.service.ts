@@ -22,24 +22,55 @@ function isPerfectlyCompleted(progress: { status: string; score: number | null }
   return progress.status === 'completed' && Number(progress.score) === 100;
 }
 
-// The first lesson across all stages is always unlocked; every other lesson is
-// unlocked only when its predecessor is completed, and completed means 100%.
-function computeLessonState(
-  lessonId: number,
-  firstLessonId: number,
-  previousLessonId: number | undefined,
+/**
+ * The roadmap is a single ordered line of lessons, so gating has to follow the
+ * learner's *frontier* — the slot right after the furthest lesson they finished
+ * — instead of each lesson's immediate predecessor.
+ *
+ * The predecessor rule broke as soon as an admin inserted a lesson into an old
+ * stage: the inserted lesson had no completed predecessor, so every lesson after
+ * it locked, and a learner who was on stage 5 suddenly lost the road ahead.
+ *
+ * With the frontier rule:
+ * - lessons past the frontier stay locked (nobody skips ahead),
+ * - the lesson exactly on the frontier is the single `unlocked` one,
+ * - lessons behind the frontier that are still unplayed stay `available`, so
+ *   newly inserted content is open catch-up work and never re-locks anything.
+ */
+export function buildLessonStates(
+  orderedLessonIds: number[],
   completedLessonIds: Set<number>,
-): LessonState {
-  if (completedLessonIds.has(lessonId)) {
-    return { status: 'completed', score: null };
-  }
-  if (lessonId === firstLessonId) {
-    return { status: 'unlocked', score: null };
-  }
-  if (previousLessonId !== undefined && completedLessonIds.has(previousLessonId)) {
-    return { status: 'unlocked', score: null };
-  }
-  return { status: 'locked', score: null };
+): Map<number, LessonState> {
+  let frontier = 0;
+  orderedLessonIds.forEach((lessonId, index) => {
+    if (completedLessonIds.has(lessonId)) frontier = Math.max(frontier, index + 1);
+  });
+
+  const states = new Map<number, LessonState>();
+  orderedLessonIds.forEach((lessonId, index) => {
+    if (completedLessonIds.has(lessonId)) {
+      states.set(lessonId, { status: 'completed', score: null });
+    } else if (index === frontier) {
+      states.set(lessonId, { status: 'unlocked', score: null });
+    } else if (index < frontier) {
+      states.set(lessonId, { status: 'available', score: null });
+    } else {
+      states.set(lessonId, { status: 'locked', score: null });
+    }
+  });
+  return states;
+}
+
+/** Reads the curriculum order and the learner's completions in one go. */
+async function loadLessonStates(userId: number): Promise<Map<number, LessonState>> {
+  const [orderedIds, progressRows] = await Promise.all([
+    repo.getOrderedLessonIds(),
+    repo.getUserProgress(userId),
+  ]);
+  const completedIds = new Set(
+    progressRows.filter(isPerfectlyCompleted).map((p) => p.lesson_id),
+  );
+  return buildLessonStates(orderedIds, completedIds);
 }
 
 export async function getStages(): Promise<Stage[]> {
@@ -80,25 +111,14 @@ export async function getLessonsByStage(
   const stage = await repo.getStageById(stageId);
   if (!stage) throw new HttpError(404, 'Stage not found.');
 
-  const [lessonRows, progressRows, firstLesson] = await Promise.all([
+  const [lessonRows, states] = await Promise.all([
     repo.getLessonsByStage(stageId),
-    repo.getUserProgress(userId),
-    repo.getFirstLesson(),
+    loadLessonStates(userId),
   ]);
 
-  const completedIds = new Set(
-    progressRows.filter(isPerfectlyCompleted).map((p) => p.lesson_id),
-  );
-  const firstLessonId = firstLesson?.id ?? 0;
-
   const lessons: Lesson[] = [];
-  for (let i = 0; i < lessonRows.length; i++) {
-    const l = lessonRows[i];
-    const prevId = i === 0
-      ? (await repo.getPreviousLesson(l.id))?.id
-      : lessonRows[i - 1].id;
-
-    const state = computeLessonState(l.id, firstLessonId, prevId, completedIds);
+  for (const l of lessonRows) {
+    const state = states.get(l.id) ?? { status: 'locked' as const, score: null };
     const totalQ = await repo.countQuestionsByLesson(l.id);
 
     lessons.push({
@@ -120,17 +140,9 @@ export async function getLessonDetail(lessonId: number, userId: number): Promise
   const lessonRow = await repo.getLessonById(lessonId);
   if (!lessonRow) throw new HttpError(404, 'Lesson not found.');
 
-  const [progressRows, firstLesson, prevLesson] = await Promise.all([
-    repo.getUserProgress(userId),
-    repo.getFirstLesson(),
-    repo.getPreviousLesson(lessonId),
-  ]);
+  const states = await loadLessonStates(userId);
 
-  const completedIds = new Set(
-    progressRows.filter(isPerfectlyCompleted).map((p) => p.lesson_id),
-  );
-
-  const state = computeLessonState(lessonId, firstLesson?.id ?? 0, prevLesson?.id, completedIds);
+  const state = states.get(lessonId) ?? { status: 'locked' as const, score: null };
   const totalQ = await repo.countQuestionsByLesson(lessonId);
 
   return {
@@ -234,18 +246,18 @@ export interface UserProgressResponse {
 }
 
 export async function getUserProgress(userId: number): Promise<UserProgressResponse> {
-  const [stageRows, progressRows, firstLesson, balance] = await Promise.all([
+  const [stageRows, orderedIds, progressRows, balance] = await Promise.all([
     repo.getAllStages(),
+    repo.getOrderedLessonIds(),
     repo.getUserProgress(userId),
-    repo.getFirstLesson(),
     fetchBalance(userId),
   ]);
 
   const completedIds = new Set(
     progressRows.filter(isPerfectlyCompleted).map((p) => p.lesson_id),
   );
+  const states = buildLessonStates(orderedIds, completedIds);
 
-  const firstLessonId = firstLesson?.id ?? 0;
   const totalXp = Number(balance?.xp ?? 0);
 
   const stages: StageWithLessons[] = [];
@@ -254,13 +266,8 @@ export async function getUserProgress(userId: number): Promise<UserProgressRespo
     const lessonRows = await repo.getLessonsByStage(stage.id);
     const lessons: Lesson[] = [];
 
-    for (let i = 0; i < lessonRows.length; i++) {
-      const l = lessonRows[i];
-      const prevId = i === 0
-        ? (await repo.getPreviousLesson(l.id))?.id
-        : lessonRows[i - 1].id;
-
-      const state = computeLessonState(l.id, firstLessonId, prevId, completedIds);
+    for (const l of lessonRows) {
+      const state = states.get(l.id) ?? { status: 'locked' as const, score: null };
       const totalQ = await repo.countQuestionsByLesson(l.id);
 
       lessons.push({
@@ -425,6 +432,7 @@ export async function completeLesson(
       total_questions: totalQuestions,
       xp_earned: 0,
       rc_earned: 0,
+      is_first_completion: false,
       lesson_status: 'retry',
       stage_completed: false,
       stage_reward: null,
@@ -435,7 +443,8 @@ export async function completeLesson(
   }
 
   // XP, RC, the stage bonus, badges, the streak and the weekly standing are all
-  // written in one transaction, so a replay cannot pay twice.
+  // written in one transaction. The first completion pays full rewards; a
+  // replay pays half XP and cannot claim the one-time lesson/stage rewards.
   const result = await repo.completeLesson(
     userId,
     lessonId,
@@ -451,6 +460,7 @@ export async function completeLesson(
     total_questions: result.totalQuestions,
     xp_earned: result.xpEarned,
     rc_earned: result.rcEarned,
+    is_first_completion: result.isFirstCompletion,
     lesson_status: 'completed',
     stage_completed: result.stageCompleted,
     stage_reward: result.stageReward,

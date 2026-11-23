@@ -156,12 +156,6 @@ export interface AdminSharedVideo {
   created_at: string;
 }
 
-export interface StageInput {
-  title: string;
-  description: string | null;
-  themeKey?: StageThemeKey;
-}
-
 export interface StagePatch {
   title?: string;
   description?: string | null;

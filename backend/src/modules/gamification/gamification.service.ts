@@ -3,23 +3,23 @@ import { pool } from '../../db/pool';
 import { levelForXp, levelProgress } from './gamification.levels';
 import * as repo from './gamification.repository';
 import { BOOSTER_BONUS, BOOSTER_SPECS } from './gamification.rewards';
+import { LEAGUE_TIERS, normalizeLeagueTier } from './gamification.types';
 import type {
   BoosterStock,
   LeagueView,
+  LeagueTier,
   QuestView,
   ShopItem,
   ShopItemRow,
   Wallet,
 } from './gamification.types';
 
-const TIER_ORDER = ['coal', 'copper', 'iron', 'gold', 'redstone', 'lapis', 'diamond'];
-const TIER_LABEL: Record<string, string> = {
+const TIER_LABEL: Record<LeagueTier, string> = {
   coal: 'Than',
   copper: 'Đồng',
   iron: 'Sắt',
   gold: 'Vàng',
   redstone: 'Đá đỏ',
-  lapis: 'Lưu ly',
   diamond: 'Kim Cương',
 };
 
@@ -61,7 +61,7 @@ export async function getWallet(userId: number): Promise<Wallet> {
     race_points: racePoints,
     // The tier is a persistent rank carried across seasons; weekly RP only
     // decides movement inside the league, never the tier itself.
-    tier: balance.league_tier ?? 'coal',
+    tier: normalizeLeagueTier(balance.league_tier),
     season_code: season?.code ?? null,
     equipment,
     owned_count: ownedCount,
@@ -76,7 +76,7 @@ function unlockLabel(item: ShopItemRow): string {
     case 'stage':
       return `Hoàn thành chặng ${item.unlock_value ?? '?'}`;
     case 'league':
-      return `Hạng ${TIER_LABEL[item.unlock_value ?? 'coal'] ?? 'Than'} mùa này`;
+      return `Hạng ${TIER_LABEL[normalizeLeagueTier(item.unlock_value)]} mùa này`;
     case 'achievement':
       return item.unlock_value === 'lessons_10'
         ? 'Mở bằng huy hiệu 10 bài'
@@ -91,7 +91,7 @@ function unlockLabel(item: ShopItemRow): string {
 interface UnlockContext {
   level: number;
   completedStages: number;
-  tier: string;
+  tier: LeagueTier;
   badgeCodes: string[];
 }
 
@@ -116,7 +116,7 @@ function isUnlocked(item: ShopItemRow, context: UnlockContext): boolean {
     case 'stage':
       return context.completedStages >= Number(item.unlock_value ?? 1);
     case 'league':
-      return TIER_ORDER.indexOf(context.tier) >= TIER_ORDER.indexOf(item.unlock_value ?? 'coal');
+      return LEAGUE_TIERS.indexOf(context.tier) >= LEAGUE_TIERS.indexOf(normalizeLeagueTier(item.unlock_value));
     case 'achievement':
       return item.unlock_value !== null && context.badgeCodes.includes(item.unlock_value);
     default:
@@ -410,7 +410,7 @@ export async function getLeague(userId: number): Promise<LeagueView> {
     userId: Number(row.userId),
     name: row.name,
     race_points: Number(row.race_points),
-    tier: row.tier,
+    tier: normalizeLeagueTier(row.tier),
     frame_key: row.frame_key,
     nameplate_key: row.nameplate_key,
     is_me: Number(row.userId) === userId,
@@ -434,7 +434,7 @@ export async function getLeague(userId: number): Promise<LeagueView> {
     last_payout: payout
       ? {
           season_code: String(payout.season_code),
-          tier: payout.tier as LeagueView['tier'],
+          tier: normalizeLeagueTier(String(payout.tier)),
           rank: Number(payout.rank),
           rc_awarded: Number(payout.rc_awarded),
           xp_awarded: Number(payout.xp_awarded),

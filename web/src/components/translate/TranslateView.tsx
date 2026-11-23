@@ -22,14 +22,12 @@ import {
   type TranslationResult,
 } from '../../services/translationService'
 import { readTextFile } from '../../utils/file'
+import '@fontsource-variable/baloo-2'
 
 const MAX_CHARACTERS = 10_000
 const MAX_FILE_BYTES = 20 * 1024
 const HISTORY_LIMIT = 10
 const HISTORY_PAGE_SIZE = 4
-// Keep in sync with the `.translate-history-list li` min-height so a computed
-// page size never squeezes a row below the height its text needs.
-const HISTORY_ROW_MIN_HEIGHT = 44
 
 type TranslateTab = 'text' | 'file'
 
@@ -68,12 +66,10 @@ export function TranslateView() {
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<TranslationResult[]>([])
   const [historyPage, setHistoryPage] = useState(0)
-  const [historyPageSize, setHistoryPageSize] = useState(HISTORY_PAGE_SIZE)
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const historyListRef = useRef<HTMLUListElement | null>(null)
   const clearDialogRef = useRef<HTMLDialogElement | null>(null)
 
   const targetLanguage: TranslateLanguage = sourceLanguage === 'en' ? 'vi' : 'en'
@@ -94,21 +90,6 @@ export function TranslateView() {
       active = false
     }
   }, [])
-
-  const hasHistory = history.length > 0
-
-  useEffect(() => {
-    const node = historyListRef.current
-    if (!node) return
-    const measure = () => {
-      const rows = Math.floor(node.clientHeight / HISTORY_ROW_MIN_HEIGHT)
-      setHistoryPageSize(Math.max(1, Math.min(HISTORY_PAGE_SIZE, rows)))
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [hasHistory])
 
   useEffect(() => {
     const dialog = clearDialogRef.current
@@ -291,16 +272,18 @@ export function TranslateView() {
     }
   }
 
-  const formattedCount = input.length.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')
-  const fileSize = pickedFile ? `${Math.max(1, Math.round(pickedFile.size / 1024))} KB` : ''
+  const numberFormat = new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US')
+  const formattedCount = numberFormat.format(tab === 'file' ? pickedFile?.text.length ?? 0 : input.length)
+  const resultWordCount = result?.translatedText.match(/\S+/g)?.length ?? 0
+  const fileSize = pickedFile ? `${numberFormat.format(Math.max(1, Math.round(pickedFile.size / 1024)))} KB` : ''
 
   const cappedHistory = history.slice(0, HISTORY_LIMIT)
   const uniqueHistory = dedupeHistory(cappedHistory)
-  const historyPageCount = Math.max(1, Math.ceil(uniqueHistory.length / historyPageSize))
+  const historyPageCount = Math.max(1, Math.ceil(uniqueHistory.length / HISTORY_PAGE_SIZE))
   const activeHistoryPage = Math.min(historyPage, historyPageCount - 1)
   const pagedHistory = uniqueHistory.slice(
-    activeHistoryPage * historyPageSize,
-    activeHistoryPage * historyPageSize + historyPageSize,
+    activeHistoryPage * HISTORY_PAGE_SIZE,
+    activeHistoryPage * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE,
   )
 
   return (
@@ -336,6 +319,7 @@ export function TranslateView() {
             <button
               type="button"
               className="translate-swap"
+              data-reversed={sourceLanguage === 'vi'}
               onClick={toggleDirection}
               aria-label={t.translateSwap}
               title={t.translateSwap}
@@ -353,7 +337,7 @@ export function TranslateView() {
               <span className="translate-history-title">{t.translateHistory}</span>
               {uniqueHistory.length > 0 && (
                 <button type="button" className="translate-history-clear" onClick={openClearDialog}>
-                  <TrashSimple size={11} weight="bold" aria-hidden="true" />
+                  <TrashSimple size={15} weight="bold" aria-hidden="true" />
                   <span>{t.translateHistoryClear}</span>
                 </button>
               )}
@@ -362,12 +346,13 @@ export function TranslateView() {
               <p className="translate-history-empty">{t.translateHistoryEmpty}</p>
             ) : (
               <>
-                <ul className="translate-history-list" ref={historyListRef}>
+                <ul className="translate-history-list">
                   {pagedHistory.map((entry) => (
                     <li key={entry.id ?? `${entry.createdAt}-${entry.originalText.slice(0, 16)}`}>
                       <button
                         type="button"
                         className="translate-history-item"
+                        aria-current={result && (result.id != null ? result.id === entry.id : historyKey(result) === historyKey(entry)) ? true : undefined}
                         onClick={() => restoreHistory(entry)}
                         title={entry.fileName ?? entry.originalText}
                       >
@@ -425,32 +410,42 @@ export function TranslateView() {
 
         <section className="translate-sheet" aria-label={t.translateKicker}>
           <div className="translate-toolbar">
-            <div className="translate-tabs" role="tablist">
+            <div className="translate-tabs" role="tablist" aria-label={t.translateSourceLabel}>
               {(['text', 'file'] as const).map((id) => (
                 <button
                   key={id}
                   type="button"
                   role="tab"
                   aria-selected={tab === id}
+                  aria-controls="translate-source-panel"
+                  id={`translate-tab-${id}`}
+                  tabIndex={tab === id ? 0 : -1}
                   className={`translate-tab${tab === id ? ' is-active' : ''}`}
                   onClick={() => switchTab(id)}
+                  onKeyDown={(event) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                    event.preventDefault()
+                    const next = event.key === 'Home' ? 'text' : event.key === 'End' ? 'file' : id === 'text' ? 'file' : 'text'
+                    switchTab(next)
+                    document.getElementById(`translate-tab-${next}`)?.focus()
+                  }}
                 >
                   {id === 'text' ? t.translateTabText : t.translateTabFile}
                 </button>
               ))}
             </div>
-            <span className="translate-counter">
-              {tab === 'text' ? `${formattedCount} / 10.000` : fileSize}
+            <span className="translate-counter" aria-live="polite">
+              {tab === 'text' ? `${formattedCount} / ${numberFormat.format(MAX_CHARACTERS)}` : fileSize}
             </span>
           </div>
 
           <div className="translate-sheet-body">
-            <div className="translate-block is-source">
+            <div className="translate-block is-source" id="translate-source-panel" role="tabpanel" aria-labelledby={`translate-tab-${tab}`}>
               <div className="translate-block-head">
                 <span className="translate-block-index" aria-hidden="true">01</span>
-                <span className="translate-block-label">
+                <h2 className="translate-block-label">
                   {tab === 'text' ? t.translateTabText : t.translateTabFile}
-                </span>
+                </h2>
                 <span className="translate-block-rule" aria-hidden="true" />
               </div>
 
@@ -480,15 +475,39 @@ export function TranslateView() {
                       <kbd>Enter</kbd>
                     </p>
                     <button type="submit" className="translate-cta" disabled={!input.trim() || loading}>
-                      <span>{t.translateTextAction}</span>
+                      <span>{loading ? t.translateWorking : t.translateTextAction}</span>
                       <ArrowRight size={16} weight="bold" />
                     </button>
                   </div>
                 </form>
               ) : (
                 <div className="translate-form">
-                  <div
-                    className={`translate-dropzone${dragging ? ' is-dragging' : ''}${pickedFile ? ' has-file' : ''}`}
+                  <input
+                    ref={fileInputRef}
+                    className="translate-file-input"
+                    type="file"
+                    accept=".txt,text/plain"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (file) void acceptFile(file)
+                    }}
+                  />
+                  {pickedFile ? (
+                    <>
+                      <div className="translate-picked-file">
+                        <FileText size={30} weight="duotone" aria-hidden="true" />
+                        <div><strong>{pickedFile.name}</strong><small>{fileSize} · {t.translateCharacterCount(formattedCount)}</small></div>
+                        <button type="button" className="translate-file-clear"
+                          aria-label={t.translateRemoveFile} title={t.translateRemoveFile}
+                          onClick={() => { setPickedFile(null); setResult(null); setError(null) }}>
+                          <X size={16} weight="bold" />
+                        </button>
+                      </div>
+                      <pre className="translate-file-preview" tabIndex={0} aria-label={t.translateFilePreview}>{pickedFile.text}</pre>
+                    </>
+                  ) : <div
+                    className={`translate-dropzone${dragging ? ' is-dragging' : ''}`}
                     role="button"
                     tabIndex={0}
                     aria-label={t.translateChooseFile}
@@ -501,37 +520,10 @@ export function TranslateView() {
                     onDragLeave={() => setDragging(false)}
                     onDrop={handleDrop}
                   >
-                    <input
-                      ref={fileInputRef}
-                      className="translate-file-input"
-                      type="file"
-                      accept=".txt,text/plain"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        event.target.value = ''
-                        if (file) void acceptFile(file)
-                      }}
-                    />
-                    <FileText className="translate-dropzone-icon" size={28} weight="light" aria-hidden="true" />
-                    <strong>{pickedFile?.name ?? t.translateChooseFile}</strong>
-                    {pickedFile && <small>{fileSize}</small>}
-                    {pickedFile && (
-                      <button
-                        type="button"
-                        className="translate-file-clear"
-                        aria-label={t.translateRemoveFile}
-                        title={t.translateRemoveFile}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setPickedFile(null)
-                          setResult(null)
-                          setError(null)
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
+                    <UploadSimple className="translate-dropzone-icon" size={29} weight="duotone" aria-hidden="true" />
+                    <strong>{t.translateChooseFile}</strong>
+                    <small>{t.translateFileHint}</small>
+                  </div>}
                   <div className="translate-form-foot">
                     {pickedFile && <p className="translate-hint">{t.translateFileLong}</p>}
                     <button
@@ -540,7 +532,7 @@ export function TranslateView() {
                       disabled={!pickedFile || loading}
                       onClick={() => void submitFile()}
                     >
-                      <span>{t.translateFileAction}</span>
+                      <span>{loading ? t.translateWorking : t.translateFileAction}</span>
                       <UploadSimple size={16} weight="bold" />
                     </button>
                   </div>
@@ -553,7 +545,7 @@ export function TranslateView() {
             <div className="translate-block is-result" aria-live="polite">
               <div className="translate-block-head">
                 <span className="translate-block-index" aria-hidden="true">02</span>
-                <span className="translate-block-label">{t.translateResultLabel}</span>
+                <h2 className="translate-block-label">{t.translateResultLabel}</h2>
                 <span className="translate-block-rule" aria-hidden="true" />
                 <button
                   type="button"
@@ -568,7 +560,7 @@ export function TranslateView() {
                 </button>
               </div>
 
-              <div className="translate-result-body">
+              <div className="translate-result-body" aria-busy={loading}>
                 {loading ? (
                   <div className="translate-loading" role="status" aria-label={t.translateWorking}>
                     <span className="translate-loading-label">{t.translateWorking}</span>
@@ -581,7 +573,11 @@ export function TranslateView() {
                   </div>
                 ) : result ? (
                   <>
-                    <div className="translate-result-text">{result.translatedText}</div>
+                    <div className="translate-result-meta">
+                      <span>{languageName(result.sourceLanguage)} → {languageName(result.targetLanguage)}</span>
+                      <span>{t.translateWordCount(numberFormat.format(resultWordCount))}</span>
+                    </div>
+                    <div className="translate-result-text" lang={result.targetLanguage}>{result.translatedText}</div>
 
                     {result.fileName && (
                       <details className="translate-source">

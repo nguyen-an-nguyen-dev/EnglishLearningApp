@@ -182,7 +182,6 @@
 @media (prefers-reduced-motion: reduce) {
   .nav-item-active::before { animation: none; }
   .tab-view-container { animation: none; }
-  .streak-flame.is-active { animation: none; }
   .learning-page-map .roadmap-stop-card { will-change: auto; }
   .nav-item svg,
   .mobile-nav button svg,

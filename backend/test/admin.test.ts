@@ -25,7 +25,7 @@ let learnerToken: string;
 let adminId: number;
 let learnerId: number;
 const createdEmails: string[] = [];
-const createdStageIds: number[] = [];
+let roadmapStageId: number;
 const createdLessonIds: number[] = [];
 const createdQuestionIds: number[] = [];
 const createdVideoIds: number[] = [];
@@ -102,10 +102,6 @@ after(async () => {
     await testPool.execute('DELETE FROM questions WHERE lesson_id = ?', [lessonId]);
     await testPool.execute('DELETE FROM lessons WHERE id = ?', [lessonId]);
   }
-  for (const stageId of createdStageIds) {
-    await testPool.execute('DELETE FROM lessons WHERE stage_id = ?', [stageId]);
-    await testPool.execute('DELETE FROM stages WHERE id = ?', [stageId]);
-  }
   for (const email of createdEmails) {
     await testPool.execute('DELETE FROM users WHERE email = ?', [email]);
   }
@@ -146,7 +142,7 @@ test('the admin role is read from the database, not from the token', async () =>
 
 // ─── Stage → lesson → question ───────────────────────────────────────────────
 
-test('admin builds a stage, a lesson and questions that the learner sees on the roadmap', async () => {
+test('admin adds a lesson and questions to an existing roadmap stage', async () => {
   const stageResponse = await call<{ stage: { id: number; code: string; theme_key: string; lessons: unknown[] } }>(
     '/api/admin/stages',
     adminToken,
@@ -155,11 +151,13 @@ test('admin builds a stage, a lesson and questions that the learner sees on the 
       body: { title: 'Chặng Kiểm Thử Admin', description: 'Nội dung do admin tạo.', theme_key: 'coast' },
     },
   );
-  assert.equal(stageResponse.status, 201);
-  const stage = stageResponse.body.data!.stage;
-  createdStageIds.push(stage.id);
-  assert.equal(stage.theme_key, 'coast');
-  assert.ok(stage.code.length > 0);
+  assert.equal(stageResponse.status, 409);
+  assert.ok(stageResponse.body.errors?.includes('FIXED_ROADMAP_STAGES'));
+
+  const content = await call<{ stages: Array<{ id: number; code: string }> }>('/api/admin/content', adminToken);
+  const stage = content.body.data?.stages.find((entry) => entry.code === 'stage-1');
+  assert.ok(stage, 'the database must contain the first roadmap stage');
+  roadmapStageId = stage.id;
 
   const lessonResponse = await call<{ lesson: { id: number; stage_id: number; title: string; question_count: number } }>(
     '/api/admin/lessons',
@@ -222,14 +220,14 @@ test('admin builds a stage, a lesson and questions that the learner sees on the 
   assert.ok(reloaded);
   assert.ok(reloaded.answers.some((answer) => answer.is_correct && answer.answer_text === 'tháng'));
 
-  // The learner's roadmap carries the new stage, and the appended lesson stays locked.
+  // The learner sees the added lesson under its existing stage.
   const progress = await call<{ stages: Array<{ id: number; lessons: Array<{ id: number; state: { status: string }; total_questions: number }> }> }>(
     '/api/progress',
     learnerToken,
   );
   assert.equal(progress.status, 200);
   const progressStage = progress.body.data!.stages.find((entry) => entry.id === stage.id);
-  assert.ok(progressStage, 'the new stage must show up in the learner roadmap');
+  assert.ok(progressStage);
   const progressLesson = progressStage.lessons.find((entry) => entry.id === lesson.id);
   assert.ok(progressLesson);
   assert.equal(progressLesson.state.status, 'locked');
@@ -274,9 +272,9 @@ test('admin validation rejects bad question shapes', async () => {
   });
   assert.equal(listeningWithoutAudio.status, 422);
 
-  const badTheme = await call('/api/admin/stages', adminToken, {
-    method: 'POST',
-    body: { title: 'Theme lạ', theme_key: 'neon' },
+  const badTheme = await call(`/api/admin/stages/${roadmapStageId}`, adminToken, {
+    method: 'PATCH',
+    body: { theme_key: 'neon' },
   });
   assert.equal(badTheme.status, 422);
 
@@ -292,7 +290,7 @@ test('admin validation rejects bad question shapes', async () => {
 });
 
 test('admin can reorder lessons and questions without breaking unique sort keys', async () => {
-  const stageId = createdStageIds[0];
+  const stageId = roadmapStageId;
   const secondLesson = await call<{ lesson: { id: number; sort_order: number } }>(
     '/api/admin/lessons',
     adminToken,
@@ -301,7 +299,7 @@ test('admin can reorder lessons and questions without breaking unique sort keys'
   assert.equal(secondLesson.status, 201);
   const lessonId = secondLesson.body.data!.lesson.id;
   createdLessonIds.push(lessonId);
-  assert.equal(secondLesson.body.data!.lesson.sort_order, 2);
+  const appendedOrder = secondLesson.body.data!.lesson.sort_order;
 
   const moved = await call(`/api/admin/lessons/${lessonId}/move`, adminToken, {
     method: 'POST',
@@ -315,10 +313,8 @@ test('admin can reorder lessons and questions without breaking unique sort keys'
   );
   const stage = content.body.data!.stages.find((entry) => entry.id === stageId);
   assert.ok(stage);
-  const orders = stage.lessons.map((entry) => entry.sort_order);
-  assert.deepEqual(orders, [1, 2]);
-  const first = stage.lessons.find((entry) => entry.sort_order === 1);
-  assert.equal(first?.id, lessonId);
+  assert.equal(stage.lessons.find((entry) => entry.id === lessonId)?.sort_order, appendedOrder - 1);
+  assert.equal(stage.lessons.find((entry) => entry.id === createdLessonIds[0])?.sort_order, appendedOrder);
 
   const questionId = createdQuestionIds[0];
   const questionMove = await call(`/api/admin/questions/${questionId}/move`, adminToken, {
@@ -360,8 +356,8 @@ test('deleting a question detaches battle history instead of failing on foreign 
   assert.equal(again.status, 404);
 });
 
-test('deleting a lesson clears learner progress, its questions, and blocks non-empty stages', async () => {
-  const stageId = createdStageIds[0];
+test('deleting a lesson clears its progress and questions while the roadmap stage is protected', async () => {
+  const stageId = roadmapStageId;
   const lessonId = createdLessonIds[1];
   await testPool.execute(
     `INSERT INTO progress (user_id, lesson_id, status, score, attempts)
@@ -371,7 +367,7 @@ test('deleting a lesson clears learner progress, its questions, and blocks non-e
 
   const blockedStage = await call(`/api/admin/stages/${stageId}`, adminToken, { method: 'DELETE' });
   assert.equal(blockedStage.status, 409);
-  assert.ok(blockedStage.body.errors?.includes('STAGE_NOT_EMPTY'));
+  assert.ok(blockedStage.body.errors?.includes('FIXED_ROADMAP_STAGES'));
 
   const removed = await call(`/api/admin/lessons/${lessonId}`, adminToken, { method: 'DELETE' });
   assert.equal(removed.status, 200);

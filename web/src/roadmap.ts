@@ -3,7 +3,12 @@ import type { Stage } from './types/learning'
 export const STAGE_THEMES = ['forest', 'river', 'autumn', 'alpine', 'coast', 'sakura'] as const
 export type StageThemeKey = (typeof STAGE_THEMES)[number]
 
-export type MapLessonStatus = 'done' | 'current' | 'locked'
+/**
+ * `new` marks a lesson that is open but sits behind the learner's frontier —
+ * usually a lesson an admin inserted into an old stage. It can be studied
+ * without pulling the journey back to it.
+ */
+export type MapLessonStatus = 'done' | 'current' | 'new' | 'locked'
 
 export interface RoadmapLesson {
   id: number
@@ -51,13 +56,21 @@ export const STAGE_VISUALS: Record<StageThemeKey, StageVisual> = {
   sakura: { bg: '#FFF1F5', ink: '#6B3B4C', soft: '#F4B8C8', appBg: '#FFE9F0', glow: 'rgba(214, 90, 134, .22)' },
 }
 
+/**
+ * Stage bands are measured, not fixed: a stage that grows past six lessons must
+ * push its neighbours down instead of spilling its extra pins onto the next
+ * scene. `minStageHeight` keeps the original six-lesson rhythm exactly as it was.
+ */
 export const ROADMAP_LAYOUT = {
   width: 1120,
   topPad: 0,
-  stageHeight: 670,
+  minStageHeight: 670,
   stageTopPad: 110,
   lessonGap: 96,
-  bottomPad: 0,
+  /** Room under the last pin so its caption never touches the next band. */
+  stageBottomPad: 80,
+  /** Breathing room under the final stage so the last pin clears the mobile nav. */
+  bottomPad: 96,
 } as const
 
 const FALLBACK_ACCENTS: Record<StageThemeKey, string> = {
@@ -77,6 +90,7 @@ function resolveTheme(themeKey: string, stageIndex: number): StageThemeKey {
 function mapStatus(status: string): MapLessonStatus {
   if (status === 'completed') return 'done'
   if (status === 'unlocked') return 'current'
+  if (status === 'available') return 'new'
   return 'locked'
 }
 
@@ -141,16 +155,63 @@ export function findCurrentStageIndex(stages: RoadmapStage[]): number {
   return stageWithCurrent ? stages.indexOf(stageWithCurrent) : 0
 }
 
-export function stageTop(stageIndex: number): number {
-  return ROADMAP_LAYOUT.topPad + stageIndex * ROADMAP_LAYOUT.stageHeight
+export interface StageBand {
+  index: number
+  top: number
+  height: number
+  lessonCount: number
 }
 
-export function lessonY(stageIndex: number, lessonIndex: number): number {
-  return stageTop(stageIndex) + ROADMAP_LAYOUT.stageTopPad + lessonIndex * ROADMAP_LAYOUT.lessonGap
+export interface RoadmapGeometry {
+  bands: StageBand[]
+  height: number
 }
 
-export function roadmapHeight(stageCount: number): number {
-  return ROADMAP_LAYOUT.topPad + stageCount * ROADMAP_LAYOUT.stageHeight + ROADMAP_LAYOUT.bottomPad
+/** Height of one stage band for `lessonCount` pins (never below the 6-pin rhythm). */
+export function stageHeightFor(lessonCount: number): number {
+  const needed = ROADMAP_LAYOUT.stageTopPad
+    + Math.max(0, lessonCount - 1) * ROADMAP_LAYOUT.lessonGap
+    + ROADMAP_LAYOUT.stageBottomPad
+  return Math.max(ROADMAP_LAYOUT.minStageHeight, needed)
+}
+
+export function buildRoadmapGeometry(
+  stages: Array<{ lessons: ArrayLike<unknown> }>,
+): RoadmapGeometry {
+  const bands: StageBand[] = []
+  let top = ROADMAP_LAYOUT.topPad
+
+  stages.forEach((stage, index) => {
+    const lessonCount = stage.lessons.length
+    const height = stageHeightFor(lessonCount)
+    bands.push({ index, top, height, lessonCount })
+    top += height
+  })
+
+  return { bands, height: top + ROADMAP_LAYOUT.bottomPad }
+}
+
+export function stageBand(geometry: RoadmapGeometry, stageIndex: number): StageBand {
+  return geometry.bands[stageIndex] ?? {
+    index: stageIndex,
+    top: 0,
+    height: ROADMAP_LAYOUT.minStageHeight,
+    lessonCount: 0,
+  }
+}
+
+export function stageTop(geometry: RoadmapGeometry, stageIndex: number): number {
+  return stageBand(geometry, stageIndex).top
+}
+
+export function lessonY(
+  geometry: RoadmapGeometry,
+  stageIndex: number,
+  lessonIndex: number,
+): number {
+  return stageTop(geometry, stageIndex)
+    + ROADMAP_LAYOUT.stageTopPad
+    + lessonIndex * ROADMAP_LAYOUT.lessonGap
 }
 
 export function roadCenterX(globalLessonIndex: number): number {
@@ -172,7 +233,10 @@ export interface MapNode {
   globalIndex: number
 }
 
-export function buildMapNodes(stages: RoadmapStage[]): MapNode[] {
+export function buildMapNodes(
+  stages: RoadmapStage[],
+  geometry: RoadmapGeometry = buildRoadmapGeometry(stages),
+): MapNode[] {
   const nodes: MapNode[] = []
   let globalIndex = 0
 
@@ -184,7 +248,7 @@ export function buildMapNodes(stages: RoadmapStage[]): MapNode[] {
         stageIndex,
         lessonIndex,
         x: roadCenterX(globalIndex),
-        y: lessonY(stageIndex, lessonIndex),
+        y: lessonY(geometry, stageIndex, lessonIndex),
         side: markerSide(globalIndex),
         globalIndex,
       })
@@ -232,7 +296,7 @@ export interface RoadPath {
   totalLength: number
 }
 
-export function buildRoadPath(nodes: MapNode[], stageCount: number): RoadPath {
+export function buildRoadPath(nodes: MapNode[], geometry: RoadmapGeometry): RoadPath {
   if (nodes.length === 0) return { d: '', nodeLengths: {}, totalLength: 0 }
 
   const start = { x: nodes[0].x, y: ROADMAP_LAYOUT.topPad + 8 }
@@ -253,7 +317,7 @@ export function buildRoadPath(nodes: MapNode[], stageCount: number): RoadPath {
 
   const end = {
     x: nodes[nodes.length - 1].x,
-    y: stageTop(stageCount - 1) + ROADMAP_LAYOUT.stageHeight - 20,
+    y: geometry.height - 20,
   }
   const middleY = (previous.y + end.y) / 2
   path += ` C${previous.x} ${middleY} ${end.x} ${middleY} ${end.x} ${end.y}`

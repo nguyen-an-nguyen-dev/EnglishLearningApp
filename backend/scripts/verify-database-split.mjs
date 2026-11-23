@@ -71,7 +71,7 @@ try {
       `SELECT COUNT(*) AS learners,
               SUM(league_tier='coal') AS coal, SUM(league_tier='copper') AS copper,
               SUM(league_tier='iron') AS iron, SUM(league_tier='gold') AS gold,
-              SUM(league_tier='redstone') AS redstone, SUM(league_tier='lapis') AS lapis,
+              SUM(league_tier IN ('redstone', 'lapis')) AS redstone,
               SUM(league_tier='diamond') AS diamond
          FROM \`${sourceDatabase.replace(/`/g, '``')}\`.users WHERE role='learner'`,
     );

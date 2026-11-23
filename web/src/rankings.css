@@ -27,14 +27,6 @@
   --rank-down-bg: #40202c;
   --rank-down-ink: #ff9ba0;
 }
-.rank-view [data-league-tier='coal'] { --tier: #5b6068; --tier-deep: #343943; --crest-fg: #fff; }
-.rank-view [data-league-tier='copper'] { --tier: #e8956a; --tier-deep: #ad542a; --crest-fg: #fff; }
-.rank-view [data-league-tier='iron'] { --tier: #b8c2cf; --tier-deep: #788594; --crest-fg: #273247; }
-.rank-view [data-league-tier='gold'] { --tier: #ffd23f; --tier-deep: #c38b00; --crest-fg: #392800; }
-.rank-view [data-league-tier='redstone'] { --tier: #e23b3b; --tier-deep: #9e1b1b; --crest-fg: #fff; }
-.rank-view [data-league-tier='lapis'] { --tier: #3a63e0; --tier-deep: #22379c; --crest-fg: #fff; }
-.rank-view [data-league-tier='diamond'] { --tier: #19b6f0; --tier-deep: #087eae; --crest-fg: #07354a; }
-
 .rank-page {
   display: flex;
   width: min(100%, 660px);
@@ -90,12 +82,15 @@
   font: 700 11px/1.25 "Be Vietnam Pro", system-ui, sans-serif;
   white-space: nowrap;
 }
-.lad.ores .ore-crest {
-  --crest-size: 40px;
-  filter: drop-shadow(0 4px 0 #14203a);
-  transition: filter 140ms ease, transform 140ms ease;
+.ore-crest {
+  display: block;
+  width: var(--crest-size, 48px);
+  height: var(--crest-size, 48px);
+  object-fit: contain;
+  transition: transform 140ms ease;
 }
-.lad.ores .tr.cur .ore-crest { --crest-size: 64px; transform: translateY(-2px); }
+.lad.ores .ore-crest { --crest-size: 54px; }
+.lad.ores .tr.cur .ore-crest { --crest-size: 72px; transform: translateY(-2px); }
 .lad.ores .tr.cur > span:not(.ore-crest) {
   padding: 2px 8px;
   border: 2px solid #14203a;
@@ -104,8 +99,7 @@
   color: #14203a;
   font-weight: 800;
 }
-.lad.ores .tr.lk { opacity: 0.55; }
-.lad.ores .tr.lk .ore-crest { filter: grayscale(1) drop-shadow(0 3px 0 #14203a); }
+.ore-crest.is-locked { opacity: .65; }
 
 .rank-heading { text-align: center; }
 .rank-heading h1 {
@@ -335,8 +329,8 @@
   .rank-tabs { max-width: 100%; }
   .rank-tab { padding-inline: 14px; }
   .lad.ores { gap: 3px; }
-  .lad.ores .ore-crest { --crest-size: 32px; }
-  .lad.ores .tr.cur .ore-crest { --crest-size: 46px; }
+  .lad.ores .ore-crest { --crest-size: 37px; }
+  .lad.ores .tr.cur .ore-crest { --crest-size: 49px; }
   .lad.ores .tr > span:not(.ore-crest) {
     font-size: 9px;
     letter-spacing: -0.03em;

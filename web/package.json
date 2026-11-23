@@ -12,6 +12,7 @@
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/baloo-2": "^5.3.0",
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/be-vietnam-pro": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",

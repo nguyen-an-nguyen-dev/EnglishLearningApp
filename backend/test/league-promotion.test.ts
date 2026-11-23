@@ -120,7 +120,7 @@ test('each tier settles as its own league, with no move at the ladder ends', asy
     { tier: 'coal', base: 5000, expected: (rank: number) => (rank <= 3 ? 'copper' : 'coal') },
     { tier: 'copper', base: 3000, expected: (rank: number) => (rank <= 3 ? 'iron' : rank >= 5 ? 'coal' : 'copper') },
     // Diamond cannot promote; its top four defend and its bottom three drop.
-    { tier: 'diamond', base: 100, expected: (rank: number) => (rank >= 5 ? 'lapis' : 'diamond') },
+    { tier: 'diamond', base: 100, expected: (rank: number) => (rank >= 5 ? 'redstone' : 'diamond') },
   ] as const;
 
   const idsByTier = new Map<string, number[]>();
@@ -185,7 +185,7 @@ test('a tiny diamond league still keeps its winner', async () => {
   assert.equal(payouts.length, 4);
   assert.equal(payouts[0].tier, 'diamond', 'the week winner defends the top tier');
   for (const payout of payouts.slice(1)) {
-    assert.equal(payout.tier, 'lapis', `rank ${payout.rank} drops as usual`);
+    assert.equal(payout.tier, 'redstone', `rank ${payout.rank} drops as usual`);
   }
   assert.equal(await repo.getLeagueTier(pool, ids[0]), 'diamond');
 });

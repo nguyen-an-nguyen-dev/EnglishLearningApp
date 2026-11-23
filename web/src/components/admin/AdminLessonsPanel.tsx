@@ -21,7 +21,6 @@ import { useLearning } from '../../context/LearningContext'
 import {
   createLessonApi,
   createQuestionApi,
-  createStageApi,
   deleteLessonApi,
   deleteQuestionApi,
   deleteStageApi,
@@ -58,8 +57,7 @@ import { AdminDialog } from './AdminDialog'
 import { AdminSkeleton } from './AdminSkeleton'
 
 type StageDraft = {
-  mode: 'create' | 'edit'
-  id?: number
+  id: number
   title: string
   description: string
   themeKey: AdminStageTheme
@@ -90,6 +88,10 @@ const THEME_LABELS: Record<AdminStageTheme, string> = {
 
 function isStageTheme(value: string): value is AdminStageTheme {
   return (STAGE_THEME_KEYS as readonly string[]).includes(value)
+}
+
+function isRoadmapStage(stage: AdminStage): boolean {
+  return /^stage-[1-6]$/.test(stage.code)
 }
 
 export function AdminLessonsPanel() {
@@ -137,6 +139,7 @@ export function AdminLessonsPanel() {
     () => stages.find((stage) => stage.id === stageId) ?? stages[0] ?? null,
     [stages, stageId],
   )
+  const canAddLesson = selectedStage !== null && isRoadmapStage(selectedStage)
 
   const selectedLesson = useMemo(
     () => selectedStage?.lessons.find((lesson) => lesson.id === lessonId) ?? null,
@@ -193,23 +196,9 @@ export function AdminLessonsPanel() {
   }
 
 
-  function openCreateStage() {
-    setFormError(null)
-    const currentTheme = selectedStage && isStageTheme(selectedStage.theme_key)
-      ? selectedStage.theme_key
-      : 'river'
-    setStageDraft({
-      mode: 'create',
-      title: '',
-      description: '',
-      themeKey: currentTheme,
-    })
-  }
-
   function openEditStage(stage: AdminStage) {
     setFormError(null)
     setStageDraft({
-      mode: 'edit',
       id: stage.id,
       title: stage.title,
       description: stage.description ?? '',
@@ -227,23 +216,12 @@ export function AdminLessonsPanel() {
     setBusy(true)
     setFormError(null)
     try {
-      if (stageDraft.mode === 'create') {
-        const created = await createStageApi({
-          title: stageDraft.title.trim(),
-          description: stageDraft.description.trim(),
-          theme_key: stageDraft.themeKey,
-        })
-        setStageId(created.id)
-        setLessonId(null)
-        setNotice({ tone: 'ok', text: t.adminStageSaved })
-      } else if (stageDraft.id) {
-        await updateStageApi(stageDraft.id, {
-          title: stageDraft.title.trim(),
-          description: stageDraft.description.trim(),
-          theme_key: stageDraft.themeKey,
-        })
-        setNotice({ tone: 'ok', text: t.adminStageSaved })
-      }
+      await updateStageApi(stageDraft.id, {
+        title: stageDraft.title.trim(),
+        description: stageDraft.description.trim(),
+        theme_key: stageDraft.themeKey,
+      })
+      setNotice({ tone: 'ok', text: t.adminStageSaved })
       setStageDraft(null)
       reloadContent()
     } catch (error) {
@@ -289,10 +267,7 @@ export function AdminLessonsPanel() {
 
 
   function openCreateLesson() {
-    if (!selectedStage) {
-      setNotice({ tone: 'error', text: t.adminStageEmpty })
-      return
-    }
+    if (!selectedStage || !canAddLesson) return
     setFormError(null)
     setLessonDraft({ mode: 'create', stageId: selectedStage.id, title: '', topic: '' })
   }
@@ -529,9 +504,6 @@ export function AdminLessonsPanel() {
           <header className="admin-column-head">
             <h3 className="admin-column-label">{t.adminStageColumn}</h3>
             {stages.length > 0 && <span className="admin-column-count">{stages.length}</span>}
-            <button type="button" className="admin-icon-btn" onClick={openCreateStage} title={t.adminAddStage} aria-label={t.adminAddStage}>
-              <Plus size={16} weight="bold" />
-            </button>
           </header>
 
           <div className="admin-column-body">
@@ -539,10 +511,6 @@ export function AdminLessonsPanel() {
               <div className="admin-empty">
                 <Flag size={20} weight="fill" aria-hidden="true" />
                 <p className="admin-empty-hint">{t.adminStageEmpty}</p>
-                <button type="button" className="admin-link-btn" onClick={openCreateStage}>
-                  <Plus size={14} weight="bold" />
-                  <span>{t.adminAddStage}</span>
-                </button>
               </div>
             ) : (
               <ul className="admin-list is-compact">
@@ -586,7 +554,7 @@ export function AdminLessonsPanel() {
                       >
                         <PencilSimple size={14} />
                       </button>
-                      <button
+                      {!isRoadmapStage(stage) && <button
                         type="button"
                         className="admin-icon-btn is-danger"
                         onClick={() => void removeStage(stage)}
@@ -595,7 +563,7 @@ export function AdminLessonsPanel() {
                         title={t.adminDelete}
                       >
                         <Trash size={14} />
-                      </button>
+                      </button>}
                     </div>
                   </li>
                 )
@@ -616,7 +584,7 @@ export function AdminLessonsPanel() {
               type="button"
               className="admin-icon-btn"
               onClick={openCreateLesson}
-              disabled={!selectedStage || busy}
+              disabled={!canAddLesson || busy}
               title={t.adminAddLesson}
               aria-label={t.adminAddLesson}
             >
@@ -634,10 +602,10 @@ export function AdminLessonsPanel() {
               <div className="admin-empty">
                 <Books size={20} weight="fill" aria-hidden="true" />
                 <p className="admin-empty-hint">{t.adminLessonEmpty}</p>
-                <button type="button" className="admin-link-btn" onClick={openCreateLesson}>
+                {canAddLesson && <button type="button" className="admin-link-btn" onClick={openCreateLesson}>
                   <Plus size={14} weight="bold" />
                   <span>{t.adminAddLesson}</span>
-                </button>
+                </button>}
               </div>
             ) : (
               <ul className="admin-list is-compact">
@@ -810,7 +778,7 @@ export function AdminLessonsPanel() {
       {/* Stage dialog */}
       <AdminDialog
         open={stageDraft !== null}
-        title={stageDraft?.mode === 'edit' ? t.adminEdit : t.adminAddStage}
+        title={t.adminEdit}
         busy={busy}
         onClose={() => setStageDraft(null)}
         footer={(

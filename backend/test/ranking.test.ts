@@ -186,7 +186,7 @@ test('lesson completion awards eligible badges once and persists them', async ()
   const replayResponse = await submit();
   assert.equal(replayResponse.status, 200);
   const replay = await replayResponse.json() as { data: { xp_earned: number; badges_awarded: unknown[] } };
-  assert.equal(replay.data.xp_earned, 0);
+  assert.equal(replay.data.xp_earned, 10);
   assert.deepEqual(replay.data.badges_awarded, []);
 
   const [userRows] = await testPool.execute<RowDataPacket[]>(
@@ -197,7 +197,7 @@ test('lesson completion awards eligible badges once and persists them', async ()
     'SELECT badge_id FROM user_badges WHERE user_id = ?',
     [badgeUser.id],
   );
-  assert.equal(Number(userRows[0].xp), 500);
+  assert.equal(Number(userRows[0].xp), 510);
   assert.equal(persistedBadgeRows.length, 4);
 
   const rankingResponse = await fetch(`${baseUrl}/api/ranking`, {
@@ -208,5 +208,5 @@ test('lesson completion awards eligible badges once and persists them', async ()
     data: { leaderboard: Array<{ userId: number; xp: number }> };
   };
   const rankedBadgeUser = ranking.data.leaderboard.find((entry) => entry.userId === badgeUser.id);
-  assert.equal(rankedBadgeUser?.xp, 500);
+  assert.equal(rankedBadgeUser?.xp, 510);
 });

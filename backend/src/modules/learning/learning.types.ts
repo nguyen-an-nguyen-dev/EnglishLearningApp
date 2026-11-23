@@ -53,6 +53,7 @@ export interface ProgressRow extends RowDataPacket {
   started_at: Date;
   completed_at: Date | null;
   updated_at: Date;
+  attempts: number;
 }
 
 // API response types
@@ -87,7 +88,12 @@ export interface Question {
 }
 
 export interface LessonState {
-  status: 'locked' | 'unlocked' | 'completed';
+  /**
+   * `unlocked` is the learner's next lesson (the frontier). `available` is a
+   * lesson that sits behind the frontier — typically content an admin inserted
+   * into an earlier stage — so it can be studied without re-locking the road.
+   */
+  status: 'locked' | 'unlocked' | 'available' | 'completed';
   score: number | null;
 }
 
@@ -135,6 +141,8 @@ export interface CompleteLessonResult {
   total_questions: number;
   xp_earned: number;
   rc_earned: number;
+  /** False when this was a replay of a lesson already completed before. */
+  is_first_completion: boolean;
   lesson_status: 'completed' | 'retry';
   stage_completed: boolean;
   /** Race Coin + XP paid for finishing the whole stage in this completion. */

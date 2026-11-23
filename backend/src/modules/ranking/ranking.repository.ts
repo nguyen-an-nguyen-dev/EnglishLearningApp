@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2';
 import { pool } from '../../db/pool';
+import { leagueTierQueryValues, normalizeLeagueTier, type LeagueTier } from '../gamification/gamification.types';
 import {
   ensureCurrentSeason,
   getLeagueTier,
@@ -80,7 +81,7 @@ export async function getCareerBoard(): Promise<RankingEntry[]> {
   }));
 }
 
-export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
+export async function getLeagueBoard(tier: LeagueTier): Promise<RankingEntry[]> {
   const seasonId = await ensureCurrentSeason();
   const [rows] = await pool.execute<LeagueRow[]>(
     `SELECT ROW_NUMBER() OVER (ORDER BY st.race_points DESC, st.user_id ASC) AS \`rank\`,
@@ -94,9 +95,9 @@ export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
      LEFT JOIN shop_items f ON f.id = ef.item_id
      LEFT JOIN user_equipment en ON en.user_id = st.user_id AND en.slot = 'nameplate'
      LEFT JOIN shop_items n ON n.id = en.item_id
-     WHERE st.season_id = ? AND u.league_tier = ? AND st.race_points > 0
+     WHERE st.season_id = ? AND u.league_tier IN (?, ?) AND st.race_points > 0
      ORDER BY st.race_points DESC, st.user_id ASC`,
-    [seasonId, tier],
+    [seasonId, ...leagueTierQueryValues(tier)],
   );
   return rows.map((row) => ({
     rank: Number(row.rank),
@@ -105,7 +106,7 @@ export async function getLeagueBoard(tier: string): Promise<RankingEntry[]> {
     avatar: row.avatar ?? null,
     xp: 0,
     race_points: Number(row.race_points),
-    tier: String(row.tier),
+    tier: normalizeLeagueTier(row.tier),
     frame_key: row.frame_key ?? null,
     frame_style: parseStyle(row.frame_style),
     nameplate_key: row.nameplate_key ?? null,

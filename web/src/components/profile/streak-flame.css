@@ -1,0 +1,33 @@
+.streak-flame {
+  display: block;
+  flex: none;
+  overflow: hidden;
+  transform-origin: 50% 86%;
+  animation: streak-flame-sway 1.35s ease-in-out infinite paused;
+}
+
+.streak-flame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.streak-flame-sprite {
+  animation: streak-flame-frames 1.35s steps(5, jump-none) infinite paused;
+}
+
+.streak-flame[data-playing='true'],
+.streak-flame[data-playing='true'] .streak-flame-sprite {
+  animation-play-state: running;
+}
+
+@keyframes streak-flame-sway {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  24% { transform: rotate(-9deg) scale(0.94, 1.13); }
+  49% { transform: rotate(3deg) scale(1.06, 0.94); }
+  74% { transform: rotate(8deg) scale(0.96, 1.10); }
+}
+
+@keyframes streak-flame-frames {
+  to { transform: translateY(-80%); }
+}

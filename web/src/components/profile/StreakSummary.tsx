@@ -3,7 +3,7 @@ import { useWallet } from '../../context/WalletContext'
 import { useI18n } from '../../i18n'
 import { buildStreakWeek } from '../../utils/streakWeek'
 import { StreakShieldArt } from '../StreakShieldArt'
-import { StreakFlame } from './StreakFlame'
+import { StreakFlame, type StreakFlameState } from './StreakFlame'
 
 /** Compact streak readout for the sidebar profile card: flame, count, and this week’s days. Reads last_activity_days_ago so the strip starts on the last active day. */
 export function StreakSummary({ compact = false }: { compact?: boolean }) {
@@ -12,6 +12,9 @@ export function StreakSummary({ compact = false }: { compact?: boolean }) {
   if (!wallet) return null
 
   const shields = wallet.boosters.streak_shields
+  const flameState: StreakFlameState = wallet.streak > 0
+    ? (shields > 0 ? 'ice' : 'happy')
+    : (wallet.streak_lost_recent ? 'sad' : 'grey')
   const weekdays = lang === 'vi'
     ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -49,11 +52,7 @@ export function StreakSummary({ compact = false }: { compact?: boolean }) {
     <span className={`streak-summary${compact ? ' is-compact' : ''}`} title={summary}>
       <span className="sr-only">{summary}</span>
       <span className="streak-summary-line" aria-hidden="true">
-        <StreakFlame
-          size={compact ? 18 : 22}
-          active={wallet.streak > 0}
-          className={shields > 0 ? 'is-shielded' : ''}
-        />
+        <StreakFlame size={compact ? 24 : 22} state={flameState} />
         <strong>{wallet.streak}</strong>
         {!compact && <span className="streak-summary-days">{t.streakDaysLabel}</span>}
         {!compact && shields > 0 && (
