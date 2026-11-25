@@ -421,7 +421,7 @@ export async function moveQuestion(
 }
 
 const SHARED_VIDEO_COLUMNS = `v.id, v.code, v.title, v.description, v.topic, v.cefr_level, v.provider,
-  v.video_url, v.thumbnail_url, v.duration_seconds, v.xp_reward, v.sort_order, v.created_at,
+  v.video_url, v.thumbnail_url, v.duration_seconds, v.xp_reward, v.sort_order, v.created_at, v.published_at,
   (SELECT COUNT(*) FROM video_segments s WHERE s.video_id = v.id) AS segment_count`;
 
 export async function getSharedVideoRows(): Promise<AdminSharedVideoRow[]> {
@@ -465,6 +465,17 @@ export async function updateSharedVideo(
     `UPDATE video_lessons SET ${sets.join(', ')} WHERE id = ? AND owner_user_id IS NULL`,
     params,
   );
+}
+
+/** Publishing stamps the time once; unpublishing clears it and hides the video from learners. */
+export async function setSharedVideoPublished(videoId: number, published: boolean): Promise<boolean> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    published
+      ? 'UPDATE video_lessons SET published_at = COALESCE(published_at, NOW()) WHERE id = ? AND owner_user_id IS NULL'
+      : 'UPDATE video_lessons SET published_at = NULL WHERE id = ? AND owner_user_id IS NULL',
+    [videoId],
+  );
+  return result.affectedRows > 0;
 }
 
 /** Progress rows and segments cascade from the video row. */

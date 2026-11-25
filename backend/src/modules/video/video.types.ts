@@ -18,6 +18,7 @@ export interface VideoLessonRow extends RowDataPacket {
   subtitle_en: string | null;
   subtitle_vi: string | null;
   created_at: Date;
+  published_at: Date | null;
 }
 
 export interface VideoSegmentRow extends RowDataPacket {
@@ -136,6 +137,8 @@ export interface CreatedVideoInput {
   sortOrder: number;
   ownerUserId: number | null;
   subtitleEn: string | null;
+  /** Shared videos import as drafts (null) until an admin publishes them. */
+  published: boolean;
   segments: Array<{ startMs: number; endMs: number; text: string }>;
 }
 

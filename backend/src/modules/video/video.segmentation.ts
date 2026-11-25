@@ -7,9 +7,9 @@ import {
 } from '../../utils/cf-rotate';
 
 const MAX_GROUP_CHARS = 200;
-// Caption cues can be word-level (a 5-minute song easily has 600+). Sea-Lion
-// takes 35s+ on a ~10k-token prompt like that and can time out, so above this
-// cap the 10-25s sentence rollup is used as the AI input instead.
+// Caption cues can be word-level (a 5-minute song easily has 600+). A prompt
+// that big risks the AI timeout, so above this cap the 10-25s sentence rollup
+// is used as the AI input instead.
 const MAX_AI_UNITS = 500;
 const MAX_AI_TIMEOUT_MS = 45_000;
 const MAX_OUTPUT_TOKENS = 4_096;
@@ -172,8 +172,8 @@ interface AnalysisTarget {
   model: string;
 }
 
-// Sea-Lion (SE Asia-tuned, no reasoning budget) is the primary and Gemini Flash
-// the fallback, the same chain the chat answers use.
+// Llama 3.3 70B on Workers AI is the primary and Gemini Flash the fallback,
+// the same chain the chat answers use.
 function analysisTargets(): AnalysisTarget[] {
   return [
     ...cfAccountTargets<Omit<AnalysisTarget, 'apiKey' | 'apiUrl'>>({
@@ -241,7 +241,7 @@ async function requestSentenceEnds(
 }
 
 // Mark the end of every spoken sentence in the caption stream. When cues are
-// unavailable the rule-based sentences are units. Tries Sea-Lion then Gemini;
+// unavailable the rule-based sentences are units. Tries Llama then Gemini;
 // any failure silently keeps the rule-based segmentation so importing never
 // fails on AI.
 export interface SegmentationOutcome {

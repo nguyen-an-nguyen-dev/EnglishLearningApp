@@ -94,6 +94,7 @@ export interface AdminSharedVideoRow extends RowDataPacket {
   sort_order: number;
   segment_count: number;
   created_at: Date;
+  published_at: Date | null;
 }
 
 export interface AdminLessonSummary {
@@ -154,6 +155,21 @@ export interface AdminSharedVideo {
   sort_order: number;
   segment_count: number;
   created_at: string;
+  published_at: string | null;
+}
+
+export interface AdminVideoSegment {
+  id: number;
+  start_ms: number;
+  end_ms: number;
+  text_en: string;
+  text_vi: string | null;
+}
+
+export interface SharedVideoSegmentInput {
+  startMs: number;
+  endMs: number;
+  text: string;
 }
 
 export interface StagePatch {

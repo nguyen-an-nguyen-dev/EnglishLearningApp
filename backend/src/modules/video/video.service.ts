@@ -63,10 +63,12 @@ function mapSummary(row: VideoLessonRow, progress: VideoProgress | null): VideoL
   };
 }
 
+// Shared drafts stay invisible to learners; owners only see their own imports.
 function assertVideoAccess(video: VideoLessonRow, userId: number): void {
-  if (video.owner_user_id !== null && Number(video.owner_user_id) !== userId) {
-    throw new HttpError(404, 'Video not found.');
-  }
+  const hidden = video.owner_user_id === null
+    ? video.published_at === null
+    : Number(video.owner_user_id) !== userId;
+  if (hidden) throw new HttpError(404, 'Video not found.');
 }
 
 function mapSegment(row: VideoSegmentRow): VideoSegment {

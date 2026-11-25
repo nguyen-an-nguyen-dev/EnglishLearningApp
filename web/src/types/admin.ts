@@ -1,5 +1,4 @@
 import type { StageThemeKey } from '../roadmap'
-import type { VideoLessonDetail } from './video'
 
 export type MoveDirection = 'up' | 'down'
 
@@ -88,7 +87,28 @@ export interface AdminSharedVideo {
   xp_reward: number
   sort_order: number
   segment_count: number
+  /** null while the video is a draft that learners cannot see. */
+  published_at: string | null
   created_at: string
+}
+
+export interface AdminVideoSegment {
+  id: number
+  start_ms: number
+  end_ms: number
+  text_en: string
+  text_vi: string | null
+}
+
+export interface AdminVideoSegmentPayload {
+  start_ms: number
+  end_ms: number
+  text_en: string
+}
+
+export interface AdminVideoSegmentsResult {
+  video: AdminSharedVideo
+  segments: AdminVideoSegment[]
 }
 
 export interface StagePatchPayload {
@@ -136,7 +156,7 @@ export interface SharedVideoPatchPayload {
   xp_reward?: number
 }
 
-export type SharedVideoImportResult = VideoLessonDetail
+export type SharedVideoImportResult = AdminSharedVideo
 
 export const SHOP_SLOTS = ['car', 'frame', 'nameplate', 'booster'] as const
 export type AdminShopSlot = (typeof SHOP_SLOTS)[number]

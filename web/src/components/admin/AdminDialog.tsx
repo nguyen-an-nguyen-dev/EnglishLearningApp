@@ -13,6 +13,8 @@ interface AdminDialogProps {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** Extra class on the dialog shell, e.g. admin-dialog is-wide. */
+  className?: string
 }
 
 /** Native <dialog> shell for admin forms: scrolls its body, keeps the footer visible, focuses the first field. */
@@ -25,6 +27,7 @@ export function AdminDialog({
   onClose,
   children,
   footer,
+  className,
 }: AdminDialogProps) {
   const { t } = useI18n()
   const titleId = useId()
@@ -48,7 +51,7 @@ export function AdminDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="admin-dialog"
+      className={className ? `admin-dialog ${className}` : 'admin-dialog'}
       aria-busy={busy}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
