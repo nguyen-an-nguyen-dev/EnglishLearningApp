@@ -80,3 +80,16 @@ describe('routeVoiceCommand', () => {
     assert.equal(routeVoiceCommand('constructor'), null)
   })
 })
+
+test('lesson ordinals and learner-specific questions stay on the backend path', () => {
+  assert.equal(routeVoiceCommand('Học bài 5 chặng 2'), null)
+  assert.equal(routeVoiceCommand('Bai 5'), null)
+  assert.equal(routeVoiceCommand('Open lesson 5 in stage 2'), null)
+  assert.equal(routeVoiceCommand('Xếp hạng của tôi'), null)
+})
+
+test('opening a video goes through Buddy and opening the library stays local', () => {
+  assert.equal(routeVoiceCommand('Mở video nhé'), null)
+  assert.equal(routeVoiceCommand('Video ngẫu nhiên'), null)
+  assert.deepEqual(routeVoiceCommand('Mở thư viện video'), { kind: 'tab', tab: 'videos' })
+})

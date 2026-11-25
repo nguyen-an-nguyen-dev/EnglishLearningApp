@@ -24,11 +24,14 @@ export interface LessonRow extends RowDataPacket {
   created_at: Date;
 }
 
+export type QuestionType = 'multiple_choice' | 'fill_choice' | 'listen_choice' | 'word_order'
+  | 'listening' | 'fill_blank' | 'translate' | 'speaking';
+
 export interface QuestionRow extends RowDataPacket {
   id: number;
   lesson_id: number;
   question_text: string;
-  question_type: string;
+  question_type: QuestionType;
   explanation: string | null;
   audio_url: string | null;
   word_bank: string[] | string | null;
@@ -78,7 +81,7 @@ export interface Answer {
 export interface Question {
   id: number;
   question_text: string;
-  question_type: string;
+  question_type: QuestionType;
   explanation: string | null;
   audio_url: string | null;
   word_bank: string[];

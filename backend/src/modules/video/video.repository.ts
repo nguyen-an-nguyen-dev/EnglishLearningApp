@@ -20,12 +20,15 @@ import type {
 
 const VIDEO_COLUMNS = `id, code, title, description, topic, cefr_level, provider, video_url,
   thumbnail_url, duration_seconds, xp_reward, sort_order, owner_user_id, subtitle_en, subtitle_vi,
-  created_at`;
+  created_at, published_at`;
+
+/** Videos one learner may see: their own imports plus published library videos. One `?` (user id). */
+export const VISIBLE_TO_USER_SQL = '(owner_user_id = ? OR (owner_user_id IS NULL AND published_at IS NOT NULL))';
 
 export async function getAllVideosForUser(userId: number): Promise<VideoLessonRow[]> {
   const [rows] = await pool.execute<VideoLessonRow[]>(
     `SELECT ${VIDEO_COLUMNS} FROM video_lessons
-     WHERE owner_user_id IS NULL OR owner_user_id = ?
+     WHERE ${VISIBLE_TO_USER_SQL}
      ORDER BY (owner_user_id IS NULL) DESC, sort_order ASC, created_at DESC`,
     [userId],
   );
@@ -94,6 +97,7 @@ export async function getShortestSharedVideo(): Promise<VideoLessonRow | undefin
   const [rows] = await pool.execute<VideoLessonRow[]>(
     `SELECT ${VIDEO_COLUMNS} FROM video_lessons v
       WHERE v.owner_user_id IS NULL
+        AND v.published_at IS NOT NULL
         AND v.duration_seconds > 0
         AND EXISTS (SELECT 1 FROM video_segments s WHERE s.video_id = v.id)
       ORDER BY v.duration_seconds ASC, v.id ASC
@@ -179,6 +183,7 @@ export async function createImportedVideo(
     sortOrder: 0,
     ownerUserId: userId,
     subtitleEn: input.subtitleEn,
+    published: true,
     segments: input.segments,
   });
 }
@@ -190,8 +195,8 @@ export async function insertVideoRow(input: CreatedVideoInput): Promise<number> 
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO video_lessons
          (code, title, description, topic, cefr_level, provider, video_url, thumbnail_url,
-          duration_seconds, xp_reward, sort_order, owner_user_id, subtitle_en, subtitle_vi)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+          duration_seconds, xp_reward, sort_order, owner_user_id, subtitle_en, subtitle_vi, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       [
         input.code,
         input.title,
@@ -206,6 +211,7 @@ export async function insertVideoRow(input: CreatedVideoInput): Promise<number> 
         input.sortOrder,
         input.ownerUserId,
         input.subtitleEn,
+        input.published ? new Date() : null,
       ],
     );
     const videoId = result.insertId;

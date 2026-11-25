@@ -15,5 +15,7 @@ export function isNavigationAnswer(answer: BuddyAnswer, intent: BuddyIntent): bo
 /** Short, self-closing confirmation used for a direct navigation. */
 export function navigationToast(answer: BuddyAnswer, fallback: string): string {
   const text = answer.reply.trim()
-  return text.length > 0 && text.length <= 120 ? text : fallback
+  const action = answer.action
+  const showDetails = action?.kind === 'show_shop_item' || action?.kind === 'spotlight' || action?.mode === 'reveal'
+  return text && (showDetails || text.length <= 120) ? text : fallback
 }

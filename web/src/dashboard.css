@@ -678,25 +678,6 @@
 
 /* HỒ SƠ */
 .profile-identity-copy { min-width: 0; }
-.avatar-upload-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 10px;
-  padding: 7px 11px;
-  border: 2px solid var(--ink);
-  border-radius: 10px;
-  background: #ffd23f;
-  color: #14203a;
-  box-shadow: 0 3px 0 var(--ink);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-.avatar-upload-button:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink); }
-.avatar-upload-button:focus-within { outline: 3px solid var(--brand-500); outline-offset: 3px; }
-.avatar-upload-button.is-uploading { cursor: progress; opacity: .8; }
 /* The framed avatar itself is the primary "change photo" target. */
 .profile-avatar-edit {
   position: relative;

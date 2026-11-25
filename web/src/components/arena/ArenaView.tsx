@@ -857,8 +857,9 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
                     name={user?.name ?? null}
                     avatarUrl={user?.avatar_url}
                     visualKey={wallet?.equipment.frame?.visual_key ?? null}
-              style={wallet?.equipment.frame?.style ?? null}
+                    style={wallet?.equipment.frame?.style ?? null}
                     size={92}
+                    className="arena-v2-versus-avatar"
                   />
                   <strong>{user?.name ?? t.arenaYou}</strong>
                   <small>{t.walletLevel} {wallet?.level ?? 1}</small>

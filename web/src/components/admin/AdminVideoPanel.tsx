@@ -31,6 +31,7 @@ import { formatClock, youtubeThumbnailUrl } from '../../utils/videoPlayback'
 import { AdminDialog } from './AdminDialog'
 import { AdminSkeleton } from './AdminSkeleton'
 import { AdminVideoVocabularyDialog } from './AdminVideoVocabularyDialog'
+import { AdminVideoReviewDialog } from './AdminVideoReviewDialog'
 
 interface EditDraft {
   title: string
@@ -52,6 +53,8 @@ function draftFrom(video: AdminSharedVideo): EditDraft {
   }
 }
 
+type VideoFilter = 'all' | 'draft' | 'published'
+
 export function AdminVideoPanel() {
   const { t } = useI18n()
   const [videos, setVideos] = useState<AdminSharedVideo[]>([])
@@ -72,6 +75,8 @@ export function AdminVideoPanel() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [vocabVideo, setVocabVideo] = useState<AdminSharedVideo | null>(null)
+  const [reviewing, setReviewing] = useState<AdminSharedVideo | null>(null)
+  const [filter, setFilter] = useState<VideoFilter>('all')
 
   useEffect(() => {
     let cancelled = false
@@ -120,7 +125,8 @@ export function AdminVideoPanel() {
       const video = await importAdminVideoApi(url)
       setImportUrl('')
       setImportOpen(false)
-      setNotice({ tone: 'ok', text: t.adminVideoAdded(video.title) })
+      setNotice({ tone: 'ok', text: t.adminVideoImportedReview(video.title) })
+      setReviewing(video)
       reload()
     } catch (error) {
       setImportError(videoImportErrorMessage(error, t))
@@ -198,6 +204,17 @@ export function AdminVideoPanel() {
     }
   }
 
+  function handleVideoUpdated(updated: AdminSharedVideo, message: string) {
+    setVideos((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)))
+    setNotice({ tone: 'ok', text: message })
+  }
+
+  const draftCount = videos.filter((video) => video.published_at === null).length
+  const visibleVideos = videos.filter((video) => {
+    if (filter === 'all') return true
+    return (filter === 'draft') === (video.published_at === null)
+  })
+
   return (
     <section className="admin-panel" aria-labelledby="admin-videos-title">
       <div className="admin-toolbar">
@@ -214,6 +231,33 @@ export function AdminVideoPanel() {
         >
           <Plus size={16} weight="bold" />
           <span>{t.adminAddVideo}</span>
+        </button>
+      </div>
+
+      <div className="admin-switch" role="group" aria-label={t.adminVideoFilterLabel}>
+        <button
+          type="button"
+          className={`admin-switch-option${filter === 'all' ? ' is-active' : ''}`}
+          aria-pressed={filter === 'all'}
+          onClick={() => setFilter('all')}
+        >
+          {t.adminVideoFilterAll(videos.length)}
+        </button>
+        <button
+          type="button"
+          className={`admin-switch-option${filter === 'draft' ? ' is-active' : ''}`}
+          aria-pressed={filter === 'draft'}
+          onClick={() => setFilter('draft')}
+        >
+          {t.adminVideoFilterDraft(draftCount)}
+        </button>
+        <button
+          type="button"
+          className={`admin-switch-option${filter === 'published' ? ' is-active' : ''}`}
+          aria-pressed={filter === 'published'}
+          onClick={() => setFilter('published')}
+        >
+          {t.adminVideoFilterPublished(videos.length - draftCount)}
         </button>
       </div>
 
@@ -259,7 +303,8 @@ export function AdminVideoPanel() {
 
       {!loading && !loadError && videos.length > 0 && (
         <ul className="admin-list is-video">
-          {videos.map((video, index) => {
+          {visibleVideos.map((video) => {
+            const position = videos.indexOf(video)
             const thumb = video.thumbnail_url ?? youtubeThumbnailUrl(video.video_url)
             return (
               <li className="admin-row" key={video.id}>
@@ -269,6 +314,9 @@ export function AdminVideoPanel() {
                 <div className="admin-row-main">
                   <strong>{video.title}</strong>
                   <div className="admin-row-meta">
+                    <span className={`admin-chip ${video.published_at === null ? 'is-warn' : 'is-ok'}`}>
+                      {video.published_at === null ? t.adminVideoStatusDraft : t.adminVideoStatusPublished}
+                    </span>
                     <span className="admin-chip">{video.cefr_level}</span>
                     <span className="admin-chip">{video.topic}</span>
                     <span className="admin-row-meta-text">
@@ -279,12 +327,19 @@ export function AdminVideoPanel() {
                     <span className="admin-chip is-xp">+{video.xp_reward} XP</span>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className={`admin-text-btn admin-row-cta${video.published_at === null ? ' is-accent' : ''}`}
+                  onClick={() => setReviewing(video)}
+                >
+                  {video.published_at === null ? t.adminVideoReviewAction : t.adminVideoEditLinesAction}
+                </button>
                 <div className="admin-row-actions">
                   <button
                     type="button"
                     className="admin-icon-btn"
                     onClick={() => void handleMove(video, 'up')}
-                    disabled={busyId === video.id || index === 0}
+                    disabled={busyId === video.id || position === 0}
                     aria-label={t.adminMoveUp}
                     title={t.adminMoveUp}
                   >
@@ -294,7 +349,7 @@ export function AdminVideoPanel() {
                     type="button"
                     className="admin-icon-btn"
                     onClick={() => void handleMove(video, 'down')}
-                    disabled={busyId === video.id || index === videos.length - 1}
+                    disabled={busyId === video.id || position === videos.length - 1}
                     aria-label={t.adminMoveDown}
                     title={t.adminMoveDown}
                   >
@@ -333,6 +388,10 @@ export function AdminVideoPanel() {
             )
           })}
         </ul>
+      )}
+
+      {!loading && !loadError && videos.length > 0 && visibleVideos.length === 0 && (
+        <p className="admin-empty-hint">{t.adminVideoFilterEmpty}</p>
       )}
 
       <AdminDialog
@@ -498,6 +557,15 @@ export function AdminVideoPanel() {
           </form>
         )}
       </AdminDialog>
+
+      {reviewing && (
+        <AdminVideoReviewDialog
+          key={reviewing.id}
+          video={reviewing}
+          onClose={() => setReviewing(null)}
+          onUpdated={handleVideoUpdated}
+        />
+      )}
 
       <AdminVideoVocabularyDialog
         key={vocabVideo?.id ?? 'closed'}

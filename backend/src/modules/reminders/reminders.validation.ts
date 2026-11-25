@@ -1,7 +1,7 @@
 import { HttpError } from '../../middleware/error-handler';
 import type { BuddyTarget } from './reminders.types';
 
-export const HIGHLIGHT_PATTERN = /^(lesson|video|word|tab|control|page):[A-Za-z0-9_-]{1,60}$/;
+export const HIGHLIGHT_PATTERN = /^(lesson|video|word|tab|control|page|profile|wallet|rank|shop):[A-Za-z0-9_-]{1,60}$/;
 const TABS = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile'] as const;
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -29,6 +29,8 @@ export function parseBuddyTarget(value: unknown): BuddyTarget | null {
     const id = Number(raw[key]);
     if (Number.isInteger(id) && id > 0) target[key] = id;
   }
+
+  if (target.lessonId && (raw.mode === 'open' || raw.mode === 'reveal')) target.mode = raw.mode;
 
   if (typeof raw.highlight === 'string' && HIGHLIGHT_PATTERN.test(raw.highlight.trim())) {
     target.highlight = raw.highlight.trim();

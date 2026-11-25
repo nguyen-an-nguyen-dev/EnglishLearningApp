@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { CHAT_INTENTS } from './ai.types';
+import { buddyLanguage } from './ai.language';
 import type { ChatContext, ChatIntent } from './ai.types';
 
 /**
@@ -211,8 +212,8 @@ const REVIEW_INSTRUCTIONS = [
 ].join(' ');
 
 const COACH_VERDICT_CRITERIA: Record<ReplyVerdict, string> = {
-  ship: 'Trả lời đúng câu hỏi mới nhất, toàn bộ bằng tiếng Việt (chỉ giữ tiếng Anh cho từ hoặc một câu ví dụ), không chào hỏi, không câu động viên sáo rỗng, ngắn gọn, và mọi con số hay tên bài/video đều có trong dữ liệu.',
-  repair: 'Có ý đúng nhưng sai hình thức: lẫn nhiều tiếng Anh, dài dòng, có câu chào hỏi hoặc động viên sáo rỗng, hoặc trả lời lệch một phần so với câu hỏi. Viết lại được.',
+  ship: 'Trả lời đúng câu hỏi mới nhất, đúng ngôn ngữ trả lời được yêu cầu, không chào hỏi, không câu động viên sáo rỗng, ngắn gọn, và mọi con số hay tên bài/video đều có trong dữ liệu.',
+  repair: 'Có ý đúng nhưng sai hình thức: sai ngôn ngữ trả lời, dài dòng, có câu chào hỏi hoặc động viên sáo rỗng, hoặc trả lời lệch một phần so với câu hỏi. Viết lại được.',
   reject: 'Lạc đề, bịa bài học/video/con số/thành tích không có trong dữ liệu, hoặc nói không biết dù dữ liệu có sẵn. Không dùng được.',
 };
 
@@ -276,7 +277,9 @@ export async function reviewAnswer(input: AnswerReviewInput): Promise<AnswerRevi
 
   const questions: Record<string, ChoiceQuestion> = {
     verdict: {
-      instructions: REVIEW_INSTRUCTIONS,
+      instructions: input.flavor === 'coach'
+        ? `${REVIEW_INSTRUCTIONS} Ngôn ngữ trả lời: ${buddyLanguage(input.message) === 'en' ? 'tiếng Anh' : 'tiếng Việt'}.`
+        : REVIEW_INSTRUCTIONS,
       criteria: input.flavor === 'coach' ? COACH_VERDICT_CRITERIA : TUTOR_VERDICT_CRITERIA,
     },
   };

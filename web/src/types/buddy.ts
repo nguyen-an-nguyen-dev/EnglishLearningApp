@@ -27,6 +27,8 @@ export type NudgeTone = 'calm' | 'push' | 'proud'
 export interface BuddyTarget {
   tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile'
   lessonId?: number
+  lessonTitle?: string
+  mode?: 'open' | 'reveal'
   videoId?: number
   /** Declared element to circle, e.g. `lesson:12`, `video:9`, `control:notebook`. */
   highlight?: string
@@ -85,15 +87,19 @@ export interface ReminderSuggestion {
 
 export interface BuddyAnswer {
   reply: string
+  language?: 'vi' | 'en'
   followups: string[]
   action: {
-    kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review'
+    kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review' | 'show_shop_item' | 'spotlight'
     label: string
     tab?: BuddyTarget['tab']
     videoId?: number
     videoTitle?: string
     lessonId?: number
+    mode?: 'open' | 'reveal'
     lessonTitle?: string
+    itemCode?: string
+    itemName?: string
     highlight?: string
   } | null
   suggestion: ReminderSuggestion | null

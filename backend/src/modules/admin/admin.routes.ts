@@ -38,6 +38,10 @@ adminRouter.post('/videos', controller.importSharedVideo);
 adminRouter.patch('/videos/:videoId', controller.updateSharedVideo);
 adminRouter.delete('/videos/:videoId', controller.deleteSharedVideo);
 adminRouter.post('/videos/:videoId/move', controller.moveSharedVideo);
+adminRouter.get('/videos/:videoId/segments', controller.listSharedVideoSegments);
+adminRouter.put('/videos/:videoId/segments', controller.replaceSharedVideoSegments);
+adminRouter.post('/videos/:videoId/publish', controller.publishSharedVideo);
+adminRouter.post('/videos/:videoId/unpublish', controller.unpublishSharedVideo);
 
 // Shop catalogue (cars, frames, nameplates, consumables)
 adminRouter.get('/shop-items', catalog.listShopItems);

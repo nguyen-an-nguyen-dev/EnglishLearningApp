@@ -15,6 +15,8 @@ import type {
   AdminStage,
   AdminStageStat,
   AdminStatsOverview,
+  AdminVideoSegmentPayload,
+  AdminVideoSegmentsResult,
   AdminVideoVocabulary,
   BattleWordPatchPayload,
   BattleWordPayload,
@@ -154,6 +156,28 @@ export async function updateAdminVideoApi(
 
 export async function deleteAdminVideoApi(videoId: number): Promise<void> {
   await requestApi<{ deleted: boolean }>(`/api/admin/videos/${videoId}`, { method: 'DELETE' })
+}
+
+export async function listAdminVideoSegmentsApi(videoId: number): Promise<AdminVideoSegmentsResult> {
+  return requestApi<AdminVideoSegmentsResult>(`/api/admin/videos/${videoId}/segments`)
+}
+
+export async function saveAdminVideoSegmentsApi(
+  videoId: number,
+  segments: AdminVideoSegmentPayload[],
+): Promise<AdminVideoSegmentsResult> {
+  return requestApi<AdminVideoSegmentsResult>(`/api/admin/videos/${videoId}/segments`, {
+    method: 'PUT',
+    body: JSON.stringify({ segments }),
+  })
+}
+
+export async function setAdminVideoPublishedApi(videoId: number, published: boolean): Promise<AdminSharedVideo> {
+  const action = published ? 'publish' : 'unpublish'
+  const data = await requestApi<{ video: AdminSharedVideo }>(`/api/admin/videos/${videoId}/${action}`, {
+    method: 'POST',
+  })
+  return data.video
 }
 
 export async function moveAdminVideoApi(videoId: number, direction: MoveDirection): Promise<void> {

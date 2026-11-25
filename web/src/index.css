@@ -333,9 +333,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 .profile-row.is-plated .profile-banner { display: none; }
 .profile-row.is-plated .profile-main-row {
-  margin-top: 0;
-  padding-top: 10px;
-  align-items: center;
+  padding-top: 8px;
 }
 .profile-row.is-plated .profile-copy strong {
   color: inherit;
@@ -366,7 +364,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   border-color: var(--danger-600);
 }
 .profile-banner {
-  height: 48px;
+  height: 40px;
   border-bottom: 3px solid var(--k);
   background: var(--sky);
 }
@@ -376,30 +374,29 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .banner-hill { fill: var(--hill); }
 .banner-castle { fill: var(--cs); }
 .profile-main-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  padding: 8px 10px 6px;
-  margin-top: -28px;
+  gap: 8px;
+  padding: 5px 8px 3px;
 }
 .profile-avatar-wrap {
   position: relative;
-  flex: none;
-  /* Symmetric vertical margins keep the avatar's visual box on the row's
-     centre line, so the name and the action chips share that same midline. */
-  margin: -6px -6px -6px -8px;
+  /* The visible ring sits below the center of the padded frame artwork. */
+  margin: -14px -8px -14px -7px;
+  transform: translateY(-4px);
   line-height: 0;
 }
 .profile-level-badge {
   position: absolute;
   z-index: 10;
-  right: 9px;
-  bottom: 8px;
+  right: 6px;
+  bottom: 6px;
   display: inline-grid;
   place-items: center;
-  min-width: 25px;
-  height: 21px;
-  padding: 0 5px;
+  min-width: 21px;
+  height: 18px;
+  padding: 0 4px;
   border: 2px solid var(--k);
   border-radius: 999px;
   background: #ffd23f;
@@ -408,18 +405,18 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     0 2px 0 var(--k),
     inset 0 1px 0 rgb(255 255 255 / 55%);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1;
 }
 /* The running XP total sits in the bar, not a corner chip. White glyphs carry an ink outline to stay legible where fill meets track. */
-.profile-xp { display: block; margin: 6px 7px 8px; }
+.profile-xp { display: block; margin: 4px 8px 7px; }
 .profile-xp-meter {
   position: relative;
   display: block;
-  height: 21px;
+  height: 20px;
   border: 2px solid var(--k);
   border-radius: 999px;
   background: var(--p2);
@@ -555,14 +552,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   font-weight: 800;
   cursor: pointer;
 }
-.profile-copy {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  /* No extra top offset: the copy block must sit on the avatar’s vertical midline. */
-  align-self: center;
-}
+.profile-copy { min-width: 0; }
 /* Only 264px wide: an unbroken line cut most Vietnamese names after two words, so names wrap to a balanced second line. */
 .profile-copy strong {
   display: -webkit-box;
@@ -571,21 +561,17 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   -webkit-line-clamp: 2;
   color: var(--tx);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.18;
-  overflow-wrap: break-word;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
   text-wrap: balance;
   white-space: normal;
 }
 .profile-actions {
   display: inline-flex;
-  flex: none;
   align-items: center;
   gap: 4px;
-  /* Same vertical centre as the name, so the chips never float above or below
-     a short two-word name. */
-  align-self: center;
 }
 .profile-icon-btn,
 .logout-icon-btn {

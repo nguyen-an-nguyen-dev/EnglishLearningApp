@@ -4,12 +4,14 @@ import { parseBuddyTarget, parseReminderInput } from './reminders.validation';
 import type { CreateReminderInput, ReminderRow, StudyReminder } from './reminders.types';
 
 function mapReminder(row: ReminderRow, now = Date.now()): StudyReminder {
+  const target = row.target_json ? parseBuddyTarget(JSON.parse(row.target_json)) : null;
+  if (target?.lessonId && !target.mode) target.mode = target.highlight ? 'reveal' : 'open';
   return {
     id: row.id,
     title: row.title,
     body: row.body,
     due_at: new Date(row.due_at).toISOString(),
-    target: row.target_json ? parseBuddyTarget(JSON.parse(row.target_json)) : null,
+    target,
     created_at: new Date(row.created_at).toISOString(),
     delivered_at: row.delivered_at ? new Date(row.delivered_at).toISOString() : null,
     dismissed_at: row.dismissed_at ? new Date(row.dismissed_at).toISOString() : null,

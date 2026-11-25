@@ -1,5 +1,5 @@
+import { speakingAnswers } from './admin.validation';
 import { HttpError } from '../../middleware/error-handler';
-import { getVideoDetail } from '../video/video.service';
 import * as videoRepo from '../video/video.repository';
 import { refineSegmentsWithAi } from '../video/video.segmentation';
 import {
@@ -8,7 +8,6 @@ import {
   fetchYouTubeImportSource,
   videoCodeForShared,
 } from '../video/video.youtube';
-import type { VideoLessonDetail } from '../video/video.types';
 import * as repo from './admin.repository';
 import {
   nextAvailableCode,
@@ -23,6 +22,8 @@ import {
   type AdminQuestionRow,
   type AdminSharedVideo,
   type AdminSharedVideoRow,
+  type AdminVideoSegment,
+  type SharedVideoSegmentInput,
   type AdminStage,
   type AdminStageRow,
   type LessonInput,
@@ -123,6 +124,17 @@ function mapSharedVideo(row: AdminSharedVideoRow): AdminSharedVideo {
     sort_order: Number(row.sort_order),
     segment_count: Number(row.segment_count),
     created_at: new Date(row.created_at).toISOString(),
+    published_at: row.published_at ? new Date(row.published_at).toISOString() : null,
+  };
+}
+
+function mapAdminSegment(row: Awaited<ReturnType<typeof videoRepo.getSegmentsByVideo>>[number]): AdminVideoSegment {
+  return {
+    id: row.id,
+    start_ms: Number(row.start_ms),
+    end_ms: Number(row.end_ms),
+    text_en: row.text_en,
+    text_vi: row.text_vi,
   };
 }
 
@@ -282,12 +294,13 @@ export async function updateQuestion(
   questionId: number,
   patch: QuestionPatchInput,
 ): Promise<AdminQuestion> {
-  const existing = await repo.getQuestionRow(questionId);
-  if (!existing) throw new HttpError(404, 'Question not found.');
-
-  const { answers, ...fields } = patch;
-  await repo.updateQuestion(questionId, fields);
-  if (answers) await repo.replaceAnswersTx(questionId, answers);
+  const updated = await repo.updateQuestionTx(questionId, (existing) => {
+    if ((patch.questionType ?? existing.question_type) !== 'speaking') return patch;
+    const questionText = patch.questionText ?? existing.question_text;
+    const changedSample = existing.question_type !== 'speaking' || questionText !== existing.question_text;
+    return { ...patch, answers: changedSample ? speakingAnswers(questionText) : undefined, wordBank: [] };
+  });
+  if (!updated) throw new HttpError(404, 'Question not found.');
   return getQuestion(questionId);
 }
 
@@ -313,9 +326,8 @@ export async function getSharedVideo(videoId: number): Promise<AdminSharedVideo>
 }
 
 export async function importSharedVideo(
-  adminUserId: number,
   input: SharedVideoImportInput,
-): Promise<VideoLessonDetail> {
+): Promise<AdminSharedVideo> {
   const youtubeId = extractYouTubeId(input.url);
   if (!youtubeId) throw new HttpError(400, 'Enter a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
 
@@ -347,6 +359,7 @@ export async function importSharedVideo(
       sortOrder,
       ownerUserId: null,
       subtitleEn,
+      published: false,
       segments,
     });
   } catch (error) {
@@ -356,7 +369,7 @@ export async function importSharedVideo(
     throw error;
   }
 
-  return getVideoDetail(videoId, adminUserId);
+  return getSharedVideo(videoId);
 }
 
 export async function updateSharedVideo(
@@ -372,6 +385,47 @@ export async function updateSharedVideo(
     cefrLevel: patch.cefrLevel,
     xpReward: patch.xpReward,
   });
+  return getSharedVideo(videoId);
+}
+
+// Segments are edited as one list: the whole list is validated and then replaces the stored rows.
+export async function listSharedVideoSegments(
+  videoId: number,
+): Promise<{ video: AdminSharedVideo; segments: AdminVideoSegment[] }> {
+  const video = await getSharedVideo(videoId);
+  const rows = await videoRepo.getSegmentsByVideo(videoId);
+  return { video, segments: rows.map(mapAdminSegment) };
+}
+
+export async function replaceSharedVideoSegments(
+  videoId: number,
+  segments: SharedVideoSegmentInput[],
+): Promise<{ video: AdminSharedVideo; segments: AdminVideoSegment[] }> {
+  const row = await repo.getSharedVideoRow(videoId);
+  if (!row) throw new HttpError(404, 'Shared video not found.');
+
+  // Allow one second of slack: YouTube durations are rounded.
+  const durationMs = Number(row.duration_seconds) * 1000;
+  if (durationMs > 0) {
+    const overflow = segments.findIndex((segment) => segment.endMs > durationMs + 1000);
+    if (overflow >= 0) {
+      throw new HttpError(422, 'Validation failed', [`Câu ${overflow + 1}: vượt quá thời lượng video.`]);
+    }
+  }
+
+  const subtitleEn = segments.map((segment) => segment.text).join(' ').slice(0, 500);
+  await videoRepo.replaceSegments(videoId, segments, subtitleEn);
+  return listSharedVideoSegments(videoId);
+}
+
+// Publishing needs at least one segment; a draft can always be taken back offline.
+export async function setSharedVideoPublished(videoId: number, published: boolean): Promise<AdminSharedVideo> {
+  const row = await repo.getSharedVideoRow(videoId);
+  if (!row) throw new HttpError(404, 'Shared video not found.');
+  if (published && Number(row.segment_count) === 0) {
+    throw new HttpError(422, 'Video cần ít nhất một câu thoại trước khi xuất bản.', ['NO_SEGMENTS']);
+  }
+  await repo.setSharedVideoPublished(videoId, published);
   return getSharedVideo(videoId);
 }
 

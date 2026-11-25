@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getSpeechStatusApi, transcribeAudioApi } from './speechService'
+import { getSpeechStatusApi, practiceSpeechApi, transcribeAudioApi } from './speechService'
 
 const g = globalThis as unknown as { fetch?: typeof fetch; localStorage?: unknown }
 const originalFetch = g.fetch
@@ -103,6 +103,21 @@ test('a transcription request without a session is refused before any fetch', as
   try {
     await assert.rejects(transcribeAudioApi(new Blob(['audio'])), /đăng nhập/i)
     assert.equal(called, false)
+  } finally {
+    restore()
+  }
+})
+
+test('read-aloud practice preserves the reference and exposes NO_SPEECH for a free retry', async () => {
+  installStorage('demo-token')
+  const clip = new Blob(['audio'], { type: 'audio/wav' })
+  g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    assert.equal(new URL(String(input), 'http://localhost').searchParams.get('text'), 'How are you?')
+    assert.equal(init?.body, clip)
+    return Response.json({ success: false, code: 'NO_SPEECH' }, { status: 422 })
+  }) as typeof fetch
+  try {
+    await assert.rejects(practiceSpeechApi('How are you?', clip), { code: 'NO_SPEECH' })
   } finally {
     restore()
   }

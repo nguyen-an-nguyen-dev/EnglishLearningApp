@@ -85,6 +85,7 @@ export function answerCountFor(questionType: AdminQuestionType): { min: number; 
 /** Mirrors the backend rules so the admin sees the problem before the request. */
 export function validateQuestionDraft(draft: QuestionDraft): QuestionDraftIssue {
   if (!draft.questionText.trim()) return 'required'
+  if (draft.questionType === 'speaking') return /[\p{L}\p{N}]/u.test(draft.questionText) && draft.questionText.trim().length <= 500 ? null : 'required'
 
   const answers = draft.answers.filter((answer) => answer.answerText.trim().length > 0)
   const { min } = answerCountFor(draft.questionType)
@@ -96,16 +97,18 @@ export function validateQuestionDraft(draft: QuestionDraft): QuestionDraftIssue 
 }
 
 export function buildQuestionPayload(draft: QuestionDraft): QuestionPayload {
-  const answers: AdminAnswerPayload[] = draft.answers
+  const answers: AdminAnswerPayload[] = draft.questionType === 'speaking'
+    ? [{ answer_text: draft.questionText.trim(), is_correct: true }]
+    : draft.answers
     .filter((answer) => answer.answerText.trim().length > 0)
     .map((answer) => ({ answer_text: answer.answerText.trim(), is_correct: answer.isCorrect }))
-  const wordBank = parseWordBankInput(draft.wordBank)
+  const wordBank = draft.questionType === 'speaking' ? [] : parseWordBankInput(draft.wordBank)
 
   return {
     question_text: draft.questionText.trim(),
     question_type: draft.questionType,
     explanation: draft.explanation.trim() || undefined,
-    audio_url: draft.audioUrl.trim() || undefined,
+    audio_url: draft.audioUrl.trim() || (draft.questionType === 'speaking' ? null : undefined),
     difficulty: draft.difficulty,
     word_bank: wordBank.length > 0 ? wordBank : undefined,
     answers,

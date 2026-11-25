@@ -147,5 +147,6 @@ export function routeVoiceCommand(text: string): VoiceCommand | null {
   if (direct) return direct
 
   const trimmed = stripEdges(normalized.split(' ')).join(' ')
+  if (trimmed === 'video') return null
   return ROUTES.get(trimmed) ?? null
 }

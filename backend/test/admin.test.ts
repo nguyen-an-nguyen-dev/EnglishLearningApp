@@ -457,3 +457,126 @@ test('admin cannot delete a learner-imported video through the shared endpoint',
   const response = await call(`/api/admin/videos/${videoId}`, adminToken, { method: 'DELETE' });
   assert.equal(response.status, 404);
 });
+
+test('shared drafts stay hidden until an admin publishes them with segments', async () => {
+  const code = `yt_draftqa${Date.now()}_shared`;
+  const insert = await testPool.execute(
+    `INSERT INTO video_lessons
+       (code, title, description, topic, cefr_level, provider, video_url, thumbnail_url,
+        duration_seconds, xp_reward, sort_order, owner_user_id, subtitle_en, subtitle_vi, published_at)
+     VALUES (?, 'Draft QA Video', NULL, 'Thư viện chung', 'B1', 'youtube',
+             'https://www.youtube.com/watch?v=draftqa123', NULL, 30, 20, 950, NULL, NULL, NULL, NULL)`,
+    [code],
+  );
+  const videoId = (insert[0] as { insertId: number }).insertId;
+  createdVideoIds.push(videoId);
+
+  const adminList = await call<{ videos: Array<{ id: number; published_at: string | null }> }>(
+    '/api/admin/videos',
+    adminToken,
+  );
+  const draft = adminList.body.data!.videos.find((entry) => entry.id === videoId);
+  assert.ok(draft);
+  assert.equal(draft.published_at, null);
+
+  const hiddenFromLearner = await call<{ videos: Array<{ id: number }> }>('/api/videos', learnerToken);
+  assert.equal(hiddenFromLearner.body.data!.videos.some((entry) => entry.id === videoId), false);
+  assert.equal((await call(`/api/videos/${videoId}`, learnerToken)).status, 404);
+
+  const emptyPublish = await call(`/api/admin/videos/${videoId}/publish`, adminToken, { method: 'POST' });
+  assert.equal(emptyPublish.status, 422);
+  assert.ok(emptyPublish.body.errors?.includes('NO_SEGMENTS'));
+
+  const segmentsUrl = `/api/admin/videos/${videoId}/segments`;
+  const overlapping = await call(segmentsUrl, adminToken, {
+    method: 'PUT',
+    body: {
+      segments: [
+        { start_ms: 0, end_ms: 2000, text_en: 'First line' },
+        { start_ms: 1500, end_ms: 3000, text_en: 'Overlaps the first' },
+      ],
+    },
+  });
+  assert.equal(overlapping.status, 422);
+
+  const tooLong = await call(segmentsUrl, adminToken, {
+    method: 'PUT',
+    body: { segments: [{ start_ms: 0, end_ms: 20_000, text_en: 'Too long for one card' }] },
+  });
+  assert.equal(tooLong.status, 422);
+
+  const pastEnd = await call(segmentsUrl, adminToken, {
+    method: 'PUT',
+    body: { segments: [{ start_ms: 118_000, end_ms: 125_000, text_en: 'After the video ends' }] },
+  });
+  assert.equal(pastEnd.status, 422);
+
+  const saved = await call<{
+    video: { segment_count: number; published_at: string | null };
+    segments: Array<{ id: number; start_ms: number; text_en: string }>;
+  }>(segmentsUrl, adminToken, {
+    method: 'PUT',
+    body: {
+      segments: [
+        { start_ms: 0, end_ms: 2000, text_en: '  Hello there  ' },
+        { start_ms: 2000, end_ms: 4500, text_en: 'Nice to meet you' },
+      ],
+    },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.data!.video.segment_count, 2);
+  assert.equal(saved.body.data!.segments[0].text_en, 'Hello there');
+  assert.equal(saved.body.data!.video.published_at, null);
+
+  const learnerEdit = await call(segmentsUrl, learnerToken, {
+    method: 'PUT',
+    body: { segments: [{ start_ms: 0, end_ms: 1000, text_en: 'Hack' }] },
+  });
+  assert.equal(learnerEdit.status, 403);
+
+  const published = await call<{ video: { published_at: string | null } }>(
+    `/api/admin/videos/${videoId}/publish`,
+    adminToken,
+    { method: 'POST' },
+  );
+  assert.equal(published.status, 200);
+  assert.ok(published.body.data!.video.published_at);
+
+  const visibleDetail = await call<{ video: { segments: Array<{ text_en: string }> } }>(
+    `/api/videos/${videoId}`,
+    learnerToken,
+  );
+  assert.equal(visibleDetail.status, 200);
+  assert.equal(visibleDetail.body.data!.video.segments.length, 2);
+
+  const unpublished = await call<{ video: { published_at: string | null } }>(
+    `/api/admin/videos/${videoId}/unpublish`,
+    adminToken,
+    { method: 'POST' },
+  );
+  assert.equal(unpublished.body.data!.video.published_at, null);
+  assert.equal((await call(`/api/videos/${videoId}`, learnerToken)).status, 404);
+});
+
+test('admin creates and updates a read-aloud prompt with one synchronized reference answer', async () => {
+  const [[lesson]] = await testPool.execute<RowDataPacket[]>('SELECT id FROM lessons ORDER BY id LIMIT 1');
+  assert.ok(lesson);
+  type Question = { id: number; question_text: string; answers: Array<{ answer_text: string; is_correct: boolean }> };
+  const created = await call<{ question: Question }>(`/api/admin/lessons/${lesson.id}/questions`, adminToken, {
+    method: 'POST', body: { question_type: 'speaking', question_text: 'Could you open the window?' },
+  });
+  assert.equal(created.status, 201);
+  const first = created.body.data!.question;
+  try {
+    assert.equal(first.answers.length, 1);
+    assert.equal(first.answers[0].answer_text, first.question_text);
+    const updated = await call<{ question: Question }>(`/api/admin/questions/${first.id}`, adminToken, {
+      method: 'PATCH', body: { question_text: 'Could you please close the window?' },
+    });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.data?.question.answers[0].answer_text, 'Could you please close the window?');
+    assert.equal(updated.body.data?.question.answers[0].is_correct, true);
+  } finally {
+    await call(`/api/admin/questions/${first.id}`, adminToken, { method: 'DELETE' });
+  }
+});

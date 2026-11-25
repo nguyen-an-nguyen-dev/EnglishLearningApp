@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = randomBytes(48).toString('hex');
@@ -254,4 +254,56 @@ test('saved vocabulary can be added, listed, and removed', async () => {
   const afterRemove = await fetch(`${baseUrl}/api/vocabulary`, { headers: authHeaders() });
   const afterBody = await afterRemove.json() as ApiEnvelope<{ words: Array<{ word: string }> }>;
   assert.equal(afterBody.data.words.some((entry) => entry.word === 'natural'), false);
+});
+
+test('a personal import is visible only to its owner, and shared drafts stay hidden', async () => {
+  const otherEmail = `video-other-${randomUUID()}@example.test`;
+  const password = 'correct-horse-7';
+  const register = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Video Other', email: otherEmail, password }),
+  });
+  assert.equal(register.status, 201);
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: otherEmail, password }),
+  });
+  const otherToken = (await login.json() as ApiEnvelope<{ token: string }>).data.token;
+  const otherHeaders = { Authorization: `Bearer ${otherToken}` };
+
+  const insertSql = `INSERT INTO video_lessons
+    (code, title, topic, cefr_level, provider, video_url, duration_seconds, xp_reward, sort_order, owner_user_id, published_at)
+    VALUES (?, ?, 'Test', 'B1', 'youtube', 'https://www.youtube.com/watch?v=abcdefghijk', 60, 20, 0, ?, ?)`;
+  const personalCode = `own-${randomUUID().slice(0, 8)}`;
+  const draftCode = `draft-${randomUUID().slice(0, 8)}`;
+  const [personal] = await testPool.execute<ResultSetHeader>(insertSql, [personalCode, 'Own import', userId, new Date()]);
+  const [draft] = await testPool.execute<ResultSetHeader>(insertSql, [draftCode, 'Shared draft', null, null]);
+  const personalId = personal.insertId;
+  const draftId = draft.insertId;
+
+  try {
+    const ownList = await fetch(`${baseUrl}/api/videos`, { headers: authHeaders() })
+      .then((result) => result.json()) as ApiEnvelope<{ videos: Array<{ id: number }> }>;
+    const ownIds = ownList.data.videos.map((video) => video.id);
+    assert.ok(ownIds.includes(personalId), 'owner sees own personal import');
+    assert.ok(!ownIds.includes(draftId), 'owner does not see an unpublished shared draft');
+
+    const ownDetail = await fetch(`${baseUrl}/api/videos/${personalId}`, { headers: authHeaders() });
+    assert.equal(ownDetail.status, 200);
+
+    const otherList = await fetch(`${baseUrl}/api/videos`, { headers: otherHeaders })
+      .then((result) => result.json()) as ApiEnvelope<{ videos: Array<{ id: number }> }>;
+    assert.ok(!otherList.data.videos.some((video) => video.id === personalId), 'other learners never see it');
+
+    const otherDetail = await fetch(`${baseUrl}/api/videos/${personalId}`, { headers: otherHeaders });
+    assert.equal(otherDetail.status, 404);
+
+    const draftDetail = await fetch(`${baseUrl}/api/videos/${draftId}`, { headers: authHeaders() });
+    assert.equal(draftDetail.status, 404);
+  } finally {
+    await testPool.execute('DELETE FROM video_lessons WHERE id IN (?, ?)', [personalId, draftId]);
+    await testPool.execute('DELETE FROM users WHERE email = ?', [otherEmail]);
+  }
 });

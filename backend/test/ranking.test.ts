@@ -151,7 +151,7 @@ test('lesson completion awards eligible badges once and persists them', async ()
     assert.ok(correct, `Question ${questionId} needs a correct answer.`);
     return {
       questionId,
-      answer: correct.question_type === 'word_order' || correct.question_type === 'listening'
+      answer: correct.question_type === 'word_order' || correct.question_type === 'listening' || correct.question_type === 'speaking'
         ? correct.answer_text
         : String(correct.answer_id),
     };

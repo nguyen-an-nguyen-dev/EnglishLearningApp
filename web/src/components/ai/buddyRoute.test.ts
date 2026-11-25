@@ -25,3 +25,15 @@ test('only a short confirmation is used as a toast', () => {
   assert.equal(navigationToast(base, 'Đã mở ngay'), 'Đã mở Bảng xếp hạng cho bạn.')
   assert.equal(navigationToast({ ...base, reply: 'word '.repeat(40) }, 'Đã mở ngay'), 'Đã mở ngay')
 })
+
+test('long prerequisite and shop messages survive direct navigation', () => {
+  const reply = 'word '.repeat(40).trim()
+  const answer: BuddyAnswer = {
+    reply, followups: [], suggestion: null, route: 'navigate',
+    action: { kind: 'open_lesson', mode: 'reveal', label: 'Chỉ vị trí bài', lessonId: 13 },
+  }
+  assert.equal(navigationToast(answer, 'Opened'), reply)
+  assert.equal(navigationToast({
+    ...answer, action: { kind: 'show_shop_item', itemCode: 'shield', label: 'Xem khiên' },
+  }, 'Opened'), reply)
+})

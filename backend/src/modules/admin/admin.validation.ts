@@ -1,4 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
+import { MAX_SEGMENT_MS } from '../video/video.youtube';
 import {
   AUDIO_QUESTION_TYPES,
   CEFR_LEVELS,
@@ -15,6 +16,7 @@ import {
   type QuestionInput,
   type SharedVideoImportInput,
   type SharedVideoPatch,
+  type SharedVideoSegmentInput,
   type StagePatch,
   type StageThemeKey,
 } from './admin.types';
@@ -198,6 +200,13 @@ function parseAnswers(
   return { answers };
 }
 
+export function speakingAnswers(sample: string): QuestionInput['answers'] {
+  if (sample.length > 500 || !/[\p{L}\p{N}]/u.test(sample)) {
+    throw new HttpError(422, 'Validation failed', ['A speaking sample must contain words and be at most 500 characters.']);
+  }
+  return [{ answerText: sample, isCorrect: true }];
+}
+
 export function parseQuestionInput(value: unknown): QuestionInput {
   const body = asObject(value);
   const errors: string[] = [];
@@ -227,10 +236,12 @@ export function parseQuestionInput(value: unknown): QuestionInput {
     errors.push('audio_url is required for listening questions.');
   }
 
-  const { answers } = parseAnswers(body.answers, questionType, errors);
+  const answers = questionType === 'speaking'
+    ? (questionText ? speakingAnswers(questionText) : [])
+    : parseAnswers(body.answers, questionType, errors).answers;
 
   const correctAnswer = answers.find((answer) => answer.isCorrect)?.answerText ?? '';
-  const wordBank = normalizeWordBank(body.word_bank ?? body.wordBank, correctAnswer);
+  const wordBank = questionType === 'speaking' ? [] : normalizeWordBank(body.word_bank ?? body.wordBank, correctAnswer);
 
   if (errors.length) throw new HttpError(422, 'Validation failed', errors);
 
@@ -289,7 +300,7 @@ export function parseQuestionPatch(value: unknown): QuestionPatchInput {
   if (body.word_bank !== undefined || body.wordBank !== undefined) {
     patch.wordBank = normalizeWordBank(body.word_bank ?? body.wordBank);
   }
-  if (body.answers !== undefined) {
+  if (body.answers !== undefined && patch.questionType !== 'speaking') {
     const type = patch.questionType ?? (typeof body.question_type === 'string'
       ? body.question_type as AdminQuestionType
       : 'multiple_choice');
@@ -315,6 +326,51 @@ export function parseSharedVideoImport(value: unknown): SharedVideoImportInput {
     throw new HttpError(422, 'Provide a valid YouTube link.', ['INVALID_YOUTUBE_URL']);
   }
   return { url };
+}
+
+export const MAX_VIDEO_SEGMENTS = 500;
+export const MAX_SEGMENT_TEXT = 300;
+
+// Segments arrive in playback order. Ordering and length rules match what the importer produces.
+export function parseSharedVideoSegments(value: unknown): SharedVideoSegmentInput[] {
+  const body = asObject(value);
+  const raw = body.segments;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_VIDEO_SEGMENTS) {
+    throw new HttpError(422, 'Validation failed', [
+      `segments must be a list of 1 to ${MAX_VIDEO_SEGMENTS} items.`,
+    ]);
+  }
+
+  const errors: string[] = [];
+  const segments: SharedVideoSegmentInput[] = [];
+  let previousEnd = 0;
+  raw.forEach((item, index) => {
+    const row = asObject(item);
+    const position = index + 1;
+    const startRaw = row.start_ms ?? row.startMs;
+    const endRaw = row.end_ms ?? row.endMs;
+    const startMs = Number(startRaw);
+    const endMs = Number(endRaw);
+    const text = typeof row.text_en === 'string' ? row.text_en.trim() : typeof row.text === 'string' ? row.text.trim() : '';
+    if (!Number.isInteger(startMs) || startMs < 0 || !Number.isInteger(endMs) || endMs <= startMs) {
+      errors.push(`Câu ${position}: thời gian bắt đầu/kết thúc không hợp lệ.`);
+      return;
+    }
+    if (endMs - startMs > MAX_SEGMENT_MS) {
+      errors.push(`Câu ${position}: dài hơn ${MAX_SEGMENT_MS / 1000} giây.`);
+    }
+    if (startMs < previousEnd) {
+      errors.push(`Câu ${position}: bắt đầu trước khi câu trước kết thúc.`);
+    }
+    if (!text || text.length > MAX_SEGMENT_TEXT) {
+      errors.push(`Câu ${position}: nội dung phải từ 1 đến ${MAX_SEGMENT_TEXT} ký tự.`);
+    }
+    previousEnd = endMs;
+    segments.push({ startMs, endMs, text });
+  });
+
+  if (errors.length) throw new HttpError(422, 'Validation failed', errors);
+  return segments;
 }
 
 export function parseSharedVideoPatch(value: unknown): SharedVideoPatch {

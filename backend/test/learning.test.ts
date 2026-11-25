@@ -93,7 +93,7 @@ test('lesson completion requires every answer to be correct before unlocking the
     assert.ok(correct, `Question ${questionId} must have a correct answer.`);
     return {
       questionId,
-      answer: correct.question_type === 'word_order' || correct.question_type === 'listening'
+      answer: correct.question_type === 'word_order' || correct.question_type === 'listening' || correct.question_type === 'speaking'
         ? correct.answer_text
         : String(correct.answer_id),
     };
@@ -174,6 +174,26 @@ test('lesson completion requires every answer to be correct before unlocking the
   assert.equal(failedProgress.data.completed_lesson_ids.includes(lessonId), false);
   assert.equal(failedProgress.data.total_xp, 0);
 
+  const speaking = answerRows.find((row) => row.question_type === 'speaking' && row.is_correct);
+  if (speaking) {
+    const speakingCheck = await fetch(`${baseUrl}/api/lessons/${lessonId}/questions/${speaking.question_id}/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ answer: speaking.answer_text }),
+    });
+    assert.equal(speakingCheck.status, 200);
+    const speakingResult = await speakingCheck.json() as { data: { is_correct: boolean } };
+    assert.equal(speakingResult.data.is_correct, true);
+    const [[row]] = await testPool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM learning_answer_attempts a JOIN users u ON u.id = a.user_id
+       WHERE u.email = ? AND a.question_id = ?`,
+      [email, speaking.question_id],
+    );
+    assert.equal(Number(row.total), 0, 'Read-aloud transcripts are not written to the attempts table.');
+    const incomplete = await submit(lessonId, correctSubmission.filter(({ questionId }) => questionId !== speaking.question_id));
+    assert.equal((await incomplete.json() as { data: { lesson_status: string } }).data.lesson_status, 'retry');
+  }
+
   const successfulAttempt = await submit(lessonId, correctSubmission);
   assert.equal(successfulAttempt.status, 200);
   const successfulResult = await successfulAttempt.json() as { data: { lesson_status: string; stage_completed: boolean; xp_earned: number; score: number; is_first_completion: boolean } };
@@ -210,7 +230,7 @@ test('lesson completion requires every answer to be correct before unlocking the
       assert.ok(correct, `Question ${questionId} must have a correct answer.`);
       return {
         questionId,
-        answer: correct.question_type === 'word_order' || correct.question_type === 'listening'
+        answer: correct.question_type === 'word_order' || correct.question_type === 'listening' || correct.question_type === 'speaking'
           ? correct.answer_text
           : String(correct.answer_id),
       };
@@ -335,4 +355,16 @@ test('listen_choice questions hide one word and offer 4 options with playable au
 
   const audioHead = await fetch(String(question.audio_url), { method: 'HEAD' });
   assert.equal(audioHead.status, 200);
+});
+test('read-aloud grading requires 80 percent in order or every word for short sentences', async () => {
+  const { isAnswerCorrect } = await import('../src/modules/learning/learning.service');
+  const check = (expected: string, answer: string) => isAnswerCorrect(
+    { id: 1, question_type: 'speaking' },
+    { questionId: 1, answer },
+    [{ id: 1, question_id: 1, answer_text: expected, is_correct: 1 }],
+  );
+  assert.equal(check('We have a lovely day.', 'we have a day'), true);
+  assert.equal(check('We have a lovely day.', 'day lovely a have we'), false);
+  assert.equal(check('Have a seat.', 'have seat'), false);
+  assert.equal(check('Have a seat.', 'HAVE A SEAT!'), true);
 });

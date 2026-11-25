@@ -1,5 +1,5 @@
 import { HttpError } from '../../middleware/error-handler';
-import { SPEECH_MIME_TYPES, type SpeechMimeType } from './speech.types';
+import { SPEECH_MIME_TYPES, type SpeechMimeType, type SpeechVoiceLang } from './speech.types';
 
 const MAX_AUDIO_SECONDS = 60;
 
@@ -25,6 +25,29 @@ export function parseSpeechAudio(body: unknown, maxBytes: number): Buffer {
     throw new HttpError(413, 'Đoạn âm thanh quá dài. Hãy nói ngắn hơn nhé.');
   }
   return body;
+}
+
+/**
+ * One request is one short passage (a sentence or a reply). Longer text is refused so a single
+ * request cannot tie up the voice stream; the web falls back to the browser voice for it.
+ */
+export const MAX_TTS_CHARS = 500;
+
+export function parsePracticeText(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > MAX_TTS_CHARS || !/[\p{L}\p{N}]/u.test(text)) {
+    throw new HttpError(400, 'Câu mẫu cần có từ 1 đến 500 ký tự và chứa từ để luyện nói.');
+  }
+  return text;
+}
+
+export function parseTtsRequest(body: unknown): { text: string; lang: SpeechVoiceLang } {
+  const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const text = typeof record.text === 'string' ? record.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) throw new HttpError(400, 'Thiếu nội dung cần đọc.');
+  if (text.length > MAX_TTS_CHARS) throw new HttpError(400, 'Đoạn cần đọc quá dài.', ['TEXT_TOO_LONG']);
+  if (record.lang !== 'en' && record.lang !== 'vi') throw new HttpError(400, 'Ngôn ngữ đọc không hợp lệ.');
+  return { text, lang: record.lang };
 }
 
 /** A transcript longer than this is not one spoken command anymore. */

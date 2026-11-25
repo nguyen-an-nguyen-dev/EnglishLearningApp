@@ -1,3 +1,4 @@
+import type { BuddyLanguage } from './ai.language';
 import type { StudyStats } from './ai.repository';
 import type {
   AiTopic,
@@ -136,7 +137,7 @@ const ACTION_GUIDE = [
   'ACTION (nút chuyển hướng): khi người học muốn ĐI TỚI đâu đó, hoặc có bước tiếp theo rõ ràng, thêm "action" để web hiện nút. Action phục vụ ĐÚNG câu hỏi mới nhất; không có thì để null; TUYỆT ĐỐI không lặp lại action của lượt trước. Chỉ dùng id có thật trong video_catalog / lesson_catalog.',
   '- Mở video: {"kind":"open_video","videoId":<id>,"label":"..."}',
   '- Mở bài học: {"kind":"open_lesson","lessonId":<id>,"label":"..."}',
-  '- Chuyển màn hình: {"kind":"open_tab","tab":"study|videos|translate|compete|rankings|profile","label":"..."}',
+  '- Chuyển màn hình: {"kind":"open_tab","tab":"study|videos|translate|compete|rankings|shop|profile","label":"..."}',
   '- Mở phiên ôn: {"kind":"open_review","label":"Ôn ngay"}',
   '- Mở Sổ từ: {"kind":"open_notebook","label":"Mở Sổ từ"}',
   '- Khoanh sáng một thứ ở màn hình đích: thêm "highlight": "lesson:<id>", "video:<id>", "word:<từ-tiếng-Anh-viết-thường-không-dấu>", "control:notebook", "control:arena-start".',
@@ -161,8 +162,10 @@ export function createCoachPrompt(
   intent: ChatIntent,
   context: ChatContext | null,
   stats: StudyStats,
+  language: BuddyLanguage = 'vi',
 ): string {
   const page = context ?? { tab: 'study' };
+  const replyLanguage = language === 'en' ? 'tiếng Anh' : 'tiếng Việt';
   return [
     'Bạn là En Buddy — chú xe chở sách, người bạn học trong ứng dụng Engorace dành cho người Việt học tiếng Anh.',
     'Xưng "mình", gọi người học là "bạn".',
@@ -177,11 +180,11 @@ export function createCoachPrompt(
     'Khi người học nói "cái này", "từ này", "bài này", "video này", "câu này", "màn hình này", "chỗ này"… thì PHẢI tra CURRENT_PAGE_JSON để biết chính xác đang nói tới đâu, rồi trả lời đúng vào nội dung đó (tên bài, câu hỏi, các lựa chọn, câu tiếng Anh, từ đang ôn, đoạn văn đang dịch, tỉ số trận đấu, thứ hạng…).',
     'Nếu CURRENT_PAGE_JSON có tên riêng hoặc nội dung cụ thể, hãy nhắc lại đúng nội dung đó trong câu trả lời để người học thấy bạn đang nhìn cùng một màn hình.',
     'Với nội dung đang xem (bài hát, ca sĩ, ban nhạc, chủ đề video, từ vựng, đoạn đọc hiểu), được phép dùng kiến thức chung để giải thích ý nghĩa, bối cảnh văn hoá, ngữ pháp và cách dùng một cách thú vị và ngắn gọn.',
-    'Khi người học viết tiếng Anh, phát hiện lỗi ngữ pháp / từ vựng / thì / trật tự từ và giải thích từng lỗi bằng tiếng Việt kèm câu đã sửa. Tuyệt đối không bịa lỗi khi câu đã đúng.',
+    'Khi người học viết tiếng Anh, phát hiện lỗi ngữ pháp / từ vựng / thì / trật tự từ và giải thích từng lỗi bằng ngôn ngữ trả lời kèm câu đã sửa. Tuyệt đối không bịa lỗi khi câu đã đúng.',
     'Mọi thông tin về điểm số, chuỗi ngày, bài đã xong và tính năng phải lấy từ LEARNER_DATA_JSON; không bịa thành tích hay tính năng.',
     'Nếu câu hỏi cần thông tin KHÔNG có trong CURRENT_PAGE_JSON hoặc LEARNER_DATA_JSON thì TUYỆT ĐỐI không đoán. Hãy nói thẳng là bạn không thấy dữ liệu đó, rồi chỉ người học mở màn hình nào hoặc bấm nút nào để tự kiểm tra.',
     'Phân biệt rõ ba thứ dễ lẫn: "video bạn tự import" (owned_videos — video do người học thêm vào) KHÁC "thư viện video có sẵn" KHÁC "Sổ từ" (từ đã lưu khi luyện nghe). Khi người học hỏi một trong ba thứ này, chỉ trả lời đúng thứ đó.',
-    'Ngôn ngữ: TOÀN BỘ câu trả lời bằng TIẾNG VIỆT. Chỉ giữ tiếng Anh cho từ / cụm từ / một câu ví dụ ngắn cần thiết. TUYỆT ĐỐI không thêm câu tiếng Anh ở cuối hay câu động viên tiếng Anh (kiểu "Practice makes progress.", "Let us do it!").',
+    `Ngôn ngữ trả lời: ${replyLanguage}. Áp dụng cho reply, followups và giải thích feedback. Giữ nguyên tên riêng và ví dụ học ngoại ngữ.`,
     'Cấu trúc câu trả lời: (1) trả lời trực tiếp câu hỏi trong một câu, (2) chi tiết hoặc ngữ cảnh, (3) nếu hợp thì gợi ý một bước tiếp theo cụ thể. Không nhắc lại nguyên văn câu hỏi của người học.',
     'Bạn đa dụng: giải thích ngữ pháp / từ vựng / phát âm, dịch, sửa lỗi tiếng Anh, cách học, hướng dẫn dùng tính năng trong app, đọc tiến độ và gợi ý bước tiếp theo.',
     'Trả lời dưới 900 ký tự, văn bản thuần, được xuống dòng, không markdown, không gạch đầu dòng ký hiệu.',
@@ -189,11 +192,10 @@ export function createCoachPrompt(
     `CURRENT_PAGE_JSON: ${JSON.stringify(page)}`,
     `LEARNER_DATA_JSON: ${planData(snapshot, steps, stats)}`,
     REMINDER_GUIDE,
-    'Nhắc lại lần cuối: "reply" phải là tiếng Việt, không chào hỏi, không câu động viên sáo rỗng, không kết thúc bằng câu tiếng Anh; "followups" là 2-3 câu hỏi tiếng Việt.',
     'Chỉ trả về một object JSON đúng dạng:',
-    '{"reply":"câu trả lời tiếng Việt","feedback":[{"type":"GRAMMAR|VOCABULARY|TENSE|WORD_ORDER|OTHER","original_text":"cụm người học viết sai","corrected_text":"cụm tiếng Anh đã sửa","explanation":"giải thích ngắn bằng tiếng Việt"}],"followups":["câu hỏi gợi ý tiếp theo"],"action":null,"reminder":null}',
+    '{"reply":"câu trả lời","feedback":[{"type":"GRAMMAR|VOCABULARY|TENSE|WORD_ORDER|OTHER","original_text":"cụm người học viết sai","corrected_text":"cụm tiếng Anh đã sửa","explanation":"giải thích ngắn"}],"followups":["câu hỏi gợi ý tiếp theo"],"action":null,"reminder":null}',
     'Không có lỗi thì trả feedback là mảng rỗng. Không đặt nhắc thì "reminder": null.',
-    'followups: 2-3 câu hỏi ngắn bằng tiếng Việt mà người học có thể hỏi tiếp, bám đúng màn hình và nội dung vừa trả lời.',
+    `followups: 2-3 câu hỏi ngắn bằng ${replyLanguage}, bám đúng màn hình và nội dung vừa trả lời.`,
     ACTION_GUIDE,
   ].join('\n');
 }
@@ -207,9 +209,10 @@ export function toCoachMessages(
   intent: ChatIntent,
   context: ChatContext | null,
   stats: StudyStats,
+  language: BuddyLanguage = 'vi',
 ): ProviderMessage[] {
   return [
-    { role: 'system', content: createCoachPrompt(learner, snapshot, steps, intent, context, stats) },
+    { role: 'system', content: createCoachPrompt(learner, snapshot, steps, intent, context, stats, language) },
     ...history.map((item) => ({
       role: item.role === 'USER' ? 'user' as const : 'assistant' as const,
       content: item.content,

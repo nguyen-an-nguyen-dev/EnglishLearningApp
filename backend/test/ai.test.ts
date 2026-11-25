@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { env } from '../src/config/env';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -26,6 +26,8 @@ let originalFetch: typeof fetch;
 let providerResponse: Response | Error | null = null;
 let providerRequestBody: { messages?: Array<{ role: string; content: string }> } | null = null;
 let forceProviderFailure = false;
+let decisionCalls = 0;
+let verdicts: Array<'ship' | 'repair' | 'reject'> = [];
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -48,6 +50,12 @@ before(async () => {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url === env.aiDecisionUrl) {
+      decisionCalls++;
+      const body = JSON.parse(String(init?.body ?? '{}')) as { questions?: Record<string, unknown> };
+      const verdict = verdicts.shift() ?? 'ship';
+      return jsonResponse({ answers: body.questions?.verdict ? { verdict: { choice: verdict, confidence: 0.99 } } : {} });
+    }
     const providerUrls = [
       process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
       process.env.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -406,4 +414,160 @@ test('coach chat falls back to the notebook when every AI provider is down', asy
 
   const cleaned = await fetch(`${baseUrl}/api/ai/chats/${chat.id}`, { method: 'DELETE', headers: auth });
   assert.equal(cleaned.status, 200);
+});
+
+async function askBuddy(message: string) {
+  const response = await fetch(`${baseUrl}/api/buddy/ask`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ownerToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+  assert.equal(response.status, 200);
+  return (await response.json() as { data: import('../src/modules/ai/ai.service').BuddyAnswer }).data;
+}
+
+test('Buddy answers an English balance question from the wallet without calling the model', async () => {
+  const { getWallet } = await import('../src/modules/gamification/gamification.service');
+  const wallet = await getWallet(ownerId);
+  decisionCalls = 0;
+  providerRequestBody = null;
+  const data = await askBuddy('How many RC do I have?');
+  assert.equal(data.reply, `You have ${wallet.coins} RC.`);
+  assert.equal(data.language, 'en');
+  assert.equal(data.action?.highlight, 'wallet:summary');
+  assert.equal(data.route, 'navigate');
+  assert.equal(providerRequestBody, null);
+  assert.equal(decisionCalls, 0);
+});
+
+test('the tutor gate replaces a failed repair and uses offline coach copy when provided', async () => {
+  const { answerTurn } = await import('../src/modules/ai/ai.pipeline');
+  const previousEnabled = env.aiDecisionEnabled;
+  const previousKey = env.aiApiKey;
+  env.aiDecisionEnabled = true;
+  env.aiApiKey = 'test-only-decision-key';
+  try {
+    const request = { messages: [], message: 'Help me write a sentence.', intent: 'chat', context: null } as const;
+    providerResponse = providerOk('The unapproved draft');
+    verdicts = ['repair', 'repair'];
+    const tutor = await answerTurn({ ...request, messages: [], flavor: 'tutor', offline: null });
+    assert.match(tutor.reply.reply, /couldn’t verify/);
+    assert.equal(tutor.review?.verdict, 'reject');
+    assert.equal(tutor.reply.action, null);
+
+    const offline = { reply: 'Offline answer', action: null, reminder: null, feedback: [], followups: [] };
+    providerResponse = providerOk('The rejected draft');
+    verdicts = ['reject'];
+    const coach = await answerTurn({ ...request, messages: [], flavor: 'coach', offline });
+    assert.deepEqual(coach.reply, offline);
+  } finally {
+    env.aiDecisionEnabled = previousEnabled;
+    env.aiApiKey = previousKey;
+    verdicts = [];
+  }
+});
+
+test('Buddy reports the lesson frontier and scopes a bare lesson number to that stage', async () => {
+  const { getStudyStats } = await import('../src/modules/ai/ai.repository');
+  const { pickNextLesson } = await import('../src/modules/ai/ai.study');
+  const stats = await getStudyStats(ownerId);
+  const frontier = pickNextLesson(stats);
+  assert.ok(frontier);
+  const firstIndex = stats.lessons.findIndex(({ id }) => id === frontier.id);
+  const next = stats.lessons[firstIndex + 1];
+  assert.ok(next);
+  const stages = [...new Set(stats.lessons.map(({ stageTitle }) => stageTitle))];
+  const nextNumber = stats.lessons.filter(({ stageTitle }) => stageTitle === next.stageTitle)
+    .findIndex(({ id }) => id === next.id) + 1;
+  const locked = await askBuddy(`Hoc bai ${nextNumber} chang ${stages.indexOf(next.stageTitle) + 1}`);
+  assert.equal(locked.action?.lessonId, next.id);
+  assert.equal(locked.action?.mode, 'reveal');
+  assert.equal(locked.action?.highlight, `lesson:${next.id}`);
+  assert.ok(locked.reply.includes(frontier.title));
+  assert.match(locked.reply, /hoàn thành 1 bài/);
+
+  const currentStage = stats.lessons[firstIndex].stageTitle;
+  const currentStageLessons = stats.lessons.filter(({ stageTitle }) => stageTitle === currentStage);
+  const frontNumber = currentStageLessons.findIndex(({ id }) => id === frontier.id) + 1;
+  const open = await askBuddy(`Open lesson ${frontNumber}`);
+  assert.equal(open.action?.lessonId, frontier.id);
+  assert.equal(open.action?.mode, 'open');
+  assert.match(open.reply, /^Opened/);
+
+  const missing = await askBuddy(`Bài ${currentStageLessons.length + 1}`);
+  assert.equal(missing.action, null);
+  assert.equal(missing.route, 'open_prompt');
+});
+
+test('Buddy only suggests published library videos and prefers unfinished random picks', async () => {
+  const { buildBuddySnapshot, resolveBuddyCommand } = await import('../src/modules/ai/ai.copilot');
+  const topic = `copilot${randomUUID().replaceAll('-', '')}`;
+  const insert = async (title: string, owner: number | null, published: boolean) => {
+    const [row] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO video_lessons
+       (code, title, topic, cefr_level, provider, video_url, duration_seconds, xp_reward, sort_order, owner_user_id, published_at)
+       VALUES (?, ?, ?, 'A1', 'youtube', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 60, 10, 0, ?, ?)`,
+      [randomUUID(), title, topic, owner, published ? new Date() : null],
+    );
+    return row.insertId;
+  };
+  const draft = await insert('Shared draft', null, false);
+  const personal = await insert('My personal video', ownerId, true);
+  const shared = await insert('Published Co-pilot test', null, true);
+  try {
+    const snapshot = await buildBuddySnapshot(ownerId);
+    const catalog = snapshot.study.videoCatalog;
+    assert.ok(catalog.some(({ id }) => id === shared));
+    assert.ok(!catalog.some(({ id }) => id === draft || id === personal));
+    assert.equal(snapshot.study.videosTotal, catalog.length);
+    assert.ok(snapshot.study.ownedVideoTitles.includes('My personal video'));
+    assert.equal((await askBuddy(`Tìm video về ${topic}`)).action?.videoId, shared);
+
+    const random = { kind: 'video', params: { choice: 'random' }, language: 'en' } as const;
+    const forced = { ...snapshot, study: { ...snapshot.study,
+      videoCatalog: catalog.map((video) => ({ ...video, completed: video.id !== shared })),
+    } };
+    assert.equal(resolveBuddyCommand(random, forced).action?.videoId, shared);
+    const unfinished = forced.study.videoCatalog.find(({ id }) => id === shared);
+    assert.ok(unfinished);
+    unfinished.completed = true;
+    const fallbackPick = resolveBuddyCommand(random, forced).action?.videoId;
+    assert.ok(catalog.some(({ id }) => id === fallbackPick));
+  } finally {
+    await pool.execute('DELETE FROM video_lessons WHERE id IN (?, ?, ?)', [draft, personal, shared]);
+  }
+});
+
+test('Buddy shows the shield and reports affordability while the wallet and inventory stay untouched', async () => {
+  const { buildBuddySnapshot, resolveBuddyCommand } = await import('../src/modules/ai/ai.copilot');
+  const { getShop } = await import('../src/modules/gamification/gamification.service');
+  const snapshot = await buildBuddySnapshot(ownerId);
+  const shield = snapshot.shop.items.find(({ code }) => code === 'booster_streak_shield');
+  assert.ok(shield);
+  const initialCoins = snapshot.shop.coins;
+  try {
+    for (const coins of [0, shield.price]) {
+      await pool.execute('UPDATE users SET coins = ? WHERE id = ?', [coins, ownerId]);
+      const answer = await askBuddy(coins === 0 ? 'mua khiên' : 'Buy the shield');
+      assert.equal(answer.action?.kind, 'show_shop_item');
+      assert.equal(answer.action?.itemCode, shield.code);
+      assert.equal(answer.action?.itemName, shield.name);
+      assert.equal(answer.action?.highlight, `shop:${shield.code}`);
+      if (coins === 0) assert.ok(answer.reply.includes(`thiếu ${shield.price} RC`));
+      else assert.match(answer.reply, /enough RC.*“Mua”/);
+      const current = await getShop(ownerId);
+      assert.equal(current.coins, coins);
+      assert.deepEqual(current.boosters, snapshot.shop.boosters);
+    }
+    const command = { kind: 'shopItem', language: 'vi', params: { item: shield.code.replaceAll('_', ' ') } } as const;
+    const mockItem = { ...shield, unlocked: false, unlock_label: 'Cần cấp 20' };
+    const mock = { ...snapshot, shop: { ...snapshot.shop, items: [mockItem] } };
+    assert.match(resolveBuddyCommand(command, mock).reply, /Cần cấp 20/);
+    mockItem.unlocked = true;
+    mockItem.owned = true;
+    assert.match(resolveBuddyCommand(command, mock).reply, /đã sở hữu/);
+    assert.equal((await askBuddy('Mua copilotfakeitem')).action, null);
+  } finally {
+    await pool.execute('UPDATE users SET coins = ? WHERE id = ?', [initialCoins, ownerId]);
+  }
 });

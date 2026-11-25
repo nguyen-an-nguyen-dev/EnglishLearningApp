@@ -16,5 +16,14 @@ const transcribeLimit = rateLimit({
   message: 'Bạn đang gửi quá nhiều đoạn ghi âm. Chờ một phút rồi thử lại nhé.',
 });
 
+const synthesizeLimit = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  key: (request) => `tts:${request.auth?.userId ?? clientIp(request)}`,
+  message: 'Bạn đang nghe quá nhiều đoạn đọc. Chờ một phút rồi thử lại nhé.',
+});
+
 speechRouter.get('/status', controller.status);
 speechRouter.post('/transcribe', authenticate, transcribeLimit, rawAudio, controller.transcribe);
+speechRouter.post('/practice', authenticate, transcribeLimit, rawAudio, controller.practice);
+speechRouter.post('/synthesize', authenticate, synthesizeLimit, controller.synthesize);

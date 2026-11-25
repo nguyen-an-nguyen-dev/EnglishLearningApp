@@ -262,37 +262,41 @@ async function insertAnswers(
   }
 }
 
-export async function updateQuestion(
+export async function updateQuestionTx(
   questionId: number,
-  patch: QuestionPatchInput,
-): Promise<void> {
-  const sets: string[] = [];
-  const params: Array<string | number | null> = [];
-  if (patch.questionText !== undefined) { sets.push('question_text = ?'); params.push(patch.questionText); }
-  if (patch.questionType !== undefined) { sets.push('question_type = ?'); params.push(patch.questionType); }
-  if (patch.explanation !== undefined) { sets.push('explanation = ?'); params.push(patch.explanation); }
-  if (patch.audioUrl !== undefined) { sets.push('audio_url = ?'); params.push(patch.audioUrl); }
-  if (patch.difficulty !== undefined) { sets.push('difficulty = ?'); params.push(patch.difficulty); }
-  if (patch.wordBank !== undefined) {
-    sets.push('word_bank = ?');
-    params.push(patch.wordBank.length > 0 ? JSON.stringify(patch.wordBank) : null);
-  }
-  if (sets.length === 0) return;
-  params.push(questionId);
-  await pool.execute(`UPDATE questions SET ${sets.join(', ')} WHERE id = ?`, params);
-}
-
-/** Replacing the answer set drops the old rows, so `match_answers.answer_id` becomes NULL. */
-export async function replaceAnswersTx(
-  questionId: number,
-  answers: Array<{ answerText: string; isCorrect: boolean }>,
-): Promise<void> {
-  const connection: PoolConnection = await pool.getConnection();
+  prepare: (existing: AdminQuestionRow) => QuestionPatchInput,
+): Promise<boolean> {
+  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    await connection.execute('DELETE FROM answers WHERE question_id = ?', [questionId]);
-    await insertAnswers(connection, questionId, answers);
+    const [[existing]] = await connection.execute<AdminQuestionRow[]>(
+      'SELECT * FROM questions WHERE id = ? FOR UPDATE', [questionId],
+    );
+    if (!existing) {
+      await connection.rollback();
+      return false;
+    }
+    const patch = prepare(existing);
+      const sets: string[] = [];
+      const params: Array<string | number | null> = [];
+      if (patch.questionText !== undefined) { sets.push('question_text = ?'); params.push(patch.questionText); }
+      if (patch.questionType !== undefined) { sets.push('question_type = ?'); params.push(patch.questionType); }
+      if (patch.explanation !== undefined) { sets.push('explanation = ?'); params.push(patch.explanation); }
+      if (patch.audioUrl !== undefined) { sets.push('audio_url = ?'); params.push(patch.audioUrl); }
+      if (patch.difficulty !== undefined) { sets.push('difficulty = ?'); params.push(patch.difficulty); }
+      if (patch.wordBank !== undefined) {
+        sets.push('word_bank = ?');
+        params.push(patch.wordBank.length > 0 ? JSON.stringify(patch.wordBank) : null);
+      }
+    if (sets.length > 0) {
+      await connection.execute(`UPDATE questions SET ${sets.join(', ')} WHERE id = ?`, [...params, questionId]);
+    }
+    if (patch.answers) {
+      await connection.execute('DELETE FROM answers WHERE question_id = ?', [questionId]);
+      await insertAnswers(connection, questionId, patch.answers);
+    }
     await connection.commit();
+    return true;
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -421,7 +425,7 @@ export async function moveQuestion(
 }
 
 const SHARED_VIDEO_COLUMNS = `v.id, v.code, v.title, v.description, v.topic, v.cefr_level, v.provider,
-  v.video_url, v.thumbnail_url, v.duration_seconds, v.xp_reward, v.sort_order, v.created_at,
+  v.video_url, v.thumbnail_url, v.duration_seconds, v.xp_reward, v.sort_order, v.created_at, v.published_at,
   (SELECT COUNT(*) FROM video_segments s WHERE s.video_id = v.id) AS segment_count`;
 
 export async function getSharedVideoRows(): Promise<AdminSharedVideoRow[]> {
@@ -465,6 +469,17 @@ export async function updateSharedVideo(
     `UPDATE video_lessons SET ${sets.join(', ')} WHERE id = ? AND owner_user_id IS NULL`,
     params,
   );
+}
+
+/** Publishing stamps the time once; unpublishing clears it and hides the video from learners. */
+export async function setSharedVideoPublished(videoId: number, published: boolean): Promise<boolean> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    published
+      ? 'UPDATE video_lessons SET published_at = COALESCE(published_at, NOW()) WHERE id = ? AND owner_user_id IS NULL'
+      : 'UPDATE video_lessons SET published_at = NULL WHERE id = ? AND owner_user_id IS NULL',
+    [videoId],
+  );
+  return result.affectedRows > 0;
 }
 
 /** Progress rows and segments cascade from the video row. */

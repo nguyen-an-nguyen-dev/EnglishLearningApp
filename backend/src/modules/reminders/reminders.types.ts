@@ -4,6 +4,7 @@ import type { RowDataPacket } from 'mysql2';
 export interface BuddyTarget {
   tab?: 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile';
   lessonId?: number;
+  mode?: 'open' | 'reveal';
   videoId?: number;
   /** A declared on-screen element, e.g. `lesson:12`, `video:9`, `control:arena-start`. */
   highlight?: string;

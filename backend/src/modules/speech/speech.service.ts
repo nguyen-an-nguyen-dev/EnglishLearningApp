@@ -5,8 +5,12 @@ import {
   isDailyQuotaError,
   markCfAccountExhausted,
 } from '../../utils/cf-rotate';
+import { alignWords, measurePacing, readTimedWords } from './speech.practice';
+import type { TimedWord } from './speech.practice';
 import type { SpeechMimeType, SpeechTranscript } from './speech.types';
 import { assertReasonableDuration, cleanTranscript } from './speech.validation';
+
+type RecognizedSpeech = SpeechTranscript & { timedWords?: TimedWord[] };
 
 function readLanguage(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -28,7 +32,7 @@ function readLanguage(payload: unknown): string | null {
 async function transcribeWhisper(
   audio: Buffer,
   mime: SpeechMimeType,
-): Promise<SpeechTranscript | null> {
+): Promise<RecognizedSpeech | null> {
   let lastError: unknown = null;
   for (const account of cfAccountTargets({})) {
     // Env URLs point at a chat endpoint:
@@ -72,7 +76,7 @@ async function transcribeWhisper(
     const text = cleanTranscript(result?.text);
     if (!text) return null; // silence: a valid answer, not an error
     assertReasonableDuration((result?.transcription_info as Record<string, unknown> | undefined)?.duration as number);
-    return { text, language: readLanguage(result), provider: 'whisper' };
+    return { text, language: readLanguage(result), provider: 'whisper', timedWords: readTimedWords(result?.segments) };
   }
   if (lastError instanceof HttpError) throw lastError;
   return null;
@@ -125,10 +129,10 @@ async function transcribeGemini(
  * Best-effort chain: Whisper first (cheap, purpose-built), then Gemini. A
  * `null` return means no speech; a thrown HttpError means every provider failed.
  */
-export async function transcribeSpeech(
+async function recognizeSpeech(
   audio: Buffer,
   mime: SpeechMimeType,
-): Promise<SpeechTranscript | null> {
+): Promise<RecognizedSpeech | null> {
   let lastError: unknown = null;
 
   if (env.cfAccounts.length > 0) {
@@ -149,4 +153,23 @@ export async function transcribeSpeech(
 
   if (lastError instanceof HttpError) throw lastError;
   return null;
+}
+
+export async function transcribeSpeech(audio: Buffer, mime: SpeechMimeType): Promise<SpeechTranscript | null> {
+  const result = await recognizeSpeech(audio, mime);
+  if (!result) return null;
+  const { text, language, provider } = result;
+  return { text, language, provider };
+}
+
+export async function practiceSpeech(audio: Buffer, mime: SpeechMimeType, expected: string) {
+  const result = await recognizeSpeech(audio, mime);
+  if (!result || !/[\p{L}\p{N}]/u.test(result.text)) return null;
+  const alignment = alignWords(expected, result.text);
+  return {
+    transcript: result.text,
+    completeness: alignment.completeness,
+    words: alignment.words,
+    pacing: measurePacing(result.timedWords ?? []),
+  };
 }

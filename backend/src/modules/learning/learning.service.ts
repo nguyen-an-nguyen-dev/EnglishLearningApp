@@ -1,3 +1,5 @@
+import { alignWords } from '../speech/speech.practice';
+import { MAX_TRANSCRIPT_CHARS } from '../speech/speech.validation';
 import { HttpError } from '../../middleware/error-handler';
 import { env } from '../../config/env';
 import { enqueue as enqueueReviewItem } from '../analytics/review.repository';
@@ -166,7 +168,7 @@ export function resolveAudioUrl(
   if (
     !audioUrl ||
     /^https?:\/\//i.test(audioUrl) ||
-    (questionType !== 'listening' && questionType !== 'listen_choice')
+    (questionType !== 'listening' && questionType !== 'listen_choice' && questionType !== 'speaking')
   ) {
     return audioUrl;
   }
@@ -221,7 +223,7 @@ export async function getLessonQuestions(
         : [],
     difficulty: q.difficulty,
     sort_order: q.sort_order,
-    answers: q.question_type === 'listening' ? [] : answersMap.get(q.id) ?? [],
+    answers: q.question_type === 'listening' || q.question_type === 'speaking' ? [] : answersMap.get(q.id) ?? [],
   }));
 }
 
@@ -336,6 +338,13 @@ export function isAnswerCorrect(
     return match !== undefined && (match.is_correct === true || match.is_correct === 1);
   }
 
+  if (question.question_type === 'speaking') {
+    const expected = qAnswers.find((answer) => answer.is_correct === true || answer.is_correct === 1);
+    if (!expected || submitted.answer.length > MAX_TRANSCRIPT_CHARS) return false;
+    const { matched, total } = alignWords(expected.answer_text, submitted.answer);
+    return total > 0 && (total <= 3 ? matched === total : matched * 5 >= total * 4);
+  }
+
   if (
     question.question_type === 'fill_blank' ||
     question.question_type === 'translate' ||
@@ -369,11 +378,13 @@ export async function checkLessonAnswer(
   const isCorrect = isAnswerCorrect(question, submitted, answerRows);
   const correctAnswer = answerRows.find((answer) => answer.is_correct === true || answer.is_correct === 1);
 
-  await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect, input.responseMs ?? null);
+  if (question.question_type !== 'speaking') {
+    await repo.recordAnswerAttempt(userId, questionId, input.answer, isCorrect, input.responseMs ?? null);
+  }
 
   // A missed question joins the review queue right away. The queue is the
   // learner's own practice space; the roadmap itself is never touched.
-  if (!isCorrect) {
+  if (!isCorrect && question.question_type !== 'speaking') {
     await enqueueReviewItem(userId, 'question', questionId, 'mistake').catch(() => {
       /* review scheduling must never fail the answer check */
     });

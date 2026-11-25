@@ -1,5 +1,4 @@
 import type { StageThemeKey } from '../roadmap'
-import type { VideoLessonDetail } from './video'
 
 export type MoveDirection = 'up' | 'down'
 
@@ -9,6 +8,7 @@ export const QUESTION_TYPES = [
   'listen_choice',
   'word_order',
   'listening',
+  'speaking',
 ] as const
 export type AdminQuestionType = (typeof QUESTION_TYPES)[number]
 
@@ -88,7 +88,28 @@ export interface AdminSharedVideo {
   xp_reward: number
   sort_order: number
   segment_count: number
+  /** null while the video is a draft that learners cannot see. */
+  published_at: string | null
   created_at: string
+}
+
+export interface AdminVideoSegment {
+  id: number
+  start_ms: number
+  end_ms: number
+  text_en: string
+  text_vi: string | null
+}
+
+export interface AdminVideoSegmentPayload {
+  start_ms: number
+  end_ms: number
+  text_en: string
+}
+
+export interface AdminVideoSegmentsResult {
+  video: AdminSharedVideo
+  segments: AdminVideoSegment[]
 }
 
 export interface StagePatchPayload {
@@ -118,7 +139,7 @@ export interface QuestionPayload {
   question_text: string
   question_type: AdminQuestionType
   explanation?: string
-  audio_url?: string
+  audio_url?: string | null
   word_bank?: string[]
   difficulty?: AdminDifficulty
   answers: AdminAnswerPayload[]
@@ -136,7 +157,7 @@ export interface SharedVideoPatchPayload {
   xp_reward?: number
 }
 
-export type SharedVideoImportResult = VideoLessonDetail
+export type SharedVideoImportResult = AdminSharedVideo
 
 export const SHOP_SLOTS = ['car', 'frame', 'nameplate', 'booster'] as const
 export type AdminShopSlot = (typeof SHOP_SLOTS)[number]

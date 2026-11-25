@@ -1,4 +1,8 @@
 import { HttpError } from '../../middleware/error-handler';
+import { parseBuddyCommand } from './ai.commands';
+import { buildBuddySnapshot, resolveBuddyCommand } from './ai.copilot';
+import { buddyLanguage } from './ai.language';
+import type { BuddyLanguage } from './ai.language';
 import { decideBuddyRoute } from './ai.decisions';
 import { inferReminderFromMessage } from './ai.parsing';
 import { answerTurn, resolveTurnIntent } from './ai.pipeline';
@@ -7,6 +11,7 @@ import * as repository from './ai.repository';
 import {
   buildOfflineCoachReply,
   buildStudyPlan,
+  lessonPrerequisites,
   pickNextLesson,
   resolveNavigationRequest,
   resolveChatAction,
@@ -28,9 +33,11 @@ import type {
 
 const MAX_CONTEXT_MESSAGES = 20;
 
-function navigationReply(action: ChatAction): AiReply {
+function navigationReply(action: ChatAction, language: BuddyLanguage = 'vi'): AiReply {
   return {
-    reply: `Mình tìm thấy đúng mục rồi. Chọn “${action.label}” để mở, hoặc hủy nếu bạn đổi ý.`,
+    reply: language === 'en'
+      ? 'I found it. Use the button to open it.'
+      : `Mình tìm thấy đúng mục rồi. Chọn “${action.label}” để mở, hoặc hủy nếu bạn đổi ý.`,
     feedback: [],
     followups: [],
     action,
@@ -39,9 +46,9 @@ function navigationReply(action: ChatAction): AiReply {
 }
 
 /** Short toast copy for a direct navigation: no chat panel, no long answer. */
-function openedReply(action: ChatAction): AiReply {
+function openedReply(action: ChatAction, language: BuddyLanguage): AiReply {
   return {
-    reply: `Đã mở “${action.label}” cho bạn.`,
+    reply: language === 'en' ? 'Opened.' : `Đã mở “${action.label}” cho bạn.`,
     feedback: [],
     followups: [],
     action,
@@ -116,15 +123,44 @@ async function prepareCoachTurn(
   context: ChatContext | null,
   history: MessageRow[],
   learner: LearnerContext,
+  language: BuddyLanguage = 'vi',
 ): Promise<CoachTurn> {
   const stats = await repository.getStudyStats(userId);
   const snapshot = toStudySnapshot(learner, stats);
   const steps = buildStudyPlan(snapshot, stats);
   return {
     stats,
-    messages: toCoachMessages(history, message, learner, snapshot, steps, intent, context, stats),
-    offline: buildOfflineCoachReply(snapshot, steps, intent, context),
+    messages: toCoachMessages(history, message, learner, snapshot, steps, intent, context, stats, language),
+    offline: buildOfflineCoachReply(snapshot, steps, intent, context, language),
     learnerData: planData(snapshot, steps, stats),
+  };
+}
+
+function withResolvedAction(
+  reply: AiReply,
+  stats: StudyStats,
+  language: BuddyLanguage,
+  shopItems?: Parameters<typeof resolveChatAction>[2],
+): AiReply {
+  const action = resolveChatAction(reply.action, stats, shopItems);
+  const locked = action?.kind === 'open_lesson' && action.lessonId
+    ? lessonPrerequisites(stats, action.lessonId)
+    : null;
+  if (action?.kind === 'open_lesson') {
+    const title = action.lessonTitle ?? '';
+    action.label = (action.mode === 'reveal'
+      ? (language === 'en' ? `Locate lesson ${title}` : `Chỉ vị trí bài ${title}`)
+      : (language === 'en' ? `Open lesson ${title}` : `Mở bài: ${title}`)).slice(0, 80);
+  }
+  if (!locked) return { ...reply, action };
+  return {
+    ...reply,
+    action,
+    reply: language === 'en'
+      ? `“${action?.lessonTitle}” is locked. Complete ${locked.remaining} ${locked.remaining === 1 ? 'lesson' : 'lessons'}, starting with “${locked.frontier.title}”.`
+      : `Bài “${action?.lessonTitle}” đang khóa. Bạn cần hoàn thành ${locked.remaining} bài, bắt đầu từ “${locked.frontier.title}”.`,
+    feedback: [],
+    followups: [],
   };
 }
 
@@ -182,16 +218,17 @@ export async function sendMessage(
   ]);
 
   const turnIntent = await resolveTurnIntent(message, intent, context);
+  const language = buddyLanguage(message);
   const isCoach = chat.topic === 'STUDY_COACH' || turnIntent !== 'chat';
 
   let aiReply: AiReply;
   let stats: StudyStats | null = null;
   if (isCoach) {
-    const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner);
+    const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner, language);
     stats = coach.stats;
     const navigation = resolveNavigationRequest(message, coach.stats);
     aiReply = navigation
-      ? navigationReply(navigation)
+      ? navigationReply(navigation, language)
       : (await answerTurn({
           messages: coach.messages,
           message,
@@ -212,6 +249,8 @@ export async function sendMessage(
     })).reply;
   }
 
+  if (stats) aiReply = withResolvedAction(aiReply, stats, language);
+
   const saved = await repository.saveConversation(
     userId,
     chatId,
@@ -223,12 +262,13 @@ export async function sendMessage(
     ...saved,
     feedback: toSavedFeedback(aiReply, message, saved.userMessage.id),
     followups: aiReply.followups,
-    action: stats ? resolveChatAction(aiReply.action, stats) : null,
+    action: stats ? aiReply.action : null,
   };
 }
 
 export interface BuddyAnswer {
   reply: string;
+  language: BuddyLanguage;
   followups: string[];
   action: ChatAction | null;
   feedback: AiReply['feedback'];
@@ -248,7 +288,17 @@ export async function askBuddy(
   intent: ChatIntent,
   context: ChatContext | null,
 ): Promise<BuddyAnswer> {
+  const command = parseBuddyCommand(message);
   const chatId = await repository.ensureCoachChat(userId);
+  if (command) {
+    const snapshot = await buildBuddySnapshot(userId);
+    const reply = withResolvedAction(
+      resolveBuddyCommand(command, snapshot), snapshot.study, command.language, snapshot.shop.items,
+    );
+    return saveBuddyAnswer(userId, chatId, message, reply, reply.action ? 'navigate' : 'open_prompt');
+  }
+
+  const language = buddyLanguage(message);
   const [history, learner] = await Promise.all([
     repository.getConversationHistory(chatId, MAX_CONTEXT_MESSAGES),
     repository.getLearnerContext(userId),
@@ -262,48 +312,33 @@ export async function askBuddy(
   ]);
   const decidedNavigate = routeDecision?.confident === true && routeDecision.route === 'navigate';
   const decidedChat = routeDecision?.confident === true && routeDecision.route === 'open_prompt';
-  const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner);
+  const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner, language);
 
-  let aiReply: AiReply;
-  if (decidedNavigate) {
-    const target = resolveNavigationRequest(message, coach.stats) ?? navigationForIntent(turnIntent, coach.stats);
-    aiReply = target
-      ? openedReply(resolveChatAction(target, coach.stats) ?? target)
-      : (await answerTurn({
-          messages: coach.messages,
-          message,
-          intent: turnIntent,
-          context,
-          flavor: 'coach',
-          offline: coach.offline,
-          learnerData: coach.learnerData,
-        })).reply;
-  } else if (decidedChat) {
-    aiReply = (await answerTurn({
-      messages: coach.messages,
-      message,
-      intent: turnIntent,
-      context,
-      flavor: 'coach',
-      offline: coach.offline,
-      learnerData: coach.learnerData,
-    })).reply;
-  } else {
-    // Gate disabled or unsure: keep the deterministic navigation fallback.
-    const navigation = resolveNavigationRequest(message, coach.stats);
-    aiReply = navigation
-      ? navigationReply(navigation)
-      : (await answerTurn({
-          messages: coach.messages,
-          message,
-          intent: turnIntent,
-          context,
-          flavor: 'coach',
-          offline: coach.offline,
-          learnerData: coach.learnerData,
-        })).reply;
-  }
+  const navigation = decidedChat ? null : resolveNavigationRequest(message, coach.stats)
+    ?? (decidedNavigate ? navigationForIntent(turnIntent, coach.stats) : null);
+  const reply = navigation
+    ? (decidedNavigate ? openedReply(navigation, language) : navigationReply(navigation, language))
+    : (await answerTurn({
+        messages: coach.messages,
+        message,
+        intent: turnIntent,
+        context,
+        flavor: 'coach',
+        offline: coach.offline,
+        learnerData: coach.learnerData,
+      })).reply;
+  const aiReply = withResolvedAction(reply, coach.stats, language);
+  const route = !decidedChat && aiReply.action ? 'navigate' : 'open_prompt';
+  return saveBuddyAnswer(userId, chatId, message, aiReply, route);
+}
 
+async function saveBuddyAnswer(
+  userId: number,
+  chatId: number,
+  message: string,
+  aiReply: AiReply,
+  route: BuddyAnswer['route'],
+): Promise<BuddyAnswer> {
   const saved = await repository.saveConversation(
     userId,
     chatId,
@@ -312,13 +347,13 @@ export async function askBuddy(
     aiReply.feedback.map((item) => ({ ...item, original_text: message })),
   );
 
-  const action = resolveChatAction(aiReply.action, coach.stats);
   return {
     reply: aiReply.reply,
+    language: buddyLanguage(message),
     followups: aiReply.followups,
-    action,
+    action: aiReply.action,
     feedback: toSavedFeedback(aiReply, message, saved.userMessage.id),
     suggestion: aiReply.reminder ?? inferReminderFromMessage(message),
-    route: decidedNavigate ? 'navigate' : decidedChat ? 'open_prompt' : action ? 'navigate' : 'open_prompt',
+    route,
   };
 }

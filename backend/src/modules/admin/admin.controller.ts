@@ -11,6 +11,7 @@ import {
   parseQuestionPatch,
   parseSharedVideoImport,
   parseSharedVideoPatch,
+  parseSharedVideoSegments,
   parseStageId,
   parseStagePatch,
   parseVideoId,
@@ -172,9 +173,8 @@ export const listSharedVideos: RequestHandler = async (_request, response, next)
 
 export const importSharedVideo: RequestHandler = async (request, response, next) => {
   try {
-    const adminUserId = requireUserId(request);
     const input = parseSharedVideoImport(request.body);
-    const video = await adminService.importSharedVideo(adminUserId, input);
+    const video = await adminService.importSharedVideo(input);
     response.status(201).json({ success: true, data: { video } });
   } catch (error) {
     next(error);
@@ -197,6 +197,47 @@ export const deleteSharedVideo: RequestHandler = async (request, response, next)
     const videoId = parseVideoId(request.params.videoId);
     await adminService.deleteSharedVideo(videoId);
     response.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listSharedVideoSegments: RequestHandler = async (request, response, next) => {
+  try {
+    const videoId = parseVideoId(request.params.videoId);
+    const result = await adminService.listSharedVideoSegments(videoId);
+    response.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const replaceSharedVideoSegments: RequestHandler = async (request, response, next) => {
+  try {
+    const videoId = parseVideoId(request.params.videoId);
+    const segments = parseSharedVideoSegments(request.body);
+    const result = await adminService.replaceSharedVideoSegments(videoId, segments);
+    response.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishSharedVideo: RequestHandler = async (request, response, next) => {
+  try {
+    const videoId = parseVideoId(request.params.videoId);
+    const video = await adminService.setSharedVideoPublished(videoId, true);
+    response.json({ success: true, data: { video } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unpublishSharedVideo: RequestHandler = async (request, response, next) => {
+  try {
+    const videoId = parseVideoId(request.params.videoId);
+    const video = await adminService.setSharedVideoPublished(videoId, false);
+    response.json({ success: true, data: { video } });
   } catch (error) {
     next(error);
   }

@@ -1,4 +1,8 @@
 import { REVIEW_SESSION_LIMIT } from '../analytics/review.scheduler';
+import type { ShopItem } from '../gamification/gamification.types';
+import { buildLessonStates } from '../learning/learning.service';
+import { normalizeDestination } from './ai.language';
+import type { BuddyLanguage } from './ai.language';
 import type { StudyStats } from './ai.repository';
 import type {
   AiReply,
@@ -11,21 +15,22 @@ import type {
   StudyStep,
 } from './ai.types';
 
-/** Mirror the web roadmap unlock rule: first lesson, or the one after a perfect score. */
+function lessonStates(stats: StudyStats) {
+  return buildLessonStates(stats.lessons.map(({ id }) => id), new Set(stats.completedLessonIds));
+}
+
 export function pickNextLesson(stats: StudyStats): StudySnapshot['nextLesson'] {
-  const completed = new Set(stats.completedLessonIds);
-  let previousCompleted = true;
-  for (const lesson of stats.lessons) {
-    if (completed.has(lesson.id)) {
-      previousCompleted = true;
-      continue;
-    }
-    if (previousCompleted) {
-      return { id: lesson.id, title: lesson.title, topic: lesson.topic };
-    }
-    previousCompleted = false;
-  }
-  return null;
+  const states = lessonStates(stats);
+  const next = stats.lessons.find(({ id }) => states.get(id)?.status === 'unlocked');
+  return next ? { id: next.id, title: next.title, topic: next.topic } : null;
+}
+
+export function lessonPrerequisites(stats: StudyStats, lessonId: number) {
+  const states = lessonStates(stats);
+  if (states.get(lessonId)?.status !== 'locked') return null;
+  const frontier = stats.lessons.findIndex(({ id }) => states.get(id)?.status === 'unlocked');
+  const destination = stats.lessons.findIndex(({ id }) => id === lessonId);
+  return { frontier: stats.lessons[frontier], remaining: destination - frontier };
 }
 
 export function toStudySnapshot(learner: LearnerContext, stats: StudyStats): StudySnapshot {
@@ -153,10 +158,37 @@ export function buildStudyPlan(snapshot: StudySnapshot, stats: StudyStats): Stud
   return steps.slice(0, 3);
 }
 
+const SPOTLIGHT_TARGETS: Partial<Record<ChatTab, readonly string[]>> = {
+  profile: ['profile:stats', 'profile:path', 'profile:badges', 'wallet:summary'],
+  shop: ['wallet:summary'],
+  rankings: ['rank:me'],
+};
+
 /** Only ids that exist in the real catalogue survive, so a hallucinated id
  * cannot send the learner to a dead screen. */
-export function resolveChatAction(action: ChatAction | null, stats: StudyStats): ChatAction | null {
-  if (!action) return null;
+export function resolveChatAction(
+  action: ChatAction | null,
+  stats: StudyStats,
+  shopItems: readonly Pick<ShopItem, 'code' | 'name'>[] = [],
+): ChatAction | null {
+  if (!action || action.tab === 'admin') return null;
+  if (action.kind === 'show_shop_item') {
+    const item = shopItems.find(({ code }) => code === action.itemCode);
+    if (!item) return null;
+    return {
+      kind: 'show_shop_item',
+      tab: 'shop',
+      itemCode: item.code,
+      itemName: item.name,
+      highlight: `shop:${item.code}`,
+      label: action.label || item.name,
+    };
+  }
+  if (action.kind === 'spotlight') {
+    const { tab, highlight } = action;
+    if (!tab || !highlight || !SPOTLIGHT_TARGETS[tab]?.includes(highlight)) return null;
+    return { kind: 'spotlight', tab, highlight, label: action.label };
+  }
   if (action.kind === 'open_video') {
     const video = stats.videoCatalog.find((item) => item.id === action.videoId);
     if (!video) return null;
@@ -177,8 +209,9 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
       tab: 'study',
       lessonId: lesson.id,
       lessonTitle: lesson.title,
+      mode: action.mode === 'reveal' || lessonPrerequisites(stats, lesson.id) ? 'reveal' : 'open',
       label: `Mở bài: ${lesson.title}`.slice(0, 60),
-      ...(action.highlight === `lesson:${lesson.id}` ? { highlight: action.highlight } : {}),
+      highlight: `lesson:${lesson.id}`,
     };
   }
   if (action.kind === 'open_notebook') {
@@ -196,8 +229,6 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
     // still says "open_review" so the web can start the session in one tap.
     return { kind: 'open_review', tab: 'profile', label: action.label || 'Mở phiên ôn tập' };
   }
-  // The admin console is not a learner destination, even if the model asks.
-  if (action.tab === 'admin') return null;
   const tab = action.tab ?? 'study';
   const tabLabels: Record<ChatTab, string> = {
     study: 'Vào Lộ trình học',
@@ -217,11 +248,6 @@ export function resolveChatAction(action: ChatAction | null, stats: StudyStats):
   };
 }
 
-function normalizeDestination(value: string): string {
-  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
 function isQuestionAboutDestination(text: string): boolean {
   return /\b(la gi|the nao|tai sao|giai thich|what is|why|how does)\b/.test(text);
 }
@@ -231,11 +257,11 @@ const DESTINATION_STOP_WORDS = new Set([
   'trang','thu','vien','noi','dung','chu','de','library','watch','listening','listen','play','lesson','study','learn','take','me','go','to','next','open','about','please','a','the',
 ]);
 
-function hasSpecificTopic(text: string): boolean {
+export function hasSpecificTopic(text: string): boolean {
   return text.split(' ').some((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
 }
 
-function scoreCatalogMatch(query: string, candidate: string): number {
+export function scoreCatalogMatch(query: string, candidate: string): number {
   const words = query.split(' ').filter((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
   if (words.length === 0) return 0;
   const haystack = ` ${candidate} `;
@@ -315,8 +341,23 @@ export function buildOfflineCoachReply(
   steps: StudyStep[],
   intent: ChatIntent,
   context: ChatContext | null,
+  language: BuddyLanguage = 'vi',
 ): AiReply {
   const first = steps[0];
+  if (language === 'en') {
+    const plan = intent === 'plan' || intent === 'practice';
+    const next = snapshot.nextLesson;
+    const lines = [];
+    if (plan && next) lines.push(`Your next lesson is “${next.title}”. You’ve completed ${snapshot.completedLessons} of ${snapshot.totalLessons} lessons.`);
+    if (plan && !next) lines.push('You can review a lesson you’ve already completed.');
+    if (plan && snapshot.reviewDue) lines.push(`You also have ${snapshot.reviewDue} items due for review.`);
+    if (!plan && context?.focus) lines.push(`You’re viewing “${context.focus}”.`);
+    if (!plan) lines.push('I can’t give a detailed answer right now. Please try again in a moment.');
+    const action = plan && next
+      ? { kind: 'open_lesson', tab: 'study', lessonId: next.id, label: 'Open the next lesson' } as const
+      : null;
+    return { reply: lines.join(' '), feedback: [], followups: [], action, reminder: null };
+  }
   // A question about the current screen is not a request for a study plan.
   // When the model is unavailable, answer from the page context we do have and
   // say plainly that the detailed answer needs the model, instead of pretending

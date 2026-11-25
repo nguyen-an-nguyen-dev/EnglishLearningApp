@@ -10,6 +10,8 @@ export const SPEECH_MIME_TYPES = [
 
 export type SpeechMimeType = (typeof SPEECH_MIME_TYPES)[number];
 
+export type SpeechVoiceLang = 'en' | 'vi';
+
 export interface SpeechTranscript {
   text: string;
   language: string | null;

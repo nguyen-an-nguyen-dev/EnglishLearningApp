@@ -240,7 +240,7 @@ CREATE TABLE `questions` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `lesson_id` bigint(20) unsigned NOT NULL,
   `question_text` text NOT NULL,
-  `question_type` varchar(40) NOT NULL DEFAULT 'multiple_choice',
+  `question_type` varchar(40) NOT NULL DEFAULT 'multiple_choice' CHECK (`question_type` IN ('multiple_choice', 'fill_choice', 'listen_choice', 'word_order', 'listening', 'fill_blank', 'translate', 'speaking')),
   `explanation` text DEFAULT NULL,
   `audio_url` varchar(2048) DEFAULT NULL,
   `word_bank` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`word_bank`)),
@@ -302,10 +302,12 @@ CREATE TABLE `video_lessons` (
   `subtitle_en` varchar(500) DEFAULT NULL,
   `subtitle_vi` varchar(500) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `published_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_video_lessons_code` (`code`),
   KEY `idx_video_lessons_owner` (`owner_user_id`,`created_at`),
   KEY `idx_video_lessons_sort` (`sort_order`),
+  KEY `idx_video_lessons_published` (`published_at`),
   CONSTRAINT `fk_video_lessons_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=166 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
