@@ -167,7 +167,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
                 avatarUrl={user?.avatar_url}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
                 style={wallet?.equipment.frame?.style ?? null}
-                size={82}
+                size={74}
               />
               {/* The level lives here only: the copy line used to repeat it. */}
               <b className="profile-level-badge" aria-label={`${t.walletLevel} ${level}`}>{level}</b>
@@ -753,6 +753,7 @@ function LearnerApp() {
             {effectiveTab === 'profile' && (
               <ProfileView
                 onLogout={handleLogout}
+                onOpenGarage={() => selectTab('shop')}
                 onOpenReview={() => setReviewOpen(true)}
                 onOpenLesson={(id, title) => setActiveLesson({ id, title })}
               />

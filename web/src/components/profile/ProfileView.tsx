@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { ArrowRight, BookOpenText, Camera, Checks, Lightning, Medal, SignOut } from '@phosphor-icons/react'
+import { ArrowRight, BookOpenText, Camera, CaretRight, Checks, Coins, Lightning, Medal, SignOut } from '@phosphor-icons/react'
 import { ApiError } from '../../services/apiClient'
 import { AccountActions } from '../AccountActions'
 import { useAuth } from '../../context/AuthContext'
@@ -24,10 +24,11 @@ type StageState = 'done' | 'current' | 'locked'
 interface ProfileViewProps {
   onLogout: () => void
   onOpenReview: () => void
+  onOpenGarage: () => void
   onOpenLesson: (lessonId: number, title: string) => void
 }
 
-export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileViewProps) {
+export function ProfileView({ onLogout, onOpenReview, onOpenGarage, onOpenLesson }: ProfileViewProps) {
   const { t, lang } = useI18n()
   const { user, uploadAvatar } = useAuth()
   const { stages, loading } = useLearning()
@@ -107,6 +108,7 @@ export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileVie
   const streak = wallet?.streak ?? user?.streak ?? 0
   const xp = wallet?.xp ?? user?.xp ?? 0
   const coins = wallet?.coins ?? user?.coins ?? 0
+  const balance = `${coins.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')} RC`
   const level = wallet?.level ?? user?.level ?? 1
   const frameKey = wallet?.equipment.frame?.visual_key ?? null
   const frameStyle = wallet?.equipment.frame?.style ?? null
@@ -155,7 +157,7 @@ export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileVie
 
       <div className="profile-grid">
         <section className="profile-identity">
-          <section className="profile-hero" aria-label={t.profileTitle}>
+          <section className="profile-hero" data-buddy-target="profile:stats" aria-label={t.profileTitle}>
             <div className={`profile-hero-banner${plate.className}`} style={plate.style} aria-hidden="true">
               {!plate.className && (
                 <svg viewBox="0 0 600 160" preserveAspectRatio="xMidYMid slice">
@@ -179,10 +181,23 @@ export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileVie
                 <h2>{displayName}</h2>
                 <p>{user?.email}</p>
               </div>
-              <button type="button" className="avatar-upload-button" onClick={() => avatarInputRef.current?.click()} disabled={avatarProgress !== null}>
-                <Camera size={17} weight="bold" />
-                {avatarProgress !== null ? t.avatarUploading(avatarProgress) : t.avatarUpload}
-              </button>
+              <div className="profile-hero-actions">
+                <button
+                  type="button"
+                  className="profile-hero-balance"
+                  data-buddy-target="wallet:summary"
+                  aria-label={t.profileOpenGarage(balance)}
+                  onClick={onOpenGarage}
+                >
+                  <Coins size={17} weight="fill" aria-hidden="true" />
+                  {balance}
+                  <CaretRight size={12} weight="bold" aria-hidden="true" />
+                </button>
+                <button type="button" className="avatar-upload-button" onClick={() => avatarInputRef.current?.click()} disabled={avatarProgress !== null}>
+                  <Camera size={17} weight="bold" aria-hidden="true" />
+                  {avatarProgress !== null ? t.avatarUploading(avatarProgress) : t.avatarUpload}
+                </button>
+              </div>
               <input key={avatarInputKey} ref={avatarInputRef} type="file" hidden accept="image/jpeg,image/png,image/webp"
                 onChange={handleAvatarChange} disabled={avatarProgress !== null} />
               {avatarProgress !== null && <progress className="avatar-upload-progress" max={100} value={avatarProgress} aria-label={t.avatarUploading(avatarProgress)} />}
@@ -216,7 +231,7 @@ export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileVie
             <ArrowRight size={16} weight="bold" />
           </button>
 
-          <section className="profile-path">
+          <section className="profile-path" data-buddy-target="profile:path">
             <header>
               <div>
                 <p className="profile-path-label">{t.pathKicker}</p>
@@ -262,7 +277,7 @@ export function ProfileView({ onLogout, onOpenReview, onOpenLesson }: ProfileVie
             </ol>
           </section>
 
-          <section className="profile-badges">
+          <section className="profile-badges" data-buddy-target="profile:badges">
             <span className="arena-label">{t.badgesTitle}</span>
             {badges.length > 0 ? (
               <ul>

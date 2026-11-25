@@ -1145,8 +1145,12 @@
 }
 .arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan-deep); }
 :root[data-theme="dark"] .arena-v2-versus-slot.is-searching strong { color: var(--gc-cyan); }
-/* Both circles match the 92px avatar on the left seat, so the two drivers are
-   the same size and the searching one swaps in without moving the row. */
+/* The default ring occupies 56% of the frame artboard and sits just below its center. */
+.arena-v2-versus-avatar {
+  transform-origin: 50% 56%;
+  transform: translateY(-6%) scale(1.8);
+  pointer-events: none;
+}
 .arena-v2-search-orb {
   position: relative;
   display: flex;

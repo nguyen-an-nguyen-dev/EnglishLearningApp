@@ -559,16 +559,16 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
             <circle className="video-tv-line" cx="198" cy="10" r="5" fill="#ff5a5f" />
             <rect className="video-tv-line" x="10" y="44" width="260" height="140" rx="22" fill="#ffd23f" />
             <rect className="video-tv-line" x="26" y="58" width="196" height="112" rx="12" fill="#14203a" />
-            <circle className="video-tv-line" cx="124" cy="104" r="26" fill="#fff" />
-            <path d="M116 90l22 14-22 14z" fill="#14203a" />
-            <rect x="34" y="136" width="14" height="14" rx="4" fill="#19b6f0" />
-            <rect x="56" y="124" width="14" height="26" rx="4" fill="#ffd23f" />
-            <rect x="78" y="132" width="14" height="18" rx="4" fill="#ff5a5f" />
-            <rect x="100" y="116" width="14" height="34" rx="4" fill="#38c98a" />
-            <rect x="122" y="128" width="14" height="22" rx="4" fill="#19b6f0" />
-            <rect x="144" y="120" width="14" height="30" rx="4" fill="#ffd23f" />
-            <rect x="166" y="134" width="14" height="16" rx="4" fill="#ff5a5f" />
-            <rect x="188" y="126" width="14" height="24" rx="4" fill="#38c98a" />
+            <circle className="video-tv-line" cx="124" cy="96" r="24" fill="#fff" />
+            <path d="M117 83l20 13-20 13z" fill="#14203a" />
+            <rect x="40" y="144" width="14" height="12" rx="4" fill="#19b6f0" />
+            <rect x="62" y="135" width="14" height="21" rx="4" fill="#ffd23f" />
+            <rect x="84" y="141" width="14" height="15" rx="4" fill="#ff5a5f" />
+            <rect x="106" y="130" width="14" height="26" rx="4" fill="#38c98a" />
+            <rect x="128" y="139" width="14" height="17" rx="4" fill="#19b6f0" />
+            <rect x="150" y="133" width="14" height="23" rx="4" fill="#ffd23f" />
+            <rect x="172" y="143" width="14" height="13" rx="4" fill="#ff5a5f" />
+            <rect x="194" y="137" width="14" height="19" rx="4" fill="#38c98a" />
             <circle className="video-tv-line" cx="246" cy="86" r="9" fill="#ff5a5f" />
             <circle className="video-tv-line" cx="246" cy="114" r="9" fill="#38c98a" />
             <path className="video-tv-line" d="M236 140H256M236 148H256M236 156H256" fill="none" strokeWidth="3" />
