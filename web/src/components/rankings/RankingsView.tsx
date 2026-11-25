@@ -70,7 +70,7 @@ function RankingRow({
 }) {
   const score = mode === 'league' ? entry.race_points ?? 0 : entry.xp
   return (
-    <li className={'rank-row' + (isMe ? ' is-current-user' : '')} aria-current={isMe ? 'true' : undefined}>
+    <li className={'rank-row' + (isMe ? ' is-current-user' : '')} aria-current={isMe ? 'true' : undefined} data-buddy-target={isMe ? 'rank:me' : undefined}>
       <span className="rank-row-place">
         {entry.rank <= 3
           ? <span className={'rank-medal medal-' + entry.rank}>{entry.rank}</span>
@@ -151,7 +151,7 @@ function LeagueZoneSection({
   )
 }
 
-export function RankingsView({ onStartStudying }: { onStartStudying?: () => void }) {
+export function RankingsView({ onStartStudying, focusRequest = 0 }: { onStartStudying?: () => void; focusRequest?: number }) {
   const { t, lang } = useI18n()
   const { user } = useAuth()
   const { league } = useWallet()
@@ -159,7 +159,8 @@ export function RankingsView({ onStartStudying }: { onStartStudying?: () => void
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [mode, setMode] = useState<BoardMode>('league')
+  const [selection, setSelection] = useState<{ mode: BoardMode; request: number }>({ mode: 'league', request: focusRequest })
+  const mode = selection.request === focusRequest ? selection.mode : 'league'
 
   useEffect(() => {
     let cancelled = false
@@ -239,7 +240,7 @@ export function RankingsView({ onStartStudying }: { onStartStudying?: () => void
             aria-selected={mode === 'league'}
             aria-controls="rank-board-panel"
             className={'rank-tab' + (mode === 'league' ? ' is-active' : '')}
-            onClick={() => setMode('league')}
+            onClick={() => setSelection({ mode: 'league', request: focusRequest })}
           >
             {t.rankWeeklyTab}
           </button>
@@ -249,7 +250,7 @@ export function RankingsView({ onStartStudying }: { onStartStudying?: () => void
             aria-selected={mode === 'career'}
             aria-controls="rank-board-panel"
             className={'rank-tab' + (mode === 'career' ? ' is-active' : '')}
-            onClick={() => setMode('career')}
+            onClick={() => setSelection({ mode: 'career', request: focusRequest })}
           >
             {t.rankCareerTab}
           </button>
@@ -278,6 +279,7 @@ export function RankingsView({ onStartStudying }: { onStartStudying?: () => void
           id="rank-board-panel"
           role="tabpanel"
           className="rank-board-panel"
+          data-buddy-target={!entries.some((entry) => entry.userId === user?.id) ? 'rank:me' : undefined}
           aria-label={mode === 'league' ? t.rankWeeklyTab : t.rankCareerTab}
         >
           {loading && <div className="rank-state"><LoadingDots label={t.rankLoading} /></div>}

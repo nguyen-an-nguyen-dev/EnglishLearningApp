@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
+import { buddyLanguage } from './ai.language';
 import { classifyChatIntent, reviewAnswer } from './ai.decisions';
 import type { AnswerReview, ReplyFlavor } from './ai.decisions';
 import { MAX_REPLY_TOKENS, generateReply } from './ai.provider';
@@ -7,7 +8,8 @@ import type { AiReply, ChatContext, ChatIntent, ProviderMessage } from './ai.typ
 
 /**
  * One chat turn: router (ai.decisions.ts) may re-read the intent, generate
- * tries Sea-Lion then Gemini (ai.provider.ts), and the gate reviews the draft —
+ * a draft via ai.provider.ts (Llama 3.3 70B, then Gemini Flash), and the gate
+ * reviews it —
  * ship, repair once, or replace it with the deterministic answer. When the gate
  * is enabled, nothing reaches the frontend without passing it.
  */
@@ -78,7 +80,10 @@ async function repairReply(
     [
       ...request.messages,
       { role: 'assistant', content: draft.reply },
-      { role: 'user', content: REPAIR_INSTRUCTION },
+      {
+        role: 'user',
+        content: `${REPAIR_INSTRUCTION}\nNgôn ngữ trả lời: ${request.flavor === 'tutor' || buddyLanguage(request.message) === 'en' ? 'tiếng Anh' : 'tiếng Việt'}.`,
+      },
     ],
     { timeoutMs, maxTokens: request.maxTokens ?? MAX_REPLY_TOKENS, temperature: 0.3 },
   );
@@ -131,11 +136,22 @@ export async function answerTurn(request: TurnRequest): Promise<TurnResult> {
         flavor: request.flavor,
         learnerData: request.learnerData,
       });
-      if (!second || second.verdict !== 'reject') return { reply: repaired, review: second ?? review };
+      if (second?.verdict === 'ship') return { reply: repaired, review: second };
     }
   }
 
   // Rejected (or the repair failed): the rows-based answer is always safer.
   if (request.offline) return { reply: request.offline, review };
-  return { reply: draft, review };
+  return {
+    reply: {
+      reply: request.flavor === 'tutor' || buddyLanguage(request.message) === 'en'
+        ? 'I couldn’t verify that answer. Please rephrase your question and try again.'
+        : 'Mình chưa xác minh được câu trả lời. Bạn thử diễn đạt lại câu hỏi nhé.',
+      feedback: [],
+      followups: [],
+      action: null,
+      reminder: null,
+    },
+    review: { ...review, verdict: 'reject' },
+  };
 }

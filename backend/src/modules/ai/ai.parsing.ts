@@ -37,6 +37,10 @@ function parseRawAction(value: unknown): ChatAction | null {
     tab,
     videoId: positiveInt(value.videoId),
     lessonId: positiveInt(value.lessonId),
+    ...(value.mode === 'open' || value.mode === 'reveal' ? { mode: value.mode } : {}),
+    ...(typeof value.itemCode === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(value.itemCode)
+      ? { itemCode: value.itemCode }
+      : {}),
     highlight: HIGHLIGHT_PATTERN.test(rawHighlight) ? rawHighlight : undefined,
   };
 }

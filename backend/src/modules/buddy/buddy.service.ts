@@ -94,7 +94,7 @@ export function buildNudges(
       body: `Còn ${remaining} bài trong lộ trình. Bài này thuộc chủ đề ${next.topic}.`,
       action: {
         label: 'Mở bài này',
-        target: { tab: 'study', lessonId: next.id, highlight: `lesson:${next.id}` },
+        target: { tab: 'study', lessonId: next.id, mode: 'reveal', highlight: `lesson:${next.id}` },
       },
       highlight: `lesson:${next.id}`,
     });

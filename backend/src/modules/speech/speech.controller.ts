@@ -2,7 +2,8 @@ import type { RequestHandler } from 'express';
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
 import * as speechService from './speech.service';
-import { parseSpeechAudio, parseSpeechMimeType } from './speech.validation';
+import { synthesizeSpeech } from './speech.tts';
+import { parseSpeechAudio, parseSpeechMimeType, parseTtsRequest } from './speech.validation';
 
 /**
  * `POST /api/speech/transcribe` — raw audio body (no multipart), format from
@@ -23,6 +24,20 @@ export const transcribe: RequestHandler = async (request, response, next) => {
       return;
     }
     response.json({ success: true, data: transcript });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** `POST /api/speech/synthesize` — JSON `{ text, lang }` in, MP3 bytes out. */
+export const synthesize: RequestHandler = async (request, response, next) => {
+  try {
+    if (!request.auth) throw new HttpError(401, 'Authentication required.');
+    const { text, lang } = parseTtsRequest(request.body);
+    const audio = await synthesizeSpeech(text, lang);
+    response.setHeader('Content-Type', 'audio/mpeg');
+    response.setHeader('Cache-Control', 'private, max-age=3600');
+    response.send(audio);
   } catch (error) {
     next(error);
   }

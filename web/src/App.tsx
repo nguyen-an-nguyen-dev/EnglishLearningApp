@@ -41,6 +41,7 @@ import { useLearning } from './context/LearningContext'
 import type { BuddyView } from './components/ai/VoiceOrb'
 import { useBuddySpotlight } from './components/ai/useBuddySpotlight'
 import type { BuddyTarget } from './types/buddy'
+import { buddyLessonToOpen } from './components/ai/buddyLessonNavigation'
 import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
@@ -588,6 +589,8 @@ function LearnerApp() {
   const effectiveTab: DashboardTab = activeTab
   /** Element the buddy asked us to circle on the destination screen. */
   const [buddyHighlight, setBuddyHighlight] = useState<string | null>(null)
+  const [shopFocusRequest, setShopFocusRequest] = useState(0)
+  const [rankFocusRequest, setRankFocusRequest] = useState(0)
   const spotlight = useBuddySpotlight(buddyHighlight, Boolean(buddyHighlight))
 
   const videoRequestNonce = useRef(0)
@@ -596,14 +599,14 @@ function LearnerApp() {
     return videoRequestNonce.current
   }
 
-  /**
-   * The buddy navigates by target, not by action kind: every nudge and answer carries
-   * `{ tab, lessonId?, videoId?, highlight? }`, so one handler covers every case.
-   */
   function handleBuddyNavigate(target: BuddyTarget) {
     const tab = (target.tab ?? effectiveTab) as DashboardTab
     if (!DASHBOARD_TABS.includes(tab)) return
     if (!confirmArenaLeave()) return
+
+    if (tab === 'shop' && target.highlight?.startsWith('shop:')) setShopFocusRequest((value) => value + 1)
+    if (tab === 'rankings' && target.highlight === 'rank:me') setRankFocusRequest((value) => value + 1)
+    if (tab !== 'study') setActiveLesson(null)
 
     if (target.videoId) {
       if (effectiveTab !== 'videos') setActiveTab('videos')
@@ -617,22 +620,19 @@ function LearnerApp() {
       setVideoRequest({ kind: 'notebook', nonce: nextVideoNonce() })
     } else if (target.lessonId) {
       if (effectiveTab !== 'study') setActiveTab('study')
-      // A target that asks for a highlight means "show me where it is", so the
-      // map is circled instead of yanking the learner straight into the player.
-      if (!target.highlight) {
-        setActiveLesson({
-          id: target.lessonId,
-          title: lessonTitleFor(target.lessonId) ?? 'Bài học',
-        })
-      }
+      const lessonId = buddyLessonToOpen(target)
+      setActiveLesson(lessonId ? {
+        id: lessonId,
+        title: target.lessonTitle ?? lessonTitleFor(lessonId) ?? 'Bài học',
+      } : null)
     } else if (tab !== effectiveTab) {
       setActiveTab(tab)
     }
 
     setBuddyView(null)
-    if (target.highlight) {
+    setBuddyHighlight(null)
+    if (target.highlight && target.mode !== 'open') {
       // Let the destination render before looking for the element.
-      setBuddyHighlight(null)
       window.setTimeout(() => setBuddyHighlight(target.highlight ?? null), 220)
     }
   }
@@ -748,7 +748,7 @@ function LearnerApp() {
             {effectiveTab === 'translate' && <TranslateView />}
             {effectiveTab === 'compete' && <ArenaView />}
             {effectiveTab === 'rankings' && (
-              <RankingsView onStartStudying={() => setActiveTab('study')} />
+              <RankingsView focusRequest={rankFocusRequest} onStartStudying={() => setActiveTab('study')} />
             )}
             {effectiveTab === 'profile' && (
               <ProfileView
@@ -771,7 +771,7 @@ function LearnerApp() {
                 }}
               />
             )}
-            {effectiveTab === 'shop' && <GaraShop />}
+            {effectiveTab === 'shop' && <GaraShop focusRequest={shopFocusRequest} />}
             <VoiceOrb
               activeTab={effectiveTab}
               view={buddyView}

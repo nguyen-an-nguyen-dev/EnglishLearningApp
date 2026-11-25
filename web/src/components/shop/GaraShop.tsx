@@ -122,7 +122,7 @@ function GaraCard({
             : `Thiếu ${formatCompact(item.price - coins)} RC`
 
   return (
-    <li className={`gara-v2-card is-${item.slot === 'booster' ? 'booster' : item.rarity}${item.equipped ? ' is-worn' : ''}${!item.unlocked ? ' is-locked' : ''}`}>
+    <li data-buddy-target={`shop:${item.code}`} className={`gara-v2-card is-${item.slot === 'booster' ? 'booster' : item.rarity}${item.equipped ? ' is-worn' : ''}${!item.unlocked ? ' is-locked' : ''}`}>
       <div className={`gara-v2-art${item.slot === 'nameplate' ? ' is-scenic' : ''}${item.slot === 'car' ? ' is-car' : ''}${item.slot === 'frame' ? ' is-frame' : ''}`}>
         <span className="gara-v2-rarity">{isBooster ? 'Vật phẩm' : RARITY_LABEL[item.rarity] ?? 'Cơ bản'}</span>
         <GaraArt item={item} />
@@ -169,10 +169,11 @@ function GaraCard({
 }
 
 /** Gara Engorace - the shop. One vertical flow: header pills, the stall banner with Bác Turbo, the tab strip, then one section per slot. Balance and level show as read-only pills. */
-export function GaraShop() {
+export function GaraShop({ focusRequest = 0 }: { focusRequest?: number }) {
   const { t } = useI18n()
   const { shop, wallet, loading, purchase, equip, unequip } = useWallet()
-  const [tab, setTab] = useState<GaraTab>('all')
+  const [filter, setFilter] = useState<{ tab: GaraTab; request: number }>({ tab: 'all', request: focusRequest })
+  const tab = filter.request === focusRequest ? filter.tab : 'all'
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Which stall question Bác Turbo is answering; null shows his greeting.
@@ -228,7 +229,7 @@ export function GaraShop() {
           <p>Tiêu Race Coin để mở xe, khung avatar, nền và vật phẩm hỗ trợ.</p>
         </div>
         <div className="gara-v2-pills">
-          <span className="gc-pill">
+          <span className="gc-pill" data-buddy-target="wallet:summary">
             <i className="gc-coin" aria-hidden="true" />
             {formatCompact(coins)} RC
           </span>
@@ -347,7 +348,7 @@ export function GaraShop() {
             key={entry.id}
             type="button"
             className={`gc-btn ${tab === entry.id ? 'is-accent' : 'is-quiet'}`}
-            onClick={() => setTab(entry.id)}
+            onClick={() => setFilter({ tab: entry.id, request: focusRequest })}
           >
             {entry.label}
           </button>

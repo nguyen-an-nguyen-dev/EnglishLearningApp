@@ -53,7 +53,7 @@ export interface AiReply {
   reminder: ReminderSuggestion | null;
 }
 
-export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review'] as const;
+export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review', 'show_shop_item', 'spotlight'] as const;
 export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];
 
 export interface ChatAction {
@@ -64,6 +64,9 @@ export interface ChatAction {
   videoTitle?: string;
   lessonId?: number;
   lessonTitle?: string;
+  mode?: 'open' | 'reveal';
+  itemCode?: string;
+  itemName?: string;
   /** Declared element to circle on the destination screen, e.g. `video:9`. */
   highlight?: string;
 }

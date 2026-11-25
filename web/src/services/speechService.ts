@@ -55,3 +55,28 @@ export async function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Prom
   }
   return body.data
 }
+
+export type SpeechVoiceLang = 'en' | 'vi'
+
+/** Neural voice clip (MP3) for `text`. Rejects when the voice service cannot answer. */
+export async function synthesizeSpeechApi(
+  text: string,
+  lang: SpeechVoiceLang,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const token = authStorage.getToken()
+  if (!token) throw new Error('Bạn cần đăng nhập lại.')
+
+  const timeout = AbortSignal.timeout(25_000)
+  const response = await fetch('/api/speech/synthesize', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text, lang }),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  })
+  if (!response.ok) throw new Error(`Speech synthesis failed (${response.status}).`)
+  return response.blob()
+}

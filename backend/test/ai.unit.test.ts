@@ -10,6 +10,7 @@ import {
   buildStudyPlan,
   resolveNavigationRequest,
   resolveChatAction,
+  lessonPrerequisites,
   toStudySnapshot,
 } from '../src/modules/ai/ai.study';
 import type { StudyStats } from '../src/modules/ai/ai.repository';
@@ -428,7 +429,7 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
       { id: 8, title: 'Bài 8', topic: 'Travel', stageTitle: 'Chặng 1' },
     ],
     videoCatalog: [
-      { id: 3, title: 'Viva La Vida', topic: 'Music', level: 'B1' },
+      { id: 3, title: 'Viva La Vida', topic: 'Music', level: 'B1', completed: false },
     ],
     videosTotal: 1,
     videosCompleted: 0,
@@ -455,8 +456,13 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
   );
   assert.deepEqual(
     resolveChatAction({ kind: 'open_lesson', label: 'Học bài 7', lessonId: 7 }, stats),
-    { kind: 'open_lesson', tab: 'study', lessonId: 7, lessonTitle: 'Bài 7', label: 'Mở bài: Bài 7' },
+    { kind: 'open_lesson', tab: 'study', lessonId: 7, lessonTitle: 'Bài 7', mode: 'open', highlight: 'lesson:7', label: 'Mở bài: Bài 7' },
   );
+  assert.equal(resolveChatAction({ kind: 'open_lesson', label: '', lessonId: 8, mode: 'open' }, stats)?.mode, 'reveal');
+  assert.deepEqual(lessonPrerequisites(stats, 8), { frontier: stats.lessons[0], remaining: 1 });
+  assert.equal(resolveChatAction({
+    kind: 'open_lesson', label: '', lessonId: 7,
+  }, { ...stats, completedLessonIds: [8] })?.mode, 'open', 'catch-up lessons stay open');
   assert.deepEqual(
     resolveChatAction({ kind: 'open_tab', label: '', tab: 'compete' }, stats),
     { kind: 'open_tab', tab: 'compete', label: 'Vào Thi Đua' },
@@ -484,6 +490,14 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
     'a highlight for another video is dropped',
   );
   assert.equal(resolveChatAction(null, stats), null);
+  assert.equal(resolveChatAction({ kind: 'show_shop_item', label: '', itemCode: 'fake' }, stats), null);
+  assert.deepEqual(resolveChatAction({
+    kind: 'show_shop_item', label: '', itemCode: 'shield', itemName: 'Invented', highlight: 'shop:fake',
+  }, stats, [{ code: 'shield', name: 'Shield' }]), {
+    kind: 'show_shop_item', tab: 'shop', label: 'Shield', itemCode: 'shield', itemName: 'Shield', highlight: 'shop:shield',
+  });
+  assert.equal(resolveChatAction({ kind: 'spotlight', label: '', tab: 'shop', highlight: 'rank:me' }, stats), null);
+  assert.equal(resolveChatAction({ kind: 'spotlight', label: '', tab: 'rankings', highlight: 'rank:me' }, stats)?.highlight, 'rank:me');
 
   assert.deepEqual(resolveNavigationRequest('Mở video về music', stats), {
     kind: 'open_video', tab: 'videos', videoId: 3, videoTitle: 'Viva La Vida', label: 'Mở video: Viva La Vida',

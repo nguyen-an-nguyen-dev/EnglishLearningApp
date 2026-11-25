@@ -125,7 +125,7 @@ interface TranslationTarget {
   modelHint: string;
 }
 
-/** Same chain as the chat answers: Sea-Lion on Workers AI, then Gemini Flash. */
+/** Same chain as the chat answers: Llama 3.3 70B on Workers AI, then Gemini Flash. */
 function translationTargets(): TranslationTarget[] {
   return [
     ...cfAccountTargets<Omit<TranslationTarget, 'apiKey' | 'apiUrl'>>({

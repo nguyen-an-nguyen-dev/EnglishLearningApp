@@ -19,6 +19,7 @@ export interface VideoCatalogEntry {
   title: string;
   topic: string;
   level: string;
+  completed: boolean;
 }
 
 export interface StudyStats {
@@ -48,8 +49,6 @@ export interface StudyStats {
 interface CountDbRow extends RowDataPacket {
   total_lessons: number;
   completed_lessons: number;
-  videos_total: number;
-  videos_completed: number;
   saved_words: number;
   translations: number;
   battles_played: number;
@@ -69,17 +68,15 @@ interface LessonDbRow extends RowDataPacket {
 }
 interface IdDbRow extends RowDataPacket { id: number; }
 interface VideoDbRow extends RowDataPacket { id: number; title: string; }
-interface VideoCatalogDbRow extends RowDataPacket { id: number; title: string; topic: string; level: string; }
+interface VideoCatalogDbRow extends RowDataPacket { id: number; title: string; topic: string; level: string; completed: number; }
 interface CountOnlyRow extends RowDataPacket { n: number; }
 
 export async function getStudyStats(userId: number): Promise<StudyStats> {
-  const [countRows, lessonRows, completedRows, videoRows, ownedCountRows, ownedRows, catalogRows] = await Promise.all([
+  const [countRows, lessonRows, completedRows, ownedCountRows, ownedRows, catalogRows] = await Promise.all([
     pool.execute<CountDbRow[]>(
       `SELECT
          (SELECT COUNT(*) FROM lessons) AS total_lessons,
          (SELECT COUNT(*) FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100) AS completed_lessons,
-         (SELECT COUNT(*) FROM video_lessons) AS videos_total,
-         (SELECT COUNT(*) FROM video_progress WHERE user_id = ? AND completed = 1) AS videos_completed,
          (SELECT COUNT(*) FROM saved_words WHERE user_id = ?) AS saved_words,
          (SELECT COUNT(*) FROM translations WHERE user_id = ?) AS translations,
          (SELECT COUNT(*) FROM matches WHERE status = 'completed' AND (player_one_id = ? OR player_two_id = ?)) AS battles_played,
@@ -90,7 +87,7 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
          (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND due_at <= NOW()) AS review_due,
          (SELECT COUNT(*) FROM review_items WHERE user_id = ?) AS review_total,
          (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND kind = 'word') AS review_words`,
-      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
+      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
     ),
     pool.execute<LessonDbRow[]>(
       `SELECT l.id, l.title, l.topic, s.title AS stage_title
@@ -99,12 +96,6 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
     ),
     pool.execute<IdDbRow[]>(
       "SELECT lesson_id AS id FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100",
-      [userId],
-    ),
-    pool.execute<VideoDbRow[]>(
-      `SELECT v.id, v.title FROM video_lessons v
-       WHERE v.id NOT IN (SELECT video_id FROM video_progress WHERE user_id = ? AND completed = 1)
-       ORDER BY v.sort_order, v.id LIMIT 1`,
       [userId],
     ),
     pool.execute<CountOnlyRow[]>(
@@ -116,36 +107,38 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
       [userId],
     ),
     pool.execute<VideoCatalogDbRow[]>(
-      'SELECT id, title, topic, cefr_level AS level FROM video_lessons ORDER BY sort_order, id',
+      `SELECT v.id, v.title, v.topic, v.cefr_level AS level, COALESCE(vp.completed, 0) AS completed
+       FROM video_lessons v
+       LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.user_id = ?
+       WHERE v.owner_user_id IS NULL AND v.published_at IS NOT NULL
+       ORDER BY v.sort_order, v.id`,
+      [userId],
     ),
   ]);
 
   const counts: CountDbRow | undefined = countRows[0][0];
   const lessonList = lessonRows[0];
   const completedList = completedRows[0];
-  const videoList = videoRows[0];
   const ownedList = ownedRows[0];
-  const catalogList = catalogRows[0];
+  const videoCatalog: VideoCatalogEntry[] = catalogRows[0].map(({ id, title, topic, level, completed }) => ({
+    id, title, topic, level, completed: Number(completed) === 1,
+  }));
+  const nextVideo = videoCatalog.find(({ completed }) => !completed);
   const num = (value: unknown): number => Number(value ?? 0);
   return {
     totalLessons: num(counts?.total_lessons),
     completedLessons: num(counts?.completed_lessons),
     completedLessonIds: completedList.map((row) => row.id),
-    videoCatalog: catalogList.map((row) => ({
-      id: row.id,
-      title: row.title,
-      topic: row.topic,
-      level: row.level,
-    })),
+    videoCatalog,
     lessons: lessonList.map((row) => ({
       id: row.id,
       title: row.title,
       topic: row.topic,
       stageTitle: row.stage_title,
     })),
-    videosTotal: num(counts?.videos_total),
-    videosCompleted: num(counts?.videos_completed),
-    nextVideo: videoList[0] ? { id: videoList[0].id, title: videoList[0].title } : null,
+    videosTotal: videoCatalog.length,
+    videosCompleted: videoCatalog.filter(({ completed }) => completed).length,
+    nextVideo: nextVideo ? { id: nextVideo.id, title: nextVideo.title } : null,
     savedWords: num(counts?.saved_words),
     translations: num(counts?.translations),
     battlesPlayed: num(counts?.battles_played),
