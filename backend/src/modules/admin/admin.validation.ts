@@ -200,6 +200,13 @@ function parseAnswers(
   return { answers };
 }
 
+export function speakingAnswers(sample: string): QuestionInput['answers'] {
+  if (sample.length > 500 || !/[\p{L}\p{N}]/u.test(sample)) {
+    throw new HttpError(422, 'Validation failed', ['A speaking sample must contain words and be at most 500 characters.']);
+  }
+  return [{ answerText: sample, isCorrect: true }];
+}
+
 export function parseQuestionInput(value: unknown): QuestionInput {
   const body = asObject(value);
   const errors: string[] = [];
@@ -229,10 +236,12 @@ export function parseQuestionInput(value: unknown): QuestionInput {
     errors.push('audio_url is required for listening questions.');
   }
 
-  const { answers } = parseAnswers(body.answers, questionType, errors);
+  const answers = questionType === 'speaking'
+    ? (questionText ? speakingAnswers(questionText) : [])
+    : parseAnswers(body.answers, questionType, errors).answers;
 
   const correctAnswer = answers.find((answer) => answer.isCorrect)?.answerText ?? '';
-  const wordBank = normalizeWordBank(body.word_bank ?? body.wordBank, correctAnswer);
+  const wordBank = questionType === 'speaking' ? [] : normalizeWordBank(body.word_bank ?? body.wordBank, correctAnswer);
 
   if (errors.length) throw new HttpError(422, 'Validation failed', errors);
 
@@ -291,7 +300,7 @@ export function parseQuestionPatch(value: unknown): QuestionPatchInput {
   if (body.word_bank !== undefined || body.wordBank !== undefined) {
     patch.wordBank = normalizeWordBank(body.word_bank ?? body.wordBank);
   }
-  if (body.answers !== undefined) {
+  if (body.answers !== undefined && patch.questionType !== 'speaking') {
     const type = patch.questionType ?? (typeof body.question_type === 'string'
       ? body.question_type as AdminQuestionType
       : 'multiple_choice');

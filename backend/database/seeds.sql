@@ -3793,3 +3793,15 @@ INSERT INTO `messages` (`id`, `chat_id`, `role`, `content`, `created_at`) VALUES
 (650, 273, 'AI', 'Câu selamat menikmati là tiếng Indonesia, dịch sang tiếng Anh là enjoy your meal, và sang tiếng Việt là chúc bạn thưởng thức bữa ăn.', '2026-11-21 11:33:24');
 
 -- ai_feedback: empty
+
+
+-- Read-aloud questions and their reference answers
+INSERT INTO `questions` (`id`, `lesson_id`, `question_text`, `question_type`, `explanation`, `audio_url`, `word_bank`, `difficulty`, `sort_order`, `created_at`) VALUES
+(609, 1, 'Good morning. How are you today?', 'speaking', 'Chào buổi sáng. Hôm nay bạn khỏe không?', NULL, NULL, 'beginner', 11, '2026-11-26 00:00:00'),
+(610, 2, 'My name is Linh. Nice to meet you.', 'speaking', 'Mình tên Linh. Rất vui được gặp bạn.', NULL, NULL, 'beginner', 11, '2026-11-26 00:00:00'),
+(611, 6, 'Could I have a glass of water, please?', 'speaking', 'Cho tôi một ly nước được không?', NULL, NULL, 'beginner', 11, '2026-11-26 00:00:00');
+
+INSERT INTO `answers` (`id`, `question_id`, `answer_text`, `is_correct`, `sort_order`) VALUES
+(1309, 609, 'Good morning. How are you today?', 1, 1),
+(1310, 610, 'My name is Linh. Nice to meet you.', 1, 1),
+(1311, 611, 'Could I have a glass of water, please?', 1, 1);

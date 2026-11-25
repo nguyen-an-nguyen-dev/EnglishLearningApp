@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { ArrowClockwise, X } from '@phosphor-icons/react'
+import { ArrowClockwise, SpeakerHigh, X } from '@phosphor-icons/react'
+import { useI18n } from '../../i18n'
+import { speakText, stopSpeaking } from '../../utils/speech'
+import { SpeakingPractice } from './SpeakingPractice'
+import { useSpeakingMode } from './useSpeakingMode'
 import { useAuth } from '../../context/AuthContext'
 import {
   LESSON_MAX_HEARTS,
@@ -120,9 +124,10 @@ function IconRedo() {
   )
 }
 
-type ExerciseKind = 'NGHE' | 'ĐỌC' | 'VIẾT'
+type ExerciseKind = 'NGHE' | 'ĐỌC' | 'VIẾT' | 'NÓI'
 
 function kindOf(type: string): ExerciseKind {
+  if (type === 'speaking') return 'NÓI'
   if (type === 'listening' || type === 'listen_choice') return 'NGHE'
   if (type === 'multiple_choice' || type === 'fill_choice') return 'ĐỌC'
   return 'VIẾT'
@@ -164,6 +169,10 @@ function QuestionBody({
   onCorrect,
   onWrong,
 }: QuestionBodyProps) {
+  const { t } = useI18n()
+  const isSpeaking = question.question_type === 'speaking'
+  const { remainingMs, setMuted } = useSpeakingMode(isSpeaking)
+  const isTypingSpeech = isSpeaking && remainingMs > 0
   const isOptions = ['multiple_choice', 'fill_choice', 'listen_choice'].includes(question.question_type)
   const isWordBank = (question.question_type === 'word_order' || question.question_type === 'listening')
     && question.word_bank.length > 0
@@ -176,6 +185,9 @@ function QuestionBody({
   const [wordOrder] = useState(() => shuffleIndices(question.word_bank.length))
   const [mode, setMode] = useState<'tap' | 'type'>('tap')
   const [input, setInput] = useState('')
+  const [spokenAnswer, setSpokenAnswer] = useState('')
+  const [checkedAnswer, setCheckedAnswer] = useState('')
+  const [speakingBusy, setSpeakingBusy] = useState(false)
   const [checked, setChecked] = useState(false)
   const [feedback, setFeedback] = useState<CheckAnswerFeedback | null>(null)
   const [checking, setChecking] = useState(false)
@@ -191,13 +203,19 @@ function QuestionBody({
 
   useEffect(() => {
     shownAtRef.current = Date.now()
-  }, [])
+    const sample = audioRef.current
+    return () => {
+      if (!isSpeaking) return
+      sample?.pause()
+      stopSpeaking()
+    }
+  }, [isSpeaking])
 
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? null
   const selectedWords = selectedWordIds
     .map((wordId) => question.word_bank[wordId])
     .filter((word): word is string => Boolean(word))
-  const answer = isOptions
+  const answer = isSpeaking && !isTypingSpeech ? spokenAnswer : isOptions
     ? selectedOptionId !== null ? String(selectedOptionId) : ''
     : isWordBank && mode === 'tap'
       ? selectedWords.join(' ')
@@ -248,18 +266,20 @@ function QuestionBody({
     setSelectedWordIds((current) => current.filter((id) => id !== wordId))
   }
 
-  async function checkAnswer() {
-    if (!ready || checking) return
+  async function checkAnswer(submitted = answer) {
+    if (!submitted.trim() || checking || checked) return
     setChecking(true)
     setInlineError(null)
     audioRef.current?.pause()
+    if (isSpeaking) stopSpeaking()
     try {
       const result = await checkLessonAnswerApi(
         lessonId,
         question.id,
-        answer,
+        submitted,
         Date.now() - shownAtRef.current,
       )
+      setCheckedAnswer(submitted)
       setFeedback(result)
       setChecked(true)
       // The heart is spent the moment the verdict appears, not on the click
@@ -273,16 +293,16 @@ function QuestionBody({
   }
 
   function handleAction() {
-    if (!ready || checking) return
+    if ((!ready && !checked) || checking || speakingBusy) return
     if (!checked) {
       void checkAnswer()
       return
     }
     if (feedback && !feedback.is_correct) {
-      onWrong(answer, feedback.correct_answer)
+      onWrong(checkedAnswer, feedback.correct_answer)
       return
     }
-    onCorrect(answer)
+    onCorrect(checkedAnswer)
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -347,7 +367,54 @@ function QuestionBody({
             <span className="lesson-topic">{lessonTitle}</span>
           </div>
 
-          <h1 className="lesson-prompt">{prompt}</h1>
+          <h1 className="lesson-prompt">{isTypingSpeech ? t.speakingListenAndType : prompt}</h1>
+
+          {isSpeaking && (
+            <div className="speaking-practice">
+              <button type="button" className="speaking-control" disabled={speakingBusy}
+                onClick={() => {
+                  setInlineError(null)
+                  if (question.audio_url) {
+                    replayAudio()
+                  } else if (!speakText(question.question_text, 'en')) {
+                    setInlineError(t.speakingSampleError)
+                  }
+                }}>
+                <SpeakerHigh size={18} aria-hidden="true" /> {t.speakingListen}
+              </button>
+              {question.audio_url && <audio ref={audioRef} src={question.audio_url} preload="none" />}
+              {isTypingSpeech ? (
+                <div className="speaking-mode">
+                  <span>{t.speakingMuted(formatSeconds(Math.ceil(remainingMs / 1000)))}</span>
+                  <button type="button" className="speaking-control" onClick={() => setMuted(false)}>{t.speakingResume}</button>
+                </div>
+              ) : (
+                <>
+                  <SpeakingPractice
+                    sample={question.question_text}
+                    disabled={checked || checking}
+                    onStart={() => {
+                      audioRef.current?.pause()
+                      stopSpeaking()
+                      setInlineError(null)
+                      setSpokenAnswer('')
+                    }}
+                    onBusyChange={setSpeakingBusy}
+                    onResult={({ transcript }) => {
+                      setSpokenAnswer(transcript)
+                      void checkAnswer(transcript)
+                    }}
+                  />
+                  {!checked && !checking && (
+                    <button type="button" className="speaking-control" onClick={() => {
+                      setSpeakingBusy(false)
+                      setMuted(true)
+                    }}>{t.speakingMute}</button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {hasAudio && (
             question.audio_url ? (
@@ -509,14 +576,16 @@ function QuestionBody({
             </>
           )}
 
-          {!isOptions && !isWordBank && (
+          {!isOptions && !isWordBank && (!isSpeaking || isTypingSpeech) && (
             <input
               className="lesson-text-input"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder="Nhập câu trả lời..."
-              disabled={checked}
+              placeholder={isSpeaking ? t.speakingType : 'Nhập câu trả lời...'}
+              aria-label={isSpeaking ? t.speakingType : undefined}
+              maxLength={isSpeaking ? 500 : undefined}
+              disabled={checked || checking}
               autoComplete="off"
               autoFocus
             />
@@ -553,7 +622,7 @@ function QuestionBody({
             type="button"
             className={`lesson-cta ${verdictTone === 'correct' ? 'is-next' : verdictTone === 'wrong' ? 'is-warn' : 'is-check'}`}
             onClick={handleAction}
-            disabled={checking || (!checked && !ready)}
+            disabled={checking || speakingBusy || (!checked && !ready)}
           >
             {actionLabel}
           </button>

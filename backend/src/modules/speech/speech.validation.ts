@@ -33,6 +33,14 @@ export function parseSpeechAudio(body: unknown, maxBytes: number): Buffer {
  */
 export const MAX_TTS_CHARS = 500;
 
+export function parsePracticeText(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > MAX_TTS_CHARS || !/[\p{L}\p{N}]/u.test(text)) {
+    throw new HttpError(400, 'Câu mẫu cần có từ 1 đến 500 ký tự và chứa từ để luyện nói.');
+  }
+  return text;
+}
+
 export function parseTtsRequest(body: unknown): { text: string; lang: SpeechVoiceLang } {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const text = typeof record.text === 'string' ? record.text.replace(/\s+/g, ' ').trim() : '';

@@ -240,7 +240,7 @@ CREATE TABLE `questions` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `lesson_id` bigint(20) unsigned NOT NULL,
   `question_text` text NOT NULL,
-  `question_type` varchar(40) NOT NULL DEFAULT 'multiple_choice',
+  `question_type` varchar(40) NOT NULL DEFAULT 'multiple_choice' CHECK (`question_type` IN ('multiple_choice', 'fill_choice', 'listen_choice', 'word_order', 'listening', 'fill_blank', 'translate', 'speaking')),
   `explanation` text DEFAULT NULL,
   `audio_url` varchar(2048) DEFAULT NULL,
   `word_bank` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`word_bank`)),

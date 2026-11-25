@@ -19,6 +19,7 @@ export const QUESTION_TYPES = [
   'listen_choice',
   'word_order',
   'listening',
+  'speaking',
 ] as const;
 export type AdminQuestionType = (typeof QUESTION_TYPES)[number];
 

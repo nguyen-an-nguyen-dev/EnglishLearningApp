@@ -42,7 +42,8 @@ export interface AnswerOption {
 export interface Question {
   id: number;
   question_text: string;
-  question_type: string;
+  question_type: 'multiple_choice' | 'fill_choice' | 'listen_choice' | 'word_order'
+    | 'listening' | 'fill_blank' | 'translate' | 'speaking';
   explanation: string | null;
   audio_url: string | null;
   word_bank: string[];

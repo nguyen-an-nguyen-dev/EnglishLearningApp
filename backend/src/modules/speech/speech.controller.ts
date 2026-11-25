@@ -3,31 +3,38 @@ import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
 import * as speechService from './speech.service';
 import { synthesizeSpeech } from './speech.tts';
-import { parseSpeechAudio, parseSpeechMimeType, parseTtsRequest } from './speech.validation';
+import { parsePracticeText, parseSpeechAudio, parseSpeechMimeType, parseTtsRequest } from './speech.validation';
 
 /**
  * `POST /api/speech/transcribe` — raw audio body (no multipart), format from
  * Content-Type.
  */
-export const transcribe: RequestHandler = async (request, response, next) => {
-  try {
-    if (!request.auth) throw new HttpError(401, 'Authentication required.');
-    const mime = parseSpeechMimeType(request.headers['content-type']);
-    const audio = parseSpeechAudio(request.body, env.speechMaxBytes);
-    const transcript = await speechService.transcribeSpeech(audio, mime);
-    if (!transcript) {
-      response.status(422).json({
-        success: false,
-        error: 'Không nghe được nội dung trong đoạn ghi âm. Hãy nói lại gần micro hơn nhé.',
-        code: 'NO_SPEECH',
-      });
-      return;
+function recognitionHandler(practice: boolean): RequestHandler {
+  return async (request, response, next) => {
+    try {
+      if (!request.auth) throw new HttpError(401, 'Authentication required.');
+      const mime = parseSpeechMimeType(request.headers['content-type']);
+      const audio = parseSpeechAudio(request.body, env.speechMaxBytes);
+      const transcript = practice
+        ? await speechService.practiceSpeech(audio, mime, parsePracticeText(request.query.text))
+        : await speechService.transcribeSpeech(audio, mime);
+      if (!transcript) {
+        response.status(422).json({
+          success: false,
+          error: 'Không nghe được nội dung trong đoạn ghi âm. Hãy nói lại gần micro hơn nhé.',
+          code: 'NO_SPEECH',
+        });
+        return;
+      }
+      response.json({ success: true, data: transcript });
+    } catch (error) {
+      next(error);
     }
-    response.json({ success: true, data: transcript });
-  } catch (error) {
-    next(error);
-  }
-};
+  };
+}
+
+export const transcribe = recognitionHandler(false);
+export const practice = recognitionHandler(true);
 
 /** `POST /api/speech/synthesize` — JSON `{ text, lang }` in, MP3 bytes out. */
 export const synthesize: RequestHandler = async (request, response, next) => {

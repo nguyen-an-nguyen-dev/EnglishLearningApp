@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as Speech from 'expo-speech';
 import { AudioModule, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   ActivityIndicator,
@@ -10,6 +11,7 @@ import {
   StyleProp,
   StyleSheet,
   Text,
+  TextInput,
   TextStyle,
   View,
   ViewStyle,
@@ -182,6 +184,7 @@ export default function LessonScreen() {
   }, [result?.stage_completed, router]);
 
   const currentQuestion = questions[currentIndex];
+  const isSpeakingQuestion = currentQuestion?.question_type === 'speaking';
   const isListeningQuestion = currentQuestion?.question_type === 'listening';
   const isListenChoiceQuestion = currentQuestion?.question_type === 'listen_choice';
   const isFillChoiceQuestion = currentQuestion?.question_type === 'fill_choice';
@@ -238,6 +241,10 @@ export default function LessonScreen() {
       audioPlayer.play();
     }
   }
+
+  useEffect(() => {
+    if (isSpeakingQuestion) return () => { void Speech.stop(); };
+  }, [currentQuestion?.id, isSpeakingQuestion]);
 
   // A listening question is meant to be heard, so the clip plays by itself the first time it appears.
   useEffect(() => {
@@ -425,6 +432,7 @@ export default function LessonScreen() {
       if (audioStatus.playing) {
         audioPlayer.pause();
       }
+      if (isSpeakingQuestion) void Speech.stop();
       const feedback = await checkLessonAnswer(lessonId, currentQuestion.id, selectedAnswer);
       setAnswerFeedback(feedback);
       setIsAnswerChecked(true);
@@ -632,7 +640,33 @@ export default function LessonScreen() {
 
       {/* Question Content */}
       <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-        {isListeningQuestion ? (
+        {isSpeakingQuestion ? (
+          <View style={styles.wordOrderQuestion}>
+            <Text style={[styles.wordOrderPrompt, { color: colors.textMuted }]}>Gõ lại câu mẫu</Text>
+            <View style={[styles.englishSentenceRow, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.englishSentence, { color: colors.text }]}>{currentQuestion.question_text}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Nghe câu mẫu"
+                style={styles.audioButton} onPress={() => {
+                  if (currentQuestion.audio_url) void playQuestionAudio();
+                  else Speech.speak(currentQuestion.question_text, { language: 'en-US' });
+                }}>
+                <Text style={styles.audioButtonIcon}>🔊</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              accessibilityLabel="Nhập câu mẫu tiếng Anh"
+              placeholder="Nhập câu mẫu tiếng Anh…"
+              placeholderTextColor={colors.textMuted}
+              style={[styles.speakingInput, { color: colors.text, backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              value={selectedAnswer ?? ''}
+              onChangeText={setSelectedAnswer}
+              editable={!isAnswerChecked && !checking}
+              maxLength={500}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        ) : isListeningQuestion ? (
           <View style={styles.wordOrderQuestion}>
             <View style={styles.listeningHero}>
               {renderAudioButton()}
@@ -760,6 +794,13 @@ export default function LessonScreen() {
 }
 
 const styles = StyleSheet.create({
+  speakingInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',

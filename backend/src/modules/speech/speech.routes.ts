@@ -25,4 +25,5 @@ const synthesizeLimit = rateLimit({
 
 speechRouter.get('/status', controller.status);
 speechRouter.post('/transcribe', authenticate, transcribeLimit, rawAudio, controller.transcribe);
+speechRouter.post('/practice', authenticate, transcribeLimit, rawAudio, controller.practice);
 speechRouter.post('/synthesize', authenticate, synthesizeLimit, controller.synthesize);

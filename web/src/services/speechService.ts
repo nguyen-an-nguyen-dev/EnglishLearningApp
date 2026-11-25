@@ -29,11 +29,29 @@ export async function getSpeechStatusApi(): Promise<SpeechStatus> {
  * Posts raw recorded bytes. Does not use `requestApi` because its forced
  * `Content-Type: application/json` would corrupt the audio body.
  */
-export async function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Promise<SpeechTranscript> {
+export interface SpeechPractice {
+  transcript: string
+  completeness: number
+  words: Array<{ word: string; status: 'matched' | 'missing' | 'different'; heard?: string }>
+  pacing: {
+    wordsPerMinute: number
+    pauses: Array<{ afterWord: string; beforeWord: string; seconds: number }>
+  } | null
+}
+
+export function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Promise<SpeechTranscript> {
+  return postSpeechAudio('/api/speech/transcribe', blob, signal)
+}
+
+export function practiceSpeechApi(text: string, blob: Blob, signal?: AbortSignal): Promise<SpeechPractice> {
+  return postSpeechAudio(`/api/speech/practice?${new URLSearchParams({ text })}`, blob, signal)
+}
+
+async function postSpeechAudio<T>(path: string, blob: Blob, signal?: AbortSignal): Promise<T> {
   const token = authStorage.getToken()
   if (!token) throw new Error('Bạn cần đăng nhập lại.')
 
-  const response = await fetch('/api/speech/transcribe', {
+  const response = await fetch(path, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -44,7 +62,7 @@ export async function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Prom
   })
   const body = (await response.json().catch(() => ({}))) as {
     success?: boolean
-    data?: SpeechTranscript
+    data?: T
     error?: string
     code?: string
   }

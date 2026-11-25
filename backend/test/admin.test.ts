@@ -557,3 +557,26 @@ test('shared drafts stay hidden until an admin publishes them with segments', as
   assert.equal(unpublished.body.data!.video.published_at, null);
   assert.equal((await call(`/api/videos/${videoId}`, learnerToken)).status, 404);
 });
+
+test('admin creates and updates a read-aloud prompt with one synchronized reference answer', async () => {
+  const [[lesson]] = await testPool.execute<RowDataPacket[]>('SELECT id FROM lessons ORDER BY id LIMIT 1');
+  assert.ok(lesson);
+  type Question = { id: number; question_text: string; answers: Array<{ answer_text: string; is_correct: boolean }> };
+  const created = await call<{ question: Question }>(`/api/admin/lessons/${lesson.id}/questions`, adminToken, {
+    method: 'POST', body: { question_type: 'speaking', question_text: 'Could you open the window?' },
+  });
+  assert.equal(created.status, 201);
+  const first = created.body.data!.question;
+  try {
+    assert.equal(first.answers.length, 1);
+    assert.equal(first.answers[0].answer_text, first.question_text);
+    const updated = await call<{ question: Question }>(`/api/admin/questions/${first.id}`, adminToken, {
+      method: 'PATCH', body: { question_text: 'Could you please close the window?' },
+    });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.data?.question.answers[0].answer_text, 'Could you please close the window?');
+    assert.equal(updated.body.data?.question.answers[0].is_correct, true);
+  } finally {
+    await call(`/api/admin/questions/${first.id}`, adminToken, { method: 'DELETE' });
+  }
+});

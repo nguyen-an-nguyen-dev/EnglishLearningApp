@@ -1,3 +1,4 @@
+import { speakingAnswers } from './admin.validation';
 import { HttpError } from '../../middleware/error-handler';
 import * as videoRepo from '../video/video.repository';
 import { refineSegmentsWithAi } from '../video/video.segmentation';
@@ -293,12 +294,13 @@ export async function updateQuestion(
   questionId: number,
   patch: QuestionPatchInput,
 ): Promise<AdminQuestion> {
-  const existing = await repo.getQuestionRow(questionId);
-  if (!existing) throw new HttpError(404, 'Question not found.');
-
-  const { answers, ...fields } = patch;
-  await repo.updateQuestion(questionId, fields);
-  if (answers) await repo.replaceAnswersTx(questionId, answers);
+  const updated = await repo.updateQuestionTx(questionId, (existing) => {
+    if ((patch.questionType ?? existing.question_type) !== 'speaking') return patch;
+    const questionText = patch.questionText ?? existing.question_text;
+    const changedSample = existing.question_type !== 'speaking' || questionText !== existing.question_text;
+    return { ...patch, answers: changedSample ? speakingAnswers(questionText) : undefined, wordBank: [] };
+  });
+  if (!updated) throw new HttpError(404, 'Question not found.');
   return getQuestion(questionId);
 }
 

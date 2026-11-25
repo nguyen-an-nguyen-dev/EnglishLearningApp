@@ -8,6 +8,7 @@ export const QUESTION_TYPES = [
   'listen_choice',
   'word_order',
   'listening',
+  'speaking',
 ] as const
 export type AdminQuestionType = (typeof QUESTION_TYPES)[number]
 
@@ -138,7 +139,7 @@ export interface QuestionPayload {
   question_text: string
   question_type: AdminQuestionType
   explanation?: string
-  audio_url?: string
+  audio_url?: string | null
   word_bank?: string[]
   difficulty?: AdminDifficulty
   answers: AdminAnswerPayload[]

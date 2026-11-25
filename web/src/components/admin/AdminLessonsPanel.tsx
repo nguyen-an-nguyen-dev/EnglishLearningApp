@@ -434,6 +434,7 @@ export function AdminLessonsPanel() {
     listen_choice: t.adminQuestionTypeListen,
     word_order: t.adminQuestionTypeWordOrder,
     listening: t.adminQuestionTypeListening,
+    speaking: t.adminQuestionTypeSpeaking,
   }
 
   const difficultyLabels: Record<AdminDifficulty, string> = {
@@ -932,12 +933,12 @@ export function AdminLessonsPanel() {
               </label>
 
               <label className="admin-field">
-                <span>{t.adminQuestionTextLabel}</span>
+                <span>{questionDraft.draft.questionType === 'speaking' ? t.adminSpeakingSample : t.adminQuestionTextLabel}</span>
                 <textarea
                   data-autofocus
                   value={questionDraft.draft.questionText}
                   rows={3}
-                  maxLength={5000}
+                  maxLength={questionDraft.draft.questionType === 'speaking' ? 500 : 5000}
                   onChange={(event) => setQuestionDraft({
                     ...questionDraft,
                     draft: { ...questionDraft.draft, questionText: event.target.value },
@@ -1013,77 +1014,79 @@ export function AdminLessonsPanel() {
               )}
             </div>
 
-            <div className="admin-section">
-              <h4 className="admin-section-title">{t.adminQuestionAnswersLabel}</h4>
-              <p className="admin-field-hint">{t.adminAnswerHint}</p>
-              <ul className="admin-answers">
-                {questionDraft.draft.answers.map((answer, index) => (
-                  <li key={index} className={`admin-answer-row${answer.isCorrect ? ' is-correct' : ''}`}>
-                    <label className="admin-answer-correct">
+            {questionDraft.draft.questionType !== 'speaking' && (
+              <div className="admin-section">
+                <h4 className="admin-section-title">{t.adminQuestionAnswersLabel}</h4>
+                <p className="admin-field-hint">{t.adminAnswerHint}</p>
+                <ul className="admin-answers">
+                  {questionDraft.draft.answers.map((answer, index) => (
+                    <li key={index} className={`admin-answer-row${answer.isCorrect ? ' is-correct' : ''}`}>
+                      <label className="admin-answer-correct">
+                        <input
+                          type="radio"
+                          name="admin-correct-answer"
+                          aria-label={t.adminAnswerCorrect}
+                          checked={answer.isCorrect}
+                          onChange={() => setQuestionDraft({
+                            ...questionDraft,
+                            draft: setCorrectAnswer(questionDraft.draft, index),
+                          })}
+                          disabled={busy}
+                        />
+                      </label>
                       <input
-                        type="radio"
-                        name="admin-correct-answer"
-                        aria-label={t.adminAnswerCorrect}
-                        checked={answer.isCorrect}
-                        onChange={() => setQuestionDraft({
+                        type="text"
+                        className="admin-answer-input"
+                        value={answer.answerText}
+                        maxLength={500}
+                        placeholder={t.adminAnswerPlaceholder}
+                        onChange={(event) => setQuestionDraft({
                           ...questionDraft,
-                          draft: setCorrectAnswer(questionDraft.draft, index),
+                          draft: {
+                            ...questionDraft.draft,
+                            answers: questionDraft.draft.answers.map((entry, position) => (
+                              position === index ? { ...entry, answerText: event.target.value } : entry
+                            )),
+                          },
                         })}
                         disabled={busy}
                       />
-                    </label>
-                    <input
-                      type="text"
-                      className="admin-answer-input"
-                      value={answer.answerText}
-                      maxLength={500}
-                      placeholder={t.adminAnswerPlaceholder}
-                      onChange={(event) => setQuestionDraft({
-                        ...questionDraft,
-                        draft: {
-                          ...questionDraft.draft,
-                          answers: questionDraft.draft.answers.map((entry, position) => (
-                            position === index ? { ...entry, answerText: event.target.value } : entry
-                          )),
-                        },
-                      })}
-                      disabled={busy}
-                    />
-                    <button
-                      type="button"
-                      className="admin-icon-btn is-danger"
-                      onClick={() => setQuestionDraft({
-                        ...questionDraft,
-                        draft: {
-                          ...questionDraft.draft,
-                          answers: questionDraft.draft.answers.filter((_, position) => position !== index),
-                        },
-                      })}
-                      disabled={busy || questionDraft.draft.answers.length <= answerCountFor(questionDraft.draft.questionType).min}
-                      aria-label={t.adminRemoveAnswer}
-                      title={t.adminRemoveAnswer}
-                    >
-                      <Trash size={14} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="admin-link-btn"
-                onClick={() => setQuestionDraft({
-                  ...questionDraft,
-                  draft: {
-                    ...questionDraft.draft,
-                    answers: [...questionDraft.draft.answers, emptyAnswer(false)],
-                  },
-                })}
-                disabled={busy || questionDraft.draft.answers.length >= answerCountFor(questionDraft.draft.questionType).max}
-              >
-                <Plus size={14} weight="bold" />
-                <span>{t.adminAddAnswer}</span>
-              </button>
-            </div>
+                      <button
+                        type="button"
+                        className="admin-icon-btn is-danger"
+                        onClick={() => setQuestionDraft({
+                          ...questionDraft,
+                          draft: {
+                            ...questionDraft.draft,
+                            answers: questionDraft.draft.answers.filter((_, position) => position !== index),
+                          },
+                        })}
+                        disabled={busy || questionDraft.draft.answers.length <= answerCountFor(questionDraft.draft.questionType).min}
+                        aria-label={t.adminRemoveAnswer}
+                        title={t.adminRemoveAnswer}
+                      >
+                        <Trash size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="admin-link-btn"
+                  onClick={() => setQuestionDraft({
+                    ...questionDraft,
+                    draft: {
+                      ...questionDraft.draft,
+                      answers: [...questionDraft.draft.answers, emptyAnswer(false)],
+                    },
+                  })}
+                  disabled={busy || questionDraft.draft.answers.length >= answerCountFor(questionDraft.draft.questionType).max}
+                >
+                  <Plus size={14} weight="bold" />
+                  <span>{t.adminAddAnswer}</span>
+                </button>
+              </div>
+            )}
 
             {formError && <p className="video-import-error" role="alert">{formError}</p>}
           </form>

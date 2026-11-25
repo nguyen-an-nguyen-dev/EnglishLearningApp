@@ -8,6 +8,7 @@ import {
   Play,
   Trophy,
 } from '@phosphor-icons/react'
+import { SpeakingPractice } from '../lesson/SpeakingPractice'
 import { useI18n } from '../../i18n'
 import { completeVideoApi, saveWordApi } from '../../services/videoService'
 import { lookupWordApi } from '../../services/translationService'
@@ -640,6 +641,13 @@ export function PracticeView({ video, savedWords, onSavedWord, onBack, demo, onV
             autoCapitalize="none"
             autoCorrect="off"
           />
+
+          {!demo && segment.text_en.trim() && (
+            <section className="speaking-practice" aria-label={t.speakingVideo}>
+              <strong>{t.speakingVideo}</strong>
+              <SpeakingPractice key={segment.id} sample={segment.text_en} />
+            </section>
+          )}
 
           {complete ? (
             <p className="practice-success" role="status">
