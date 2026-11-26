@@ -16,8 +16,3 @@ export function databaseErrorCode(error: unknown): string | null {
 export function isDuplicateKeyError(error: unknown): boolean {
   return databaseErrorCode(error) === 'ER_DUP_ENTRY';
 }
-
-export function isForeignKeyError(error: unknown): boolean {
-  return databaseErrorCode(error) === 'ER_ROW_IS_REFERENCED_2'
-    || databaseErrorCode(error) === 'ER_NO_REFERENCED_ROW_2';
-}

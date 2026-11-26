@@ -89,30 +89,21 @@ Anchors are explicit:
 
 - `CarSideArt.tsx` keeps `CarSideArt` and `CarSidePreview` props, resolves art
   from `garage/catalog.ts`, unknown keys fall back to the classic car.
-- `AvatarFrame.tsx` keeps `name/visualKey/style/size/className`, composes one
-  SVG per frame, and automatically switches to the small ring at `size <= 48`.
+- `AvatarFrame.tsx` composes one SVG per `visualKey` and switches to the
+  small ring at `size <= 48`.
 - `CosmeticPreview` and the Gara bay use the new side art without API changes.
 - `gara.css` now has a distinct `--gc-card-legendary` and a full-height frame
   bay override. The garage bay car is 230 px with the 22-unit shadow band
   translated out of view.
-- The old PNG frame heads and the old `FrameRing/FrameMotif/FrameParticles`
-  modules are no longer imported. The top-down roadmap sprite (`CarArt`) stays
-  as the separate map perspective.
 
 ## Verification
 
 ```bash
 cd web
-npm run export:garage   # writes 10 cars + 10 frames + 10 small SVGs
-npm run check:garage    # 100/100 structural checks
-node scripts/audit-garage-svg.mjs
 npm run typecheck
 npm run lint
 npm test
 npm run build
 ```
 
-Current static SVG exports are all under 6 KB; the largest is
-`car_rickshaw.svg` at 5.81 KB. `check:garage` verifies wheel contact (or hover
-pad `bottom=102`), ring radii, no raster/gradient/filter, shop wrapper sizes and
-the small variant.
+Preview the catalog at `/cosmetics-preview.html`.

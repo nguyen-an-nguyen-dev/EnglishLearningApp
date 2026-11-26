@@ -1,6 +1,6 @@
+import { isRecord } from '../../utils/validation';
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
-import { cfAccountTargets } from '../../utils/cf-rotate';
 import * as repository from './translations.repository';
 import {
   isSingleWord,
@@ -31,10 +31,6 @@ const PART_OF_SPEECH_ALIASES: Record<string, WordDetails['partOfSpeech']> = {
   conj: 'conjunction',
   int: 'interjection',
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export function parseProviderResult(content: string, word: string | null): TranslationProviderResponse {
   const normalizedContent = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -116,7 +112,7 @@ function promptForTranslation(
 }
 
 interface TranslationTarget {
-  name: 'Cloudflare Workers AI' | 'Gemini';
+  name: 'Token Harbor' | 'Gemini';
   apiUrl: string;
   apiKey: string;
   model: string;
@@ -125,15 +121,17 @@ interface TranslationTarget {
   modelHint: string;
 }
 
-/** Same chain as the chat answers: Llama 3.3 70B on Workers AI, then Gemini Flash. */
+/** Same chain as the chat answers: Token Harbor (DeepSeek), then Gemini Flash. */
 function translationTargets(): TranslationTarget[] {
   return [
-    ...cfAccountTargets<Omit<TranslationTarget, 'apiKey' | 'apiUrl'>>({
-      name: 'Cloudflare Workers AI',
-      model: env.cfModel,
-      keyHint: 'CF_API_KEYS',
-      modelHint: 'CF_MODEL',
-    }),
+    {
+      name: 'Token Harbor',
+      apiUrl: env.thApiUrl,
+      apiKey: env.thApiKey,
+      model: env.thModel,
+      keyHint: 'TH_API_KEY',
+      modelHint: 'TH_MODEL',
+    },
     {
       name: 'Gemini',
       apiUrl: env.aiApiUrl,

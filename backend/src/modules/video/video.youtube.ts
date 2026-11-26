@@ -1,3 +1,4 @@
+import { isRecord } from '../../utils/validation';
 import type { SpawnOptions } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -84,10 +85,6 @@ export interface YouTubeImportSource {
    * diced into single words.
    */
   aiCues: CaptionCue[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function englishRank(language: string): number {

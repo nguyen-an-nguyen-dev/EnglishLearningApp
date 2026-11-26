@@ -13,28 +13,10 @@
   to { opacity: 1; transform: none; }
 }
 
-/* The voice, centred on the bottom edge */
-
-.voice-dock {
-  position: fixed;
-  z-index: 40;
-  right: 16px;
-  bottom: 16px;
-  left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  transform: none;
-  /* Only the controls take clicks; the caption below must not block the page. */
-  pointer-events: none;
-}
-
 .voice-dock-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  pointer-events: auto;
+  gap: 8px;
 }
 
 .voice-orb {
@@ -538,7 +520,6 @@
 /* Small screens */
 
 @media (max-width: 960px) {
-  .voice-dock { bottom: calc(76px + env(safe-area-inset-bottom)); right: 12px; left: auto; }
   .voice-panel {
     position: fixed;
     inset: auto 8px calc(74px + env(safe-area-inset-bottom));
@@ -569,7 +550,7 @@
 }
 
 /* Bác Turbo voice UI: match the approved ink-outlined dock and chat sheet. */
-.voice-dock,
+.voice-dock-area,
 .voice-panel {
   --k: #14203a;
   --pn: #fff;
@@ -582,7 +563,7 @@
   color: var(--tx);
   font-family: "Be Vietnam Pro", var(--font-sans);
 }
-:root[data-theme="dark"] .voice-dock,
+:root[data-theme="dark"] .voice-dock-area,
 :root[data-theme="dark"] .voice-panel {
   --k: #060b16;
   --pn: #16253f;
@@ -593,19 +574,44 @@
   --line: #22324f;
   --sky: #1b2a52;
 }
-.voice-dock {
-  right: auto;
-  left: calc(296px + (100vw - 296px) / 2);
-  bottom: max(18px, env(safe-area-inset-bottom));
-  align-items: center;
-  gap: 8px;
-  transform: translateX(-50%);
+.voice-dock-area {
+  --dock-width: 126px;
+  --dock-height: 78px;
+  --dock-inset: 12px;
+  --dock-default-left: calc((100vw + 296px) / 2 - 39px - var(--dock-inset));
+  --dock-left: clamp(0px, var(--dock-default-left), max(0px, calc(100% - var(--dock-width))));
+  --dock-top: max(0px, calc(100% - var(--dock-height)));
+  --dock-caption-width: min(280px, 100%);
+  position: fixed;
+  z-index: 40;
+  inset: max(12px, env(safe-area-inset-top)) var(--dock-inset) max(18px, env(safe-area-inset-bottom));
+  pointer-events: none;
   font-family: "Baloo 2", "Be Vietnam Pro", sans-serif;
 }
-.voice-dock-row { position: relative; gap: 16px; }
-.voice-dock-row .voice-type-trigger {
+.voice-dock-area[data-positioned="true"] {
+  --dock-left: calc(max(0px, 100% - var(--dock-width)) * var(--dock-x));
+  --dock-top: calc(max(0px, 100% - var(--dock-height)) * var(--dock-y));
+}
+.voice-dock {
   position: absolute;
-  inset-inline-start: calc(100% + 8px);
+  top: var(--dock-top);
+  left: var(--dock-left);
+  width: var(--dock-width);
+  height: var(--dock-height);
+}
+.voice-dock-area .voice-orb,
+.voice-dock-row .voice-type-trigger { pointer-events: auto; }
+.voice-dock-area .voice-orb {
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.voice-dock-area[data-dragging="true"] .voice-orb { cursor: grabbing; transform: none; transition: none; }
+.voice-dock-area[data-dragging="true"] .voice-dock { will-change: transform; }
+.voice-dock-area[data-dragging="true"] .voice-dock-caption { opacity: 0; }
+.voice-dock-row .voice-type-trigger {
+  flex: none;
   width: 40px;
   height: 40px;
   border: 2px solid var(--k);
@@ -656,34 +662,20 @@
   border-radius: 4px;
   background: #fff;
 }
-.voice-orb.is-thinking .audio-bars { display: none; }
-
-/* Three dots riding a small wave: the waiting state, never a frozen glyph. */
-@keyframes voice-dot-wave {
-  0%, 100% { transform: translateY(2px); opacity: 0.5; }
-  50% { transform: translateY(-4px); opacity: 1; }
-}
-.voice-thinking-dots {
-  display: inline-flex;
-  align-items: center;
+.voice-dock-caption {
+  position: absolute;
+  bottom: calc(100% - var(--dock-top) + 7px);
+  left: clamp(0px, calc(var(--dock-left) + 39px - var(--dock-caption-width) / 2), calc(100% - var(--dock-caption-width)));
+  display: flex;
+  width: var(--dock-caption-width);
   justify-content: center;
-  gap: 8px;
 }
-.voice-thinking-dots i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: voice-dot-wave 1.05s var(--buddy-soft) infinite;
+.voice-dock-area[data-upper="true"] .voice-dock-caption {
+  top: calc(var(--dock-top) + var(--dock-height) + 7px);
+  bottom: auto;
 }
-.voice-thinking-dots i:nth-child(2) { animation-delay: 0.14s; }
-.voice-thinking-dots i:nth-child(3) { animation-delay: 0.28s; }
-.voice-orb .voice-thinking-dots { height: 24px; }
-.voice-orb .voice-thinking-dots i { width: 10px; height: 10px; }
-.voice-chat-bubble .voice-thinking-dots { gap: 5px; margin-left: 6px; vertical-align: -1px; }
-.voice-chat-bubble .voice-thinking-dots i { width: 6px; height: 6px; }
-.voice-talk-btn .voice-thinking-dots { gap: 5px; }
-.voice-talk-btn .voice-thinking-dots i { width: 7px; height: 7px; }
+.voice-dock-area[data-caption-align="start"] .voice-dock-caption { justify-content: flex-start; }
+.voice-dock-area[data-caption-align="end"] .voice-dock-caption { justify-content: flex-end; }
 .voice-dock-hint {
   max-width: min(440px, calc(100vw - 32px));
   border: 2px solid var(--k);
@@ -766,21 +758,7 @@
 .voice-chat-bubble.is-user { justify-self: start; align-self: flex-start; border-bottom-left-radius: 4px; background: #ffd23f; color: #14203a; }
 .voice-chat-bubble.is-agent { justify-self: end; align-self: flex-end; border-bottom-right-radius: 4px; background: var(--p2); }
 .voice-chat-bubble.is-live { justify-self: start; align-self: flex-start; border-style: dashed; background: #fff3b8; color: #14203a; }
-.voice-chat-bubble.is-thinking { display: inline-flex; align-items: center; min-height: 36px; }
 .voice-agent-line { display: flex; align-items: flex-end; justify-content: flex-end; justify-self: end; align-self: flex-end; gap: 8px; }
-@keyframes voice-caret-blink {
-  0%, 45% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-.voice-type-caret {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  margin-left: 2px;
-  vertical-align: -0.12em;
-  background: currentColor;
-  animation: voice-caret-blink 0.9s steps(1) infinite;
-}
 .voice-composer {
   flex: none;
   padding: 10px 16px 14px;
@@ -860,23 +838,11 @@
   scroll-padding-block-end: calc(104px + env(safe-area-inset-bottom));
 }
 
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock {
-  right: 16px;
-  left: auto;
-  align-items: flex-end;
-  transform: none;
-}
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-orb { width: 62px; height: 62px; }
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-orb-core { width: 58px; height: 58px; }
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock .audio-bars { gap: 3px; }
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock-row .voice-type-trigger {
-  inset-inline-start: auto;
-  inset-inline-end: calc(100% + 8px);
-}
-.learning-page:is(.learning-page-translate, :has(.profile-view)) .voice-dock-hint.is-idle { display: none; }
-
 @media (max-width: 960px) {
-  .voice-dock { left: 50%; bottom: calc(82px + env(safe-area-inset-bottom)); }
+  .voice-dock-area {
+    --dock-default-left: calc(50vw - 39px - var(--dock-inset));
+    bottom: calc(82px + env(safe-area-inset-bottom));
+  }
   .voice-panel {
     top: auto;
     right: 8px;
@@ -890,7 +856,6 @@
   }
 }
 @media (max-width: 420px) {
-  .voice-dock-row { gap: 10px; }
   .voice-panel-head { padding-inline: 12px; }
   .voice-panel-body { padding: 12px 12px 8px; }
   .voice-composer { padding: 8px 12px 12px; }
@@ -900,6 +865,4 @@
 @media (prefers-reduced-motion: reduce) {
   .voice-orb.is-listening::before, .voice-orb.is-listening::after { animation: none; }
   .voice-orb .audio-bars.is-idle i { animation: none; }
-  .voice-thinking-dots i,
-  .voice-type-caret { animation: none; }
 }

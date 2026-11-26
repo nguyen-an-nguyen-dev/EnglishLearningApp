@@ -10,15 +10,15 @@ const base: BuddyAnswer = {
   suggestion: null,
 }
 
-test('the decision model route wins over the presence of an action', () => {
-  assert.equal(isNavigationAnswer({ ...base, route: 'open_prompt' }, 'chat'), false)
-  assert.equal(isNavigationAnswer({ ...base, route: 'navigate' }, 'chat'), true)
+test('a resolved action navigates even when the route says open_prompt', () => {
+  assert.equal(isNavigationAnswer({ ...base, route: 'open_prompt' }), true)
+  assert.equal(isNavigationAnswer({ ...base, route: 'navigate' }), true)
 })
 
-test('older backends fall back to intent plus action', () => {
-  assert.equal(isNavigationAnswer(base, 'plan'), true)
-  assert.equal(isNavigationAnswer(base, 'chat'), false)
-  assert.equal(isNavigationAnswer({ ...base, action: null }, 'plan'), false)
+test('an answer without an action never navigates', () => {
+  assert.equal(isNavigationAnswer({ ...base, action: null }), false)
+  assert.equal(isNavigationAnswer({ ...base, action: null, route: 'open_prompt' }), false)
+  assert.equal(isNavigationAnswer({ ...base, action: null, route: 'navigate' }), false)
 })
 
 test('only a short confirmation is used as a toast', () => {

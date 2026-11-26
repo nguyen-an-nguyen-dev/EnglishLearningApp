@@ -2,8 +2,9 @@ import type { RequestHandler } from 'express';
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
 import * as speechService from './speech.service';
+import { findSpeechModel, SPEECH_MODELS } from './speech.models';
 import { synthesizeSpeech } from './speech.tts';
-import { parsePracticeText, parseSpeechAudio, parseSpeechMimeType, parseTtsRequest } from './speech.validation';
+import { parsePracticeText, parseSpeechAudio, parseSpeechLanguage, parseSpeechMimeType, parseTtsRequest } from './speech.validation';
 
 /**
  * `POST /api/speech/transcribe` — raw audio body (no multipart), format from
@@ -15,9 +16,14 @@ function recognitionHandler(practice: boolean): RequestHandler {
       if (!request.auth) throw new HttpError(401, 'Authentication required.');
       const mime = parseSpeechMimeType(request.headers['content-type']);
       const audio = parseSpeechAudio(request.body, env.speechMaxBytes);
+      const language = parseSpeechLanguage(request.query.lang, practice ? 'en' : null);
+      const requestedModel = typeof request.query.model === 'string' ? request.query.model.trim() : '';
+      if (requestedModel && !findSpeechModel(requestedModel)) {
+        throw new HttpError(422, 'Mô hình nhận diện không hợp lệ.');
+      }
       const transcript = practice
         ? await speechService.practiceSpeech(audio, mime, parsePracticeText(request.query.text))
-        : await speechService.transcribeSpeech(audio, mime);
+        : await speechService.transcribeSpeech(audio, mime, language, requestedModel || null);
       if (!transcript) {
         response.status(422).json({
           success: false,
@@ -51,17 +57,27 @@ export const synthesize: RequestHandler = async (request, response, next) => {
 };
 
 /**
- * `GET /api/speech/status` — lets the web choose between the browser's Web
- * Speech API and posting audio here. Public metadata only: booleans, no keys.
+ * `GET /api/speech/status` — the web records a clip whenever AssemblyAI is
+ * configured. Public metadata only: booleans, no keys.
  */
 export const status: RequestHandler = (_request, response) => {
   response.json({
     success: true,
     data: {
-      backend: env.cfAccounts.length > 0 || Boolean(env.aiApiKey.trim()),
-      whisper: env.cfAccounts.length > 0,
-      gemini: Boolean(env.aiApiKey.trim()),
+      backend: Boolean(env.assemblyAiApiKey),
+      ...(env.assemblyAiApiKey && process.env.BUDDY_STREAMING_STT === 'true' ? { buddyStreaming: true } : {}),
+      speechModel: env.speechModel,
       maxBytes: env.speechMaxBytes,
+    },
+  });
+};
+
+export const models: RequestHandler = (_request, response) => {
+  response.json({
+    success: true,
+    data: {
+      models: SPEECH_MODELS,
+      defaultModel: env.speechModel,
     },
   });
 };

@@ -17,7 +17,6 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import Colors from '@/constants/Colors';
 import CheckpointMarker, { getCheckpointPalette } from '@/components/map/CheckpointMarker';
@@ -44,12 +43,10 @@ const ROAD_WIDTH_MAX = 76;
 const NODE_SIZE_MAX = 76;
 const ROAD_CURB_DASH = 22;
 const ROAD_LANE_DASH = '18 26';
-const CAR_SIZE_MAX = 92;
 const CAR_DRIVE_MS_PER_LESSON = 1500;
 const CAR_DRIVE_MAX_MS = 8000;
 const CARD_INK = '#102027';
 
-const BRAND_SYMBOL = { ios: 'character.bubble.fill', android: 'translate', web: 'translate' } as const;
 
 function luminance(hex: string): number {
   const channels = hex.slice(1).match(/../g)?.map((channel) => parseInt(channel, 16) / 255) ?? [0, 0, 0];
@@ -395,7 +392,6 @@ export default function LearningPathScreen() {
   };
   const roadPath = roadWaypoints.length > 0
     ? roadWaypoints.slice(1).reduce((path, point, index) => {
-      const previous = roadWaypoints[index];
       const { first, second } = getRoadCurveControls(index);
       return `${path} C ${first.x} ${first.y}, ${second.x} ${second.y}, ${point.x} ${point.y}`;
     }, `M ${roadWaypoints[0].x} 0 C ${roadWaypoints[0].x} ${roadWaypoints[0].y * 0.65}, ${roadWaypoints[0].x} ${roadWaypoints[0].y * 0.85}, ${roadWaypoints[0].x} ${roadWaypoints[0].y}`)

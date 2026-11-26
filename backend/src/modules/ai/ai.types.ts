@@ -53,7 +53,7 @@ export interface AiReply {
   reminder: ReminderSuggestion | null;
 }
 
-export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review', 'show_shop_item', 'spotlight'] as const;
+export const CHAT_ACTION_KINDS = ['open_video', 'open_lesson', 'open_tab', 'open_notebook', 'open_review', 'show_shop_item', 'buy_shop_item', 'spotlight'] as const;
 export type ChatActionKind = (typeof CHAT_ACTION_KINDS)[number];
 
 export interface ChatAction {

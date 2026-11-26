@@ -11,37 +11,84 @@ import {
 } from '../src/modules/speech/speech.validation';
 
 const originalFetch = globalThis.fetch;
-const originalAccounts = env.cfAccounts;
-const originalApiKey = env.aiApiKey;
 const originalJwtSecret = env.jwtSecret;
+const originalSpeechModel = env.speechModel;
+const originalAssemblyKey = env.assemblyAiApiKey;
+const originalAssemblyBase = env.assemblyAiBaseUrl;
+const originalTimeout = env.speechTimeoutMs;
+const originalPoll = env.speechPollIntervalMs;
 
 beforeEach(() => {
-  env.cfAccounts = [];
-  env.aiApiKey = '';
+  env.assemblyAiApiKey = 'assemblyai-test';
+  env.assemblyAiBaseUrl = 'https://api.assemblyai.test';
+  env.speechModel = 'assemblyai-stt-3-7';
+  env.speechTimeoutMs = 5000;
+  env.speechPollIntervalMs = 1;
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  env.cfAccounts = originalAccounts;
-  env.aiApiKey = originalApiKey;
   env.jwtSecret = originalJwtSecret;
+  env.speechModel = originalSpeechModel;
+  env.assemblyAiApiKey = originalAssemblyKey;
+  env.assemblyAiBaseUrl = originalAssemblyBase;
+  env.speechTimeoutMs = originalTimeout;
+  env.speechPollIntervalMs = originalPoll;
 });
 
 function audio(bytes = 16): Buffer {
   return Buffer.alloc(bytes, 1);
 }
 
-function whisperResponse(text: string, language = 'en'): Response {
-  return Response.json({
-    result: {
-      text,
-      transcription_info: { language, duration: 2 },
-    },
-  });
+interface MockOverrides {
+  text?: string;
+  language?: string;
+  modelUsed?: string;
+  words?: Array<{ text: string; start: number; end: number }>;
+  transcriptError?: string;
+  uploadResponse?: Response;
+  createResponse?: Response;
+  alwaysProcessing?: boolean;
 }
 
-function geminiResponse(text: string): Response {
-  return Response.json({ candidates: [{ content: { parts: [{ text }] } }] });
+interface SeenCall {
+  url: string;
+  init?: RequestInit;
+  body?: unknown;
+}
+
+function mockAssemblyAi(overrides: MockOverrides = {}): SeenCall[] {
+  const calls: SeenCall[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const call: SeenCall = { url, init };
+    calls.push(call);
+    if (url.endsWith('/v2/upload')) {
+      return overrides.uploadResponse ?? Response.json({ upload_url: 'https://cdn.assemblyai.test/upload/clip' });
+    }
+    if (url.endsWith('/v2/transcript')) {
+      if (init?.body) call.body = JSON.parse(String(init.body));
+      return overrides.createResponse ?? Response.json({ id: 'tr_test', status: 'queued' });
+    }
+    if (url.includes('/v2/transcript/tr_test')) {
+      if (overrides.alwaysProcessing) return Response.json({ status: 'processing' });
+      if (overrides.transcriptError) return Response.json({ status: 'error', error: overrides.transcriptError });
+      return Response.json({
+        status: 'completed',
+        text: overrides.text ?? '  Open the leaderboard.  ',
+        language_code: overrides.language ?? 'en',
+        speech_model_used: overrides.modelUsed ?? 'assemblyai-stt-3-7',
+        audio_duration: 1.3,
+        words: overrides.words ?? [
+          { text: 'Open', start: 0, end: 300 },
+          { text: 'the', start: 350, end: 600 },
+          { text: 'leaderboard', start: 650, end: 1300 },
+        ],
+      });
+    }
+    throw new Error('unexpected URL: ' + url);
+  }) as typeof fetch;
+  return calls;
 }
 
 test('audio content types are normalised and unsupported types rejected', () => {
@@ -73,78 +120,132 @@ test('transcripts are collapsed, stripped of punctuation-only noise and capped',
   assert.equal(cleanTranscript('a'.repeat(600)).length, 500);
 });
 
-test('whisper transcribes raw audio and reports its language', async () => {
-  env.cfAccounts = [{ apiKey: 'cf-test', apiUrl: 'https://api.cloudflare.test/client/v4/accounts/acc/ai/v1/chat/completions' }];
-  let seenUrl = '';
-  let seenType = '';
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    seenUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    seenType = String((init?.headers as Record<string, string>)?.['Content-Type'] ?? '');
-    return whisperResponse('  Mở bảng xếp hạng.  ', 'vi');
-  }) as typeof fetch;
+test('AssemblyAI uploads the clip, submits the model and polls for the transcript', async () => {
+  const calls = mockAssemblyAi();
 
-  const result = await transcribeSpeech(audio(), 'audio/webm');
-  assert.deepEqual(result, { text: 'Mở bảng xếp hạng.', language: 'vi', provider: 'whisper' });
-  assert.equal(seenUrl, 'https://api.cloudflare.test/client/v4/accounts/acc/ai/run/@cf/openai/whisper-large-v3-turbo');
-  assert.equal(seenType, 'audio/webm');
+  const result = await transcribeSpeech(audio(), 'audio/webm', 'en');
+  assert.deepEqual(result, {
+    text: 'Open the leaderboard.',
+    language: 'en',
+    provider: 'assemblyai',
+    model: 'assemblyai-stt-3-7',
+  });
+
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].url, 'https://api.assemblyai.test/v2/upload');
+  assert.equal(calls[1].url, 'https://api.assemblyai.test/v2/transcript');
+  assert.equal(calls[2].url, 'https://api.assemblyai.test/v2/transcript/tr_test');
+
+  const uploadHeaders = calls[0].init?.headers as Record<string, string>;
+  assert.equal(uploadHeaders.authorization, 'assemblyai-test');
+  assert.equal(uploadHeaders['content-type'], 'application/octet-stream');
+
+  assert.deepEqual(calls[1].body, {
+    audio_url: 'https://cdn.assemblyai.test/upload/clip',
+    speech_models: ['assemblyai-stt-3-7'],
+    punctuate: true,
+    format_text: true,
+    language_code: 'en',
+  });
+  const pollHeaders = calls[2].init?.headers as Record<string, string>;
+  assert.equal(pollHeaders.authorization, 'assemblyai-test');
 });
 
-test('silence from whisper is a valid "no speech" answer, not an error', async () => {
-  env.cfAccounts = [{ apiKey: 'cf-test', apiUrl: 'https://api.cloudflare.test/accounts/acc/ai/v1/chat/completions' }];
-  globalThis.fetch = (async () => whisperResponse('   ')) as typeof fetch;
-  assert.equal(await transcribeSpeech(audio(), 'audio/wav'), null);
+test('AssemblyAI detects the language when the request does not specify one', async () => {
+  const calls = mockAssemblyAi({ language: 'vi' });
+  const result = await transcribeSpeech(audio(), 'audio/wav');
+  assert.equal(result?.language, 'vi');
+  const submit = calls.find((call) => call.url.endsWith('/v2/transcript'));
+  assert.deepEqual(submit?.body, {
+    audio_url: 'https://cdn.assemblyai.test/upload/clip',
+    speech_models: ['assemblyai-stt-3-7'],
+    punctuate: true,
+    format_text: true,
+    language_detection: true,
+  });
 });
 
-test('an exhausted worker account fails over to Gemini audio', async () => {
-  env.cfAccounts = [{ apiKey: 'cf-test', apiUrl: 'https://api.cloudflare.test/accounts/acc/ai/v1/chat/completions' }];
-  env.aiApiKey = 'gemini-test';
-  const calls: string[] = [];
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    calls.push(url);
-    if (url.includes('api.cloudflare.test')) {
-      return new Response(JSON.stringify({ errors: [{ code: 4006, message: 'daily free allocation exhausted' }] }), { status: 429 });
-    }
-    return geminiResponse('mở bảng xếp hạng');
-  }) as typeof fetch;
-
-  const result = await transcribeSpeech(audio(), 'audio/mp4');
-  assert.deepEqual(result, { text: 'mở bảng xếp hạng', language: null, provider: 'gemini' });
-  assert.equal(calls.length, 2);
+test('the lab can switch to Universal-3.5 Pro', async () => {
+  const calls = mockAssemblyAi({ modelUsed: 'universal-3-5-pro' });
+  const result = await transcribeSpeech(audio(), 'audio/webm', 'vi', 'universal-3-5-pro');
+  assert.equal(result?.model, 'universal-3-5-pro');
+  const submit = calls.find((call) => call.url.endsWith('/v2/transcript'));
+  assert.deepEqual((submit?.body as { speech_models: string[] }).speech_models, ['universal-3-5-pro']);
 });
 
-test('gemini alone is enough when Workers AI has no account', async () => {
-  env.aiApiKey = 'gemini-test';
-  globalThis.fetch = (async () => geminiResponse('ôn tập')) as typeof fetch;
-  const result = await transcribeSpeech(audio(), 'audio/ogg');
-  assert.deepEqual(result, { text: 'ôn tập', language: null, provider: 'gemini' });
-});
-
-test('every provider failing surfaces one actionable error', async () => {
-  env.cfAccounts = [{ apiKey: 'cf-test', apiUrl: 'https://api.cloudflare.test/accounts/acc/ai/v1/chat/completions' }];
-  env.aiApiKey = 'gemini-test';
-  globalThis.fetch = (async () => new Response('down', { status: 503 })) as typeof fetch;
+test('the realtime model is rejected by the HTTP endpoint', async () => {
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return Response.json({}); }) as typeof fetch;
   await assert.rejects(
-    transcribeSpeech(audio(), 'audio/wav'),
-    (error) => error instanceof HttpError && error.statusCode === 503,
+    () => transcribeSpeech(audio(), 'audio/webm', 'en', 'assemblyai-stt-3-7-realtime'),
+    (error) => error instanceof HttpError && error.statusCode === 422 && /WebSocket/.test(error.message),
+  );
+  assert.equal(called, false);
+});
+
+test('a lab request without an API key fails with a clear message', async () => {
+  env.assemblyAiApiKey = '';
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return Response.json({}); }) as typeof fetch;
+  await assert.rejects(
+    () => transcribeSpeech(audio(), 'audio/webm', 'en', 'assemblyai-stt-3-7'),
+    (error) => error instanceof HttpError && error.statusCode === 503 && /ASSEMBLYAI_API_KEY/.test(error.message),
+  );
+  assert.equal(called, false);
+});
+
+test('an upstream 401 is reported as a provider error, not an app session error', async () => {
+  mockAssemblyAi({
+    createResponse: Response.json({ error: 'Authentication error, API token missing/invalid' }, { status: 401 }),
+  });
+  await assert.rejects(
+    () => transcribeSpeech(audio(), 'audio/webm', 'en'),
+    (error) => error instanceof HttpError && error.statusCode === 503 && /API key/.test(error.message),
   );
 });
 
-test('no provider configured returns silence instead of a fake transcript', async () => {
-  globalThis.fetch = (async () => { throw new Error('should not be called'); }) as typeof fetch;
-  assert.equal(await transcribeSpeech(audio(), 'audio/wav'), null);
+test('a failed transcript reports the provider reason', async () => {
+  mockAssemblyAi({ transcriptError: 'Bad audio: unsupported codec' });
+  await assert.rejects(
+    () => transcribeSpeech(audio(), 'audio/webm', 'en'),
+    (error) => error instanceof HttpError && error.statusCode === 422 && /unsupported codec/.test(error.message),
+  );
 });
 
-test('speaking practice aligns reference words and uses real Whisper timestamps', async () => {
-  env.cfAccounts = [{ apiKey: 'cf-speaking', apiUrl: 'https://api.cloudflare.test/accounts/acc/ai/v1/chat/completions' }];
-  globalThis.fetch = (async () => Response.json({ result: {
+test('polling gives up instead of hanging forever', async () => {
+  env.speechTimeoutMs = 30;
+  mockAssemblyAi({ alwaysProcessing: true });
+  await assert.rejects(
+    () => transcribeSpeech(audio(), 'audio/webm', 'en'),
+    (error) => error instanceof HttpError && error.statusCode === 504,
+  );
+});
+
+test('silence from AssemblyAI is a valid "no speech" answer', async () => {
+  mockAssemblyAi({ text: '   ' });
+  assert.equal(await transcribeSpeech(audio(), 'audio/wav', 'en'), null);
+});
+
+test('a missing API key surfaces a configuration error for every app voice turn', async () => {
+  env.assemblyAiApiKey = '';
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return Response.json({}); }) as typeof fetch;
+  await assert.rejects(
+    () => transcribeSpeech(audio(), 'audio/wav'),
+    (error) => error instanceof HttpError && error.statusCode === 503 && /ASSEMBLYAI_API_KEY/.test(error.message),
+  );
+  assert.equal(called, false);
+});
+
+test('speaking practice aligns reference words and uses AssemblyAI timestamps', async () => {
+  mockAssemblyAi({
     text: 'We drink tea',
-    segments: [{ words: [
-      { word: 'We', start: 0, end: 0.2 },
-      { word: 'drink', start: 0.9, end: 1.2 },
-      { word: 'tea', start: 1.4, end: 1.5 },
-    ] }],
-  } })) as typeof fetch;
+    words: [
+      { text: 'We', start: 0, end: 200 },
+      { text: 'drink', start: 900, end: 1200 },
+      { text: 'tea', start: 1400, end: 1500 },
+    ],
+  });
   const result = await practiceSpeech(audio(), 'audio/wav', 'We drink hot tea.');
   assert.equal(result?.transcript, 'We drink tea');
   assert.equal(result?.completeness, 0.75);
@@ -154,16 +255,6 @@ test('speaking practice aligns reference words and uses real Whisper timestamps'
     pauses: [{ afterWord: 'We', beforeWord: 'drink', seconds: 0.7 }],
   });
   assert.equal(measurePacing([{ word: 'one', start: 0, end: 0.2 }]), null);
-});
-
-test('fallback transcripts have feedback but no invented timing, and silence gives no result', async () => {
-  env.aiApiKey = 'gemini-test';
-  globalThis.fetch = (async () => geminiResponse('I have tea')) as typeof fetch;
-  const result = await practiceSpeech(audio(), 'audio/wav', 'I have coffee');
-  assert.equal(result?.pacing, null);
-  assert.deepEqual(result?.words.at(-1), { word: 'coffee', heard: 'tea', status: 'different' });
-  globalThis.fetch = (async () => geminiResponse('')) as typeof fetch;
-  assert.equal(await practiceSpeech(audio(), 'audio/wav', 'I have coffee'), null);
 });
 
 test('practice returns NO_SPEECH with HTTP 422 and requires authentication', async () => {
@@ -185,10 +276,10 @@ test('practice returns NO_SPEECH with HTTP 422 and requires authentication', asy
     const body = new Uint8Array(audio());
     const denied = await originalFetch(url, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body });
     assert.equal(denied.status, 401);
+
     env.jwtSecret = 'local-test-only-speech-signing-secret';
     const token = jwt.sign({ sub: '1' }, getVerifiedJwtSecret());
-    env.aiApiKey = 'test-silence';
-    globalThis.fetch = (async () => geminiResponse('')) as typeof fetch;
+    mockAssemblyAi({ text: '' });
     const result = await originalFetch(url, {
       method: 'POST', headers: { 'Content-Type': 'audio/wav', Authorization: `Bearer ${token}` }, body,
     });

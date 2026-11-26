@@ -342,7 +342,7 @@ export function GaraShop({ focusRequest = 0 }: { focusRequest?: number }) {
         </div>
       </section>
 
-      <nav className="gara-v2-tabs" aria-label="Loại vật phẩm">
+      <nav className="gara-v2-tabs" aria-label="Loại vật phẩm" data-buddy-target="control:shop-catalog">
         {TABS.map((entry) => (
           <button
             key={entry.id}

@@ -17,11 +17,6 @@ import {
   parseVideoId,
 } from './admin.validation';
 
-function requireUserId(request: Parameters<RequestHandler>[0]): number {
-  if (!request.auth) throw new HttpError(401, 'Authentication required.');
-  return request.auth.userId;
-}
-
 export const getContent: RequestHandler = async (_request, response, next) => {
   try {
     const stages = await adminService.getContent();

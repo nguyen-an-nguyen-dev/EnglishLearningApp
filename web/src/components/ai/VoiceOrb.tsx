@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   ArrowRight,
   BellRinging,
@@ -20,9 +20,11 @@ import {
   dismissReminderApi,
   getBuddyFeedApi,
   listRemindersApi,
+  startBuddyVoiceSession,
 } from '../../services/buddyService'
 import type {
   BuddyAnswer,
+  BuddyIntent,
   BuddyFeed,
   BuddyTarget,
   ReminderSuggestion,
@@ -38,24 +40,28 @@ import { detectLivePageContext, type BuddyContext } from './buddyContext'
 import { isNavigationAnswer, navigationToast } from './buddyRoute'
 import { AudioBars } from './AudioBars'
 import { createMicMeter } from './micMeter'
-import { speakText, stopSpeaking } from '../../utils/speech'
-import { createDictation, isDictationSupported, type Dictation } from './dictation'
+import { speakText } from '../../utils/speech'
 import { createRecorder, type Recorder } from './recorder'
+import { streamBuddyAudio, type BuddyVoiceToken } from './buddyStreaming'
 import { getSpeechStatusApi, transcribeAudioApi } from '../../services/speechService'
 import {
   phaseAfterCommand,
   phaseAfterEnd,
-  phaseForFinalTranscript,
   shouldReadAloud,
   type VoicePhase,
 } from './voiceFlow'
 import { routeVoiceCommand } from './voiceCommands'
+import type { BuddyDockPosition } from './buddyDockSettings'
+import { useBuddyDockDrag } from './useBuddyDockDrag'
 
 export type BuddyView = 'home' | 'ask' | 'reminders' | null
 
 interface VoiceOrbProps {
   activeTab: string
   view: BuddyView
+  enabled: boolean
+  position: BuddyDockPosition | null
+  onPositionChange: (position: BuddyDockPosition) => void
   onViewChange: (view: BuddyView) => void
   /** Navigate somewhere in the app, optionally circling an element there. */
   onNavigate: (target: BuddyTarget) => void
@@ -66,6 +72,12 @@ interface VoiceOrbProps {
 type ChatEntry =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'agent'; text: string; answer: BuddyAnswer }
+
+type BuddyTiming = { started: number; path: 'typed' | 'streaming' | 'recorded' | 'recorded-fallback' }
+
+function measureBuddy(stage: string, timing: BuddyTiming, start = timing.started) {
+  performance.measure(`buddy.${stage}`, { start, detail: { path: timing.path } })
+}
 
 const TAB_LABEL_KEYS: Record<BuddyTarget['tab'] & string, 'navStudy' | 'navVideos' | 'navTranslate' | 'navCompete' | 'navRankings' | 'navShop' | 'navProfile'> = {
   study: 'navStudy',
@@ -107,8 +119,10 @@ function localizedActionLabel(
  * destination opens immediately; anything else is answered by the coach. If the
  * browser cannot listen at all, the panel swaps the mic for a text field.
  */
-export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenReview }: VoiceOrbProps) {
+export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange, onViewChange, onNavigate, onOpenReview }: VoiceOrbProps) {
   const { t, lang } = useI18n()
+  const { areaRef, dockRef, handlers: dragHandlers, shouldSuppressClick } = useBuddyDockDrag(position, onPositionChange)
+  const speechPlayback = useRef<AbortController | null>(null)
   const [feed, setFeed] = useState<BuddyFeed | null>(null)
   const [reminders, setReminders] = useState<StudyReminder[]>([])
   const [feedError, setFeedError] = useState(false)
@@ -119,52 +133,55 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
   const [question, setQuestion] = useState('')
   const [askError, setAskError] = useState<string | null>(null)
   const [conversation, setConversation] = useState<ChatEntry[]>([])
-  /** Which agent bubble is being typed out, and how much is visible. */
-  const [reveal, setReveal] = useState<{ id: number; chars: number } | null>(null)
-  const [actionDismissed, setActionDismissed] = useState(false)
   const [confirmation, setConfirmation] = useState('')
   const [isSpeaking, setIsSpeaking] = useState(false)
-  const [speechAvailable, setSpeechAvailable] = useState(() => isDictationSupported())
+  const [speechAvailable, setSpeechAvailable] = useState(false)
   const [hasUsedVoice, setHasUsedVoice] = useState(() => {
     try { return localStorage.getItem('engorace_voice_used') === '1' } catch { return false }
   })
   const [reminderAccepted, setReminderAccepted] = useState(false)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
 
-  // `browser` = Web Speech API; `backend` = record + server Whisper/Gemini.
-  // Unknown until the status probe answers; the browser engine is the default.
-  const [engine, setEngine] = useState<'browser' | 'backend'>('browser')
-  const dictation = useRef<Dictation | null>(null)
   const recorder = useRef<Recorder | null>(null)
-  const capture = useRef<'browser' | 'backend' | null>(null)
+  const streamingEnabled = useRef(false)
+  const voiceToken = useRef<(BuddyVoiceToken & { expiresAt: number }) | null>(null)
+  const liveSpeech = useRef<ReturnType<typeof streamBuddyAudio>>(null)
+  const stoppedAt = useRef<number | null>(null)
+  const pendingPaint = useRef<{ id: number; timing: BuddyTiming } | null>(null)
+  const capture = useRef<'backend' | null>(null)
   const pending = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
-  const heardRef = useRef('')
   const messageId = useRef(0)
   const meter = useMemo(() => createMicMeter(5), [])
 
   // A short, self-closing line on the dock. Navigation uses it instead of
-  // opening the chat panel; it always disappears after four seconds.
-  const toastTimer = useRef<number | null>(null)
+  // opening the chat panel; it disappears five seconds after the conversation ends.
   const showToast = useCallback((text: string, isError = false) => {
     setConfirmation(text)
     setAskError(isError ? text : null)
-    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => {
-      setConfirmation('')
-      setAskError(null)
-      toastTimer.current = null
-    }, 4000)
   }, [])
 
   const reportVoiceError = useCallback((text: string) => showToast(text, true), [showToast])
   const reportVoiceErrorRef = useRef(reportVoiceError)
+  const prepareVoiceToken = useCallback(() => {
+    if (!enabled || !streamingEnabled.current || typeof AudioContext === 'undefined' || typeof AudioWorkletNode === 'undefined') return
+    if (voiceToken.current && performance.now() < voiceToken.current.expiresAt) return
+    voiceToken.current?.request.abort()
+    const request = new AbortController()
+    const token = startBuddyVoiceSession(AbortSignal.any([request.signal, AbortSignal.timeout(2_500)]))
+      .then((session) => session.token)
+      .catch(() => null)
+    voiceToken.current = { token, expiresAt: performance.now() + 110_000, request }
+    void token.then((value) => {
+      if (!value && voiceToken.current?.token === token) voiceToken.current = null
+    })
+  }, [enabled])
 
   const load = useCallback(async () => {
     try {
-      const [nextFeed, nextReminders] = await Promise.all([getBuddyFeedApi(), listRemindersApi()])
-      setFeed(nextFeed)
+      const [nextFeed, nextReminders] = await Promise.all([enabled ? getBuddyFeedApi() : null, listRemindersApi()])
+      if (nextFeed) setFeed(nextFeed)
       setReminders(nextReminders)
       setFeedError(false)
       for (const reminder of nextReminders) {
@@ -173,7 +190,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     } catch {
       setFeedError(true)
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     // Deferred so the first paint is not blocked by the request.
@@ -181,26 +198,28 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     return () => window.clearTimeout(id)
   }, [load])
 
-  // The server reports whether it can transcribe audio. If it can, the orb
-  // records and posts a clip instead of depending on the browser vendor's
-  // speech servers (which fail with a "network" error in some environments).
-  // Either engine makes the voice button real; only when both are missing does
-  // the panel swap the mic for a text field.
+  // The server reports whether AssemblyAI is configured. Every voice turn is
+  // recorded and posted; without the backend the panel swaps the mic for a
+  // text field instead of falling back to a browser speech vendor.
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
     getSpeechStatusApi()
       .then((status) => {
         if (cancelled) return
-        if (status.backend) {
-          setEngine('backend')
-          setSpeechAvailable(true)
-        } else if (!isDictationSupported()) {
-          setSpeechAvailable(false)
-        }
+        setSpeechAvailable(status.backend)
+        streamingEnabled.current = status.buddyStreaming === true
+        prepareVoiceToken()
       })
-      .catch(() => { /* keep the browser engine */ })
+      .catch(() => {
+        if (!cancelled) setSpeechAvailable(false)
+      })
     return () => { cancelled = true }
-  }, [])
+  }, [enabled, prepareVoiceToken])
+
+  useEffect(() => {
+    if (phase === 'idle') prepareVoiceToken()
+  }, [phase, prepareVoiceToken])
 
   useEffect(() => {
     const id = window.setInterval(() => void load(), 60_000)
@@ -214,9 +233,6 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     }
   }, [load])
 
-  // Read-aloud must not keep playing after the widget unmounts.
-  useEffect(() => () => stopSpeaking(), [])
-
   const visibleNudges = useMemo(
     () => (feed?.nudges ?? []).filter((nudge) => !dismissedNudges.includes(nudge.id)),
     [feed, dismissedNudges],
@@ -225,37 +241,26 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
   const otherNudges = visibleNudges.filter((nudge) => nudge.kind !== 'reminder')
   const upcoming = reminders.filter((reminder) => !reminder.dismissed_at)
 
-  /** Stops any read-aloud and finishes the current reply bubble. */
   const stopSpeech = useCallback(() => {
-    stopSpeaking()
+    speechPlayback.current?.abort()
+    speechPlayback.current = null
     setIsSpeaking(false)
-    setReveal(null)
   }, [])
 
-  /**
-   * Speaks a line and reports how far the voice has reached, so the reply bubble
-   * can type itself out in step with the audio. Returns false when there is
-   * nothing to say, in which case the caller shows the full text.
-   */
-  const speak = useCallback((text: string, onProgress?: (chars: number) => void, replyLanguage = lang): boolean => {
-    let last = -1
-    const report = (chars: number) => {
-      if (chars === last) return
-      last = chars
-      onProgress?.(chars)
-    }
+  const speak = useCallback((text: string, replyLanguage = lang, timing?: BuddyTiming) => {
+    speechPlayback.current?.abort()
+    const playback = new AbortController()
     const started = speakText(text, replyLanguage, {
-      onProgress: (ratio) => report(Math.min(text.length, Math.floor(ratio * text.length))),
+      signal: playback.signal,
+      onStart: timing ? () => measureBuddy('audio-ready', timing) : undefined,
       onEnd: () => {
+        speechPlayback.current = null
         setIsSpeaking(false)
-        report(text.length)
       },
+      browserFallback: false,
     })
-    if (started) {
-      setIsSpeaking(true)
-      report(0)
-    }
-    return started
+    speechPlayback.current = started ? playback : null
+    setIsSpeaking(started)
   }, [lang])
 
   const goTo = useCallback((target: BuddyTarget) => {
@@ -267,7 +272,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     if (!action && !toastText) return
     const line = toastText ?? (action ? t.voiceOpened(localizedActionLabel(action, t)) : '')
     if (line) showToast(line)
-    if (announce && line && !isBuddyMuted()) speak(line, undefined, replyLanguage)
+    if (announce && line && !isBuddyMuted()) speak(line, replyLanguage)
     if (!action) {
       onViewChange(null)
       return
@@ -282,8 +287,8 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
 
   const send = useCallback(async (
     text: string,
-    intent: 'chat' | 'plan' | 'explain' | 'how' | 'practice' = 'chat',
-    options: { spoken?: boolean } = {},
+    intent: BuddyIntent = 'chat',
+    options: { spoken?: boolean; timing?: BuddyTiming } = {},
   ) => {
     const trimmed = text.trim()
     if (!trimmed || pending.current || capture.current) return
@@ -297,14 +302,16 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
       setHeard('')
       setQuestion('')
       setAskError(null)
-      setActionDismissed(false)
       if (command.kind === 'review') {
         const action: NonNullable<BuddyAnswer['action']> = { kind: 'open_review', tab: 'profile', label: t.navReview }
         runAction(action, t.voiceOpened(t.navReview), Boolean(options.spoken))
         return
       }
       const label = t[TAB_LABEL_KEYS[command.tab]]
-      const action: NonNullable<BuddyAnswer['action']> = { kind: 'open_tab', tab: command.tab, label }
+      const action: NonNullable<BuddyAnswer['action']> = {
+        kind: 'open_tab', tab: command.tab, label,
+        ...(command.tab === 'shop' ? { highlight: 'control:shop-catalog' } : {}),
+      }
       runAction(action, t.voiceOpened(label), Boolean(options.spoken))
       return
     }
@@ -315,7 +322,6 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     try { localStorage.setItem('engorace_voice_used', '1') } catch { /* storage may be unavailable */ }
     setReminderAccepted(false)
     setQuestion('')
-    setActionDismissed(false)
     const userId = (messageId.current += 1)
     const replyId = (messageId.current += 1)
     setConversation((current) => [...current, { id: userId, role: 'user', text: trimmed }])
@@ -325,15 +331,15 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
       ...detectLivePageContext(activeTab as BuddyContext['tab']),
       tab: activeTab as BuddyContext['tab'],
     }
+    const requestStarted = performance.now()
+    const timing: BuddyTiming = options.timing ?? { started: requestStarted, path: 'typed' }
     try {
       const result = await askBuddyApi(trimmed, context, intent, request.signal)
       if (request.signal.aborted) return
-      if (isNavigationAnswer(result, intent)) {
-        // Decision model said "go", or an older backend returned a target:
-        // switch screen and show a four-second toast, no chatbot window. The
-        // utterance was not a conversation turn, so drop it from the history.
+      measureBuddy('answer-api', timing, requestStarted)
+      if (isNavigationAnswer(result)) {
+        // The backend found a destination, so switch screens and show a toast.
         setConversation((current) => current.filter((entry) => entry.id !== userId))
-        setActionDismissed(false)
         runAction(
           result.action,
           navigationToast(result, t.voiceOpened(localizedActionLabel(result.action ?? {
@@ -344,18 +350,11 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
         )
         return
       }
+      pendingPaint.current = { id: replyId, timing }
       setConversation((current) => [...current, { id: replyId, role: 'agent', text: result.reply, answer: result }])
-      setActionDismissed(false)
-      // Only a real conversation opens the chat panel.
       onViewChange('ask')
-      // Only read aloud what the learner asked for out loud, and only while
-      // unmuted. The reply bubble types itself out as the voice advances.
       if (shouldReadAloud(isBuddyMuted(), Boolean(options.spoken))) {
-        setReveal({ id: replyId, chars: 0 })
-        const started = speak(result.reply, (chars) => setReveal({ id: replyId, chars }), result.language)
-        if (!started) setReveal(null)
-      } else {
-        setReveal(null)
+        speak(result.reply, result.language, timing)
       }
     } catch {
       if (request.signal.aborted) return
@@ -368,51 +367,79 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     }
   }, [activeTab, onViewChange, runAction, showToast, speak, stopSpeech, t])
 
-  // The dictation instance lives for the whole session, so its callbacks read the
-  // newest handlers through refs instead of the values captured on the first render
-  // (otherwise muting after the first dictation has no effect on voice replies).
+  // The recorder lives for the whole session, so its callbacks read the newest
+  // handlers through refs instead of the values captured on the first render
+  // (otherwise muting after the first recording has no effect on voice replies).
   const sendRef = useRef(send)
   const tRef = useRef(t)
+  const langRef = useRef(lang)
   useEffect(() => {
     sendRef.current = send
     tRef.current = t
+    langRef.current = lang
     reportVoiceErrorRef.current = reportVoiceError
-  }, [send, t, reportVoiceError])
+  }, [send, t, reportVoiceError, lang])
 
   const cancelWork = useCallback(() => {
     capture.current = null
     pending.current?.abort()
     pending.current = null
-    dictation.current?.cancel()
     recorder.current?.cancel()
-    heardRef.current = ''
+    liveSpeech.current?.cancel()
+    liveSpeech.current = null
+    stoppedAt.current = null
+    pendingPaint.current = null
     stopSpeech()
   }, [stopSpeech])
 
+  useEffect(() => () => {
+    voiceToken.current?.request.abort()
+    voiceToken.current = null
+    pending.current?.abort()
+    recorder.current?.cancel()
+    liveSpeech.current?.cancel()
+    speechPlayback.current?.abort()
+  }, [])
+
   const stopListening = useCallback(() => {
-    if (capture.current === 'backend') recorder.current?.stop()
-    if (capture.current === 'browser') dictation.current?.stop()
+    if (capture.current !== 'backend') return
+    stoppedAt.current ??= performance.now()
+    recorder.current?.stop()
   }, [])
 
   /** Records one clip and sends it to the backend transcription service. */
   const beginBackendListening = useCallback(() => {
     if (!recorder.current) {
       recorder.current = createRecorder({
-        onStream: (stream) => meter.attach(stream),
+        onStream: (stream) => {
+          liveSpeech.current?.attach(stream)
+          meter.attach(stream)
+        },
         onClip: (clip) => {
           if (capture.current !== 'backend') return
           capture.current = null
           const request = new AbortController()
           pending.current = request
           setPhase('thinking')
-          void transcribeAudioApi(clip, request.signal)
-            .then((transcript) => {
+          const started = stoppedAt.current ?? performance.now()
+          stoppedAt.current = null
+          const transcribe = async (): Promise<{ text: string; timing: BuddyTiming }> => {
+            const session = liveSpeech.current
+            const streamed = await session?.finish()
+            if (request.signal.aborted) return { text: '', timing: { started, path: 'recorded' } }
+            liveSpeech.current = null
+            if (streamed) return { text: streamed, timing: { started, path: 'streaming' } }
+            const transcript = await transcribeAudioApi(clip, request.signal, langRef.current)
+            return { text: transcript.text?.trim() ?? '', timing: { started, path: session ? 'recorded-fallback' : 'recorded' } }
+          }
+          void transcribe()
+            .then(({ text, timing }) => {
               if (request.signal.aborted) return
               pending.current = null
-              const text = transcript.text?.trim() ?? ''
+              measureBuddy('transcript-ready', timing)
               if (text) {
                 setHeard(text)
-                void sendRef.current(text, 'chat', { spoken: true })
+                void sendRef.current(text, 'chat', { spoken: true, timing })
               } else {
                 setPhase('idle')
                 reportVoiceErrorRef.current(tRef.current.voiceNoSpeech)
@@ -429,6 +456,9 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
             })
         },
         onError: (kind) => {
+          liveSpeech.current?.cancel()
+          liveSpeech.current = null
+          stoppedAt.current = null
           if (kind === 'empty') {
             capture.current = null
             setPhase('idle')
@@ -450,10 +480,17 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
       return false
     }
     capture.current = 'backend'
+    prepareVoiceToken()
+    const session = voiceToken.current
+    voiceToken.current = null
+    if (session) {
+      liveSpeech.current = streamBuddyAudio(session)
+      if (!liveSpeech.current) session.request.abort()
+    }
     setPhase('listening')
     recorder.current.start()
     return true
-  }, [meter])
+  }, [meter, prepareVoiceToken])
 
   const beginListening = useCallback(() => {
     if (phase !== 'idle' || capture.current || pending.current) return
@@ -461,69 +498,11 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     setHasUsedVoice(true)
     try { localStorage.setItem('engorace_voice_used', '1') } catch { /* storage may be unavailable */ }
     setHeard('')
-    heardRef.current = ''
     setAskError(null)
-    if (engine === 'backend' && beginBackendListening()) return
-    if (!dictation.current) {
-      dictation.current = createDictation({
-        onTranscript: (text, isFinal) => {
-          if (capture.current !== 'browser') return
-          setHeard(text)
-          if (!isFinal) {
-            heardRef.current = text
-            return
-          }
-          // The engine finished a phrase: send it and empty the buffer so no
-          // other path (a stop tap, onEnd) can send the same words twice.
-          const finalText = text.trim()
-          capture.current = null
-          heardRef.current = ''
-          setPhase(phaseForFinalTranscript(finalText))
-          setHeard('')
-          if (finalText) void sendRef.current(finalText, 'chat', { spoken: true })
-        },
-        onError: (kind) => {
-          if (capture.current !== 'browser') return
-          capture.current = null
-          const t = tRef.current
-          heardRef.current = ''
-          setHeard('')
-          setPhase('idle')
-          if (kind === 'denied' || kind === 'unsupported') setSpeechAvailable(false)
-          // The reason is readable for four seconds on the dock; no panel.
-          reportVoiceErrorRef.current(
-            kind === 'denied' ? t.voiceDenied
-              : kind === 'no-speech' ? t.voiceNoSpeech
-                : kind === 'unsupported' ? t.voiceUnsupported
-                  : kind === 'network' ? t.voiceNetwork
-                    : t.voiceError,
-          )
-        },
-        onEnd: () => {
-          if (capture.current !== 'browser') return
-          capture.current = null
-          const text = heardRef.current.trim()
-          heardRef.current = ''
-          setHeard('')
-          if (text) {
-            void sendRef.current(text, 'chat', { spoken: true })
-            return
-          }
-          setPhase((current) => phaseAfterEnd(current))
-        },
-      })
-    }
-    if (!dictation.current.supported) {
-      setSpeechAvailable(false)
-      reportVoiceError(t.voiceUnsupported)
-      return
-    }
-    // The mic opens over the page, not behind a panel: tapping the orb is the
-    // whole interaction. The panel only appears if the coach has something to say.
-    setPhase('listening')
-    capture.current = 'browser'
-    dictation.current.start()
-  }, [beginBackendListening, engine, phase, reportVoiceError, stopSpeech, t])
+    if (beginBackendListening()) return
+    setSpeechAvailable(false)
+    reportVoiceError(t.voiceUnsupported)
+  }, [beginBackendListening, phase, reportVoiceError, stopSpeech, t])
 
   const closePanel = useCallback(() => {
     cancelWork()
@@ -531,6 +510,21 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     setHeard('')
     onViewChange(null)
   }, [cancelWork, onViewChange])
+
+  useEffect(() => {
+    if (enabled) return
+    voiceToken.current?.request.abort()
+    voiceToken.current = null
+    streamingEnabled.current = false
+    const id = window.setTimeout(() => {
+      cancelWork()
+      setPhase('idle')
+      setHeard('')
+      setConfirmation('')
+      setAskError(null)
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [enabled, cancelWork])
 
   // Closing the panel by any path (nudge, navigation, the X button) must also
   // drop the mic and any answer still in flight.
@@ -549,19 +543,24 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     return () => {
       cancelWork()
       meter.stop()
-      if (toastTimer.current !== null) window.clearTimeout(toastTimer.current)
     }
   }, [cancelWork, meter])
 
-  // The waveform follows the mic: the browser engine opens its own stream, the
-  // backend engine hands the recorder's stream over; either way the audio graph is
-  // released when the phase leaves "listening".
+  const conversationIdle = phase === 'idle' && !isSpeaking
+  const hasDockLine = Boolean(confirmation || askError)
   useEffect(() => {
-    if (phase !== 'listening') {
-      meter.stop()
-      return
-    }
-    if (capture.current === 'browser') void meter.open()
+    if (!conversationIdle || !hasDockLine) return
+    const id = window.setTimeout(() => {
+      setConfirmation('')
+      setAskError(null)
+    }, 5000)
+    return () => window.clearTimeout(id)
+  }, [conversationIdle, hasDockLine, confirmation, askError])
+
+  // The recorder hands its stream to the meter; release the audio graph when
+  // the phase leaves "listening".
+  useEffect(() => {
+    if (phase !== 'listening') meter.stop()
   }, [phase, meter])
 
   useEffect(() => {
@@ -569,6 +568,13 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     const id = window.setTimeout(() => inputRef.current?.focus(), 120)
     return () => window.clearTimeout(id)
   }, [view])
+
+  useEffect(() => {
+    const reply = pendingPaint.current
+    if (view !== 'ask' || !reply || conversation.at(-1)?.id !== reply.id) return
+    pendingPaint.current = null
+    measureBuddy('text-ready', reply.timing)
+  }, [conversation, view])
 
   // Follow the conversation while it grows, unless the learner scrolled up to
   // reread something.
@@ -578,7 +584,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     if (!node) return
     const distance = node.scrollHeight - node.scrollTop - node.clientHeight
     if (distance < 120) node.scrollTop = node.scrollHeight
-  }, [view, conversation, phase, reveal])
+  }, [view, conversation, phase])
 
   async function acceptSuggestion(suggestion: ReminderSuggestion) {
     try {
@@ -609,7 +615,6 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
     return null
   }, [conversation])
   const latestIsAgent = conversation[conversation.length - 1]?.role === 'agent'
-  const pendingAction = latestIsAgent && phase === 'idle' ? latestAnswer?.action ?? null : null
   const pendingSuggestion = latestIsAgent && phase === 'idle' ? latestAnswer?.suggestion ?? null : null
   // The dock only announces state while the panel is closed. Chat messages live
   // in the conversation, never in a floating bubble over the page.
@@ -619,16 +624,28 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
       ? t.voiceThinking
       : confirmation || askError || null
   const showDockHint = Boolean(dockStatus) || !hasUsedVoice
+  if (!enabled) return null
 
   return (
     <>
       {!view && (
-        <div className={`voice-dock${dueNudges.length > 0 ? ' has-alert' : ''}`}>
-          <div className="voice-dock-row">
+        <div
+          ref={areaRef}
+          className="voice-dock-area"
+          data-positioned={position !== null}
+          data-upper={position !== null && position.y < 0.4}
+          data-caption-align={position && position.x < 0.2 ? 'start' : position && position.x > 0.8 ? 'end' : undefined}
+          style={position ? { '--dock-x': position.x, '--dock-y': position.y } as CSSProperties : undefined}
+        >
+          <div ref={dockRef} className="voice-dock voice-dock-row">
             <button
               type="button"
               className={`voice-orb is-${!speechAvailable || askError ? 'muted' : isSpeaking ? 'speaking' : phase}`}
-              onClick={() => {
+              {...dragHandlers}
+              onPointerEnter={prepareVoiceToken}
+              onFocus={prepareVoiceToken}
+              onClick={(event) => {
+                if (shouldSuppressClick(event.detail)) return
                 if (isSpeaking) {
                   stopSpeech()
                   return
@@ -641,6 +658,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                 else if (phase === 'idle') beginListening()
               }}
               aria-label={!speechAvailable ? t.voiceAskByText : isSpeaking ? t.voiceInterrupt : phase === 'listening' ? t.voiceTapToStop : t.voiceOpen}
+              aria-description={t.buddyDockMoveHint}
               data-voice-orb="true"
             >
               <span className="voice-orb-halo" aria-hidden="true" />
@@ -650,7 +668,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                   : !speechAvailable || askError
                     ? <MicrophoneSlash size={30} weight="bold" />
                     : phase === 'thinking'
-                      ? <span className="voice-thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+                      ? <Microphone size={25} weight="bold" aria-hidden="true" />
                       : <AudioBars meter={meter} active={phase === 'listening'} size={32} />}
               </span>
               {dueNudges.length > 0 && <span className="voice-orb-dot" aria-hidden="true" />}
@@ -665,9 +683,11 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
           </div>
 
           {showDockHint && (
-            <p className={`voice-dock-hint${phase === 'thinking' ? ' is-thinking' : !dockStatus ? ' is-idle' : ''}`} role="status" aria-live="polite">
-              {dockStatus ?? (speechAvailable ? t.voiceHint : t.voiceAskByText)}
-            </p>
+            <div className="voice-dock-caption">
+              <p className="voice-dock-hint" role="status" aria-live="polite">
+                {dockStatus ?? (speechAvailable ? t.voiceHint : t.voiceAskByText)}
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -697,12 +717,7 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                   <p key={entry.id} className="voice-chat-bubble is-user">{entry.text}</p>
                 ) : (
                   <div key={entry.id} className="voice-agent-line">
-                    <p className="voice-chat-bubble is-agent">
-                      {reveal?.id === entry.id ? entry.text.slice(0, reveal.chars) : entry.text}
-                      {reveal?.id === entry.id && reveal.chars < entry.text.length && (
-                        <span className="voice-type-caret" aria-hidden="true" />
-                      )}
-                    </p>
+                    <p className="voice-chat-bubble is-agent">{entry.text}</p>
                   </div>
                 ))}
 
@@ -713,30 +728,12 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                 )}
                 {phase === 'thinking' && (
                   <div className="voice-agent-line">
-                    <p className="voice-chat-bubble is-agent is-thinking">
+                    <p className="voice-chat-bubble is-agent" role="status">
                       {t.voiceThinking}
-                      <span className="voice-thinking-dots" aria-hidden="true"><i /><i /><i /></span>
                     </p>
                   </div>
                 )}
                 {askError && <p className="buddy-inline-error">{askError}</p>}
-
-                {pendingAction && !actionDismissed && (
-                  <div className="buddy-action-confirmation voice-action-card">
-                    <i className="voice-action-icon" aria-hidden="true">{pendingAction.lessonTitle?.match(/\d+/)?.[0] ?? pendingAction.videoId ?? '↗'}</i>
-                    <div className="voice-action-copy">
-                      <strong>{localizedActionLabel(pendingAction, t)}</strong>
-                      <span>{pendingAction.kind === 'open_lesson' ? t.voiceActionStudy : pendingAction.kind === 'open_video' ? t.voiceActionVideo : pendingAction.kind === 'open_review' ? t.voiceActionReview : pendingAction.kind === 'open_notebook' ? t.buddyActionOpenNotebook : pendingAction.tab ? t[TAB_LABEL_KEYS[pendingAction.tab]] : t.voiceAgentName}</span>
-                    </div>
-                    <button type="button" className="buddy-solid-btn" onClick={() => runAction(pendingAction)}>
-                      {t.voiceActionOpen}
-                      <ArrowRight size={13} weight="bold" aria-hidden="true" />
-                    </button>
-                    <button type="button" className="buddy-text-btn" onClick={() => setActionDismissed(true)}>
-                      {t.buddyActionCancel}
-                    </button>
-                  </div>
-                )}
 
                 {pendingSuggestion && !reminderAccepted && (
                   <div className="buddy-reminder-offer">
@@ -769,6 +766,8 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                   <button
                     type="button"
                     className={`voice-talk-btn${phase === 'listening' ? ' is-live' : ''}${isSpeaking ? ' is-speaking' : ''}`}
+                    onPointerEnter={prepareVoiceToken}
+                    onFocus={prepareVoiceToken}
                     onClick={() => {
                       if (isSpeaking) {
                         stopSpeech()
@@ -780,15 +779,13 @@ export function VoiceOrb({ activeTab, view, onViewChange, onNavigate, onOpenRevi
                     disabled={phase === 'thinking'}
                     aria-label={phase === 'thinking' ? t.voiceThinking : phase === 'listening' ? t.voiceTapToStop : isSpeaking ? t.voiceInterrupt : t.voiceOpen}
                   >
-                    <span className="voice-talk-icon" aria-hidden="true">
-                      {phase === 'thinking'
-                        ? <span className="voice-thinking-dots"><i /><i /><i /></span>
-                        : phase === 'listening'
+                    {phase !== 'thinking' && <span className="voice-talk-icon" aria-hidden="true">
+                      {phase === 'listening'
                           ? <AudioBars meter={meter} active size={20} />
                           : isSpeaking
                             ? <SpeakerSlash size={20} weight="bold" />
                             : <Microphone size={20} weight="bold" />}
-                    </span>
+                    </span>}
                     <span>
                       {phase === 'thinking' ? t.voiceThinking : phase === 'listening' ? t.voiceListening : isSpeaking ? t.voiceInterrupt : t.voiceHint}
                     </span>

@@ -1,11 +1,6 @@
+import { requireUserId } from '../../middleware/authenticate';
 import type { RequestHandler } from 'express';
-import { HttpError } from '../../middleware/error-handler';
 import * as battleService from './battle.service';
-
-function requireUserId(request: Parameters<RequestHandler>[0]): number {
-  if (!request.auth) throw new HttpError(401, 'Authentication required.');
-  return request.auth.userId;
-}
 
 export const getSummary: RequestHandler = async (request, response, next) => {
   try {

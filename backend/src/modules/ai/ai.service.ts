@@ -1,18 +1,18 @@
 import { HttpError } from '../../middleware/error-handler';
+import { logger } from '../../utils/logger';
 import { parseBuddyCommand } from './ai.commands';
-import { buildBuddySnapshot, resolveBuddyCommand } from './ai.copilot';
-import { buddyLanguage } from './ai.language';
+import { buildBuddySnapshot, matchShopItem, resolveBuddyCommand } from './ai.copilot';
+import type { BuddySnapshot } from './ai.copilot';
+import { buddyLanguage, normalizeDestination } from './ai.language';
 import type { BuddyLanguage } from './ai.language';
-import { decideBuddyRoute } from './ai.decisions';
 import { inferReminderFromMessage } from './ai.parsing';
 import { answerTurn, resolveTurnIntent } from './ai.pipeline';
-import { createPlanMessages, planData, toCoachMessages, toTutorMessages } from './ai.prompts';
+import { createPlanMessages, isShortIntent, toCoachMessages, toTutorMessages } from './ai.prompts';
 import * as repository from './ai.repository';
 import {
   buildOfflineCoachReply,
   buildStudyPlan,
   lessonPrerequisites,
-  pickNextLesson,
   resolveNavigationRequest,
   resolveChatAction,
   toStudySnapshot,
@@ -26,55 +26,24 @@ import type {
   ChatIntent,
   LearnerContext,
   MessageRow,
-  ProviderMessage,
   ReminderSuggestion,
   StudyPlan,
 } from './ai.types';
 
-const MAX_CONTEXT_MESSAGES = 20;
+const MAX_CONTEXT_MESSAGES = 10;
+/** Cap for chat, plan and study-plan replies; the prompt asks for far less. */
+const SHORT_REPLY_TOKENS = 700;
 
-function navigationReply(action: ChatAction, language: BuddyLanguage = 'vi'): AiReply {
-  return {
-    reply: language === 'en'
-      ? 'I found it. Use the button to open it.'
-      : `Mình tìm thấy đúng mục rồi. Chọn “${action.label}” để mở, hoặc hủy nếu bạn đổi ý.`,
-    feedback: [],
-    followups: [],
-    action,
-    reminder: null,
-  };
-}
-
-/** Short toast copy for a direct navigation: no chat panel, no long answer. */
 function openedReply(action: ChatAction, language: BuddyLanguage): AiReply {
   return {
-    reply: language === 'en' ? 'Opened.' : `Đã mở “${action.label}” cho bạn.`,
+    reply: action.highlight === 'control:arena-start'
+      ? (language === 'en' ? 'Look for the highlighted Find Opponent button in the Arena.' : 'Mình đã mở Thi Đua. Nút “Tìm đối thủ” sẽ sáng lên.')
+      : language === 'en' ? 'Opened.' : `Đã mở “${action.label}” cho bạn.`,
     feedback: [],
     followups: [],
     action,
     reminder: null,
   };
-}
-
-/**
- * When the decision model says "navigate" but the request names no catalog item,
- * send the learner to the next real lesson instead of opening a chat thread.
- * `explain` is deliberately excluded: it needs a written answer.
- */
-function navigationForIntent(intent: ChatIntent, stats: StudyStats): ChatAction | null {
-  if (intent !== 'plan' && intent !== 'practice' && intent !== 'how') return null;
-  const next = pickNextLesson(stats);
-  const lesson = next ? stats.lessons.find((item) => item.id === next.id) : null;
-  if (lesson) {
-    return {
-      kind: 'open_lesson',
-      tab: 'study',
-      lessonId: lesson.id,
-      lessonTitle: lesson.title,
-      label: `Mở bài: ${lesson.title}`.slice(0, 60),
-    };
-  }
-  return { kind: 'open_tab', tab: 'study', label: 'Mở lộ trình học' };
 }
 
 export async function listChats(userId: number) {
@@ -103,37 +72,65 @@ export async function getFeedback(userId: number, chatId: number) {
   return repository.getFeedback(userId, chatId);
 }
 
-interface CoachTurn {
-  stats: StudyStats;
-  messages: ProviderMessage[];
-  /** Rows-based answer used when the provider or the decision gate says no. */
-  offline: AiReply;
-  /** The exact data the model saw, so the review gate can check grounding. */
-  learnerData: string;
-}
-
 /**
- * The coach turn is derived from database rows before the model is called:
- * plan steps, snapshot and offline answer are all deterministic.
+ * One model call decides the reply, the action and any reminder from the
+ * learner's data. The deterministic guide only answers when no model can, so
+ * the buddy still navigates and sets reminders while every provider is down.
  */
-async function prepareCoachTurn(
-  userId: number,
+async function answerCoachTurn(
   message: string,
   intent: ChatIntent,
   context: ChatContext | null,
   history: MessageRow[],
   learner: LearnerContext,
-  language: BuddyLanguage = 'vi',
-): Promise<CoachTurn> {
-  const stats = await repository.getStudyStats(userId);
-  const snapshot = toStudySnapshot(learner, stats);
-  const steps = buildStudyPlan(snapshot, stats);
+  snapshot: BuddySnapshot,
+  language: BuddyLanguage,
+): Promise<AiReply> {
+  const stats = snapshot.study;
+  const shop = snapshot.shop;
+  const studySnapshot = toStudySnapshot(learner, stats);
+  const steps = buildStudyPlan(studySnapshot, stats);
+  const offline = resolveGuideTurn(message, snapshot, learner, context)
+    ?? reminderOnlyReply(message, language)
+    ?? buildOfflineCoachReply(studySnapshot, steps, intent, context, language);
+  const reply = await answerTurn({
+    messages: toCoachMessages(history, message, learner, studySnapshot, steps, intent, context, stats, language, shop),
+    flavor: 'coach',
+    offline,
+    maxTokens: isShortIntent(intent) ? SHORT_REPLY_TOKENS : undefined,
+  });
+  return withResolvedAction(reply, stats, language, shop.items);
+}
+
+function reminderOnlyReply(message: string, language: BuddyLanguage): AiReply | null {
+  const reminder = inferReminderFromMessage(message);
+  if (!reminder) return null;
   return {
-    stats,
-    messages: toCoachMessages(history, message, learner, snapshot, steps, intent, context, stats, language),
-    offline: buildOfflineCoachReply(snapshot, steps, intent, context, language),
-    learnerData: planData(snapshot, steps, stats),
+    reply: language === 'en' ? 'Confirm below to save your reminder.' : 'Xác nhận bên dưới để lưu lời nhắc nhé.',
+    action: null,
+    reminder,
+    feedback: [],
+    followups: [],
   };
+}
+
+function resolveGuideTurn(message: string, snapshot: BuddySnapshot, learner: LearnerContext, context: ChatContext | null): AiReply | null {
+  const command = parseBuddyCommand(message);
+  const language = command?.language ?? buddyLanguage(message);
+  const navigation = resolveNavigationRequest(message, snapshot.study);
+  const shopRequest = command?.kind === 'shopItem' && (
+    /\b(gara|shop|garage|cua hang|xe|car|khung|frame|nameplate|booster|khien|shield)\b/.test(normalizeDestination(message))
+    || command.params.buy
+    || Boolean(matchShopItem(command.params.item, snapshot.shop.items))
+  );
+  const reply = command && command.kind !== 'shopItem'
+    ? resolveBuddyCommand(command, snapshot, learner, context)
+    : navigation
+      ? openedReply(navigation, language)
+      : shopRequest
+        ? resolveBuddyCommand(command, snapshot, learner)
+        : null;
+  return reply ? withResolvedAction(reply, snapshot.study, language, snapshot.shop.items) : null;
 }
 
 function withResolvedAction(
@@ -180,21 +177,17 @@ export async function getStudyPlan(userId: number): Promise<StudyPlan> {
   const snapshot = toStudySnapshot(learner, stats);
   const steps = buildStudyPlan(snapshot, stats);
 
-  // A deterministic plan is always usable; the model only writes the "why" and
-  // the gate can drop it, leaving `aiNote: null`.
+  // A deterministic plan is always usable; the model only writes the "why", so
+  // a failed call leaves `aiNote: null`.
   let aiNote: string | null = null;
   try {
-    const { reply, review } = await answerTurn({
+    const reply = await answerTurn({
       messages: createPlanMessages(snapshot, steps, stats),
-      message: 'Hôm nay mình nên học gì trước, và học như thế nào?',
-      intent: 'plan',
-      context: null,
       flavor: 'coach',
       offline: null,
-      learnerData: planData(snapshot, steps, stats),
-      maxTokens: 700,
+      maxTokens: SHORT_REPLY_TOKENS,
     });
-    if (review?.verdict !== 'reject') aiNote = reply.reply.slice(0, 600);
+    aiNote = reply.reply.slice(0, 600);
   } catch {
     aiNote = null;
   }
@@ -217,39 +210,23 @@ export async function sendMessage(
     repository.getLearnerContext(userId),
   ]);
 
-  const turnIntent = await resolveTurnIntent(message, intent, context);
+  const turnIntent = chat.topic === 'STUDY_COACH'
+    ? intent
+    : await resolveTurnIntent(message, intent, context);
   const language = buddyLanguage(message);
   const isCoach = chat.topic === 'STUDY_COACH' || turnIntent !== 'chat';
 
   let aiReply: AiReply;
-  let stats: StudyStats | null = null;
   if (isCoach) {
-    const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner, language);
-    stats = coach.stats;
-    const navigation = resolveNavigationRequest(message, coach.stats);
-    aiReply = navigation
-      ? navigationReply(navigation, language)
-      : (await answerTurn({
-          messages: coach.messages,
-          message,
-          intent: turnIntent,
-          context,
-          flavor: 'coach',
-          offline: coach.offline,
-          learnerData: coach.learnerData,
-        })).reply;
+    const snapshot = await buildBuddySnapshot(userId);
+    aiReply = await answerCoachTurn(message, turnIntent, context, history, learner, snapshot, language);
   } else {
-    aiReply = (await answerTurn({
+    aiReply = await answerTurn({
       messages: toTutorMessages(history, message, chat.topic, learner),
-      message,
-      intent: turnIntent,
-      context,
       flavor: 'tutor',
       offline: null,
-    })).reply;
+    });
   }
-
-  if (stats) aiReply = withResolvedAction(aiReply, stats, language);
 
   const saved = await repository.saveConversation(
     userId,
@@ -262,7 +239,7 @@ export async function sendMessage(
     ...saved,
     feedback: toSavedFeedback(aiReply, message, saved.userMessage.id),
     followups: aiReply.followups,
-    action: stats ? aiReply.action : null,
+    action: isCoach ? aiReply.action : null,
   };
 }
 
@@ -288,48 +265,72 @@ export async function askBuddy(
   intent: ChatIntent,
   context: ChatContext | null,
 ): Promise<BuddyAnswer> {
-  const command = parseBuddyCommand(message);
-  const chatId = await repository.ensureCoachChat(userId);
-  if (command) {
-    const snapshot = await buildBuddySnapshot(userId);
-    const reply = withResolvedAction(
-      resolveBuddyCommand(command, snapshot), snapshot.study, command.language, snapshot.shop.items,
-    );
-    return saveBuddyAnswer(userId, chatId, message, reply, reply.action ? 'navigate' : 'open_prompt');
+  const started = performance.now();
+  const greeting = intent === 'chat' ? buddyGreeting(message) : null;
+  let contextMs: number | undefined;
+  let answerMs: number | undefined;
+  let saveMs: number | undefined;
+  let succeeded = false;
+
+  try {
+    let chatId: number;
+    let reply: AiReply;
+    let language: BuddyLanguage;
+    if (greeting) {
+      chatId = await repository.ensureCoachChat(userId);
+      contextMs = performance.now() - started;
+      ({ reply, language } = greeting);
+    } else {
+      const [chat, snapshot, learner] = await Promise.all([
+        repository.ensureCoachChat(userId).then(async (id) => ({
+          id,
+          history: await repository.getConversationHistory(id, MAX_CONTEXT_MESSAGES),
+        })),
+        buildBuddySnapshot(userId),
+        repository.getLearnerContext(userId),
+      ]);
+      chatId = chat.id;
+      const ready = performance.now();
+      contextMs = ready - started;
+      language = buddyLanguage(message);
+      reply = await answerCoachTurn(message, intent, context, chat.history, learner, snapshot, language);
+      answerMs = performance.now() - ready;
+    }
+    const saving = performance.now();
+    const result = await saveBuddyAnswer(userId, chatId, message, reply, language);
+    saveMs = performance.now() - saving;
+    succeeded = true;
+    return result;
+  } finally {
+    logger.info('buddy_ask_timing', {
+      path: greeting ? 'greeting' : 'coach',
+      succeeded,
+      context_ms: contextMs === undefined ? undefined : Math.round(contextMs),
+      answer_ms: answerMs === undefined ? undefined : Math.round(answerMs),
+      save_ms: saveMs === undefined ? undefined : Math.round(saveMs),
+      total_ms: Math.round(performance.now() - started),
+    });
   }
+}
 
-  const language = buddyLanguage(message);
-  const [history, learner] = await Promise.all([
-    repository.getConversationHistory(chatId, MAX_CONTEXT_MESSAGES),
-    repository.getLearnerContext(userId),
-  ]);
-
-  // Both decisions use the Google decision model; run them together so the
-  // extra routing question does not add a second network round trip.
-  const [turnIntent, routeDecision] = await Promise.all([
-    resolveTurnIntent(message, intent, context),
-    decideBuddyRoute(message, intent, context),
-  ]);
-  const decidedNavigate = routeDecision?.confident === true && routeDecision.route === 'navigate';
-  const decidedChat = routeDecision?.confident === true && routeDecision.route === 'open_prompt';
-  const coach = await prepareCoachTurn(userId, message, turnIntent, context, history, learner, language);
-
-  const navigation = decidedChat ? null : resolveNavigationRequest(message, coach.stats)
-    ?? (decidedNavigate ? navigationForIntent(turnIntent, coach.stats) : null);
-  const reply = navigation
-    ? (decidedNavigate ? openedReply(navigation, language) : navigationReply(navigation, language))
-    : (await answerTurn({
-        messages: coach.messages,
-        message,
-        intent: turnIntent,
-        context,
-        flavor: 'coach',
-        offline: coach.offline,
-        learnerData: coach.learnerData,
-      })).reply;
-  const aiReply = withResolvedAction(reply, coach.stats, language);
-  const route = !decidedChat && aiReply.action ? 'navigate' : 'open_prompt';
-  return saveBuddyAnswer(userId, chatId, message, aiReply, route);
+function buddyGreeting(message: string): { reply: AiReply; language: BuddyLanguage } | null {
+  // Strip only trailing sentence punctuation so questions or appended requests
+  // cannot be mistaken for a greeting.
+  const text = message.normalize('NFC').toLowerCase().trim().replace(/[!.…]+$/, '').trim();
+  const language = /^(xin chào|xin chao|chào bạn|chao ban|chào)$/.test(text) ? 'vi'
+    : /^(hello|hi|hey|hello there)$/.test(text) ? 'en'
+    : null;
+  if (!language) return null;
+  return {
+    language,
+    reply: {
+      reply: language === 'en' ? 'Hi! How can I help you today?' : 'Chào bạn! Hôm nay mình có thể giúp gì cho bạn?',
+      feedback: [],
+      followups: [],
+      action: null,
+      reminder: null,
+    },
+  };
 }
 
 async function saveBuddyAnswer(
@@ -337,7 +338,7 @@ async function saveBuddyAnswer(
   chatId: number,
   message: string,
   aiReply: AiReply,
-  route: BuddyAnswer['route'],
+  language: BuddyLanguage,
 ): Promise<BuddyAnswer> {
   const saved = await repository.saveConversation(
     userId,
@@ -349,11 +350,11 @@ async function saveBuddyAnswer(
 
   return {
     reply: aiReply.reply,
-    language: buddyLanguage(message),
+    language,
     followups: aiReply.followups,
     action: aiReply.action,
     feedback: toSavedFeedback(aiReply, message, saved.userMessage.id),
-    suggestion: aiReply.reminder ?? inferReminderFromMessage(message),
-    route,
+    suggestion: aiReply.reminder,
+    route: aiReply.action ? 'navigate' : 'open_prompt',
   };
 }

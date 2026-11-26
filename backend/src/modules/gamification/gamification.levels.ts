@@ -3,8 +3,6 @@
 // required to reach the level, so LEVEL_THRESHOLDS[0] is level 1 at 0 XP.
 export const LEVEL_THRESHOLDS = [0, 60, 160, 320, 540, 820, 1160, 1560, 2020, 2540] as const;
 
-export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
-
 export interface LevelProgress {
   level: number;
   /** Total XP the learner has. */

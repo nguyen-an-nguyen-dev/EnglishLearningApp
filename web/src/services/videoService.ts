@@ -24,16 +24,6 @@ export async function getVideoApi(videoId: number): Promise<VideoLessonDetail> {
   return data.video
 }
 
-export async function saveVideoProgressApi(
-  videoId: number,
-  watchedSeconds: number,
-): Promise<CompleteVideoResult> {
-  return requestApi<CompleteVideoResult>(`/api/videos/${videoId}/progress`, {
-    method: 'POST',
-    body: JSON.stringify({ watchedSeconds }),
-  })
-}
-
 export async function importVideoApi(
  url: string,
 ): Promise<VideoLessonDetail> {

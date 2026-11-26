@@ -102,7 +102,7 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
   useEffect(() => {
     const hash = window.location.hash
     if (!hash) return
-    const target = document.querySelector<HTMLElement>(hash)
+    const target = document.getElementById(hash.slice(1))
     if (!target) return
     requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
   }, [])

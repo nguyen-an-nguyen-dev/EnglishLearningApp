@@ -3,9 +3,10 @@ import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../i18n'
 import { AdminLogin } from './AdminLogin'
 import { AdminLayout, AdminNoAccess } from './AdminLayout'
+import type { AdminViewId } from './adminRoute'
 
 // Admin shell entry — separate login + layout, never mixed with learner UI.
-export function AdminApp() {
+export function AdminApp({ view }: { view: AdminViewId }) {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
   const { t } = useI18n()
   const [loggedOut, setLoggedOut] = useState(false)
@@ -43,6 +44,7 @@ export function AdminApp() {
 
   return (
     <AdminLayout
+      view={view}
       onLogoutDone={() => {
         setLoggedOut(true)
         // Stay on /admin so the user sees the fresh login UI after sign-out.

@@ -28,7 +28,7 @@ trả lời câu hỏi và gợi ý nội dung nên học tiếp.
 └───────────┬───────────────────────┬────────────────────┘
             ▼                       ▼
    MariaDB / MySQL (mysql2)   Dịch vụ ngoài
-   pool 10 kết nối            Gemini · Cloudflare Workers AI ·
+   pool 10 kết nối            Token Harbor · Gemini ·
                               SMTP · Google / Facebook · YouTube
                               (yt-dlp) · Cloudinary · Supabase
 ```
@@ -42,7 +42,7 @@ trả lời câu hỏi và gợi ý nội dung nên học tiếp.
 | API | Node.js, Express 5, Socket.IO, multer (upload), nodemailer (OTP) |
 | Dữ liệu | MariaDB/MySQL qua `mysql2`, schema trong `backend/database/init.sql` |
 | Xác thực | bcrypt (mật khẩu), JWT, Google ID token, Facebook Graph API |
-| AI & giọng nói | Cloudflare Workers AI (Llama 3.3 70B, Whisper), Google Gemini, giọng Microsoft Neural (`msedge-tts`) |
+| AI & giọng nói | Token Harbor (DeepSeek V4.1 Flash), Google Gemini, AssemblyAI (speech-to-text), giọng Microsoft Neural (`msedge-tts`) |
 
 ### Cấu trúc thư mục
 
@@ -105,6 +105,13 @@ docs/      Đặc tả, sơ đồ UML, ghi chú kiến trúc
    ```
    Vite proxy `/api`, `/media` và `/socket.io` sang `http://localhost:3000`.
    Trang quản trị: `http://localhost:5173/admin`.
+
+   Các địa chỉ tab người học gồm `/study`, `/videolearning`, `/translate`, `/arena`,
+   `/rankings`, `/gara` và `/profile`. Các tab quản trị nằm tại `/admin/overview`,
+   `/admin/content`, `/admin/videos`, `/admin/shop`, `/admin/arena`, `/admin/users` và
+   `/admin/stats`. Khi triển khai bản web, cấu hình máy chủ trả về `index.html` cho
+   các đường dẫn trang để mở trực tiếp và tải lại được. Các đường dẫn API và tài nguyên
+   tĩnh tiếp tục được phục vụ riêng.
 
 Avatar: nếu cấu hình Cloudinary thì upload lên đó; lỗi hoặc thiếu cấu hình thì lưu cục
 bộ dưới `/media/avatars`. CSDL tạo từ trước các thay đổi này cần chạy các file trong
@@ -410,19 +417,19 @@ Mỗi lượt của `ai.service` đi qua `ai.pipeline.ts`:
 1. **Phân loại ý định** (`resolveTurnIntent`): chỉ khi ý định là `chat` chung mới gọi
    `classifyChatIntent`. Yêu cầu điều hướng, kế hoạch học… được xử lý theo quy tắc trong `ai.study.ts`
    (`resolveNavigationRequest`, `resolveChatAction`), không cần model.
-2. **Sinh bản nháp** (`answerTurn` → `generateReply`): thử lần lượt **Cloudflare Workers AI**
-   (`CF_MODEL`, mặc định Llama 3.3 70B), rồi **Gemini** (`AI_FALLBACK_MODEL`, mặc định
-   `gemini-2.5-flash`). Mỗi lần gọi có thời hạn riêng; một bước bị bỏ qua khi thời gian còn lại
+2. **Sinh bản nháp** (`answerTurn` → `generateReply`): thử lần lượt **Token Harbor**
+   (`TH_MODEL`, mặc định `deepseek-v4.1-flash-1017`), rồi **Gemini** (`AI_FALLBACK_MODEL`,
+   mặc định `gemini-2.5-flash`). Llama đã bị bỏ khỏi chain sinh văn bản. Mỗi lần gọi có thời hạn riêng; một bước bị bỏ qua khi thời gian còn lại
    dưới `MIN_STEP_MS = 750` ms. Nếu lượt sinh bản nháp lỗi, có câu trả lời offline
    (`buildOfflineCoachReply`) thì dùng nó, không thì báo lỗi.
-3. **Cổng kiểm duyệt** (`reviewAnswer`, Gemini Decisions `gemini-decision-1`): đánh giá bản nháp.
-   Kết quả `ship` thì dùng luôn.
-4. **Sửa một lần** (`repairReply`, timeout 15 giây) khi cổng trả `repair`, rồi xét lại.
-   Nếu lượt sửa chưa được duyệt, dùng câu trả lời offline khi có sẵn hoặc trả thông báo an toàn.
+3. **Không kiểm duyệt, không sửa lại.** Bản nháp đầu tiên là câu trả lời. Các bước review
+   (`reviewAnswer`) và sửa (`repairReply`) đã bỏ khỏi luồng chat để giảm độ trễ. Mỗi lượt chỉ có một
+   lần sinh câu trả lời; chỉ khi provider lỗi mới chuyển sang provider dự phòng.
 
 Ngân sách thời gian: `AI_TURN_BUDGET_MS` (mặc định 30 giây) cho toàn lượt, `AI_TIMEOUT_MS`
-(mặc định 40 giây) cho một lần gọi; `COACH_TIMEOUT_MS = 25 giây`, `REPAIR_TIMEOUT_MS = 15 giây`,
-`MAX_REPLY_TOKENS = 1500`. Khi tất cả provider lỗi, API trả 503
+(mặc định 40 giây) cho một lần gọi; `COACH_TIMEOUT_MS = 25 giây`, `MAX_REPLY_TOKENS = 1500`. Lượt `chat` và `plan` (và kế hoạch học) dùng
+`SHORT_REPLY_TOKENS = 700` và prompt yêu cầu dưới 400 ký tự, vì câu trả lời được đọc to.
+Lịch sử đưa vào model là 10 tin nhắn gần nhất (`MAX_CONTEXT_MESSAGES = 10`). Khi tất cả provider lỗi, API trả 503
 `The AI service is temporarily unavailable. Please try again later.`
 
 Tài liệu chi tiết nhất về AI: [backend/src/modules/ai/README.md](backend/src/modules/ai/README.md).
@@ -459,7 +466,7 @@ Quy trình:
    Livestream bị từ chối với `422 VIDEO_LIVE`, video không có thời lượng cố định với `422 VIDEO_NO_DURATION`.
 5. Phụ đề được chia thành đoạn (`video.segmentation.ts`), mỗi đoạn không vượt `MAX_SEGMENT_MS = 12 giây`
    (`video.youtube.ts`). Sau đó `refineSegmentsWithAi` gửi tối đa `MAX_AI_UNITS = 500` câu để tinh
-   chỉnh ranh giới theo chuỗi Cloudflare → Gemini, với thời gian chờ tối đa `MAX_AI_TIMEOUT_MS = 45` giây.
+   chỉnh ranh giới theo chuỗi Token Harbor → Gemini, với thời gian chờ tối đa `MAX_AI_TIMEOUT_MS = 45` giây.
    Lỗi AI thì dùng kết quả theo quy tắc.
 6. Lưu video và đoạn. Trùng khóa thì trả `409`. Trả về chi tiết video (`getVideoDetail`).
 
@@ -495,34 +502,47 @@ Với mỗi segment có phụ đề tiếng Anh, người học có thể thu â
 của Edge, không cần API key. Giọng: `en-US-AriaNeural` (Anh) và `vi-VN-HoaiMyNeural` (Việt).
 Văn bản được loại ký tự điều khiển không hợp lệ trong XML và escape `& < > " '` trước khi gửi
 (thư viện không tự làm). Mỗi yêu cầu tối đa 500 ký tự, vượt quá trả 400 `TEXT_TOO_LONG`;
-cache clip trong bộ nhớ giới hạn 64 MB (xóa clip cũ nhất khi đầy). Dịch vụ này không chính thức
-nên có thể đổi mà không báo trước; khi lỗi hoặc đoạn quá dài, web tự chuyển sang giọng của
-trình duyệt (`speechSynthesis`).
-Web phát qua `utils/speech.ts` (`speakText`, `speakEnglish`); tiến độ gõ chữ của bong bóng
-buddy lấy từ `currentTime` của clip. Dùng ở buddy (`VoiceOrb`) và nút phát âm từ vựng
-trong trình xem video.
+cache clip trong bộ nhớ giới hạn 64 MB (xóa clip cũ nhất khi đầy).
+Bubble Bác Turbo hiện chữ ngay khi API trả lời và dùng giọng Edge cho toàn bộ phần đọc.
+Câu dài được chia thành các đoạn vừa giới hạn API. Khi dịch vụ báo lỗi tạm thời, bubble
+thử lại một lần và vẫn hiển thị câu trả lời nếu giọng đọc không phát được.
+Các chỗ phát âm từ vựng dùng bộ phát trong `utils/speech.ts` với giọng trình duyệt dự phòng.
 
 Luồng ở web (`components/ai/VoiceOrb.tsx`, `services/speechService.ts`):
 1. Khi mở, web gọi `GET /api/speech/status` để biết backend có sẵn sàng hay không.
-2. Nếu backend sẵn sàng, web ghi âm tối đa 30 giây (`MAX_RECORD_MS`) và gửi clip lên
-   `POST /api/speech/transcribe` (yêu cầu đăng nhập, tối đa 20 lần/phút mỗi người dùng).
-   Clip rỗng không được gửi đi. Nếu backend không sẵn sàng, web dùng nhận dạng giọng nói
-   của trình duyệt (Web Speech API) khi trình duyệt hỗ trợ.
-3. Backend nhận audio thô (`Content-Type` là MIME của clip, chấp nhận webm, ogg, mp4, mpeg,
+2. Nếu backend sẵn sàng, web ghi âm tối đa 30 giây (`MAX_RECORD_MS`). Với
+   `BUDDY_STREAMING_STT=true` trong môi trường backend, bubble lấy token ngắn hạn từ
+   `POST /api/buddy/voice/session` và gửi PCM trực tiếp đến AssemblyAI trong lúc nói.
+   Khi người dùng dừng mic, bubble chờ bản chép lời cuối tối đa 1,6 giây. Nếu streaming bị tắt,
+   không được trình duyệt hỗ trợ hoặc kết nối lỗi, web gửi clip ghi âm qua
+   `POST /api/speech/transcribe`. Cả hai endpoint yêu cầu đăng nhập và có giới hạn 20 lần/phút mỗi người dùng.
+   Clip rỗng không được gửi đi. Nếu backend không sẵn sàng, web ẩn mic và chuyển sang ô nhập
+   chữ; không còn fallback sang Web Speech API của trình duyệt.
+3. Với đường ghi âm, backend nhận audio thô (`Content-Type` là MIME của clip, chấp nhận webm, ogg, mp4, mpeg,
    wav, flac) và giới hạn `SPEECH_MAX_BYTES` (mặc định 4 MB). Thứ tự xử lý:
-   - Thử **Cloudflare Whisper** (`SPEECH_WHISPER_MODEL`, mặc định `@cf/openai/whisper-large-v3-turbo`)
-     lần lượt qua các tài khoản Cloudflare; mỗi lần gọi có timeout `SPEECH_TIMEOUT_MS`.
-   - Whisper lỗi **hoặc trả về rỗng** thì thử tiếp **Gemini** (audio input, nhiệm vụ chỉ là
-     chép lời, `temperature` 0).
-   - Nếu Whisper báo thời lượng trên 60 giây, trả 413. Kết quả bị cắt còn tối đa 500 ký tự.
-   - Cả hai đều không có chữ thì trả 422 `NO_SPEECH`, web báo người dùng nói lại.
+   - Thử **AssemblyAI** (`SPEECH_MODEL`, mặc định `assemblyai-stt-3-7`) qua REST: tải clip lên
+     `/v2/upload`, gửi `/v2/transcript` với `speech_models`, rồi poll `/v2/transcript/{id}`
+     (timeout `SPEECH_TIMEOUT_MS`, chu kỳ `SPEECH_POLL_INTERVAL_MS`). AssemblyAI nhận gợi ý
+     ngôn ngữ (`language_code=vi|en`) hoặc tự nhận diện khi không có gợi ý. Model realtime
+     `assemblyai-stt-3-7-realtime` chỉ chạy qua WebSocket, không dùng endpoint HTTP này.
+   - AssemblyAI là provider nhận diện duy nhất của app. Lỗi provider trả 503/504 kèm lý do;
+     không fallback sang provider khác.
+   - Nếu bản chép lời dài quá 60 giây, trả 413. Kết quả bị cắt còn tối đa 500 ký tự.
+   - Không có chữ thì trả 422 `NO_SPEECH`, web báo người dùng nói lại.
 4. Web nhận transcript và gửi vào buddy (`sendRef` → `askBuddyApi`, cờ `spoken: true`).
    Lệnh điều hướng (ví dụ mở tab hoặc màn đánh giá) được `routeVoiceCommand` xử lý ngay trên
-   máy, không gọi AI. Các câu còn lại đi qua `POST /api/buddy/ask` như khi gõ chữ.
+   máy. Các câu còn lại đi qua `POST /api/buddy/ask` như khi gõ chữ. Câu chào đứng riêng
+   có phản hồi tiếng Việt hoặc tiếng Anh đã định sẵn và vẫn được lưu vào lịch sử chat.
 5. Với câu nói, câu trả lời của buddy được đọc lại bằng giọng TTS, trừ khi người dùng tắt tiếng.
 
-Biến cần đặt: `CF_API_KEYS` (Whisper), `AI_API_KEY` (Gemini), `SPEECH_WHISPER_MODEL`,
-`SPEECH_TIMEOUT_MS` (mặc định 25000), `SPEECH_MAX_BYTES` (mặc định 4 MB).
+Để đo độ trễ của bubble, xem các mục `buddy.transcript-ready`, `buddy.answer-api`,
+`buddy.text-ready` và `buddy.audio-ready` trong Performance Timeline của trình duyệt.
+Backend ghi thời gian lấy ngữ cảnh, tạo phản hồi và lưu chat trong log `buddy_ask_timing`.
+
+Biến cần đặt: `ASSEMBLYAI_API_KEY`, `SPEECH_MODEL` (mặc định `assemblyai-stt-3-7`),
+`SPEECH_TIMEOUT_MS` (mặc định 40000), `SPEECH_POLL_INTERVAL_MS` (mặc định 500),
+`SPEECH_MAX_BYTES` (mặc định 4 MB). `AI_API_KEY` vẫn dùng cho các tính năng văn bản, không
+dùng cho nhận diện giọng nói nữa.
 
 **Luyện nói v1.** `POST /api/speech/practice?text=<câu mẫu>` nhận audio thô, yêu cầu
 đăng nhập và dùng cùng giới hạn 20 lần/phút với `/transcribe`. Phản hồi gồm `transcript`,
@@ -542,8 +562,8 @@ và phần luyện nói được ẩn trong demo.
 
 ### Dịch văn bản
 1. Văn bản được chia khối; các khối được gửi song song tối đa `PROVIDER_CONCURRENCY = 4` lượt cùng lúc.
-2. `requestWithModelFallback` thử lần lượt **Cloudflare Workers AI** (xoay vòng nhiều key qua
-   `CF_API_KEYS`), rồi **Gemini** (`AI_FALLBACK_MODEL`, cần `AI_API_KEY`).
+2. `requestWithModelFallback` thử lần lượt **Token Harbor** (`TH_MODEL`), rồi **Gemini**
+   (`AI_FALLBACK_MODEL`, cần `AI_API_KEY`).
 3. Kết quả được đọc từ JSON trả về và lưu vào lịch sử. Mỗi người giữ tối đa **10** bản dịch
    gần nhất (`trimTranslations`).
 

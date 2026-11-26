@@ -1,6 +1,7 @@
 import { requestApi } from './apiClient'
 import type {
   BuddyAnswer,
+  BuddyIntent,
   BuddyFeed,
   BuddyTarget,
   ReminderSuggestion,
@@ -11,10 +12,14 @@ export async function getBuddyFeedApi(): Promise<BuddyFeed> {
   return requestApi<BuddyFeed>('/api/buddy/nudges')
 }
 
+export function startBuddyVoiceSession(signal: AbortSignal): Promise<{ token: string | null }> {
+  return requestApi('/api/buddy/voice/session', { method: 'POST', signal })
+}
+
 export async function askBuddyApi(
   question: string,
   context: { tab: string; focus?: string; detail?: string } | null,
-  intent: 'chat' | 'plan' | 'explain' | 'how' | 'practice' = 'chat',
+  intent: BuddyIntent = 'chat',
   signal?: AbortSignal,
 ): Promise<BuddyAnswer> {
   return requestApi<BuddyAnswer>('/api/buddy/ask', {

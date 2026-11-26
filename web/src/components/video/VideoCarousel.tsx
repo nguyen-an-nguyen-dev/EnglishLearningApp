@@ -14,6 +14,7 @@ interface VideoCarouselProps<T> {
   emptyText: string
   toolbar?: ReactNode
   trailing?: ReactNode
+  buddyTarget?: string
 }
 
 /** Horizontal gallery so long catalogues stay one screen tall. */
@@ -28,6 +29,7 @@ export function VideoCarousel<T>({
   emptyText,
   toolbar,
   trailing,
+  buddyTarget,
 }: VideoCarouselProps<T>) {
   const trackRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
@@ -40,7 +42,7 @@ export function VideoCarousel<T>({
 
   return (
     <section className={`video-carousel-section${tone === 'sun' ? ' is-owned' : ''}`} aria-label={title}>
-      <header className="video-carousel-head">
+      <header className="video-carousel-head" data-buddy-target={buddyTarget}>
         <h2>{title}</h2>
         <span className={`video-carousel-count${tone === 'sun' ? ' is-sun' : ''}`}>{countLabel ?? `${items.length}`}</span>
         {description && <p className="video-carousel-desc">{description}</p>}

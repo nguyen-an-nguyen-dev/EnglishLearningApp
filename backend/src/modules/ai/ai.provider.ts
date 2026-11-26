@@ -1,26 +1,25 @@
 import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
-import {
-  cfAccountTargets,
-  isDailyQuotaError,
-  markCfAccountExhausted,
-} from '../../utils/cf-rotate';
-import { isRecord, parseAiReply, providerMessageContent } from './ai.parsing';
+import { logger } from '../../utils/logger';
+import { isRecord } from '../../utils/validation';
+import { parseAiReply, providerMessageContent } from './ai.parsing';
 import type { AiReply, ProviderMessage } from './ai.types';
 
 /**
- * The generative chain has exactly two models, in order: Cloudflare Workers AI
- * Llama 3.3 70B, then `gemini-2.5-flash`. Every configured Workers AI account is
- * tried first, so a daily quota on one account does not change the model seen.
+ * The generative chain is Token Harbor (DeepSeek) first, then
+ * `gemini-2.5-flash`. Speech recognition is handled by AssemblyAI, not by the
+ * text providers.
  */
 export interface ModelTarget {
-  name: 'Cloudflare Workers AI' | 'Gemini';
+  name: 'Token Harbor' | 'Gemini';
   apiUrl: string;
   apiKey: string;
   model: string;
   /** Env var named in operator-facing errors so the bad setting is findable. */
   keyHint: string;
   modelHint: string;
+  /** DeepSeek thinking effort; omitted for providers that do not take it. */
+  reasoningEffort?: 'low';
 }
 
 export interface GenerateOptions {
@@ -33,12 +32,15 @@ export const MAX_REPLY_TOKENS = 1500;
 
 function modelTargets(): ModelTarget[] {
   return [
-    ...cfAccountTargets<Omit<ModelTarget, 'apiKey' | 'apiUrl'>>({
-      name: 'Cloudflare Workers AI',
-      model: env.cfModel,
-      keyHint: 'CF_API_KEYS',
-      modelHint: 'CF_MODEL',
-    }),
+    {
+      name: 'Token Harbor',
+      apiUrl: env.thApiUrl,
+      apiKey: env.thApiKey,
+      model: env.thModel,
+      keyHint: 'TH_API_KEY',
+      modelHint: 'TH_MODEL',
+      reasoningEffort: 'low',
+    },
     {
       name: 'Gemini',
       apiUrl: env.aiApiUrl,
@@ -55,7 +57,7 @@ async function requestTarget(
   messages: ProviderMessage[],
   options: GenerateOptions,
 ): Promise<AiReply> {
-  const { name, apiUrl, apiKey, model, keyHint, modelHint } = target;
+  const { name, apiUrl, apiKey, model, keyHint, modelHint, reasoningEffort } = target;
   if (!apiKey.trim()) {
     throw new HttpError(503, `${name} is not configured. Set ${keyHint} in backend/.env and restart the server.`);
   }
@@ -74,6 +76,7 @@ async function requestTarget(
         response_format: { type: 'json_object' },
         temperature: options.temperature ?? 0.6,
         max_tokens: options.maxTokens ?? MAX_REPLY_TOKENS,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       }),
       signal: AbortSignal.timeout(options.timeoutMs),
     });
@@ -85,8 +88,6 @@ async function requestTarget(
   }
 
   if (response.status === 429) {
-    const detail = await response.text().catch(() => '');
-    if (isDailyQuotaError(detail)) markCfAccountExhausted(apiKey);
     throw new HttpError(429, 'The AI service is busy. Please wait a moment and try again.');
   }
   if (response.status === 401 || response.status === 403) {
@@ -138,13 +139,26 @@ export async function generateReply(
 ): Promise<AiReply> {
   const deadline = Date.now() + options.timeoutMs;
   let lastError: unknown;
-  for (const target of modelTargets()) {
+  const targets = modelTargets();
+  for (const [index, target] of targets.entries()) {
     const remaining = deadline - Date.now();
     if (remaining < 500) break;
+    const hasFallback = index === 0 && Boolean(targets[1]?.apiKey.trim());
+    const timeoutMs = hasFallback && remaining >= 2_000 ? Math.floor(remaining * 0.6) : remaining;
+    const started = Date.now();
     try {
-      return await requestTarget(target, messages, { ...options, timeoutMs: remaining });
+      return await requestTarget(target, messages, { ...options, timeoutMs });
     } catch (error) {
       lastError = error;
+      if (target.apiKey.trim()) {
+        logger.warn('ai_provider_attempt_failed', {
+          provider: target.name,
+          model: target.model,
+          status: error instanceof HttpError ? error.statusCode : 500,
+          reason: error instanceof HttpError ? error.message : 'Unexpected provider failure',
+          duration_ms: Date.now() - started,
+        });
+      }
     }
   }
   if (lastError instanceof HttpError) throw lastError;

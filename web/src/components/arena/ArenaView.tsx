@@ -502,10 +502,8 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
         <div className="arena-scoreboard">
           <div className="arena-side">
             <AvatarFrame
-              name={player?.name ?? t.arenaYou}
               avatarUrl={user?.avatar_url}
               visualKey={wallet?.equipment.frame?.visual_key ?? null}
-              style={wallet?.equipment.frame?.style ?? null}
               size={44}
             />
             <div className="arena-side-copy">
@@ -534,7 +532,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
               <strong className="arena-side-score">{scoreFor(opponentPlayer?.userId ?? opponentId)}</strong>
               <small>{t.arenaRoundWins}</small>
             </div>
-            <AvatarFrame name={opponentPlayer?.name ?? t.arenaOpponent} size={46} className="arena-avatar" />
+            <AvatarFrame size={46} className="arena-avatar" />
           </div>
         </div>
 
@@ -656,10 +654,8 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
           <div className="arena-v2-seats">
             <div className="arena-v2-seat is-you">
               <AvatarFrame
-                name={myName}
                 avatarUrl={user?.avatar_url}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
-              style={wallet?.equipment.frame?.style ?? null}
                 size={64}
               />
               <div className="arena-v2-seat-copy">
@@ -672,7 +668,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
             <div className="arena-v2-ribbon">{verdict}</div>
 
             <div className="arena-v2-seat is-rival">
-              <AvatarFrame name={rivalEntry?.name ?? null} visualKey={null} size={64} />
+              <AvatarFrame size={64} />
               <div className="arena-v2-seat-copy">
                 <span className="arena-v2-tag">
                   {!isCancelled && finish.winnerUserId === rivalEntry?.userId ? t.arenaWinnerTag : t.arenaOpponent}
@@ -854,10 +850,8 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
               <div className="arena-v2-versus-players">
                 <div className="arena-v2-versus-slot">
                   <AvatarFrame
-                    name={user?.name ?? null}
                     avatarUrl={user?.avatar_url}
                     visualKey={wallet?.equipment.frame?.visual_key ?? null}
-                    style={wallet?.equipment.frame?.style ?? null}
                     size={92}
                     className="arena-v2-versus-avatar"
                   />
@@ -883,7 +877,7 @@ function DuelPanel({ currentUserId, onSummaryRefresh, recent }: DuelPanelProps) 
               <button
                 type="button"
                 className={`gc-btn arena-v2-cta${isSearching ? ' is-cancel' : ' is-primary'}`}
-                data-buddy-target="control:arena-start"
+                data-buddy-target={isSearching ? undefined : 'control:arena-start'}
                 aria-label={isSearching ? t.arenaCancel : t.arenaFindOpponent}
                 onClick={isSearching ? resetDuel : findOpponent}
               >

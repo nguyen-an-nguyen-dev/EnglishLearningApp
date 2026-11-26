@@ -19,7 +19,7 @@ export function detectLivePageContext(
   }
 
   try {
-    if (document.querySelector('.settings-panel')) {
+    if (document.querySelector('.settings-panel[data-open="true"]')) {
       return {
         focus: 'Cài đặt',
         detail: 'Người dùng đang mở bảng Cài đặt: đổi giao diện sáng/tối, ngôn ngữ, thông tin tài khoản và đăng xuất.',

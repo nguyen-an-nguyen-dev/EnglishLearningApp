@@ -160,8 +160,10 @@ export function buildStudyPlan(snapshot: StudySnapshot, stats: StudyStats): Stud
 
 const SPOTLIGHT_TARGETS: Partial<Record<ChatTab, readonly string[]>> = {
   profile: ['profile:stats', 'profile:path', 'profile:badges', 'wallet:summary'],
-  shop: ['wallet:summary'],
+  shop: ['wallet:summary', 'control:shop-catalog'],
   rankings: ['rank:me'],
+  compete: ['control:arena-start'],
+  videos: ['control:owned-videos'],
 };
 
 /** Only ids that exist in the real catalogue survive, so a hallucinated id
@@ -172,6 +174,20 @@ export function resolveChatAction(
   shopItems: readonly Pick<ShopItem, 'code' | 'name'>[] = [],
 ): ChatAction | null {
   if (!action || action.tab === 'admin') return null;
+  if (action.kind === 'buy_shop_item') {
+    // The buddy never spends the learner's coins. Turn a buy request into a
+    // direct navigation to the real item card; the learner confirms the purchase.
+    const item = shopItems.find(({ code }) => code === action.itemCode);
+    if (!item) return null;
+    return {
+      kind: 'show_shop_item',
+      tab: 'shop',
+      itemCode: item.code,
+      itemName: item.name,
+      highlight: `shop:${item.code}`,
+      label: `Mở ${item.name}`.slice(0, 60),
+    };
+  }
   if (action.kind === 'show_shop_item') {
     const item = shopItems.find(({ code }) => code === action.itemCode);
     if (!item) return null;
@@ -190,7 +206,7 @@ export function resolveChatAction(
     return { kind: 'spotlight', tab, highlight, label: action.label };
   }
   if (action.kind === 'open_video') {
-    const video = stats.videoCatalog.find((item) => item.id === action.videoId);
+    const video = [...stats.videoCatalog, ...(stats.ownedVideoCatalog ?? [])].find((item) => item.id === action.videoId);
     if (!video) return null;
     return {
       kind: 'open_video',
@@ -244,7 +260,7 @@ export function resolveChatAction(
     kind: 'open_tab',
     tab,
     label: action.label || tabLabels[tab],
-    ...(action.highlight ? { highlight: action.highlight } : {}),
+    ...(action.highlight && SPOTLIGHT_TARGETS[tab]?.includes(action.highlight) ? { highlight: action.highlight } : {}),
   };
 }
 
@@ -274,15 +290,32 @@ export function scoreCatalogMatch(query: string, candidate: string): number {
  */
 export function resolveNavigationRequest(message: string, stats: StudyStats): ChatAction | null {
   const text = normalizeDestination(message);
-  if (!text || isQuestionAboutDestination(text)) return null;
-  const command = /\b(mo|tim|xem|vao|chuyen|hoc|on|open|find|watch|study|review|take me|go to)\b/.test(text);
+  if (!text || isQuestionAboutDestination(text)
+    || /\b(nhac (?:minh|toi|em|nho)|remind|dung (?:mo|chuyen|tim)|do not|don t)\b/.test(text)) return null;
+  const destination = text
+    .replace(/^(?:en buddy |buddy |please |lam on )/, '')
+    .replace(/^(?:(?:toi|minh|em) muon |ban |i (?:want|would like) to )/, '')
+    .replace(/^(?:(?:cho|dua) (?:minh|toi|em) (?:xem|den|toi|vao)|mo(?: trang| tab)?|vao(?: tab)?|chuyen(?: tab)?(?: sang| qua)?(?: tab)?|di (?:den|toi)|xem|open(?: the)?|switch to(?: the)?|take me to(?: the)?|go to(?: the)?|show me(?: the)?) /, '')
+    .replace(/ (?:giup (?:minh|toi|em)|cho (?:minh|toi|em)|voi|nhe|nha|di|please)$/, '')
+    .replace(/ (?:tab|screen)$/, '');
 
-  if (/(on tap|on lai|bai can on|phien on tap|review)/.test(text)) {
+  if (/^(?:tim tran(?: dau)?|tim doi thu|ghep tran|vao tran|find (?:a match|an opponent)|matchmaking|start matchmaking)(?: (?:thi dua|thi dau|1v1))?$/.test(destination)) {
+    return { kind: 'spotlight', tab: 'compete', highlight: 'control:arena-start', label: 'Tìm trận' };
+  }
+  if (/^(?:on tap|on lai|bai can on|phien on tap|review)$/.test(destination)) {
     return { kind: 'open_review', tab: 'profile', label: 'Bắt đầu ôn tập' };
   }
+  if (/^(?:so tu(?: vung)?|tu da luu|on tu|notebook|vocabulary notebook|saved words)$/.test(destination)) {
+    return { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng', highlight: 'control:notebook' };
+  }
 
-  const videoMentioned = /\b(video|clip|watch|listening)\b/.test(text);
+  const command = /^(?:(?:minh|toi) muon )?(?:mo|tim|xem|vao|chuyen|hoc|open|find|watch|study|take me|go to)\b/.test(text);
+  const videoMentioned = command && /\b(video|clip|watch|listening)\b/.test(text);
   if (videoMentioned) {
+    if (/^(?:thu vien video|video library|hoc qua video|videos|tab video|video)$/.test(destination)
+      && !/^(?:mo|xem|watch|play|open) video$/.test(text)) {
+      return { kind: 'open_tab', tab: 'videos', label: 'Mở thư viện video' };
+    }
     const ranked = stats.videoCatalog
       .map((video) => ({ video, score: scoreCatalogMatch(text, normalizeDestination(`${video.title} ${video.topic}`)) }))
       .sort((a, b) => b.score - a.score || a.video.id - b.video.id);
@@ -290,31 +323,45 @@ export function resolveNavigationRequest(message: string, stats: StudyStats): Ch
     if (match && match.score > 0) {
       return { kind: 'open_video', tab: 'videos', videoId: match.video.id, videoTitle: match.video.title, label: `Mở video: ${match.video.title}`.slice(0, 80) };
     }
-    const next = stats.nextVideo;
-    if (next && command && !hasSpecificTopic(text) && !/(thu vien|library)/.test(text)) {
-      return { kind: 'open_video', tab: 'videos', videoId: next.id, videoTitle: next.title, label: `Mở video: ${next.title}`.slice(0, 80) };
+    // "Một video nào đó/bất kì" is a request for one concrete video, not for
+    // the library. Prefer the next unwatched video, then any catalog entry when
+    // everything is already finished.
+    const anyVideo = /\b(bat ki|bat ky|nao do|nao cung duoc|gi cung duoc|dai loai|random|any|whatever|something)\b/.test(text);
+    const fallback = anyVideo
+      ? stats.nextVideo ?? (stats.videoCatalog[0]
+        ? { id: stats.videoCatalog[0].id, title: stats.videoCatalog[0].title }
+        : null)
+      : stats.nextVideo;
+    const wantsLibrary = /(thu vien|library)/.test(text) && !anyVideo;
+    if (fallback && (command || anyVideo) && !wantsLibrary && (anyVideo || !hasSpecificTopic(text))) {
+      return { kind: 'open_video', tab: 'videos', videoId: fallback.id, videoTitle: fallback.title, label: `Mở video: ${fallback.title}`.slice(0, 80) };
     }
     return { kind: 'open_tab', tab: 'videos', label: 'Mở thư viện video' };
   }
 
   const routes: Array<{ tab: ChatTab; match: RegExp }> = [
-    { tab: 'rankings', match: /(bang xep hang|xep hang|leaderboard|ranking|league)/ },
-    { tab: 'translate', match: /(dich tai lieu|dich van ban|translate|translation)/ },
-    { tab: 'compete', match: /(thi dua|dau truong|dau tu vung|arena|1v1)/ },
-    { tab: 'shop', match: /(gara|cua hang|shop|garage|mua xe)/ },
-    { tab: 'profile', match: /(ho so|trang ca nhan|tai khoan|profile)/ },
+    { tab: 'study', match: /^(?:lo trinh(?: hoc)?|hoc tap|bai hoc|roadmap|study|learning)$/ },
+    { tab: 'videos', match: /^(?:video|videos|thu vien video|video library|hoc qua video)$/ },
+    { tab: 'rankings', match: /^(?:bang xep hang|xep hang|leaderboard|rankings?|league|bxh)$/ },
+    { tab: 'translate', match: /^(?:dich|dich tai lieu|dich van ban|translate|translation)$/ },
+    { tab: 'compete', match: /^(?:thi dau|thi dua|dau truong|dau tu vung|arena|compete|1v1)$/ },
+    { tab: 'shop', match: /^(?:gara(?: shop| engorace)?|cua hang(?: gara)?|shop|garage|danh muc (?:gara|cua hang)|shop catalog|mua phu tung)$/ },
+    { tab: 'profile', match: /^(?:ho so|trang ca nhan|tai khoan|thong tin ca nhan|profile)$/ },
   ];
-  const route = routes.find((item) => item.match.test(text));
+  const route = routes.find((item) => item.match.test(destination));
   if (route) {
     const labels: Record<ChatTab, string> = {
       study: 'Mở lộ trình học', videos: 'Mở thư viện video', translate: 'Mở bàn dịch',
       compete: 'Mở đấu trường', rankings: 'Mở bảng xếp hạng', shop: 'Mở Gara',
       profile: 'Mở hồ sơ', admin: 'Quản trị',
     };
-    return { kind: 'open_tab', tab: route.tab, label: labels[route.tab] };
+    return {
+      kind: 'open_tab', tab: route.tab, label: labels[route.tab],
+      ...(route.tab === 'shop' ? { highlight: 'control:shop-catalog' } : {}),
+    };
   }
 
-  const lessonMentioned = /(lo trinh|roadmap|hoc tap|bai hoc|bai ve|hoc bai|hoc ve|lesson)/.test(text);
+  const lessonMentioned = command && /\b(bai hoc|bai ve|hoc bai|hoc ve|lesson)\b/.test(text);
   if (lessonMentioned) {
     const ranked = stats.lessons
       .map((lesson) => ({ lesson, score: scoreCatalogMatch(text, normalizeDestination(`${lesson.title} ${lesson.topic} ${lesson.stageTitle}`)) }))
@@ -333,8 +380,10 @@ export function resolveNavigationRequest(message: string, stats: StudyStats): Ch
 }
 
 /**
- * The rows-based fallback when the gate rejects and no provider is usable: it
- * names the real next lesson, weak topic and current screen, not a canned apology.
+ * The rows-based fallback when the gate rejects and no provider is usable.
+ * Study-plan questions still get a real plan; conversational turns get one
+ * short, in-character notice instead of a page summary or an "AI needed"
+ * disclaimer that reads like a system error.
  */
 export function buildOfflineCoachReply(
   snapshot: StudySnapshot,
@@ -343,44 +392,32 @@ export function buildOfflineCoachReply(
   context: ChatContext | null,
   language: BuddyLanguage = 'vi',
 ): AiReply {
+  if (intent !== 'plan' && intent !== 'practice') {
+    return {
+      reply: language === 'en'
+        ? 'I couldn’t answer this question right now. Please try again.'
+        : 'Mình chưa trả lời được câu này. Bạn thử lại nhé.',
+      feedback: [],
+      followups: [],
+      action: null,
+      reminder: null,
+    };
+  }
+
   const first = steps[0];
   if (language === 'en') {
-    const plan = intent === 'plan' || intent === 'practice';
     const next = snapshot.nextLesson;
     const lines = [];
-    if (plan && next) lines.push(`Your next lesson is “${next.title}”. You’ve completed ${snapshot.completedLessons} of ${snapshot.totalLessons} lessons.`);
-    if (plan && !next) lines.push('You can review a lesson you’ve already completed.');
-    if (plan && snapshot.reviewDue) lines.push(`You also have ${snapshot.reviewDue} items due for review.`);
-    if (!plan && context?.focus) lines.push(`You’re viewing “${context.focus}”.`);
-    if (!plan) lines.push('I can’t give a detailed answer right now. Please try again in a moment.');
-    const action = plan && next
+    if (next) {
+      lines.push(`Your next lesson is “${next.title}”. You’ve completed ${snapshot.completedLessons} of ${snapshot.totalLessons} lessons.`);
+    } else {
+      lines.push('You can review a lesson you’ve already completed.');
+    }
+    if (snapshot.reviewDue) lines.push(`You also have ${snapshot.reviewDue} items due for review.`);
+    const action = next
       ? { kind: 'open_lesson', tab: 'study', lessonId: next.id, label: 'Open the next lesson' } as const
       : null;
     return { reply: lines.join(' '), feedback: [], followups: [], action, reminder: null };
-  }
-  // A question about the current screen is not a request for a study plan.
-  // When the model is unavailable, answer from the page context we do have and
-  // say plainly that the detailed answer needs the model, instead of pretending
-  // the learner asked what to study next.
-  if (intent !== 'plan' && intent !== 'practice') {
-    const lines: string[] = [];
-    if (context?.focus) lines.push(`Bạn đang ở: ${context.focus}.`);
-    if (intent === 'explain') {
-      lines.push('Phần giải thích chi tiết cần AI; thử lại sau một lượt.');
-    } else if (intent === 'how') {
-      lines.push('Chỉ dẫn thao tác chi tiết cần AI; thử lại sau một lượt.');
-    } else {
-      lines.push('Câu trả lời chi tiết cần AI; thử lại sau một lượt.');
-    }
-    if (!context?.focus) {
-      lines.push(`Việc tiếp theo: ${first.title} (${first.minutes} phút). ${first.reason}`);
-    }
-    const followups = intent === 'explain'
-      ? ['Giải thích từ này kỹ hơn', 'Cho mình một ví dụ']
-      : intent === 'how'
-        ? ['Chỉ mình từng bước', 'Mở đúng màn hình đó']
-        : ['Hôm nay mình nên học gì trước?', 'Giải thích chủ đề mình đang xem'];
-    return { reply: lines.join('\n'), feedback: [], followups, action: null, reminder: null };
   }
 
   const weak = snapshot.weakTopics[0];
@@ -399,9 +436,6 @@ export function buildOfflineCoachReply(
   }
   if (context?.focus) {
     lines.push(`Bạn đang ở: ${context.focus}.`);
-  }
-  if (intent === 'practice') {
-    lines.push('Làm bài tiếp theo trước đã, bài tập riêng cần AI.');
   }
   const followups = intent === 'plan'
     ? ['Bài tiếp theo học trong bao lâu?', 'Chủ đề yếu nhất của mình là gì?']

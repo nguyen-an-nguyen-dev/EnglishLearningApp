@@ -75,55 +75,6 @@ export async function getLessonById(lessonId: number): Promise<LessonRow | undef
   return rows[0];
 }
 
-export async function getFirstLesson(): Promise<LessonRow | undefined> {
-  const [rows] = await pool.execute<LessonRow[]>(
-    `SELECT l.id, l.stage_id, l.code, l.title, l.topic, l.sort_order
-     FROM lessons l
-     JOIN stages s ON s.id = l.stage_id
-     ORDER BY s.sort_order ASC, l.sort_order ASC
-     LIMIT 1`,
-  );
-  return rows[0];
-}
-
-export async function getPreviousLesson(lessonId: number): Promise<LessonRow | undefined> {
-  interface Row extends LessonRow {
-    stage_sort_order: number;
-  }
-  const [currentRows] = await pool.execute<Row[]>(
-    `SELECT l.id, l.stage_id, l.code, l.title, l.topic, l.sort_order,
-            s.sort_order AS stage_sort_order
-     FROM lessons l JOIN stages s ON s.id = l.stage_id
-     WHERE l.id = ? LIMIT 1`,
-    [lessonId],
-  );
-  const current = currentRows[0];
-  if (!current) return undefined;
-
-  const [sameStagePrev] = await pool.execute<LessonRow[]>(
-    `SELECT id, stage_id, code, title, topic, sort_order
-     FROM lessons
-     WHERE stage_id = ? AND sort_order < ?
-     ORDER BY sort_order DESC LIMIT 1`,
-    [current.stage_id, current.sort_order],
-  );
-  if (sameStagePrev[0]) return sameStagePrev[0];
-
-  const [prevStageRows] = await pool.execute<StageRow[]>(
-    `SELECT id FROM stages WHERE sort_order < ? ORDER BY sort_order DESC LIMIT 1`,
-    [current.stage_sort_order],
-  );
-  if (!prevStageRows[0]) return undefined;
-
-  const prevStageId = prevStageRows[0].id;
-  const [prevStageLast] = await pool.execute<LessonRow[]>(
-    `SELECT id, stage_id, code, title, topic, sort_order
-     FROM lessons WHERE stage_id = ? ORDER BY sort_order DESC LIMIT 1`,
-    [prevStageId],
-  );
-  return prevStageLast[0];
-}
-
 export async function getQuestionsByLesson(lessonId: number): Promise<QuestionRow[]> {
   const [rows] = await pool.execute<QuestionRow[]>(
     `SELECT id, lesson_id, question_text, question_type, explanation, audio_url, word_bank, difficulty, sort_order

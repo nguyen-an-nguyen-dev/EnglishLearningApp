@@ -5,6 +5,8 @@ import { HttpError } from '../src/middleware/error-handler';
 import { env } from '../src/config/env';
 import { parseAiReply, providerMessageContent } from '../src/modules/ai/ai.parsing';
 import { generateReply } from '../src/modules/ai/ai.provider';
+import { matchShopItem } from '../src/modules/ai/ai.copilot';
+import { parseBuddyCommand } from '../src/modules/ai/ai.commands';
 import {
   buildOfflineCoachReply,
   buildStudyPlan,
@@ -17,9 +19,9 @@ import type { StudyStats } from '../src/modules/ai/ai.repository';
 import type { LearnerContext } from '../src/modules/ai/ai.types';
 
 before(() => {
+  env.thApiKey = '';
   env.aiApiKey = 'test-only-provider-key';
   env.aiApiUrl = 'https://provider.example.test/chat/completions';
-  env.cfAccounts = [];
 });
 
 function providerResponse(content: string, status = 200): Response {
@@ -372,7 +374,7 @@ test('the offline coach reply names due review items, not just the plan order', 
   assert.doesNotMatch(quiet.reply, /mục này/, 'no due reminder when nothing is due');
 });
 
-test('offline chat and explain answers follow the page, not a study plan', () => {
+test('offline chat and explain answers report that Buddy could not answer', () => {
   const stats: StudyStats = {
     totalLessons: 3,
     completedLessons: 1,
@@ -410,13 +412,18 @@ test('offline chat and explain answers follow the page, not a study plan', () =>
   const context = { tab: 'rankings' as const, focus: 'League tuần · Hạng #3' };
 
   const chat = buildOfflineCoachReply(snapshot, steps, 'chat', context);
-  assert.match(chat.reply, /League tuần/);
-  assert.doesNotMatch(chat.reply, /Việc tiếp theo/, 'a page question is not a plan request');
+  assert.match(chat.reply, /chưa trả lời được/);
+  assert.doesNotMatch(chat.reply, /Phần giải thích chi tiết|Việc tiếp theo/);
   assert.equal(chat.action, null);
+  assert.deepEqual(chat.followups, []);
 
   const explain = buildOfflineCoachReply(snapshot, steps, 'explain', context);
-  assert.match(explain.reply, /giải thích/i);
-  assert.doesNotMatch(explain.reply, /Việc tiếp theo/);
+  assert.match(explain.reply, /chưa trả lời được/);
+  assert.doesNotMatch(explain.reply, /giải thích chi tiết/i);
+
+  const english = buildOfflineCoachReply(snapshot, steps, 'chat', context, 'en');
+  assert.match(english.reply, /couldn’t answer/);
+  assert.doesNotMatch(english.reply, /detailed answer/i);
 });
 
 test('chat actions resolve only to real catalogue ids and tabs', () => {
@@ -502,10 +509,57 @@ test('chat actions resolve only to real catalogue ids and tabs', () => {
   assert.deepEqual(resolveNavigationRequest('Mở video về music', stats), {
     kind: 'open_video', tab: 'videos', videoId: 3, videoTitle: 'Viva La Vida', label: 'Mở video: Viva La Vida',
   });
+  assert.deepEqual(resolveNavigationRequest('Mở giúp mình một video nào đó bất kì', stats), {
+    kind: 'open_video', tab: 'videos', videoId: 3, videoTitle: 'Viva La Vida', label: 'Mở video: Viva La Vida',
+  });
+  assert.equal(resolveNavigationRequest('Mở thư viện video', stats)?.kind, 'open_tab');
   assert.deepEqual(resolveNavigationRequest('Mở bài về travel', stats), {
     kind: 'open_lesson', tab: 'study', lessonId: 8, lessonTitle: 'Bài 8', label: 'Mở bài: Bài 8',
   });
   assert.equal(resolveNavigationRequest('Ôn tập giúp mình', stats)?.kind, 'open_review');
   assert.equal(resolveNavigationRequest('Mở bảng xếp hạng', stats)?.tab, 'rankings');
   assert.equal(resolveNavigationRequest('Giải thích bảng xếp hạng là gì?', stats), null);
+});
+
+test('a polite request for any video is a video command, not a shop item', () => {
+  for (const message of [
+    'Mở giúp mình một video nào đó bất kì',
+    'Mở giúp mình xem một video bất kì',
+    'Mở cho tôi một video bất kỳ',
+    'Mở một video bất kì',
+    'Xin chào anh có thể mở cho tôi một video bất kỳ được không?',
+    'Bạn có thể mở giúp mình một video ngẫu nhiên được không?',
+    'Open any video',
+  ]) {
+    const command = parseBuddyCommand(message);
+    assert.equal(command?.kind, 'video', message);
+    if (command?.kind === 'video') assert.deepEqual(command.params, { choice: 'random' }, message);
+  }
+
+  const topic = parseBuddyCommand('Mở video về music');
+  assert.equal(topic?.kind, 'video');
+  if (topic?.kind === 'video') assert.deepEqual(topic.params, { choice: 'topic', topic: 'music' });
+  assert.equal(parseBuddyCommand('Bạn có thể giải thích nội dung video này được không?'), null);
+});
+
+test('a described red car is looked up in the real shop catalogue', () => {
+  const car = (id: number, code: string, name: string, body: string, description = '') => ({
+    id, code, name, description, slot: 'car', rarity: 'rare', price: 200,
+    unlock_type: 'level', unlock_value: '3', visual_key: code, style: { body },
+    booster_kind: null, owned: false, equipped: false, unlocked: true, unlock_label: '',
+    charges: 0, active_until: null,
+  });
+  const items = [
+    car(1, 'car_default', 'Xe vàng kinh điển', '#F2B544'),
+    car(2, 'car_sport_red', 'Xe thể thao đỏ', '#E5484D', 'Thân xe đỏ gọn.'),
+    car(3, 'car_formula', 'Xe đua công thức', '#F25C4A', 'Một chiếc F1 đỏ rực.'),
+    car(4, 'car_jeep', 'Jeep đường dài', '#D9534F'),
+    car(5, 'car_rickshaw', 'Xe lam tốc độ', '#2E8B57'),
+  ] as unknown as import('../src/modules/gamification/gamification.types').ShopItem[];
+
+  assert.equal(matchShopItem('chiếc xe màu đỏ', items)?.code, 'car_sport_red');
+  assert.equal(matchShopItem('red car', items)?.code, 'car_sport_red');
+  assert.equal(matchShopItem('xe vàng', items)?.code, 'car_default');
+  assert.equal(parseBuddyCommand('chiếc xe màu đỏ')?.kind, 'shopItem');
+  assert.equal(parseBuddyCommand('có chiếc xe màu đỏ không')?.kind, 'shopItem');
 });

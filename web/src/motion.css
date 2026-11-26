@@ -1,10 +1,12 @@
-/* Motion & interaction polish. Loaded after every screen stylesheet; everything here is transform/opacity based to stay on the compositor. */
+/* Shared motion for navigation, controls and overlays. */
 :root {
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
-  --motion-spring: cubic-bezier(0.33, 1, 0.68, 1);
   --motion-mid: 200ms;
   --motion-slow: 340ms;
+  --motion-feedback: 140ms;
+  --motion-press: 90ms;
+  --motion-arrive: 180ms;
 }
 
 /* Page / tab entrance */
@@ -24,6 +26,15 @@
 .learning-page-translate .tab-view-container {
   animation-name: view-enter-flat;
 }
+
+/* Keep the destination readable while the active navigation item changes. */
+.tab-view-container:is(.study-screen, .translate-page, .rank-view, .profile-view, .arena-view, .gara-v2) {
+  animation: dashboard-arrive var(--motion-arrive) var(--motion-ease);
+}
+@keyframes dashboard-arrive {
+  from { opacity: 0.84; }
+  to { opacity: 1; }
+}
 /* A fixed dialog inside a transformed container would be positioned against
    the container instead of the viewport, so stop the entrance when one opens. */
 .tab-view-container:has(dialog[open]) {
@@ -37,22 +48,44 @@
     color var(--motion-mid) var(--motion-ease-soft);
 }
 .nav-item svg {
-  transition: transform 260ms var(--motion-spring), color var(--motion-mid) var(--motion-ease-soft);
+  transition: transform 260ms var(--motion-ease-soft), color var(--motion-mid) var(--motion-ease-soft);
 }
 .nav-item:hover svg { transform: translateX(1px); }
 .nav-item-active svg { transform: scale(1.06); }
 .nav-item-active::before {
-  animation: nav-indicator-in 320ms var(--motion-spring) both;
+  animation: nav-indicator-in 320ms var(--motion-ease-soft) both;
 }
 @keyframes nav-indicator-in {
   from { opacity: 0; transform: translateY(-50%) scaleY(0.25); }
   to { opacity: 1; transform: translateY(-50%) scaleY(1); }
 }
 
-.mobile-nav button svg {
-  transition: transform 260ms var(--motion-spring), color var(--motion-mid) var(--motion-ease-soft);
+.mobile-nav a svg {
+  transition: transform 260ms var(--motion-ease-soft), color var(--motion-mid) var(--motion-ease-soft);
 }
 .mobile-nav .mobile-nav-active svg { transform: translateY(-1px) scale(1.08); }
+
+/* A quick press and a slightly softer release on repeatable controls. */
+:is(.app-shell, .settings-panel) :is(
+  .nav-item, .mobile-nav a, .settings-close, .settings-options button, .settings-switch,
+  .gc-btn, .profile-review, .account-submit, .account-cancel,
+  .buddy-icon-btn, .buddy-solid-btn, .buddy-ghost-btn, .buddy-send-btn, .voice-talk-btn
+) {
+  scale: 1;
+  transition: scale var(--motion-feedback) var(--motion-ease),
+    transform var(--motion-feedback) var(--motion-ease),
+    background-color var(--motion-feedback) ease-out,
+    border-color var(--motion-feedback) ease-out, color var(--motion-feedback) ease-out,
+    box-shadow var(--motion-feedback) ease-out;
+}
+:is(.app-shell, .settings-panel) :is(
+  .nav-item, .mobile-nav a, .settings-close, .settings-options button, .settings-switch,
+  .gc-btn, .profile-review, .account-submit, .account-cancel,
+  .buddy-icon-btn, .buddy-solid-btn, .buddy-ghost-btn, .buddy-send-btn, .voice-talk-btn
+):active:not(:disabled, [aria-disabled="true"], .is-disabled) {
+  scale: 0.98;
+  transition-duration: var(--motion-press);
+}
 
 /* Buttons and pressed states */
 :is(
@@ -100,13 +133,13 @@
   transform: translateY(1px) scale(0.985);
 }
 /* The round icon buttons get a softer press than a full-width CTA. */
-:is(.theme-toggle, .profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay, .practice-cover-play) {
+:is(.profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay, .practice-cover-play) {
   transition: background-color var(--motion-mid) var(--motion-ease-soft),
     color var(--motion-mid) var(--motion-ease-soft),
     border-color var(--motion-mid) var(--motion-ease-soft),
-    transform 180ms var(--motion-spring);
+    transform 180ms var(--motion-ease-soft);
 }
-:is(.theme-toggle, .profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay):active {
+:is(.profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay):active {
   transform: scale(0.94);
 }
 
@@ -129,11 +162,36 @@
 /* League rows carry their own hover/transition in rankings.css. */
 
 /* Overlays and floating panels */
-/* The settings popover grows out of its trigger rather than sliding in from
-   nowhere, which keeps it feeling attached to the gear button. */
 .settings-panel {
-  transform-origin: bottom right;
-  animation: settings-pop 170ms var(--motion-ease) both;
+  --settings-offset: -4px;
+  display: none;
+  opacity: 0;
+  translate: 0 var(--settings-offset);
+  transition: opacity 110ms ease-out, translate 110ms ease-out, display 110ms allow-discrete;
+}
+.settings-panel[data-side="above"] { --settings-offset: 4px; }
+.settings-panel[data-open="true"] {
+  display: block;
+  opacity: 1;
+  translate: 0 0;
+  transition-duration: var(--motion-arrive);
+  transition-timing-function: var(--motion-ease);
+}
+@starting-style {
+  .settings-panel[data-open="true"] {
+    opacity: 0;
+    translate: 0 var(--settings-offset);
+  }
+}
+.app-shell .voice-panel {
+  animation: buddy-panel-arrive var(--motion-arrive) var(--motion-ease);
+}
+@keyframes buddy-panel-arrive {
+  from { opacity: 0.84; translate: 0 4px; }
+  to { opacity: 1; translate: 0 0; }
+}
+.voice-chat-body :is(.voice-chat-bubble.is-user, .voice-agent-line) {
+  animation: dashboard-arrive var(--motion-feedback) var(--motion-ease);
 }
 .video-import-dialog[open] {
   animation: video-dialog-in 220ms var(--motion-ease) both;
@@ -182,10 +240,27 @@
 @media (prefers-reduced-motion: reduce) {
   .nav-item-active::before { animation: none; }
   .tab-view-container { animation: none; }
+  .tab-view-container:is(.study-screen, .translate-page, .rank-view, .profile-view, .arena-view, .gara-v2),
+  .app-shell .voice-panel,
+  .voice-chat-body :is(.voice-chat-bubble.is-user, .voice-agent-line) { animation: none; }
+  :is(.app-shell, .settings-panel) :is(
+    .nav-item, .mobile-nav a, .settings-close, .settings-options button, .settings-switch,
+    .gc-btn, .profile-review, .account-submit, .account-cancel,
+    .buddy-icon-btn, .buddy-solid-btn, .buddy-ghost-btn, .buddy-send-btn, .voice-talk-btn
+  ):is(:active, :hover):not(:disabled, [aria-disabled="true"], .is-disabled) {
+    scale: 1;
+    transform: none;
+    transition-property: background-color, border-color, color, box-shadow;
+  }
+  .settings-panel[data-side] {
+    --settings-offset: 0px;
+    /* Keep brief opacity feedback through the app-wide motion guard. */
+    transition-duration: 80ms !important;
+  }
   .learning-page-map .roadmap-stop-card { will-change: auto; }
   .nav-item svg,
-  .mobile-nav button svg,
-  :is(.theme-toggle, .profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay, .practice-cover-play) {
+  .mobile-nav a svg,
+  :is(.profile-icon-btn, .logout-icon-btn, .mobile-settings-btn, .practice-head-replay, .practice-cover-play) {
     transition: none;
   }
   .settings-panel,

@@ -1,10 +1,12 @@
 # AI module — how one answer is produced
 
-Two model families, three layers:
+Every turn is one model call. The model picks the reply, the action and any reminder from the learner's data; the app only validates them against real records. There is no review or repair pass: the first draft is the reply. Deterministic command matching (`ai.commands.ts` / `ai.copilot.ts`) is a fallback used only when no model can answer.
 
 ```
 POST /api/ai/chats/:id/messages          POST /api/buddy/ask
                 │                                 │
+                │                                 ▼
+                │                 ai.service.ts (authenticated learner data)
                 ▼                                 ▼
         ai.validation.ts  (message, intent, context)
                 │
@@ -16,15 +18,11 @@ POST /api/ai/chats/:id/messages          POST /api/buddy/ask
         ai.prompts.ts  (system prompt + learner JSON + page JSON + history)
                 │
                 ▼
-        ai.provider.ts  ── Cloudflare Workers AI (Llama 3.3 70B) ──► Gemini 2.5 Flash
-                │
+        ai.provider.ts  ── Token Harbor (DeepSeek) ──► Gemini 2.5 Flash
+                │                                       (on failure: ai.study.ts offline answer)
                 ▼
         ai.parsing.ts  (JSON contract: reply / feedback / followups / action / reminder)
                 │
-                ▼
-        ai.decisions.ts  reviewAnswer()  ──► ship ─────────────► save + return
-                │                        └─► repair → one rewrite → review again
-                │                        └─► reject → ai.study.ts offline answer
                 ▼
         ai.repository.ts  (save message + feedback rows)
 ```
@@ -33,9 +31,10 @@ POST /api/ai/chats/:id/messages          POST /api/buddy/ask
 | --- | --- |
 | `ai.routes.ts` / `ai.controller.ts` | HTTP surface only |
 | `ai.validation.ts` | Trims and bounds untrusted input, closes the intent/tab enums |
-| `ai.pipeline.ts` | One turn: budget, intent routing, generate, review, repair, fallback |
-| `ai.provider.ts` | The only generative chain: Llama 3.3 70B → Gemini Flash |
-| `ai.decisions.ts` | Gemini Decision 1: closed-set intent and answer review (`ship`/`repair`/`reject`) |
+| `ai.commands.ts` / `ai.copilot.ts` | Offline fallback: recognises guide commands and resolves them against learner records and catalogues when every provider is down |
+| `ai.pipeline.ts` | One turn: budget, intent routing, one generation, fallback |
+| `ai.provider.ts` | The only generative chain: Token Harbor (DeepSeek) → Gemini Flash |
+| `ai.decisions.ts` | Gemini Decision 1: closed-set intent routing |
 | `ai.prompts.ts` | Prompt text, app guide, voice rules, learner data serialisation |
 | `ai.parsing.ts` | Strict parsing of the model JSON and reminder heuristics |
 | `ai.study.ts` | Snapshot, deterministic plan, deep-link resolution, offline answer |
@@ -54,9 +53,9 @@ POST /api/ai/chats/:id/messages          POST /api/buddy/ask
 }
 ```
 
-`parseAiReply` rejects empty replies, unknown feedback types, more than 6 feedback
-items or more than 3 follow-ups, and drops actions/ids that are not in the real
-catalogue (`resolveChatAction`).
+`parseAiReply` validates replies, feedback and follow-ups. The coach prompt
+sets `action` and `reminder` to null. The service derives both fields from
+app rules and uses `resolveChatAction` to validate navigation destinations.
 
 ## Time budget
 
@@ -70,10 +69,19 @@ is spent the deterministic offline answer is returned instead.
   stored progress, errors grouped by lesson topic, saved words, video
   progress and due review items. `buildStudyPlan` computes those steps without
   a model call. Topic ranking uses the number of wrong attempts per topic.
-- The web `VoiceOrb` uses `GET /api/buddy/nudges` and `POST /api/buddy/ask`
-  through `web/src/services/buddyService.ts`. The coach can use the current
-  page context and validates lesson or video destinations against the
-  catalog. The learner confirms a reminder before the web client saves it.
+- The web `VoiceOrb` uses `GET /api/buddy/nudges` and `POST /api/buddy/ask`.
+  Try “Chuyển tab sang Hồ sơ”, “Tìm trận đấu”, “Gara có những gì?”,
+  “Mua xe màu đỏ”, “Mở video mã ...”, or “Bao lâu rồi mình chưa học?”.
+  Matchmaking highlights the Arena button after one second. A shop lookup
+  highlights the item and reports its price and availability. Learners
+  start matchmaking, confirm purchases, and save reminder suggestions
+  through the corresponding app controls.
+- Video lookup accepts a title, code or topic and uses the same access
+  rules as the video API. Private videos are searchable by their owner.
+  Random recommendations draw from the published library by default.
+- The coach prompt includes the active page, recent lesson history and
+  scores, the next roadmap lesson, frequent errors, days since recorded
+  practice, and the full shop catalogue with prices and unlock conditions.
 - `pickNextLesson` currently returns the first unfinished lesson after a
   completed predecessor, including the first lesson when unfinished. The
   learning API instead finds the checkpoint after the furthest completed
@@ -81,11 +89,9 @@ is spent the deterministic offline answer is returned instead.
   coach can suggest that catch-up lesson while the roadmap points further
   ahead.
 
-## Rules that keep the gate safe
+## Rules for the fallback
 
-- The gate can never break a turn: a disabled or failing Decisions API means the
-  draft ships unchanged.
-- Only the coach flow has a `grounding` question; the legacy English tutor only
-  gets the shape verdict.
-- Any rejected coach answer is replaced, never shown; a repair that is rejected
-  on the second review is replaced too.
+- Only a failed provider call uses the offline answer. Intent routing failing
+  keeps the client's intent.
+- The coach offline answer is built from real rows, so a provider outage still
+  returns grounded data.

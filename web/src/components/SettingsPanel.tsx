@@ -1,93 +1,128 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from '@phosphor-icons/react'
 import { useI18n } from '../i18n'
-import { LanguagePicker, ThemePicker } from './SettingsControls'
+import { LanguagePicker, ThemeSwitch } from './SettingsControls'
 
 interface SettingsPanelProps {
-  /** The button the panel hangs off. `null` keeps the panel closed. */
   anchor: HTMLElement | null
+  buddyEnabled: boolean
+  onBuddyToggle: (enabled: boolean) => void
   onClose: () => void
 }
 
-const GAP = 10
+const GAP = 8
 const EDGE = 12
 
-export function SettingsPanel({ anchor, onClose }: SettingsPanelProps) {
+export function SettingsPanel({
+  anchor, buddyEnabled, onBuddyToggle, onClose,
+}: SettingsPanelProps) {
   const { t } = useI18n()
+  const titleId = useId()
+  const switchLabelId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  const [positionedAnchor, setPositionedAnchor] = useState<HTMLElement | null>(null)
-  const [opensUp, setOpensUp] = useState(true)
-  /* The pointer has to land on the trigger's centre, not a fixed offset: the
-     trigger is a gear in the sidebar card on desktop and the header button on
-     mobile, and those sit at different distances from the panel edge. */
-  const [arrowX, setArrowX] = useState<number | null>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; above: boolean; anchor: HTMLElement } | null>(null)
 
   useLayoutEffect(() => {
-    if (!anchor) return
+    const panel = panelRef.current
+    if (!anchor || !panel) return
 
     const place = () => {
-      const panel = panelRef.current
-      if (!panel) return
-      const a = anchor.getBoundingClientRect()
-      const { width, height } = panel.getBoundingClientRect()
-      // above the trigger when there is room, otherwise below it
-      const openUp = a.top - height - GAP > EDGE
-      const top = openUp ? a.top - height - GAP : a.bottom + GAP
-      // a wide trigger anchors on its left edge; a small icon button anchors on its right
-      const left = a.width < 120 ? a.right - width : a.left
-      const clamped = Math.min(Math.max(left, EDGE), window.innerWidth - width - EDGE)
-      // keep the pointer inside the panel's rounded corners
-      const triggerCenter = a.left + a.width / 2
-      setArrowX(Math.min(Math.max(triggerCenter - clamped, 22), width - 22))
-      setPos({ top, left: clamped })
-      setOpensUp(openUp)
-      setPositionedAnchor(anchor)
+      const trigger = anchor.getBoundingClientRect()
+      const { offsetWidth: width, offsetHeight: height } = panel
+      const topAbove = trigger.top - height - GAP
+      const below = trigger.bottom + GAP
+      const above = topAbove >= EDGE
+      const preferred = above ? topAbove : below
+      const top = Math.max(EDGE, Math.min(preferred, window.innerHeight - height - EDGE))
+      const left = Math.max(EDGE, Math.min(trigger.right - width, window.innerWidth - width - EDGE))
+      setPos({ top, left, above, anchor })
     }
 
     place()
+    const observer = new ResizeObserver(place)
+    observer.observe(panel)
     window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [anchor])
+
+  useEffect(() => {
+    if (anchor) panelRef.current?.focus({ preventScroll: true })
   }, [anchor])
 
   useEffect(() => {
     if (!anchor) return
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+      onClose()
+      anchor.focus()
     }
-    const onPointerDown = (event: MouseEvent) => {
+    const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node
       if (panelRef.current?.contains(target) || anchor.contains(target)) return
       onClose()
     }
 
     document.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('pointerdown', onPointerDown)
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('pointerdown', onPointerDown)
     }
   }, [anchor, onClose])
 
-  if (!anchor) return null
-
-  return (
+  return createPortal(
     <div
       ref={panelRef}
-      className={`settings-panel${opensUp ? '' : ' is-below'}`}
+      className="settings-panel"
       role="dialog"
-      aria-label={t.settings}
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      data-open={anchor !== null}
+      data-side={pos?.above ? 'above' : 'below'}
+      inert={!anchor}
       style={{
         top: pos?.top ?? 0,
         left: pos?.left ?? 0,
-        visibility: pos && positionedAnchor === anchor ? 'visible' : 'hidden',
-        ...(arrowX !== null ? { '--settings-arrow-x': `${Math.round(arrowX)}px` } as CSSProperties : null),
+        visibility: anchor && pos?.anchor !== anchor ? 'hidden' : undefined,
       }}
     >
+      <header className="settings-heading">
+        <h2 id={titleId}>{t.settings}</h2>
+        <button
+          className="settings-close"
+          type="button"
+          aria-label={t.closeSettings}
+          onClick={() => {
+            onClose()
+            anchor?.focus()
+          }}
+        >
+          <X size={16} />
+        </button>
+      </header>
       <LanguagePicker />
-      <div className="settings-rule" />
-      <ThemePicker />
-    </div>
+      <ThemeSwitch />
+      <div className="settings-row">
+        <span className="settings-label" id={switchLabelId}>{t.buddyDockLabel}</span>
+        <button
+          className="settings-switch"
+          type="button"
+          role="switch"
+          aria-labelledby={switchLabelId}
+          aria-checked={buddyEnabled}
+          onClick={() => onBuddyToggle(!buddyEnabled)}
+        >
+          <span aria-hidden="true" />
+        </button>
+      </div>
+    </div>,
+    document.body,
   )
 }

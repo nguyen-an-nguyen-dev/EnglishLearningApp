@@ -23,7 +23,9 @@ import { AvatarFrame } from './components/cosmetics/AvatarFrame'
 import { StreakSummary } from './components/profile/StreakSummary'
 import { formatCompact } from './utils/format'
 import { useWallet } from './context/WalletContext'
-import { isAdminRoute } from './admin/adminRoute'
+import { adminPath, adminViewForLocation } from './admin/adminRoute'
+import { interceptLink, keepCurrentLandingEntry, navigate, useBrowserUrl } from './utils/browserNavigation'
+import { DASHBOARD_TABS, LEARNER_PATHS, learnerTabForPath, type DashboardTab } from './utils/learnerRoutes'
 
 const LessonPlayer = lazy(() => import('./components/lesson/LessonPlayer').then((module) => ({ default: module.LessonPlayer })))
 const VideoLearningView = lazy(() => import('./components/video/VideoLearningView').then((module) => ({ default: module.VideoLearningView })))
@@ -40,8 +42,10 @@ const BuddySpotlight = lazy(() => import('./components/ai/BuddySpotlight').then(
 import { useLearning } from './context/LearningContext'
 import type { BuddyView } from './components/ai/VoiceOrb'
 import { useBuddySpotlight } from './components/ai/useBuddySpotlight'
+import type { SpotlightRequest } from './components/ai/useBuddySpotlight'
 import type { BuddyTarget } from './types/buddy'
 import { buddyLessonToOpen } from './components/ai/buddyLessonNavigation'
+import { BUDDY_DOCK_STORAGE_KEY, readBuddyDockSettings, type BuddyDockPosition } from './components/ai/buddyDockSettings'
 import { confirmArenaLeave } from './utils/arenaGuard'
 import {
   ROADMAP_LAYOUT,
@@ -54,10 +58,9 @@ import {
 } from './roadmap'
 import type { RoadmapLesson } from './roadmap'
 
-export type DashboardTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'shop' | 'profile'
+export type { DashboardTab } from './utils/learnerRoutes'
 
 const TAB_STORAGE_KEY = 'engorace_active_tab'
-const DASHBOARD_TABS: DashboardTab[] = ['study', 'videos', 'translate', 'compete', 'rankings', 'shop', 'profile']
 
 function readStoredTab(): DashboardTab {
   try {
@@ -75,10 +78,11 @@ interface SidebarProps {
   onSelectTab: (tab: DashboardTab) => void
   onLogout: () => void
   onViewLanding: () => void
+  settingsOpen: boolean
   onOpenSettings: (anchor: HTMLElement) => void
 }
 
-function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpenSettings }: SidebarProps) {
+function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, settingsOpen, onOpenSettings }: SidebarProps) {
   const { t } = useI18n()
   const { wallet } = useWallet()
   const displayName = user?.name || 'An Nguyễn'
@@ -123,15 +127,16 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
           const active = activeTab === tab.id
           const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
           return (
-            <button
+            <a
               key={tab.id}
-              type="button"
+              href={LEARNER_PATHS[tab.id]}
               className={`nav-item ${active ? 'nav-item-active' : ''}`}
-              onClick={() => onSelectTab(tab.id)}
+              onClick={(event) => interceptLink(event, () => onSelectTab(tab.id))}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon size={24} weight={tab.id === 'translate' ? 'regular' : active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
-            </button>
+            </a>
           )
         })}
         {/* No admin entry here: the console lives only at /admin (direct URL). */}
@@ -164,10 +169,8 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
           <div className="profile-main-row">
             <div className="profile-avatar-wrap">
               <AvatarFrame
-                name={displayName}
                 avatarUrl={user?.avatar_url}
                 visualKey={wallet?.equipment.frame?.visual_key ?? null}
-                style={wallet?.equipment.frame?.style ?? null}
                 size={74}
               />
               {/* The level lives here only: the copy line used to repeat it. */}
@@ -185,6 +188,7 @@ function Sidebar({ user, activeTab, onSelectTab, onLogout, onViewLanding, onOpen
                   onOpenSettings(e.currentTarget)
                 }}
                 aria-haspopup="dialog"
+                aria-expanded={settingsOpen}
                 title={t.settings}
                 aria-label={t.settings}
               >
@@ -567,31 +571,40 @@ function StudyView({ user, onOpenLesson }: {
   )
 }
 
-function LearnerApp() {
+function LearnerApp({ routeTab, search, hash }: { routeTab?: DashboardTab; search: string; hash: string }) {
   const { t } = useI18n()
   const { user, isAuthenticated, logout } = useAuth()
   const { stages, refresh } = useLearning()
   const { wallet, refresh: refreshWallet } = useWallet()
-  const [userNavigatedToLanding, setUserNavigatedToLanding] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null)
   const [activeLesson, setActiveLesson] = useState<{ id: number; title: string } | null>(null)
   // Review is no longer a tab: the profile button opens one short session.
   const [reviewOpen, setReviewOpen] = useState(false)
   const [buddyView, setBuddyView] = useState<BuddyView>(null)
+  const [buddyDock, setBuddyDock] = useState(readBuddyDockSettings)
   // A deep-link request coming from the buddy (open one video or the notebook).
   const [videoRequest, setVideoRequest] = useState<
-    { kind: 'video' | 'notebook'; videoId?: number; nonce: number } | null
+    { kind: 'video' | 'notebook' | 'library'; videoId?: number; nonce: number } | null
   >(null)
   const clearVideoRequest = useCallback(() => setVideoRequest(null), [])
 
   // The admin console is a separate shell — the learner shell has no admin tab.
-  const effectiveTab: DashboardTab = activeTab
+  const effectiveTab = routeTab ?? readStoredTab()
+  const resumeFromRoot = !routeTab && isAuthenticated && !window.history.state?.learnerLanding && !hash
+  const showDashboard = isAuthenticated && (routeTab !== undefined || resumeFromRoot)
+
+  useEffect(() => {
+    if (resumeFromRoot) navigate(LEARNER_PATHS[effectiveTab] + search, { replace: true })
+  }, [resumeFromRoot, effectiveTab, search])
+
+  const setActiveTab = (tab: DashboardTab) => {
+    if (tab !== routeTab) navigate(LEARNER_PATHS[tab])
+  }
   /** Element the buddy asked us to circle on the destination screen. */
-  const [buddyHighlight, setBuddyHighlight] = useState<string | null>(null)
+  const [buddyHighlight, setBuddyHighlight] = useState<SpotlightRequest | null>(null)
   const [shopFocusRequest, setShopFocusRequest] = useState(0)
   const [rankFocusRequest, setRankFocusRequest] = useState(0)
-  const spotlight = useBuddySpotlight(buddyHighlight, Boolean(buddyHighlight))
+  const spotlight = useBuddySpotlight(buddyHighlight)
 
   const videoRequestNonce = useRef(0)
   const nextVideoNonce = () => {
@@ -602,11 +615,11 @@ function LearnerApp() {
   function handleBuddyNavigate(target: BuddyTarget) {
     const tab = (target.tab ?? effectiveTab) as DashboardTab
     if (!DASHBOARD_TABS.includes(tab)) return
-    if (!confirmArenaLeave()) return
+    if (tab !== effectiveTab && !confirmArenaLeave()) return
 
-    if (tab === 'shop' && target.highlight?.startsWith('shop:')) setShopFocusRequest((value) => value + 1)
+    if (tab === 'shop') setShopFocusRequest((value) => value + 1)
     if (tab === 'rankings' && target.highlight === 'rank:me') setRankFocusRequest((value) => value + 1)
-    if (tab !== 'study') setActiveLesson(null)
+    if (tab !== 'study' || !target.lessonId) setActiveLesson(null)
 
     if (target.videoId) {
       if (effectiveTab !== 'videos') setActiveTab('videos')
@@ -618,6 +631,9 @@ function LearnerApp() {
     ) {
       if (effectiveTab !== 'videos') setActiveTab('videos')
       setVideoRequest({ kind: 'notebook', nonce: nextVideoNonce() })
+    } else if (tab === 'videos') {
+      setActiveTab('videos')
+      setVideoRequest({ kind: 'library', nonce: nextVideoNonce() })
     } else if (target.lessonId) {
       if (effectiveTab !== 'study') setActiveTab('study')
       const lessonId = buddyLessonToOpen(target)
@@ -630,11 +646,7 @@ function LearnerApp() {
     }
 
     setBuddyView(null)
-    setBuddyHighlight(null)
-    if (target.highlight && target.mode !== 'open') {
-      // Let the destination render before looking for the element.
-      window.setTimeout(() => setBuddyHighlight(target.highlight ?? null), 220)
-    }
+    setBuddyHighlight(target.highlight && target.mode !== 'open' ? { token: target.highlight } : null)
   }
 
   function lessonTitleFor(lessonId: number): string | null {
@@ -646,34 +658,53 @@ function LearnerApp() {
   }
 
   useEffect(() => {
+    if (!showDashboard) return
     try {
       sessionStorage.setItem(TAB_STORAGE_KEY, effectiveTab)
     } catch {
       /* storage can be unavailable in private mode */
     }
-  }, [effectiveTab])
+  }, [effectiveTab, showDashboard])
 
-  const currentView = (() => {
-    if (userNavigatedToLanding) {
-      return 'landing'
+  useEffect(() => {
+    try {
+      localStorage.setItem(BUDDY_DOCK_STORAGE_KEY, JSON.stringify(buddyDock))
+    } catch {
+      /* Storage can be unavailable in private mode. */
     }
-    return isAuthenticated ? 'dashboard' : 'landing'
-  })()
+  }, [buddyDock])
+
+  function setBuddyEnabled(enabled: boolean) {
+    if (!enabled) {
+      setBuddyView(null)
+      setBuddyHighlight(null)
+    }
+    setBuddyDock((current) => ({ ...current, enabled }))
+  }
+
+  function setBuddyPosition(position: BuddyDockPosition) {
+    setBuddyDock((current) => ({ ...current, position }))
+  }
+
+  function toggleSettings(anchor: HTMLElement) {
+    setSettingsAnchor((current) => current === anchor ? null : anchor)
+  }
 
   function selectTab(tab: DashboardTab) {
     if (tab === effectiveTab) return
     if (!confirmArenaLeave()) return
+    setBuddyHighlight(null)
     setActiveTab(tab)
   }
 
   function viewLanding() {
     if (!confirmArenaLeave()) return
-    setUserNavigatedToLanding(true)
+    navigate('/', { landing: true })
   }
 
   function handleLogout() {
     logout()
-    setUserNavigatedToLanding(true)
+    navigate('/', { landing: true })
   }
 
   const mobileTabs: { id: DashboardTab; label: string; icon: typeof BookOpenText; activeIcon?: typeof BookOpenText }[] = [
@@ -686,10 +717,14 @@ function LearnerApp() {
     { id: 'profile', label: t.navProfile, icon: UserCircle },
   ]
 
-  if (currentView === 'landing') {
+  if (!showDashboard) {
     return (
       <Suspense fallback={<div className="page-loading"><LoadingDots label={t.consoleLoading} /></div>}>
-        <LandingPage onEnterDashboard={() => setUserNavigatedToLanding(false)} />
+        <LandingPage onEnterDashboard={() => {
+          if (routeTab) return
+          keepCurrentLandingEntry()
+          navigate(LEARNER_PATHS[effectiveTab])
+        }} />
       </Suspense>
     )
   }
@@ -702,7 +737,8 @@ function LearnerApp() {
         onSelectTab={selectTab}
         onLogout={handleLogout}
         onViewLanding={viewLanding}
-        onOpenSettings={(anchor) => setSettingsAnchor((prev) => (prev === anchor ? null : anchor))}
+        settingsOpen={settingsAnchor !== null}
+        onOpenSettings={toggleSettings}
       />
       <div className="app-main">
         <main
@@ -726,8 +762,10 @@ function LearnerApp() {
               <button
                 type="button"
                 className="mobile-settings-btn"
-                onClick={(e) => setSettingsAnchor((prev) => (prev === e.currentTarget ? null : e.currentTarget))}
+                onClick={(e) => toggleSettings(e.currentTarget)}
                 aria-label={t.settings}
+                aria-haspopup="dialog"
+                aria-expanded={settingsAnchor !== null}
                 title={t.settings}
               >
                 <Gear size={20} />
@@ -748,7 +786,7 @@ function LearnerApp() {
             {effectiveTab === 'translate' && <TranslateView />}
             {effectiveTab === 'compete' && <ArenaView />}
             {effectiveTab === 'rankings' && (
-              <RankingsView focusRequest={rankFocusRequest} onStartStudying={() => setActiveTab('study')} />
+              <RankingsView focusRequest={rankFocusRequest} onStartStudying={() => selectTab('study')} />
             )}
             {effectiveTab === 'profile' && (
               <ProfileView
@@ -775,6 +813,9 @@ function LearnerApp() {
             <VoiceOrb
               activeTab={effectiveTab}
               view={buddyView}
+              enabled={buddyDock.enabled}
+              position={buddyDock.position}
+              onPositionChange={setBuddyPosition}
               onViewChange={setBuddyView}
               onNavigate={handleBuddyNavigate}
               onOpenReview={() => setReviewOpen(true)}
@@ -789,20 +830,26 @@ function LearnerApp() {
           const active = effectiveTab === tab.id
           const Icon = active && tab.activeIcon ? tab.activeIcon : tab.icon
           return (
-            <button
+            <a
               key={tab.id}
-              type="button"
+              href={LEARNER_PATHS[tab.id]}
               className={active ? 'mobile-nav-active' : ''}
-              onClick={() => selectTab(tab.id)}
+              onClick={(event) => interceptLink(event, () => selectTab(tab.id))}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon size={24} weight={tab.id === 'translate' ? 'regular' : active ? 'fill' : 'regular'} />
               <span>{tab.label}</span>
-            </button>
+            </a>
           )
         })}
       </nav>
 
-      <SettingsPanel anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} />
+      <SettingsPanel
+        anchor={settingsAnchor}
+        buddyEnabled={buddyDock.enabled}
+        onBuddyToggle={setBuddyEnabled}
+        onClose={() => setSettingsAnchor(null)}
+      />
       {reviewOpen && (
         <Suspense fallback={null}>
           <ReviewLauncher onClose={() => setReviewOpen(false)} />
@@ -814,14 +861,35 @@ function LearnerApp() {
 }
 
 function App() {
-  if (isAdminRoute()) {
+  const { t } = useI18n()
+  const url = useBrowserUrl()
+  const { pathname, search, hash } = new URL(url, window.location.origin)
+  const adminView = adminViewForLocation(pathname, hash)
+  const learnerTab = learnerTabForPath(pathname)
+  const canonicalUrl = adminView
+    ? adminPath(adminView) + search
+    : learnerTab ? LEARNER_PATHS[learnerTab] + search + hash : url
+
+  useEffect(() => {
+    if (canonicalUrl !== url) navigate(canonicalUrl, { replace: true })
+  }, [canonicalUrl, url])
+
+  if (adminView) {
     return (
       <Suspense fallback={<div className="page-loading"><LoadingDots label="Đang tải console…" /></div>}>
-        <AdminApp />
+        <AdminApp view={adminView} />
       </Suspense>
     )
   }
-  return <LearnerApp />
+  if (learnerTab || pathname === '/') {
+    return <LearnerApp routeTab={learnerTab} search={search} hash={hash} />
+  }
+  return (
+    <main className="page-loading">
+      <h1>{t.pageNotFound}</h1>
+      <a href="/" onClick={(event) => interceptLink(event, () => navigate('/', { landing: true }))}>{t.brandHome}</a>
+    </main>
+  )
 }
 
 export default App

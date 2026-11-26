@@ -11,8 +11,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = randomBytes(48).toString('hex');
 }
 process.env.AI_API_KEY = 'test-only-provider-key';
-const originalCfAccounts = env.cfAccounts;
-env.cfAccounts = [];
+env.thApiKey = '';
 
 let server: Server;
 let baseUrl: string;
@@ -27,7 +26,6 @@ let providerResponse: Response | Error | null = null;
 let providerRequestBody: { messages?: Array<{ role: string; content: string }> } | null = null;
 let forceProviderFailure = false;
 let decisionCalls = 0;
-let verdicts: Array<'ship' | 'repair' | 'reject'> = [];
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -52,9 +50,7 @@ before(async () => {
     const url = String(input);
     if (url === env.aiDecisionUrl) {
       decisionCalls++;
-      const body = JSON.parse(String(init?.body ?? '{}')) as { questions?: Record<string, unknown> };
-      const verdict = verdicts.shift() ?? 'ship';
-      return jsonResponse({ answers: body.questions?.verdict ? { verdict: { choice: verdict, confidence: 0.99 } } : {} });
+      return jsonResponse({ answers: {} });
     }
     const providerUrls = [
       process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
@@ -112,7 +108,6 @@ before(async () => {
 
 after(async () => {
   if (globalThis.fetch !== originalFetch) globalThis.fetch = originalFetch;
-  env.cfAccounts = originalCfAccounts;
   if (ownerEmail) await pool.execute('DELETE FROM users WHERE email = ?', [ownerEmail]);
   if (otherEmail) await pool.execute('DELETE FROM users WHERE email = ?', [otherEmail]);
   if (server?.listening) {
@@ -416,58 +411,113 @@ test('coach chat falls back to the notebook when every AI provider is down', asy
   assert.equal(cleaned.status, 200);
 });
 
-async function askBuddy(message: string) {
+async function askBuddy(message: string, token = ownerToken) {
   const response = await fetch(`${baseUrl}/api/buddy/ask`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${ownerToken}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   });
   assert.equal(response.status, 200);
   return (await response.json() as { data: import('../src/modules/ai/ai.service').BuddyAnswer }).data;
 }
 
-test('Buddy answers an English balance question from the wallet without calling the model', async () => {
+// The buddy makes one model call per turn. modelAnswers stands in for the JSON the
+// model picks; the app's job under test is to validate and ground that choice.
+function modelAnswers(payload: Record<string, unknown>): void {
+  providerResponse = jsonResponse({
+    choices: [{
+      message: {
+        content: JSON.stringify({ feedback: [], followups: [], action: null, reminder: null, ...payload }),
+      },
+    }],
+  });
+}
+
+function systemPrompt(): string {
+  return providerRequestBody?.messages?.[0]?.content ?? '';
+}
+
+test('Buddy saves standalone greetings without calling the model', async () => {
+  providerRequestBody = null;
+  const vietnamese = await askBuddy('Xin chào!');
+  const english = await askBuddy('Hi.');
+  assert.equal(vietnamese.language, 'vi');
+  assert.equal(english.language, 'en');
+  assert.equal(english.route, 'open_prompt');
+  assert.equal(english.action, null);
+  assert.equal(providerRequestBody, null);
+
+  const { getConversationHistory, ensureCoachChat } = await import('../src/modules/ai/ai.repository');
+  const messages = await getConversationHistory(await ensureCoachChat(ownerId), 4);
+  assert.deepEqual(messages.map((entry) => entry.content), [
+    'Xin chào!', vietnamese.reply, 'Hi.', english.reply,
+  ]);
+
+  modelAnswers({ reply: 'Mình giúp bạn chọn bài tiếp theo nhé.' });
+  const question = await askBuddy('Xin chào, hôm nay mình học gì?');
+  assert.equal(question.reply, 'Mình giúp bạn chọn bài tiếp theo nhé.');
+  assert.ok(providerRequestBody);
+});
+
+test('Buddy sends each turn to one model call and only validates the action it picks', async () => {
+  providerRequestBody = null;
+  modelAnswers({ reply: 'Mình mở Hồ sơ cho bạn.', action: { kind: 'open_tab', tab: 'profile' } });
+  const profile = await askBuddy('Chuyển tab sang Hồ sơ');
+  assert.equal(profile.action?.tab, 'profile');
+  assert.equal(profile.route, 'navigate');
+  assert.equal(profile.reply, 'Mình mở Hồ sơ cho bạn.');
+  assert.ok(providerRequestBody, 'every turn reaches the model');
+  assert.match(systemPrompt(), /"lesson_catalog":/);
+  assert.match(systemPrompt(), /"owned_video_catalog":/);
+
+  modelAnswers({ reply: 'Nút Tìm trận nằm ở Thi Đua.', action: { kind: 'spotlight', tab: 'compete', highlight: 'control:arena-start' } });
+  const match = await askBuddy('Tìm trận đấu giúp mình');
+  assert.equal(match.action?.tab, 'compete');
+  assert.equal(match.action?.highlight, 'control:arena-start');
+
+  modelAnswers({ reply: 'Mở bài 999.', action: { kind: 'open_lesson', lessonId: 999999999 } });
+  const invented = await askBuddy('Mở bài 999');
+  assert.equal(invented.action, null, 'an id outside the learner data never becomes a navigation');
+  assert.equal(invented.route, 'open_prompt');
+
+  modelAnswers({ reply: 'Mình mua khiên cho bạn.', action: { kind: 'buy_shop_item', itemCode: 'booster_streak_shield' } });
+  const buy = await askBuddy('mua khiên');
+  assert.equal(buy.action?.kind, 'show_shop_item', 'the buddy opens the item card and never buys it');
+});
+
+test('Buddy answers a balance question from the grounded wallet and keeps the spotlight', async () => {
   const { getWallet } = await import('../src/modules/gamification/gamification.service');
   const wallet = await getWallet(ownerId);
-  decisionCalls = 0;
   providerRequestBody = null;
+  modelAnswers({ reply: `You have ${wallet.coins} RC.`, action: { kind: 'spotlight', tab: 'shop', highlight: 'wallet:summary' } });
   const data = await askBuddy('How many RC do I have?');
   assert.equal(data.reply, `You have ${wallet.coins} RC.`);
   assert.equal(data.language, 'en');
   assert.equal(data.action?.highlight, 'wallet:summary');
   assert.equal(data.route, 'navigate');
-  assert.equal(providerRequestBody, null);
-  assert.equal(decisionCalls, 0);
+  assert.match(systemPrompt(), new RegExp(`"coins":${wallet.coins}\\b`));
 });
 
-test('the tutor gate replaces a failed repair and uses offline coach copy when provided', async () => {
+test('a chat turn ships the first draft with no review call, and falls back to offline copy when providers fail', async () => {
   const { answerTurn } = await import('../src/modules/ai/ai.pipeline');
-  const previousEnabled = env.aiDecisionEnabled;
-  const previousKey = env.aiApiKey;
-  env.aiDecisionEnabled = true;
-  env.aiApiKey = 'test-only-decision-key';
-  try {
-    const request = { messages: [], message: 'Help me write a sentence.', intent: 'chat', context: null } as const;
-    providerResponse = providerOk('The unapproved draft');
-    verdicts = ['repair', 'repair'];
-    const tutor = await answerTurn({ ...request, messages: [], flavor: 'tutor', offline: null });
-    assert.match(tutor.reply.reply, /couldn’t verify/);
-    assert.equal(tutor.review?.verdict, 'reject');
-    assert.equal(tutor.reply.action, null);
+  const decisionsBefore = decisionCalls;
+  providerResponse = providerOk('The first draft');
+  const tutor = await answerTurn({ messages: [], flavor: 'tutor', offline: null });
+  assert.equal(tutor.reply, 'The first draft');
+  assert.equal(decisionCalls, decisionsBefore, 'the draft is not sent to a review model');
 
-    const offline = { reply: 'Offline answer', action: null, reminder: null, feedback: [], followups: [] };
-    providerResponse = providerOk('The rejected draft');
-    verdicts = ['reject'];
-    const coach = await answerTurn({ ...request, messages: [], flavor: 'coach', offline });
-    assert.deepEqual(coach.reply, offline);
+  const offline = { reply: 'Offline answer', action: null, reminder: null, feedback: [], followups: [] };
+  forceProviderFailure = true;
+  try {
+    const coach = await answerTurn({ messages: [], flavor: 'coach', offline });
+    assert.deepEqual(coach, offline);
+    await assert.rejects(answerTurn({ messages: [], flavor: 'tutor', offline: null }));
   } finally {
-    env.aiDecisionEnabled = previousEnabled;
-    env.aiApiKey = previousKey;
-    verdicts = [];
+    forceProviderFailure = false;
   }
 });
 
-test('Buddy reports the lesson frontier and scopes a bare lesson number to that stage', async () => {
+test('Buddy turns a model lesson pick into a locked or open lesson from real progress', async () => {
   const { getStudyStats } = await import('../src/modules/ai/ai.repository');
   const { pickNextLesson } = await import('../src/modules/ai/ai.study');
   const stats = await getStudyStats(ownerId);
@@ -476,40 +526,40 @@ test('Buddy reports the lesson frontier and scopes a bare lesson number to that 
   const firstIndex = stats.lessons.findIndex(({ id }) => id === frontier.id);
   const next = stats.lessons[firstIndex + 1];
   assert.ok(next);
-  const stages = [...new Set(stats.lessons.map(({ stageTitle }) => stageTitle))];
-  const nextNumber = stats.lessons.filter(({ stageTitle }) => stageTitle === next.stageTitle)
-    .findIndex(({ id }) => id === next.id) + 1;
-  const locked = await askBuddy(`Hoc bai ${nextNumber} chang ${stages.indexOf(next.stageTitle) + 1}`);
+
+  // The model asks for a lesson past the frontier; the app locks it and names the real next step.
+  modelAnswers({ reply: 'Bài này học ngay bây giờ.', action: { kind: 'open_lesson', lessonId: next.id, mode: 'open' } });
+  const locked = await askBuddy(`Mở bài ${next.title}`);
   assert.equal(locked.action?.lessonId, next.id);
   assert.equal(locked.action?.mode, 'reveal');
   assert.equal(locked.action?.highlight, `lesson:${next.id}`);
   assert.ok(locked.reply.includes(frontier.title));
   assert.match(locked.reply, /hoàn thành 1 bài/);
 
-  const currentStage = stats.lessons[firstIndex].stageTitle;
-  const currentStageLessons = stats.lessons.filter(({ stageTitle }) => stageTitle === currentStage);
-  const frontNumber = currentStageLessons.findIndex(({ id }) => id === frontier.id) + 1;
-  const open = await askBuddy(`Open lesson ${frontNumber}`);
+  modelAnswers({ reply: 'Mở bài tiếp theo của bạn.', action: { kind: 'open_lesson', lessonId: frontier.id, mode: 'open' } });
+  const open = await askBuddy(`Mở bài ${frontier.title}`);
   assert.equal(open.action?.lessonId, frontier.id);
   assert.equal(open.action?.mode, 'open');
-  assert.match(open.reply, /^Opened/);
+  assert.equal(open.reply, 'Mở bài tiếp theo của bạn.');
 
-  const missing = await askBuddy(`Bài ${currentStageLessons.length + 1}`);
+  modelAnswers({ reply: 'Mình chưa thấy bài đó trong dữ liệu của bạn.' });
+  const missing = await askBuddy('Bài 9999 là gì?');
   assert.equal(missing.action, null);
   assert.equal(missing.route, 'open_prompt');
 });
 
-test('Buddy only suggests published library videos and prefers unfinished random picks', async () => {
+test('Buddy opens private videos only for the owner and prefers unfinished public random picks', async () => {
   const { buildBuddySnapshot, resolveBuddyCommand } = await import('../src/modules/ai/ai.copilot');
   const topic = `copilot${randomUUID().replaceAll('-', '')}`;
   const insert = async (title: string, owner: number | null, published: boolean) => {
+    const code = randomUUID();
     const [row] = await pool.execute<ResultSetHeader>(
       `INSERT INTO video_lessons
        (code, title, topic, cefr_level, provider, video_url, duration_seconds, xp_reward, sort_order, owner_user_id, published_at)
        VALUES (?, ?, ?, 'A1', 'youtube', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 60, 10, 0, ?, ?)`,
-      [randomUUID(), title, topic, owner, published ? new Date() : null],
+      [code, title, topic, owner, published ? new Date() : null],
     );
-    return row.insertId;
+    return { id: row.insertId, code };
   };
   const draft = await insert('Shared draft', null, false);
   const personal = await insert('My personal video', ownerId, true);
@@ -517,28 +567,62 @@ test('Buddy only suggests published library videos and prefers unfinished random
   try {
     const snapshot = await buildBuddySnapshot(ownerId);
     const catalog = snapshot.study.videoCatalog;
-    assert.ok(catalog.some(({ id }) => id === shared));
-    assert.ok(!catalog.some(({ id }) => id === draft || id === personal));
+    assert.ok(catalog.some(({ id }) => id === shared.id));
+    assert.ok(!catalog.some(({ id }) => id === draft.id || id === personal.id));
     assert.equal(snapshot.study.videosTotal, catalog.length);
     assert.ok(snapshot.study.ownedVideoTitles.includes('My personal video'));
-    assert.equal((await askBuddy(`Tìm video về ${topic}`)).action?.videoId, shared);
+
+    modelAnswers({ reply: 'Mình mở video đó.', action: { kind: 'open_video', videoId: shared.id } });
+    assert.equal((await askBuddy(`Tìm video về ${topic}`)).action?.videoId, shared.id);
+
+    modelAnswers({ reply: 'Đây là video riêng của bạn.', action: { kind: 'open_video', videoId: personal.id } });
+    const ownVideo = await askBuddy(`Mở video mã ${personal.code}`);
+    assert.equal(ownVideo.action?.videoId, personal.id);
+    assert.ok(systemPrompt().includes(personal.code), 'the owner\'s prompt carries the owner\'s own private video');
+
+    modelAnswers({ reply: 'Đây là video riêng của bạn.', action: { kind: 'open_video', videoId: personal.id } });
+    const denied = await askBuddy(`Mở video mã ${personal.code}`, otherToken);
+    assert.equal(denied.action, null, 'a model pick of another learner\'s private video is dropped');
+    assert.ok(!systemPrompt().includes(personal.code), 'another learner\'s prompt never carries the private code');
+    assert.doesNotMatch(systemPrompt(), /My personal video/);
+
+    modelAnswers({ reply: 'Mình mở video nháp.', action: { kind: 'open_video', videoId: draft.id } });
+    assert.equal((await askBuddy(`Mở video mã ${draft.code}`)).action, null, 'drafts are never opened');
 
     const random = { kind: 'video', params: { choice: 'random' }, language: 'en' } as const;
     const forced = { ...snapshot, study: { ...snapshot.study,
-      videoCatalog: catalog.map((video) => ({ ...video, completed: video.id !== shared })),
+      videoCatalog: catalog.map((video) => ({ ...video, completed: video.id !== shared.id })),
     } };
-    assert.equal(resolveBuddyCommand(random, forced).action?.videoId, shared);
-    const unfinished = forced.study.videoCatalog.find(({ id }) => id === shared);
+    assert.equal(resolveBuddyCommand(random, forced).action?.videoId, shared.id);
+    const unfinished = forced.study.videoCatalog.find(({ id }) => id === shared.id);
     assert.ok(unfinished);
     unfinished.completed = true;
     const fallbackPick = resolveBuddyCommand(random, forced).action?.videoId;
     assert.ok(catalog.some(({ id }) => id === fallbackPick));
   } finally {
-    await pool.execute('DELETE FROM video_lessons WHERE id IN (?, ?, ?)', [draft, personal, shared]);
+    await pool.execute('DELETE FROM video_lessons WHERE id IN (?, ?, ?)', [draft.id, personal.id, shared.id]);
   }
 });
 
-test('Buddy shows the shield and reports affordability while the wallet and inventory stay untouched', async () => {
+test('Buddy finds a described shop item in the grounded catalogue and opens its card', async () => {
+  modelAnswers({ reply: 'Xe đỏ trong Gara là Sport Red.', action: { kind: 'show_shop_item', itemCode: 'car_sport_red' } });
+  const answer = await askBuddy('chiếc xe màu đỏ');
+  assert.equal(answer.route, 'navigate');
+  assert.equal(answer.action?.kind, 'show_shop_item');
+  assert.equal(answer.action?.itemCode, 'car_sport_red');
+  assert.equal(answer.action?.highlight, 'shop:car_sport_red');
+  assert.match(systemPrompt(), /"shop_catalog":.*"car_sport_red"/);
+
+  modelAnswers({ reply: 'Bạn muốn màu nào?' });
+  const unspecified = await askBuddy('Mua xe màu đó');
+  assert.equal(unspecified.action, null);
+  assert.match(unspecified.reply, /màu nào/);
+
+  modelAnswers({ reply: 'Mình mở món này.', action: { kind: 'show_shop_item', itemCode: 'car_fake_item' } });
+  assert.equal((await askBuddy('xe bay')).action, null, 'an item code outside shop_catalog is dropped');
+});
+
+test('Buddy shows the shield and never spends coins, whatever the model picks', async () => {
   const { buildBuddySnapshot, resolveBuddyCommand } = await import('../src/modules/ai/ai.copilot');
   const { getShop } = await import('../src/modules/gamification/gamification.service');
   const snapshot = await buildBuddySnapshot(ownerId);
@@ -548,17 +632,20 @@ test('Buddy shows the shield and reports affordability while the wallet and inve
   try {
     for (const coins of [0, shield.price]) {
       await pool.execute('UPDATE users SET coins = ? WHERE id = ?', [coins, ownerId]);
+      modelAnswers({ reply: 'Mình mua khiên cho bạn.', action: { kind: 'buy_shop_item', itemCode: shield.code } });
       const answer = await askBuddy(coins === 0 ? 'mua khiên' : 'Buy the shield');
       assert.equal(answer.action?.kind, 'show_shop_item');
       assert.equal(answer.action?.itemCode, shield.code);
       assert.equal(answer.action?.itemName, shield.name);
       assert.equal(answer.action?.highlight, `shop:${shield.code}`);
-      if (coins === 0) assert.ok(answer.reply.includes(`thiếu ${shield.price} RC`));
-      else assert.match(answer.reply, /enough RC.*“Mua”/);
       const current = await getShop(ownerId);
       assert.equal(current.coins, coins);
       assert.deepEqual(current.boosters, snapshot.shop.boosters);
     }
+    modelAnswers({ reply: 'Mình mua copilotfakeitem.', action: { kind: 'buy_shop_item', itemCode: 'copilotfakeitem' } });
+    assert.equal((await askBuddy('Mua copilotfakeitem')).action, null);
+
+    // The offline guide still covers affordability and locks when no model answers.
     const command = { kind: 'shopItem', language: 'vi', params: { item: shield.code.replaceAll('_', ' ') } } as const;
     const mockItem = { ...shield, unlocked: false, unlock_label: 'Cần cấp 20' };
     const mock = { ...snapshot, shop: { ...snapshot.shop, items: [mockItem] } };
@@ -566,7 +653,6 @@ test('Buddy shows the shield and reports affordability while the wallet and inve
     mockItem.unlocked = true;
     mockItem.owned = true;
     assert.match(resolveBuddyCommand(command, mock).reply, /đã sở hữu/);
-    assert.equal((await askBuddy('Mua copilotfakeitem')).action, null);
   } finally {
     await pool.execute('UPDATE users SET coins = ? WHERE id = ?', [initialCoins, ownerId]);
   }

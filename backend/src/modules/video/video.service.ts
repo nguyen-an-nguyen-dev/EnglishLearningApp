@@ -1,7 +1,6 @@
 import { HttpError } from '../../middleware/error-handler';
 import * as repo from './video.repository';
 import { refineSegmentsWithAi } from './video.segmentation';
-import { isDuplicateKeyError } from '../../utils/db-errors';
 import type {
   CompleteVideoResult,
   DemoVideo,

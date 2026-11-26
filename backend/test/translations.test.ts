@@ -11,8 +11,12 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = randomBytes(48).toString('hex');
 }
 process.env.AI_API_KEY = 'test-only-provider-key';
-const originalCfAccounts = env.cfAccounts;
-env.cfAccounts = [{ apiKey: 'test-only-cf-key', apiUrl: 'https://cf.example.test' }];
+const originalThKey = env.thApiKey;
+const originalThUrl = env.thApiUrl;
+const originalThModel = env.thModel;
+env.thApiKey = 'test-only-th-key';
+env.thApiUrl = 'https://th.example.test/chat/completions';
+env.thModel = 'deepseek-test';
 
 let server: Server;
 let baseUrl: string;
@@ -39,15 +43,15 @@ function geminiResponse(content: unknown, status = 200): Response {
 before(async () => {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (['https://cf.example.test', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'].includes(String(input))) {
+    if (['https://th.example.test/chat/completions', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'].includes(String(input))) {
       providerCallCount++;
       if (String(input) === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions') geminiCallCount++;
       providerRequest = typeof init?.body === 'string'
         ? JSON.parse(init.body) as typeof providerRequest
         : null;
       if (providerRequest) providerRequests.push(providerRequest);
-      if (String(input) === 'https://cf.example.test' && persistentProviderResponse) {
-        return new Response(JSON.stringify({ error: { message: 'CF API busy' } }), { status: 503 });
+      if (String(input) === 'https://th.example.test/chat/completions' && persistentProviderResponse) {
+        return new Response(JSON.stringify({ error: { message: 'TH API busy' } }), { status: 503 });
       }
       if (persistentProviderResponse) return persistentProviderResponse();
       const response = providerResponse;
@@ -83,8 +87,10 @@ before(async () => {
 });
 
 after(async () => {
-  if (globalThis.fetch !== originalFetch) globalThis.fetch = originalFetch;
-  env.cfAccounts = originalCfAccounts;
+  if (globalThis.fetch !== originalFetch && originalFetch) globalThis.fetch = originalFetch;
+  env.thApiKey = originalThKey;
+  env.thApiUrl = originalThUrl;
+  env.thModel = originalThModel;
   if (email) {
     await pool.execute('DELETE FROM translations WHERE user_id = (SELECT id FROM users WHERE email = ?)', [email]);
     await pool.execute('DELETE FROM users WHERE email = ?', [email]);

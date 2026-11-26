@@ -1,5 +1,3 @@
-import { useEffect } from 'react'
-import { useState } from 'react'
 import {
   ChartBar,
   Flag,
@@ -22,49 +20,15 @@ import logoUrl from '../assets/logo.png'
 import { AdminOverview } from './AdminOverview'
 import { AdminStats } from './AdminStats'
 
-export type AdminViewId = 'overview' | 'content' | 'videos' | 'shop' | 'arena' | 'users' | 'stats'
+import { adminPath, type AdminViewId } from './adminRoute'
+import { interceptLink, navigate } from '../utils/browserNavigation'
 
-const VIEW_STORAGE_KEY = 'engorace_admin_view'
+export type { AdminViewId } from './adminRoute'
 
-function readStoredView(): AdminViewId {
-  try {
-    const raw = sessionStorage.getItem(VIEW_STORAGE_KEY)
-    if (
-      raw === 'overview'
-      || raw === 'content'
-      || raw === 'videos'
-      || raw === 'shop'
-      || raw === 'arena'
-      || raw === 'users'
-      || raw === 'stats'
-    ) return raw
-  } catch {
-    // storage unavailable in private mode
-  }
-  // Deep-link from hash, e.g. #/admin/stats
-  const hash = typeof window !== 'undefined' ? window.location.hash : ''
-  if (hash.includes('/stats')) return 'stats'
-  if (hash.includes('/content')) return 'content'
-  if (hash.includes('/videos')) return 'videos'
-  if (hash.includes('/shop')) return 'shop'
-  if (hash.includes('/arena')) return 'arena'
-  if (hash.includes('/users')) return 'users'
-  return 'overview'
-}
-
-export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
+export function AdminLayout({ view, onLogoutDone }: { view: AdminViewId; onLogoutDone: () => void }) {
   const { t } = useI18n()
   const { user, logout } = useAuth()
-  const [view, setView] = useState<AdminViewId>(readStoredView)
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(VIEW_STORAGE_KEY, view)
-      window.history.replaceState(null, '', `#/admin/${view}`)
-    } catch {
-      // storage blocked
-    }
-  }, [view])
+  const setView = (next: AdminViewId) => navigate(adminPath(next))
 
   const items: Array<{ id: AdminViewId; label: string; short: string; icon: typeof GridFour }> = [
     { id: 'overview', label: t.consoleNavOverview, short: 'Tổng quan', icon: GridFour },
@@ -100,16 +64,16 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
             const Icon = item.icon
             const active = view === item.id
             return (
-              <button
+              <a
                 key={item.id}
-                type="button"
+                href={adminPath(item.id)}
                 className={`admin-sider-link${active ? ' is-active' : ''}`}
-                onClick={() => setView(item.id)}
+                onClick={(event) => interceptLink(event, () => setView(item.id))}
                 aria-current={active ? 'page' : undefined}
               >
                 <Icon size={18} />
                 <span>{item.label}</span>
-              </button>
+              </a>
             )
           })}
         </nav>
@@ -190,16 +154,16 @@ export function AdminLayout({ onLogoutDone }: { onLogoutDone: () => void }) {
             const Icon = item.icon
             const active = view === item.id
             return (
-              <button
+              <a
                 key={item.id}
-                type="button"
+                href={adminPath(item.id)}
                 className={active ? 'is-active' : ''}
-                onClick={() => setView(item.id)}
+                onClick={(event) => interceptLink(event, () => setView(item.id))}
                 aria-current={active ? 'page' : undefined}
               >
                 <Icon size={20} />
                 <span>{item.short}</span>
-              </button>
+              </a>
             )
           })}
         </nav>

@@ -1,7 +1,12 @@
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { getVerifiedJwtSecret } from '../modules/auth/auth.service';
 import { HttpError } from './error-handler';
+
+export function requireUserId(request: Request): number {
+  if (!request.auth) throw new HttpError(401, 'Authentication required.');
+  return request.auth.userId;
+}
 
 export const authenticate: RequestHandler = (request, _response, next) => {
   const authorization = request.get('authorization');

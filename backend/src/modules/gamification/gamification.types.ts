@@ -163,12 +163,6 @@ export interface QuestView {
   claimed: boolean;
 }
 
-export interface RewardCenter {
-  streak: number;
-  daily: QuestView[];
-  weekly: QuestView[];
-}
-
 export interface LeagueStanding {
   rank: number;
   userId: number;

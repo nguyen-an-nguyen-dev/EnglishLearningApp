@@ -108,14 +108,3 @@ export interface LeagueView {
     xp_awarded: number
   } | null
 }
-
-/** Reward line attached to a finished duel (`game:finish`). */
-export interface DuelReward {
-  rc: number
-  xp: number
-  rp: number
-  counted: boolean
-  won: boolean
-  level_before: number
-  level_after: number
-}

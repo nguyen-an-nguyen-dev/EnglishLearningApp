@@ -131,9 +131,3 @@ async function readPickedText(asset: { uri: string; name: string; file?: File | 
     throw new Error(`Không đọc được tệp "${asset.name}". Hãy chọn lại tệp .txt.`);
   }
 }
-
-export async function getTranslationHistory(): Promise<Translation[]> {
-  const response = await authenticatedFetch('/translations', { method: 'GET' });
-  const data = await parseResponse(response) as { translations: Translation[] };
-  return data.translations;
-}

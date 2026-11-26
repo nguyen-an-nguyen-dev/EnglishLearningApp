@@ -58,10 +58,10 @@ test('speech status advertises the providers without leaking keys', async (t) =>
   if (skip()) return t.skip('no demo session');
   const response = await api('/api/speech/status', {}, false);
   assert.equal(response.status, 200);
-  const body = await response.json() as { data: { backend: boolean; whisper: boolean; gemini: boolean; maxBytes: number } };
+  const body = await response.json() as { data: { backend: boolean; maxBytes: number } };
   assert.equal(typeof body.data.backend, 'boolean');
   assert.equal(typeof body.data.maxBytes, 'number');
-  assert.equal(JSON.stringify(body).includes('cfut_'), false);
+  assert.equal(JSON.stringify(body).includes('apiKey'), false);
 });
 
 test('transcribe rejects a missing session and a non-audio content type', async (t) => {
@@ -99,8 +99,8 @@ test('a real recorded clip is transcribed by the configured provider', async (t)
   });
   assert.equal(response.status, 200);
   const body = await response.json() as {
-    data: { text: string; language: string | null; provider: 'whisper' | 'gemini' };
+    data: { text: string; language: string | null; provider: 'assemblyai'; model: string | null };
   };
   assert.match(body.data.text.toLowerCase(), /good morning/);
-  assert.ok(body.data.provider === 'whisper' || body.data.provider === 'gemini');
+  assert.equal(body.data.provider, 'assemblyai');
 });

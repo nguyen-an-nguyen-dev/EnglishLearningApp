@@ -1,3 +1,4 @@
+import { isRecord } from '../../utils/validation';
 import { HttpError } from '../../middleware/error-handler';
 import { HIGHLIGHT_PATTERN } from '../reminders/reminders.validation';
 import { CHAT_ACTION_KINDS, CHAT_TABS } from './ai.types';
@@ -14,10 +15,6 @@ import type {
 const FEEDBACK_TYPES = new Set<FeedbackType>(['GRAMMAR', 'VOCABULARY', 'TENSE', 'WORD_ORDER', 'OTHER']);
 const MAX_FOLLOWUPS = 3;
 const MAX_FEEDBACK_ITEMS = 6;
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function parseRawAction(value: unknown): ChatAction | null {
   if (!isRecord(value) || typeof value.kind !== 'string'

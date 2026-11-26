@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getSpeechStatusApi, practiceSpeechApi, transcribeAudioApi } from './speechService'
+import { getSpeechStatusApi, practiceSpeechApi, synthesizeSpeechApi, transcribeAudioApi } from './speechService'
 
 const g = globalThis as unknown as { fetch?: typeof fetch; localStorage?: unknown }
 const originalFetch = g.fetch
@@ -29,11 +29,11 @@ test('the status probe reports which transcription provider is configured', asyn
   installStorage('token')
   g.fetch = (async () => Response.json({
     success: true,
-    data: { backend: true, whisper: true, gemini: false, maxBytes: 4194304 },
+    data: { backend: true, maxBytes: 4194304 },
   })) as typeof fetch
   try {
     assert.deepEqual(await getSpeechStatusApi(), {
-      backend: true, whisper: true, gemini: false, maxBytes: 4194304,
+      backend: true, maxBytes: 4194304,
     })
   } finally {
     restore()
@@ -45,7 +45,7 @@ test('a broken status probe degrades to "no backend" instead of throwing', async
   g.fetch = (async () => new Response('nope', { status: 500 })) as typeof fetch
   try {
     assert.deepEqual(await getSpeechStatusApi(), {
-      backend: false, whisper: false, gemini: false, maxBytes: 0,
+      backend: false, maxBytes: 0,
     })
   } finally {
     restore()
@@ -61,15 +61,16 @@ test('audio is posted raw with its own content type and the bearer token', async
     seenInit = init
     return Response.json({
       success: true,
-      data: { text: 'mở bảng xếp hạng', language: 'vi', provider: 'whisper' },
+      data: { text: 'mở bảng xếp hạng', language: 'vi', provider: 'assemblyai', model: 'assemblyai-stt-3-7' },
     })
   }) as typeof fetch
   try {
     const blob = new Blob(['audio'], { type: 'audio/webm' })
     const result = await transcribeAudioApi(blob)
     assert.equal(result.text, 'mở bảng xếp hạng')
-    assert.equal(result.provider, 'whisper')
-    assert.equal(seenUrl, '/api/speech/transcribe')
+    assert.equal(result.provider, 'assemblyai')
+    assert.equal(result.model, 'assemblyai-stt-3-7')
+    assert.equal(seenUrl, '/api/speech/transcribe?lang=vi')
     const headers = seenInit?.headers as Record<string, string>
     assert.equal(headers['Content-Type'], 'audio/webm')
     assert.equal(headers.Authorization, 'Bearer demo-token')
@@ -118,6 +119,26 @@ test('read-aloud practice preserves the reference and exposes NO_SPEECH for a fr
   }) as typeof fetch
   try {
     await assert.rejects(practiceSpeechApi('How are you?', clip), { code: 'NO_SPEECH' })
+  } finally {
+    restore()
+  }
+})
+
+test('neural playback can retry a temporary outage with the same language and text', async () => {
+  installStorage('demo-token')
+  const requests: Array<{ path: string; body: unknown }> = []
+  g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push({ path: String(input), body: JSON.parse(String(init?.body)) })
+    if (requests.length === 1) return new Response('Not available', { status: 503 })
+    return new Response('mp3', { headers: { 'Content-Type': 'audio/mpeg' } })
+  }) as typeof fetch
+  try {
+    const audio = await synthesizeSpeechApi('Xin chào!', 'vi', undefined, { retryUnavailable: true })
+    assert.equal(audio.type, 'audio/mpeg')
+    assert.deepEqual(requests, Array.from({ length: 2 }, () => ({
+      path: '/api/speech/synthesize',
+      body: { text: 'Xin chào!', lang: 'vi' },
+    })))
   } finally {
     restore()
   }

@@ -14,35 +14,6 @@ function getInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function splitList(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((piece) => piece.trim())
-    .filter(Boolean);
-}
-
-export interface CloudflareAccount {
-  apiKey: string;
-  apiUrl: string;
-}
-
-/**
- * CF_API_KEYS / CF_API_URLS are comma lists paired by index; the single
- * CF_API_KEY / CF_API_URL pair is also honoured.
- */
-function cloudflareAccounts(): CloudflareAccount[] {
-  const keys = splitList(process.env.CF_API_KEYS);
-  const urls = splitList(process.env.CF_API_URLS);
-  const singleKey = (process.env.CF_API_KEY ?? '').trim();
-  if (singleKey && !keys.includes(singleKey)) keys.push(singleKey);
-
-  const defaultUrl = (process.env.CF_API_URL ?? '').trim() || urls[0] || '';
-  return keys
-    .map((apiKey, index) => ({ apiKey, apiUrl: (urls[index] ?? defaultUrl).trim() }))
-    .filter((account) => account.apiUrl);
-}
-
 export const env = {
   port: getPort(process.env.PORT, 3000),
   dbHost: process.env.DB_HOST || 'localhost',
@@ -52,10 +23,14 @@ export const env = {
   dbName: process.env.DB_NAME || 'english_learning',
   jwtSecret: process.env.JWT_SECRET || '',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  // Token Harbor is the primary generative provider (OpenAI-compatible gateway).
+  thApiKey: (process.env.TH_API_KEY || '').trim(),
+  thApiUrl: process.env.TH_API_URL || 'https://tokenharbor.ai/v1/chat/completions',
+  thModel: process.env.TH_MODEL || 'deepseek-v4.1-flash-1017',
   aiApiKey: process.env.AI_API_KEY || '',
   aiApiUrl: process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-  // Generative chain order: Llama 3.3 70B (Workers AI), then Gemini Flash. A new
-  // provider must also be wired up in ai.provider.ts.
+  // Fallback chain after Token Harbor: Gemini Flash. Llama is no longer used
+  // for text generation. A new provider must also be wired up in ai.provider.ts.
   aiFallbackModel: process.env.AI_FALLBACK_MODEL || 'gemini-2.5-flash',
   aiTimeoutMs: getPort(process.env.AI_TIMEOUT_MS, 40000),
   // Hard ceiling for one chat turn (generate -> decide -> repair). Kept below the
@@ -67,12 +42,16 @@ export const env = {
   aiDecisionUrl: process.env.AI_DECISION_URL || 'https://generativelanguage.googleapis.com/v1beta/decisions',
   aiDecisionModel: process.env.AI_DECISION_MODEL || 'gemini-decision-1',
   aiDecisionTimeoutMs: getPort(process.env.AI_DECISION_TIMEOUT_MS, 8000),
-  cfAccounts: cloudflareAccounts(),
-  cfModel: process.env.CF_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-  // Speech-to-text fallback for when the browser's Web Speech API fails (Chrome
-  // "network" error): Workers AI Whisper first, then Gemini audio input.
-  speechWhisperModel: process.env.SPEECH_WHISPER_MODEL || '@cf/openai/whisper-large-v3-turbo',
-  speechTimeoutMs: getPort(process.env.SPEECH_TIMEOUT_MS, 25000),
+  // AssemblyAI speech-to-text. Pre-recorded models go through the async REST
+  // flow (upload -> submit -> poll); realtime models are WebSocket-only.
+  assemblyAiApiKey: (process.env.ASSEMBLYAI_API_KEY || '').trim(),
+  assemblyAiBaseUrl: (process.env.ASSEMBLYAI_BASE_URL || 'https://api.assemblyai.com').replace(/\/+$/, ''),
+  // Speech-to-text for when the browser's Web Speech API fails (Chrome
+  // "network" error): SPEECH_MODEL first, then Gemini audio input.
+  speechModel: process.env.SPEECH_MODEL || 'assemblyai-stt-3-7',
+  // Kept below the web client's 45s abort. A 30s clip usually finishes in 2-6s.
+  speechTimeoutMs: getPort(process.env.SPEECH_TIMEOUT_MS, 40000),
+  speechPollIntervalMs: getPort(process.env.SPEECH_POLL_INTERVAL_MS, 500),
   // express.raw limit for one recorded clip, in bytes (default 4 MiB).
   speechMaxBytes: getInt(process.env.SPEECH_MAX_BYTES, 4 * 1024 * 1024),
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',

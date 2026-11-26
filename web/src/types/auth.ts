@@ -52,20 +52,8 @@ export interface VerifyRegistrationPayload {
   code: string;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-  error?: string;
-  errors?: string[];
-}
-
 export interface LoginResponseData {
   token: string;
-  user: AuthUser;
-}
-
-export interface RegisterResponseData {
   user: AuthUser;
 }
 

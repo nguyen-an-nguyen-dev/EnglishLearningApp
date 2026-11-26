@@ -11,7 +11,7 @@ export function buddyLanguage(message: string): BuddyLanguage {
   if (/[àáảãạăâèéẻẽẹêìíỉĩịòóỏõọôơùúủũụưỳýỷỹỵđ]/iu.test(message.normalize('NFC')) || vietnamese.test(text)) {
     return 'vi';
   }
-  return /\b(i|my|me|you|what|how|why|when|where|is|are|do|can|should|open|start|take|show|learn|study|watch|play|find|buy|random|lesson|stage|level|badges|wallet|rank|help|explain|equipment|progress|review|hello|thanks)\b/.test(text)
+  return /\b(i|my|me|you|what|how|why|when|where|is|are|do|can|should|open|start|take|show|learn|study|watch|play|find|buy|random|lesson|stage|level|badges|wallet|rank|help|explain|equipment|progress|review|hello|thanks|the|one|this|that|it|them|something|like|want|red|blue|green|yellow|black|white|cheap|expensive|item|shop|and|for|with|please|yes|no|more|any)\b/.test(text)
     ? 'en'
     : 'vi';
 }

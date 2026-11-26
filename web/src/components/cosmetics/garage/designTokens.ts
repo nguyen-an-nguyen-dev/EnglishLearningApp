@@ -61,15 +61,3 @@ export const RARITY = {
 } as const
 
 export type RarityKey = keyof typeof RARITY
-
-/** Deliberately named paint slots so every car reads from the same recipe. */
-export interface CarPaint {
-  body: string
-  dark: string
-  glass?: string
-  metal?: string
-  light?: string
-  tail?: string
-  accent?: string
-  wheelSpoke?: string
-}

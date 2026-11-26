@@ -26,7 +26,6 @@ import type {
 } from '../../types/admin'
 import {
   BOOSTER_KINDS,
-  LEAGUE_TIERS,
   SHOP_RARITIES,
   SHOP_SLOTS,
   SHOP_UNLOCK_TYPES,
@@ -35,6 +34,7 @@ import { CosmeticPreview } from '../shop/CosmeticPreview'
 import { AdminDialog } from './AdminDialog'
 import { AdminAsyncState } from './AdminAsyncState'
 import { formatCompact } from '../../utils/format'
+import { LEAGUE_TIERS } from '../../utils/league'
 
 const SLOT_LABEL: Record<AdminShopSlot, string> = {
   car: 'Xe',

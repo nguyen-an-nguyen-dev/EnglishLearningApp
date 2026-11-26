@@ -266,14 +266,6 @@ export async function getCounts(userId: number): Promise<{
   };
 }
 
-export async function findItem(userId: number, itemId: number): Promise<ReviewRow | null> {
-  const [rows] = await pool.execute<ReviewRow[]>(
-    'SELECT * FROM review_items WHERE id = ? AND user_id = ? LIMIT 1',
-    [itemId, userId],
-  );
-  return rows[0] ?? null;
-}
-
 export async function listLapsedWords(userId: number, limit = 10): Promise<LapsedWord[]> {
   const safeLimit = Math.max(1, Math.trunc(limit));
   const [rows] = await pool.execute<Array<RowDataPacket & LapsedWord>>(
@@ -424,12 +416,4 @@ export async function recordGrade(
   );
   void responseMs;
   return next;
-}
-
-export async function getSavedWordIpa(userId: number, word: string): Promise<string | null> {
-  const [rows] = await pool.execute<Array<RowDataPacket & { ipa: string | null }>>(
-    'SELECT ipa FROM saved_words WHERE user_id = ? AND word = ? LIMIT 1',
-    [userId, word],
-  );
-  return rows[0]?.ipa ?? null;
 }

@@ -27,6 +27,12 @@ export function parseSpeechAudio(body: unknown, maxBytes: number): Buffer {
   return body;
 }
 
+/** Spoken language hint for the recognizer; unknown values fall back safely. */
+export function parseSpeechLanguage(value: unknown, fallback: 'vi' | 'en' | null): 'vi' | 'en' | null {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return raw === 'vi' || raw === 'en' ? raw : fallback;
+}
+
 /**
  * One request is one short passage (a sentence or a reply). Longer text is refused so a single
  * request cannot tie up the voice stream; the web falls back to the browser voice for it.

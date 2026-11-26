@@ -1,7 +1,6 @@
 /**
  * Live microphone level for the voice waveform. One AudioContext + AnalyserNode
- * over a MediaStream that is either owned (`open()`) or handed in (`attach()`), so
- * a backend turn is never captured twice. `read()` returns smoothed 0..1 levels.
+ * over the recorder's MediaStream. `read()` returns smoothed 0..1 levels.
  */
 
 const FFT_SIZE = 256;
@@ -9,12 +8,9 @@ const FFT_SIZE = 256;
 const MAX_BIN = 28;
 
 export interface MicMeter {
-  readonly supported: boolean
-  /** Opens its own microphone stream. Resolves false when permission is denied. */
-  open(): Promise<boolean>
   /** Visualises an existing stream (the recorder's) without owning it. */
   attach(stream: MediaStream): void
-  /** Releases the analyser; stops the microphone only when the meter opened it. */
+  /** Releases the analyser without stopping the recorder's microphone. */
   stop(): void
   /** Fills `out` (length = band count) with smoothed 0..1 levels. */
   read(out: Float32Array): void
@@ -26,12 +22,6 @@ function audioContextCtor(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null
   const scope = window as unknown as typeof window & MaybeWebkit
   return scope.AudioContext ?? scope.webkitAudioContext ?? null
-}
-
-function audioSupport(): boolean {
-  return audioContextCtor() !== null
-    && typeof navigator !== 'undefined'
-    && Boolean(navigator.mediaDevices?.getUserMedia)
 }
 
 /** Logarithmic band edges, so low voice frequencies are not squashed into one bar. */
@@ -53,7 +43,6 @@ export function createMicMeter(bandCount = 5): MicMeter {
   let analyser: AnalyserNode | null = null
   let source: MediaStreamAudioSourceNode | null = null
   let data: Uint8Array<ArrayBuffer> | null = null
-  let ownStream: MediaStream | null = null
 
   function wire(stream: MediaStream): void {
     const Ctor = audioContextCtor()
@@ -71,27 +60,7 @@ export function createMicMeter(bandCount = 5): MicMeter {
     data = new Uint8Array(analyser.frequencyBinCount)
   }
 
-  function stopOwnStream(): void {
-    ownStream?.getTracks().forEach((track) => track.stop())
-    ownStream = null
-  }
-
   return {
-    supported: audioSupport(),
-
-    async open(): Promise<boolean> {
-      if (!audioSupport()) return false
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stopOwnStream()
-        ownStream = stream
-        wire(stream)
-        return true
-      } catch {
-        return false
-      }
-    },
-
     attach(stream: MediaStream): void {
       wire(stream)
     },
@@ -103,7 +72,6 @@ export function createMicMeter(bandCount = 5): MicMeter {
       source = null
       analyser = null
       data = null
-      stopOwnStream()
       // The context is kept suspended for reuse; the microphone is already free.
       void context?.suspend().catch(() => {})
     },

@@ -1,5 +1,7 @@
 /** Mirrors backend/src/modules/buddy/buddy.types.ts and reminders.types.ts. */
 
+export type BuddyIntent = 'chat' | 'plan' | 'explain' | 'how' | 'practice'
+
 /** Every screen the buddy can be asked about, including the admin console. */
 export type ChatTab =
   | 'study'
