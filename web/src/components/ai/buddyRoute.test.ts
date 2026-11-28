@@ -21,6 +21,20 @@ test('an answer without an action never navigates', () => {
   assert.equal(isNavigationAnswer({ ...base, action: null, route: 'navigate' }), false)
 })
 
+test('multiple destinations and mixed reminder turns stay in chat for the learner to choose', () => {
+  assert.ok(base.action)
+  assert.equal(isNavigationAnswer({
+    ...base,
+    route: 'navigate',
+    actions: [base.action, { kind: 'open_review', tab: 'profile', label: 'Ôn tập' }],
+  }), false)
+  assert.equal(isNavigationAnswer({
+    ...base,
+    route: 'navigate',
+    suggestion: { title: 'Ôn từ', in_minutes: 20, at_time: null, body: null },
+  }), false)
+})
+
 test('only a short confirmation is used as a toast', () => {
   assert.equal(navigationToast(base, 'Đã mở ngay'), 'Đã mở Bảng xếp hạng cho bạn.')
   assert.equal(navigationToast({ ...base, reply: 'word '.repeat(40) }, 'Đã mở ngay'), 'Đã mở ngay')

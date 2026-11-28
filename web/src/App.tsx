@@ -612,10 +612,10 @@ function LearnerApp({ routeTab, search, hash }: { routeTab?: DashboardTab; searc
     return videoRequestNonce.current
   }
 
-  function handleBuddyNavigate(target: BuddyTarget) {
+  function handleBuddyNavigate(target: BuddyTarget, keepChatOpen = false): boolean {
     const tab = (target.tab ?? effectiveTab) as DashboardTab
-    if (!DASHBOARD_TABS.includes(tab)) return
-    if (tab !== effectiveTab && !confirmArenaLeave()) return
+    if (!DASHBOARD_TABS.includes(tab)) return false
+    if (tab !== effectiveTab && !confirmArenaLeave()) return false
 
     if (tab === 'shop') setShopFocusRequest((value) => value + 1)
     if (tab === 'rankings' && target.highlight === 'rank:me') setRankFocusRequest((value) => value + 1)
@@ -645,8 +645,9 @@ function LearnerApp({ routeTab, search, hash }: { routeTab?: DashboardTab; searc
       setActiveTab(tab)
     }
 
-    setBuddyView(null)
+    if (!keepChatOpen) setBuddyView(null)
     setBuddyHighlight(target.highlight && target.mode !== 'open' ? { token: target.highlight } : null)
+    return true
   }
 
   function lessonTitleFor(lessonId: number): string | null {

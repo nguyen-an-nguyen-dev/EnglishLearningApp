@@ -32,6 +32,7 @@ export const env = {
   // Fallback chain after Token Harbor: Gemini Flash. Llama is no longer used
   // for text generation. A new provider must also be wired up in ai.provider.ts.
   aiFallbackModel: process.env.AI_FALLBACK_MODEL || 'gemini-2.5-flash',
+  buddyFallbackModel: process.env.BUDDY_FALLBACK_MODEL?.trim(),
   aiTimeoutMs: getPort(process.env.AI_TIMEOUT_MS, 40000),
   // Hard ceiling for one chat turn (generate -> decide -> repair). Kept below the
   // web client's 35s request timeout so the browser never aborts a live turn.
@@ -46,6 +47,7 @@ export const env = {
   // flow (upload -> submit -> poll); realtime models are WebSocket-only.
   assemblyAiApiKey: (process.env.ASSEMBLYAI_API_KEY || '').trim(),
   assemblyAiBaseUrl: (process.env.ASSEMBLYAI_BASE_URL || 'https://api.assemblyai.com').replace(/\/+$/, ''),
+  buddyStreamingStt: (process.env.BUDDY_STREAMING_STT ?? 'true').trim().toLowerCase() === 'true',
   // Speech-to-text for when the browser's Web Speech API fails (Chrome
   // "network" error): SPEECH_MODEL first, then Gemini audio input.
   speechModel: process.env.SPEECH_MODEL || 'assemblyai-stt-3-7',

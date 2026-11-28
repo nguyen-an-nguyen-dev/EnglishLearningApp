@@ -1,7 +1,6 @@
 /**
  * Microphone recording for the backend speech service. The Web Speech API can be
- * unreachable (Chrome reports `network`), so this captures a short clip with
- * MediaRecorder for the backend to transcribe with Whisper/Gemini.
+ * unreachable, so this captures a short clip with MediaRecorder for the backend.
  */
 
 const CANDIDATE_TYPES = [
@@ -17,6 +16,7 @@ export interface RecorderHandlers {
   onError: (kind: 'denied' | 'unsupported' | 'empty' | 'other') => void
   /** Optional: the live stream, so the UI can visualise the same capture. */
   onStream?: (stream: MediaStream) => void
+  onStopping?: () => void
 }
 
 export interface Recorder {
@@ -85,6 +85,7 @@ export function createRecorder(handlers: RecorderHandlers): Recorder {
       return
     }
     try {
+      if (deliver) handlers.onStopping?.()
       if (active.state !== 'inactive') active.stop()
     } catch {
       releaseStream(session)

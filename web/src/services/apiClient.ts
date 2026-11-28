@@ -37,6 +37,7 @@ export async function requestApi<T>(
   path: string,
   options: RequestInit = {},
   token = authStorage.getToken(),
+  alternate?: { contentType: string; read: (response: Response) => Promise<T> },
 ): Promise<T> {
   if (!token) throw new Error('Bạn cần đăng nhập lại.')
 
@@ -48,6 +49,9 @@ export async function requestApi<T>(
       ...options.headers,
     },
   })
+  if (response.ok && alternate && response.headers.get('content-type')?.startsWith(alternate.contentType)) {
+    return alternate.read(response)
+  }
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
 
   if (!response.ok || !body.success || body.data === undefined) {

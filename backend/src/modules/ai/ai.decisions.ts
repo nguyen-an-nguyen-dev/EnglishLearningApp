@@ -27,6 +27,7 @@ interface ChoiceAnswer<T extends string> {
 async function askDecisionModel(
   input: string,
   questions: Record<string, ChoiceQuestion>,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown> | null> {
   if (!env.aiDecisionEnabled || !env.aiApiKey.trim()) return null;
 
@@ -47,7 +48,8 @@ async function askDecisionModel(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(env.aiDecisionTimeoutMs),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(env.aiDecisionTimeoutMs)])
+        : AbortSignal.timeout(env.aiDecisionTimeoutMs),
     });
     if (!response.ok) return null;
 
@@ -112,13 +114,14 @@ function buildTurnInput(message: string, context: ChatContext | null): string {
 export async function classifyChatIntent(
   message: string,
   context: ChatContext | null,
+  signal?: AbortSignal,
 ): Promise<IntentDecision | null> {
   const text = message.trim();
   if (!text) return null;
 
   const answers = await askDecisionModel(buildTurnInput(text, context), {
     intent: { instructions: INTENT_INSTRUCTIONS, criteria: INTENT_CRITERIA },
-  });
+  }, signal);
   if (!answers) return null;
 
   const answer = readChoice(answers, 'intent', CHAT_INTENTS);

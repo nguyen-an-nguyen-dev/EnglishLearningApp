@@ -1,11 +1,11 @@
 import type { BuddyAnswer } from '../../types/buddy'
 
 /**
- * A resolved action is always a destination. The web opens it immediately and
- * shows a short toast.
+ * A single destination opens immediately. Compound turns stay in chat so the
+ * learner can choose each destination and confirm any reminder.
  */
 export function isNavigationAnswer(answer: BuddyAnswer): boolean {
-  return answer.action !== null
+  return answer.action !== null && !answer.actions?.length && !answer.suggestion
 }
 
 /** Short, self-closing confirmation used for a direct navigation. */

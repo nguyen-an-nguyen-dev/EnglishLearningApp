@@ -43,9 +43,10 @@ export interface SpeechPractice {
 export function transcribeAudioApi(
   blob: Blob,
   signal?: AbortSignal,
-  lang: SpeechVoiceLang = 'vi',
+  lang: SpeechVoiceLang | null = 'vi',
 ): Promise<SpeechTranscript> {
-  return postSpeechAudio(`/api/speech/transcribe?${new URLSearchParams({ lang })}`, blob, signal)
+  const path = lang ? `/api/speech/transcribe?${new URLSearchParams({ lang })}` : '/api/speech/transcribe'
+  return postSpeechAudio(path, blob, signal)
 }
 
 export function practiceSpeechApi(text: string, blob: Blob, signal?: AbortSignal): Promise<SpeechPractice> {

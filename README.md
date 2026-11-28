@@ -503,26 +503,35 @@ của Edge, không cần API key. Giọng: `en-US-AriaNeural` (Anh) và `vi-VN-H
 Văn bản được loại ký tự điều khiển không hợp lệ trong XML và escape `& < > " '` trước khi gửi
 (thư viện không tự làm). Mỗi yêu cầu tối đa 500 ký tự, vượt quá trả 400 `TEXT_TOO_LONG`;
 cache clip trong bộ nhớ giới hạn 64 MB (xóa clip cũ nhất khi đầy).
-Bubble Bác Turbo hiện chữ ngay khi API trả lời và dùng giọng Edge cho toàn bộ phần đọc.
-Câu dài được chia thành các đoạn vừa giới hạn API. Khi dịch vụ báo lỗi tạm thời, bubble
-thử lại một lần và vẫn hiển thị câu trả lời nếu giọng đọc không phát được.
-Các chỗ phát âm từ vựng dùng bộ phát trong `utils/speech.ts` với giọng trình duyệt dự phòng.
+Backend giữ tối đa một kết nối rảnh cho mỗi giọng trong 20 giây để đọc các câu
+mới. Nếu kết nối dùng lại gặp lỗi, backend thử kết nối mới trong cùng thời hạn.
+Các câu khác nhau đến đồng thời có thể dùng kết nối riêng. [Số đo API đọc](backend/src/modules/ai/README.md#voice-output-latency)
+Bubble Bác Turbo hiện chữ ngay khi API trả lời. Bác Turbo, bài học và Sổ từ vựng
+đều phát MP3 do Edge TTS tạo. Câu dài được chia thành các đoạn vừa giới hạn API.
+Web tải trước một đoạn khi đoạn đang phát còn tối đa hai giây. Bấm Dừng sẽ huỷ
+yêu cầu tải trước. Nếu tải trước lỗi, web tiếp tục luồng thử lại khi tới đoạn đó.
+Khi Edge báo lỗi tạm thời, web thử lại một lần với cùng giọng.
 
 Luồng ở web (`components/ai/VoiceOrb.tsx`, `services/speechService.ts`):
 1. Khi mở, web gọi `GET /api/speech/status` để biết backend có sẵn sàng hay không.
-2. Nếu backend sẵn sàng, web ghi âm tối đa 30 giây (`MAX_RECORD_MS`). Với
-   `BUDDY_STREAMING_STT=true` trong môi trường backend, bubble lấy token ngắn hạn từ
-   `POST /api/buddy/voice/session` và gửi PCM trực tiếp đến AssemblyAI trong lúc nói.
-   Khi người dùng dừng mic, bubble chờ bản chép lời cuối tối đa 1,6 giây. Nếu streaming bị tắt,
+2. Nếu backend sẵn sàng, web ghi âm tối đa 30 giây (`MAX_RECORD_MS`). Theo mặc định, bubble
+   lấy token ngắn hạn từ `POST /api/buddy/voice/session` và gửi PCM qua WebSocket tới
+   **AssemblyAI-STT-3.7-Realtime** trong lúc nói. AudioWorklet đổi tần số mic sang 16 kHz và
+   gửi các khung 50 ms. Khi dừng mic, nếu phiên đã kết nối, bubble chờ tối đa 2,6 giây để
+   ghép các đoạn chép lời đã chốt. Nếu streaming bị tắt bằng
+   `BUDDY_STREAMING_STT=false` trong môi trường backend,
    không được trình duyệt hỗ trợ hoặc kết nối lỗi, web gửi clip ghi âm qua
-   `POST /api/speech/transcribe`. Cả hai endpoint yêu cầu đăng nhập và có giới hạn 20 lần/phút mỗi người dùng.
+   `POST /api/speech/transcribe` với nhận diện ngôn ngữ tự động. Cả hai endpoint yêu cầu
+   đăng nhập và có giới hạn 20 lần/phút mỗi người dùng.
    Clip rỗng không được gửi đi. Nếu backend không sẵn sàng, web ẩn mic và chuyển sang ô nhập
    chữ; không còn fallback sang Web Speech API của trình duyệt.
+   Benchmark dùng cùng một đoạn ghi âm để so sánh streaming và gửi clip.
+   [Số đo từ lúc dừng mic đến lúc phát tiếng](backend/src/modules/ai/README.md#browser-recording-and-playback)
 3. Với đường ghi âm, backend nhận audio thô (`Content-Type` là MIME của clip, chấp nhận webm, ogg, mp4, mpeg,
    wav, flac) và giới hạn `SPEECH_MAX_BYTES` (mặc định 4 MB). Thứ tự xử lý:
    - Thử **AssemblyAI** (`SPEECH_MODEL`, mặc định `assemblyai-stt-3-7`) qua REST: tải clip lên
      `/v2/upload`, gửi `/v2/transcript` với `speech_models`, rồi poll `/v2/transcript/{id}`
-     (timeout `SPEECH_TIMEOUT_MS`, chu kỳ `SPEECH_POLL_INTERVAL_MS`). AssemblyAI nhận gợi ý
+     (ngân sách chung `SPEECH_TIMEOUT_MS`, chu kỳ `SPEECH_POLL_INTERVAL_MS`). AssemblyAI nhận gợi ý
      ngôn ngữ (`language_code=vi|en`) hoặc tự nhận diện khi không có gợi ý. Model realtime
      `assemblyai-stt-3-7-realtime` chỉ chạy qua WebSocket, không dùng endpoint HTTP này.
    - AssemblyAI là provider nhận diện duy nhất của app. Lỗi provider trả 503/504 kèm lý do;
@@ -531,8 +540,8 @@ Luồng ở web (`components/ai/VoiceOrb.tsx`, `services/speechService.ts`):
    - Không có chữ thì trả 422 `NO_SPEECH`, web báo người dùng nói lại.
 4. Web nhận transcript và gửi vào buddy (`sendRef` → `askBuddyApi`, cờ `spoken: true`).
    Lệnh điều hướng (ví dụ mở tab hoặc màn đánh giá) được `routeVoiceCommand` xử lý ngay trên
-   máy. Các câu còn lại đi qua `POST /api/buddy/ask` như khi gõ chữ. Câu chào đứng riêng
-   có phản hồi tiếng Việt hoặc tiếng Anh đã định sẵn và vẫn được lưu vào lịch sử chat.
+   máy. Các câu còn lại đi qua `POST /api/buddy/ask` như khi gõ chữ. Backend xử lý trực tiếp
+   câu chào, lệnh điều hướng rõ ràng, câu hỏi số dư, mở video bất kỳ và nhắc giờ cụ thể.
 5. Với câu nói, câu trả lời của buddy được đọc lại bằng giọng TTS, trừ khi người dùng tắt tiếng.
 
 Để đo độ trễ của bubble, xem các mục `buddy.transcript-ready`, `buddy.answer-api`,

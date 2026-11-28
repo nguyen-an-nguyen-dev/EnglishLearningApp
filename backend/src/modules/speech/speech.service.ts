@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { HttpError } from '../../middleware/error-handler';
 import { alignWords, measurePacing } from './speech.practice';
 import type { TimedWord } from './speech.practice';
@@ -23,10 +24,6 @@ interface AssemblyAiTranscript {
   speech_model_used?: unknown;
   audio_duration?: unknown;
   words?: unknown;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function assemblyAuth(): Record<string, string> {
@@ -64,12 +61,12 @@ function assemblyFailure(stage: string, status: number, detail: string): HttpErr
 }
 
 /** Uploads raw bytes; AssemblyAI returns a private URL which transcription can read. */
-async function uploadAudio(audio: Buffer): Promise<string> {
+async function uploadAudio(audio: Buffer, signal: AbortSignal): Promise<string> {
   const response = await fetch(`${env.assemblyAiBaseUrl}/v2/upload`, {
     method: 'POST',
     headers: { ...assemblyAuth(), 'content-type': 'application/octet-stream' },
     body: new Uint8Array(audio),
-    signal: AbortSignal.timeout(env.speechTimeoutMs),
+    signal,
   });
   if (!response.ok) {
     throw assemblyFailure('tải âm thanh lên', response.status, await readErrorMessage(response));
@@ -84,6 +81,7 @@ async function submitTranscript(
   audioUrl: string,
   language: 'vi' | 'en' | null,
   model: string,
+  signal: AbortSignal,
 ): Promise<string> {
   const payload = {
     audio_url: audioUrl,
@@ -96,7 +94,7 @@ async function submitTranscript(
     method: 'POST',
     headers: { ...assemblyAuth(), 'content-type': 'application/json' },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(env.speechTimeoutMs),
+    signal,
   });
   if (!response.ok) {
     throw assemblyFailure('tạo transcript', response.status, await readErrorMessage(response));
@@ -107,34 +105,24 @@ async function submitTranscript(
   return id;
 }
 
-async function waitForTranscript(id: string): Promise<AssemblyAiTranscript> {
-  const deadline = Date.now() + env.speechTimeoutMs;
-  while (Date.now() < deadline) {
-    await sleep(env.speechPollIntervalMs);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-
-    let response: Response;
-    try {
-      response = await fetch(`${env.assemblyAiBaseUrl}/v2/transcript/${encodeURIComponent(id)}`, {
-        headers: assemblyAuth(),
-        signal: AbortSignal.timeout(Math.max(1000, Math.min(env.speechTimeoutMs, remaining))),
-      });
-    } catch {
-      throw new HttpError(504, 'AssemblyAI không phản hồi kịp. Thử lại với đoạn ghi âm ngắn hơn.');
-    }
+async function waitForTranscript(id: string, signal: AbortSignal): Promise<AssemblyAiTranscript> {
+  while (!signal.aborted) {
+    const response = await fetch(`${env.assemblyAiBaseUrl}/v2/transcript/${encodeURIComponent(id)}`, {
+      headers: assemblyAuth(),
+      signal,
+    });
     if (!response.ok) {
       throw assemblyFailure('lấy kết quả', response.status, await readErrorMessage(response));
     }
     const body = await response.json().catch(() => null) as AssemblyAiTranscript | null;
-    if (!body) continue;
-    if (body.status === 'completed') return body;
-    if (body.status === 'error') {
+    if (body?.status === 'completed') return body;
+    if (body?.status === 'error') {
       const message = typeof body.error === 'string' && body.error.trim()
         ? body.error.trim()
         : 'AssemblyAI không nhận diện được nội dung trong đoạn ghi âm.';
       throw new HttpError(422, message);
     }
+    await sleep(env.speechPollIntervalMs, undefined, { signal });
   }
   throw new HttpError(504, 'AssemblyAI xử lý quá lâu. Thử đoạn ghi âm ngắn hơn nhé.');
 }
@@ -164,13 +152,24 @@ async function transcribeAssemblyAi(
   _mime: SpeechMimeType,
   language: 'vi' | 'en' | null,
   model: string,
+  requestSignal?: AbortSignal,
 ): Promise<RecognizedSpeech | null> {
   if (!env.assemblyAiApiKey) {
     throw new HttpError(503, 'Chưa cấu hình ASSEMBLYAI_API_KEY để nhận diện giọng nói.');
   }
-  const uploadUrl = await uploadAudio(audio);
-  const transcriptId = await submitTranscript(uploadUrl, language, model);
-  const result = await waitForTranscript(transcriptId);
+  const timeout = AbortSignal.timeout(env.speechTimeoutMs);
+  const signal = requestSignal ? AbortSignal.any([requestSignal, timeout]) : timeout;
+  const result = await (async () => {
+    try {
+      const uploadUrl = await uploadAudio(audio, signal);
+      const transcriptId = await submitTranscript(uploadUrl, language, model, signal);
+      return await waitForTranscript(transcriptId, signal);
+    } catch (error) {
+      if (signal.aborted) throw new HttpError(504, 'AssemblyAI không phản hồi kịp. Thử lại với đoạn ghi âm ngắn hơn.');
+      if (error instanceof HttpError) throw error;
+      throw new HttpError(503, 'Không kết nối được AssemblyAI.');
+    }
+  })();
 
   const text = cleanTranscript(result.text);
   if (!text) return null;
@@ -194,6 +193,7 @@ async function recognizeSpeech(
   mime: SpeechMimeType,
   language: 'vi' | 'en' | null,
   modelOverride: string | null = null,
+  signal?: AbortSignal,
 ): Promise<RecognizedSpeech | null> {
   const model = modelOverride ?? env.speechModel;
   const info = findSpeechModel(model);
@@ -205,7 +205,7 @@ async function recognizeSpeech(
     const label = info?.label ?? model;
     throw new HttpError(422, `${label} không hỗ trợ ${language === 'vi' ? 'tiếng Việt' : 'tiếng Anh'}.`);
   }
-  return transcribeAssemblyAi(audio, mime, language, model);
+  return transcribeAssemblyAi(audio, mime, language, model, signal);
 }
 
 export async function transcribeSpeech(
@@ -213,17 +213,18 @@ export async function transcribeSpeech(
   mime: SpeechMimeType,
   language: 'vi' | 'en' | null = null,
   modelOverride: string | null = null,
+  signal?: AbortSignal,
 ): Promise<SpeechTranscript | null> {
-  const result = await recognizeSpeech(audio, mime, language, modelOverride);
+  const result = await recognizeSpeech(audio, mime, language, modelOverride, signal);
   if (!result) return null;
   const { text, language: detected, provider, model } = result;
   return { text, language: detected, provider, model };
 }
 
-export async function practiceSpeech(audio: Buffer, mime: SpeechMimeType, expected: string) {
+export async function practiceSpeech(audio: Buffer, mime: SpeechMimeType, expected: string, signal?: AbortSignal) {
   // The practice sentence is English, so ask the recognizer for English even
   // when the app UI is Vietnamese.
-  const result = await recognizeSpeech(audio, mime, 'en');
+  const result = await recognizeSpeech(audio, mime, 'en', null, signal);
   if (!result || !/[\p{L}\p{N}]/u.test(result.text)) return null;
   const alignment = alignWords(expected, result.text);
   return {

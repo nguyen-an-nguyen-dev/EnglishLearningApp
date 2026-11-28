@@ -1,9 +1,9 @@
 /** Bác Turbo, drawn inline as procedural SVG so it scales crisply and needs no asset. One component serves the stall banner and the coaching bubble. */
-export function TurboMascot({ className, label = 'Bác Turbo, chủ gara, đang vẫy tay chào' }: { className?: string; label?: string }) {
+export function TurboMascot({ className, portrait = false, label = 'Bác Turbo, chủ gara, đang vẫy tay chào' }: { className?: string; portrait?: boolean; label?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 200 240"
+      viewBox={portrait ? '52 22 96 96' : '0 0 200 240'}
       role="img"
       aria-label={label}
       preserveAspectRatio="xMidYMax meet"

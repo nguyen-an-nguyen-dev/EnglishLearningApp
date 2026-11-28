@@ -22,6 +22,7 @@ export type ChatTab = (typeof CHAT_TABS)[number];
 /** Untrusted page context sent by the web. Never interpolated into SQL. */
 export interface ChatContext {
   tab: ChatTab;
+  surface?: 'mobile';
   focus?: string;
   detail?: string;
 }
@@ -50,6 +51,8 @@ export interface AiReply {
   feedback: AiFeedbackInput[];
   followups: string[];
   action: ChatAction | null;
+  /** Optional destinations for a turn that asks for more than one action. */
+  actions?: ChatAction[];
   reminder: ReminderSuggestion | null;
 }
 
@@ -139,6 +142,11 @@ export interface MessageRow {
   created_at: Date;
 }
 
+export interface CoachMessageRow extends MessageRow {
+  destinations?: ChatAction[];
+  presentedDestinations?: ChatAction[];
+}
+
 export interface FeedbackRow {
   id: number;
   message_id: number;
@@ -162,5 +170,7 @@ export interface LearnerContext {
   weakTopics: Array<{ topic: string; mistakes: number }>;
   recentMistakes: Array<{ topic: string; prompt: string; answer: string }>;
   previousFeedback: Array<Pick<FeedbackRow, 'type' | 'original_text' | 'corrected_text' | 'explanation'>>;
-  reviewLessons: Array<{ title: string; practiceSeconds: number; attempts: number }>;
 }
+
+export type StudyLearnerContext = Pick<LearnerContext, 'level' | 'weakTopics' | 'recentMistakes'>;
+export type CoachLearnerContext = StudyLearnerContext & Pick<LearnerContext, 'previousFeedback'>;

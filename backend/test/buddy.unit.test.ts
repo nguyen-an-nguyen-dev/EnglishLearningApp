@@ -109,6 +109,11 @@ test('due review items produce one plain nudge, with no counts', () => {
   assert.equal(clean.some((nudge) => nudge.kind === 'review-due'), false);
 });
 
+test('limited nudge space shows due review after the learner reminder and before new material', () => {
+  const overdue = buildNudges(stats({ reviewDue: 6 }), [reminder()], new Date('2026-11-02T10:00:00.000Z'), now);
+  assert.deepEqual(overdue.map(({ kind }) => kind), ['reminder', 'streak', 'comeback', 'review-due']);
+});
+
 test('the greeting changes with the learner state', () => {
   assert.match(
     buildGreeting(stats(), [reminder({ title: 'Ôn Sổ từ' })], new Date('2026-11-07T11:00:00.000Z'), now),

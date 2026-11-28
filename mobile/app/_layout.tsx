@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import Colors from '@/constants/Colors';
 import FloatingStudyBuddy from '@/components/FloatingStudyBuddy';
+import { BuddyVideoProvider } from '@/contexts/buddy-video-context';
 import { AppDialogProvider } from '@/contexts/app-dialog-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AppThemeProvider, useAppTheme } from '@/contexts/theme-context';
@@ -74,15 +75,18 @@ function RootLayoutNav() {
       },
     }}>
       <StatusBar style={theme} />
-      <View style={{ flex: 1 }}>
-        <Stack>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
-          <Stack.Screen name="battle" options={{ headerShown: false }} />
-        </Stack>
-        {token && !inAuthGroup ? <FloatingStudyBuddy /> : null}
-      </View>
+      <BuddyVideoProvider>
+        <View style={{ flex: 1 }}>
+          <Stack>
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="battle" options={{ headerShown: false }} />
+            <Stack.Screen name="review" options={{ headerShown: false }} />
+          </Stack>
+          {token && !inAuthGroup ? <FloatingStudyBuddy /> : null}
+        </View>
+      </BuddyVideoProvider>
     </ThemeProvider>
   );
 }

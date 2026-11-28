@@ -2,6 +2,8 @@ import { env } from '../../config/env';
 import { HttpError } from '../../middleware/error-handler';
 import { classifyChatIntent } from './ai.decisions';
 import type { ReplyFlavor } from './ai.decisions';
+import { explicitLearningIntent, isPlainTutorChat } from './ai.intent';
+import { isTutorExampleRecall } from './ai.memory';
 import { MAX_REPLY_TOKENS, generateReply } from './ai.provider';
 import type { AiReply, ChatContext, ChatIntent, ProviderMessage } from './ai.types';
 
@@ -23,6 +25,10 @@ export interface TurnRequest {
   /** Deterministic answer built from real rows; used when every provider fails. */
   offline: AiReply | null;
   maxTokens?: number;
+  brief?: boolean;
+  buddy?: boolean;
+  signal?: AbortSignal;
+  onDraft?: (text: string) => void;
 }
 
 /**
@@ -34,9 +40,15 @@ export async function resolveTurnIntent(
   message: string,
   intent: ChatIntent,
   context: ChatContext | null,
+  signal?: AbortSignal,
 ): Promise<ChatIntent> {
+  signal?.throwIfAborted();
   if (intent !== 'chat') return intent;
-  const decision = await classifyChatIntent(message, context);
+  const local = explicitLearningIntent(message);
+  if (local) return local;
+  if (isPlainTutorChat(message) || isTutorExampleRecall(message)) return 'chat';
+  const decision = await classifyChatIntent(message, context, signal);
+  signal?.throwIfAborted();
   return decision?.confident ? decision.intent : intent;
 }
 
@@ -47,10 +59,11 @@ function stepBudget(deadline: number, stepTimeoutMs: number): number | null {
 }
 
 export async function answerTurn(request: TurnRequest): Promise<AiReply> {
+  request.signal?.throwIfAborted();
   const deadline = Date.now() + env.aiTurnBudgetMs;
   const timeoutMs = stepBudget(
     deadline,
-    request.flavor === 'coach' ? COACH_TIMEOUT_MS : env.aiTimeoutMs,
+    request.buddy ? 12_000 : request.flavor === 'coach' ? COACH_TIMEOUT_MS : env.aiTimeoutMs,
   );
   if (timeoutMs === null) {
     if (request.offline) return request.offline;
@@ -61,8 +74,13 @@ export async function answerTurn(request: TurnRequest): Promise<AiReply> {
     return await generateReply(request.messages, {
       timeoutMs,
       maxTokens: request.maxTokens ?? MAX_REPLY_TOKENS,
+      brief: request.brief,
+      buddy: request.buddy,
+      signal: request.signal,
+      onDraft: request.onDraft,
     });
   } catch (error) {
+    request.signal?.throwIfAborted();
     // A provider outage is exactly why the deterministic answer exists.
     if (request.offline) return request.offline;
     throw error;

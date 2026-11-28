@@ -2,6 +2,8 @@ import type { RequestHandler } from 'express';
 import { HttpError } from '../../middleware/error-handler';
 import * as aiService from './ai.service';
 import { parseAiTopic, parseChatId, parseChatTurn } from './ai.validation';
+import { respondWithAiReply } from './ai.reply-transport';
+import type { StudyPlan } from './ai.types';
 
 export const listChats: RequestHandler = async (request, response, next) => {
   try {
@@ -28,7 +30,7 @@ export const getChat: RequestHandler = async (request, response, next) => {
   try {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
     const chatId = parseChatId(request.params.chatId);
-    const chat = await aiService.getChat(request.auth.userId, chatId);
+    const chat = await aiService.getChat(request.auth.userId, chatId, request.query.include === 'destinations');
     response.json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -46,33 +48,27 @@ export const deleteChat: RequestHandler = async (request, response, next) => {
   }
 };
 
-export const sendMessage: RequestHandler = async (request, response, next) => {
-  try {
+export const sendMessage: RequestHandler = (request, response, next) =>
+  respondWithAiReply(request, response, next, 201, 'ai_chat_stream_failed', (signal, onDraft) => {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
     const chatId = parseChatId(request.params.chatId);
     const turn = parseChatTurn(request.body);
-    const data = await aiService.sendMessage(
+    return aiService.sendMessage(
       request.auth.userId,
       chatId,
       turn.message,
       turn.intent,
       turn.context,
+      signal,
+      onDraft,
     );
-    response.status(201).json({ success: true, data });
-  } catch (error) {
-    next(error);
-  }
-};
+  });
 
-export const getStudyPlan: RequestHandler = async (request, response, next) => {
-  try {
+export const getStudyPlan: RequestHandler = (request, response, next) =>
+  respondWithAiReply<StudyPlan>(request, response, next, 200, 'ai_plan_stream_failed', (signal, onPlan) => {
     if (!request.auth) throw new HttpError(401, 'Authentication required.');
-    const plan = await aiService.getStudyPlan(request.auth.userId);
-    response.json({ success: true, data: plan });
-  } catch (error) {
-    next(error);
-  }
-};
+    return aiService.getStudyPlan(request.auth.userId, signal, onPlan);
+  }, (data) => ({ type: 'plan', data }));
 
 export const getFeedback: RequestHandler = async (request, response, next) => {
   try {

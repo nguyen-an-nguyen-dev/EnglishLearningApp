@@ -1,4 +1,5 @@
 import { request } from './api';
+import { AI_REPLY_STREAM_TYPE, readAiReplyStream, readStudyPlanStream } from './aiReplyStream';
 
 export const AI_TOPICS = [
   { id: 'DAILY_CONVERSATION', label: 'Daily Conversation' },
@@ -16,8 +17,21 @@ export type FeedbackType = 'GRAMMAR' | 'VOCABULARY' | 'TENSE' | 'WORD_ORDER' | '
 export type ChatIntent = 'chat' | 'plan' | 'explain' | 'how' | 'practice';
 export type ChatTab = 'study' | 'videos' | 'translate' | 'compete' | 'rankings' | 'profile';
 
+export interface AiChatAction {
+  kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review' | 'show_shop_item' | 'buy_shop_item' | 'spotlight';
+  label: string;
+  tab?: ChatTab | 'shop' | 'admin';
+  lessonId?: number;
+  lessonTitle?: string;
+  videoId?: number;
+  videoTitle?: string;
+  mode?: 'open' | 'reveal';
+  highlight?: string;
+}
+
 export interface ChatContext {
   tab: ChatTab;
+  surface?: 'mobile';
   focus?: string;
   detail?: string;
 }
@@ -75,6 +89,7 @@ export interface AiMessage {
   role: 'USER' | 'AI';
   content: string;
   created_at: string;
+  actions?: AiChatAction[];
 }
 
 export interface AiFeedback {
@@ -91,6 +106,14 @@ export interface AiChatDetails {
   messages: AiMessage[];
 }
 
+export interface AiMessageTurn {
+  userMessage: AiMessage;
+  aiMessage: AiMessage;
+  feedback: AiFeedback[];
+  action?: AiChatAction | null;
+  actions?: AiChatAction[];
+}
+
 export async function listAiChats(): Promise<AiChat[]> {
   const data = await request<{ chats: AiChat[] }>('/ai/chats');
   return data.chats;
@@ -105,7 +128,7 @@ export async function createAiChat(topic: AiTopic): Promise<AiChat> {
 }
 
 export async function getAiChat(chatId: number): Promise<AiChatDetails> {
-  return request<AiChatDetails>(`/ai/chats/${chatId}`);
+  return request<AiChatDetails>(`/ai/chats/${chatId}?include=destinations`);
 }
 
 export async function deleteAiChat(chatId: number): Promise<void> {
@@ -117,18 +140,19 @@ export async function sendAiMessage(
   message: string,
   intent: ChatIntent = 'chat',
   context: ChatContext | null = null,
-): Promise<{
-  userMessage: AiMessage;
-  aiMessage: AiMessage;
-  feedback: AiFeedback[];
-}> {
+  onDraft?: (text: string) => void,
+): Promise<AiMessageTurn> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 35_000);
   try {
-    return await request(`/ai/chats/${chatId}/messages`, {
+    return await request<AiMessageTurn>(`/ai/chats/${chatId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ message, intent, context }),
       signal: controller.signal,
+      headers: onDraft ? { Accept: AI_REPLY_STREAM_TYPE } : undefined,
+    }, undefined, onDraft && {
+      contentType: AI_REPLY_STREAM_TYPE,
+      read: (response) => readAiReplyStream(response.body, onDraft),
     });
   } catch (error) {
     if (controller.signal.aborted) {
@@ -140,11 +164,17 @@ export async function sendAiMessage(
   }
 }
 
-export async function getStudyPlan(): Promise<StudyPlan> {
+export async function getStudyPlan(onPlan?: (plan: StudyPlan) => void): Promise<StudyPlan> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25_000);
   try {
-    return await request<StudyPlan>('/ai/study-plan', { signal: controller.signal });
+    return await request<StudyPlan>('/ai/study-plan', {
+      signal: controller.signal,
+      headers: onPlan ? { Accept: AI_REPLY_STREAM_TYPE } : undefined,
+    }, undefined, onPlan && {
+      contentType: AI_REPLY_STREAM_TYPE,
+      read: (response) => readStudyPlanStream(response.body, onPlan),
+    });
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error('Kế hoạch mất quá lâu để tải. Thử lại nha.');

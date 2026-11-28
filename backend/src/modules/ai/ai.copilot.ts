@@ -3,19 +3,52 @@ import { normalizeLeagueTier } from '../gamification/gamification.types';
 import type { LeagueTier, ShopItem, ShopSlot } from '../gamification/gamification.types';
 import type { BuddyCommand } from './ai.commands';
 import { normalizeDestination } from './ai.language';
-import { pickNextLesson, scoreCatalogMatch } from './ai.study';
-import { getStudyStats } from './ai.repository';
+import { pickNextLesson, resolveChatAction } from './ai.study';
+import { exactCatalogueMatches, rankCatalog, videoCatalogueQuery, withinVideoDuration } from './ai.search';
+import { getBuddyVideoLibraries, getStudyStats } from './ai.repository';
 import type { VideoCatalogEntry } from './ai.repository';
 import type { AiReply, ChatAction, ChatContext, LearnerContext } from './ai.types';
 
-export async function buildBuddySnapshot(userId: number) {
-  const [study, wallet, shop, league] = await Promise.all([
-    getStudyStats(userId),
+export async function buildBuddyContext(userId: number) {
+  const { study, wallet, readShop } = await buildBuddyTurnContext(userId, true);
+  return { study, wallet, shop: await readShop() };
+}
+
+export type BuddyCoachContext = Awaited<ReturnType<typeof buildBuddyContext>>;
+export type BuddyGuideContext = Omit<BuddyCoachContext, 'shop'> & {
+  shop: Pick<BuddyCoachContext['shop'], 'coins' | 'items'>;
+};
+
+/** Reuse catalogue reads within one turn without caching private data across turns. */
+export function createBuddyCatalogueReads(userId: number) {
+  let shop: ReturnType<typeof getShop> | undefined;
+  let videos: ReturnType<typeof getBuddyVideoLibraries> | undefined;
+  return {
+    readShop: () => shop ??= getShop(userId),
+    readVideos: () => videos ??= getBuddyVideoLibraries(userId),
+  };
+}
+
+export type BuddyCatalogueReads = ReturnType<typeof createBuddyCatalogueReads>;
+
+export async function buildBuddyTurnContext(
+  userId: number,
+  prefetchShop: boolean,
+  { readShop, readVideos } = createBuddyCatalogueReads(userId),
+) {
+  const [study, wallet] = await Promise.all([
+    getStudyStats(userId, readVideos()),
     getWallet(userId),
-    getShop(userId),
-    getLeague(userId),
+    prefetchShop ? readShop() : null,
   ]);
-  return { study, wallet, shop, league };
+  return { study, wallet, readShop };
+}
+
+export type BuddyTurnContext = Awaited<ReturnType<typeof buildBuddyTurnContext>>;
+
+export async function buildBuddySnapshot(userId: number) {
+  const [context, league] = await Promise.all([buildBuddyContext(userId), getLeague(userId)]);
+  return { ...context, league };
 }
 
 export type BuddySnapshot = Awaited<ReturnType<typeof buildBuddySnapshot>>;
@@ -109,7 +142,7 @@ function itemTokens(item: ShopItem): { name: Set<string>; description: Set<strin
  * returns a single winner, so an ambiguous description is a question rather
  * than a wrong jump.
  */
-function findShopItems(query: string, items: readonly ShopItem[]): ShopItem[] {
+export function findShopItems(query: string, items: readonly ShopItem[]): ShopItem[] {
   const normalized = normalizeDestination(query);
   const aliases: Record<string, string> = {
     khien: 'shield', 'khien bao ve': 'shield', 'khien bao ve chuoi': 'shield', 'bao ve streak': 'shield',
@@ -206,13 +239,91 @@ function answer(reply: string, action: ChatAction | null): AiReply {
   return { reply, action, feedback: [], followups: [], reminder: null };
 }
 
+function shopItemAnswer(item: ShopItem, coins: number, en: boolean): AiReply {
+  return answer(shopItemReply(item, coins, en), {
+    kind: 'show_shop_item', tab: 'shop', itemCode: item.code,
+    label: en ? `View ${item.name}` : `Xem ${item.name}`,
+  });
+}
+
+export function resolveExactShopItem(command: Extract<BuddyCommand, { kind: 'shopItem' }>, shop: BuddyGuideContext['shop']): AiReply | null {
+  const name = normalizeDestination(command.params.item);
+  if (!name) return null;
+  const matches = shop.items.filter((item) => {
+    if (item.slot === 'nameplate' && item.unlock_type === 'default') return false;
+    const code = normalizeDestination(item.code);
+    return normalizeDestination(item.name) === name || code === name
+      || (item.slot === 'booster' && code === `booster ${name}`);
+  });
+  if (matches.length !== 1) return null;
+  const reply = shopItemAnswer(matches[0], shop.coins, command.language === 'en');
+  return { ...reply, action: resolveChatAction(reply.action, {}, shop.items) };
+}
+
+function videoAnswer(video: VideoCatalogEntry, en: boolean, lookupOnly?: boolean): AiReply {
+  if (lookupOnly) {
+    return answer(en ? `The code for “${video.title}” is ${video.code ?? video.id}.`
+      : `Mã của “${video.title}” là ${video.code ?? video.id}.`, null);
+  }
+  return answer(en ? `Opened “${video.title}”.${video.code ? ` Code: ${video.code}.` : ''}`
+    : `Đã mở “${video.title}”.${video.code ? ` Mã video: ${video.code}.` : ''}`,
+    { kind: 'open_video', tab: 'videos', videoId: video.id, label: '' });
+}
+
+export function resolveExactVideo(
+  command: Extract<BuddyCommand, { kind: 'video' }>,
+  libraries: Awaited<ReturnType<typeof getBuddyVideoLibraries>>,
+  context: ChatContext | null,
+): AiReply | null {
+  const { params } = command;
+  if (params.choice !== 'topic') return null;
+  const visible = params.owned ? libraries.ownedVideoCatalog : [...libraries.videoCatalog, ...libraries.ownedVideoCatalog];
+  const current = /^(?:nay|dang xem|hien tai|this|current)$/u.test(params.topic);
+  const activeTitle = context?.tab === 'videos' ? /^Video: (.+)$/u.exec(context.focus ?? '')?.[1] : undefined;
+  const query = current ? normalizeDestination(activeTitle ?? '') : params.topic;
+  if (!query) return null;
+  const exactIds = current ? [] : visible.filter(({ id, code }) =>
+    (code && normalizeDestination(code) === query) || (/^\d+$/u.test(query) && String(id) === query));
+  const filter = exactIds.length || params.code || current ? { topic: query } : videoCatalogueQuery(query);
+  if (!filter) return null;
+  const matches = exactIds.length || params.code ? exactIds
+    : current ? visible.filter(({ title }) => normalizeDestination(title) === query)
+      : exactCatalogueMatches(filter.topic, visible.filter((item) => withinVideoDuration(item, filter.maxSeconds)));
+  if (matches.length !== 1) return null;
+  const reply = videoAnswer(matches[0], command.language === 'en', params.lookupOnly);
+  return { ...reply, action: resolveChatAction(reply.action, { videoCatalog: matches }) };
+}
+
 export function resolveBuddyCommand(
   command: BuddyCommand,
   snapshot: BuddySnapshot,
-  learner?: LearnerContext,
+  learner?: Pick<LearnerContext, 'weakTopics'>,
   context?: ChatContext | null,
 ): AiReply {
-  const { study, wallet, league } = snapshot;
+  return command.kind === 'rank'
+    ? resolveBuddyRank(command.language, snapshot.league)
+    : resolveBuddyStudyCommand(command, snapshot, learner, context);
+}
+
+export function resolveBuddyRank(language: BuddyCommand['language'], league: BuddySnapshot['league']): AiReply {
+  const en = language === 'en';
+  const tier = TIER_NAMES[league.tier][en ? 1 : 0];
+  const rank = league.my_rank;
+  const reply = en
+    ? (rank === null ? `You’re in the ${tier} league with ${league.race_points} RP and no weekly rank yet.`
+      : `You’re ranked #${rank} in the ${tier} league this week with ${league.race_points} RP.`)
+    : (rank === null ? `Bạn ở giải ${tier}, có ${league.race_points} RP và chưa có hạng tuần này.`
+      : `Bạn đứng hạng ${rank} giải ${tier} tuần này với ${league.race_points} RP.`);
+  return answer(reply, { kind: 'spotlight', tab: 'rankings', highlight: 'rank:me', label: en ? 'View weekly rank' : 'Xem hạng tuần' });
+}
+
+export function resolveBuddyStudyCommand(
+  command: Exclude<BuddyCommand, { kind: 'rank' }>,
+  snapshot: BuddyGuideContext,
+  learner?: Pick<LearnerContext, 'weakTopics'>,
+  context?: ChatContext | null,
+): AiReply {
+  const { study, wallet } = snapshot;
   const en = command.language === 'en';
   switch (command.kind) {
     case 'shopItem': {
@@ -221,22 +332,21 @@ export function resolveBuddyCommand(
         return answer(en ? 'Which color or car do you mean?' : 'Bạn muốn xem xe nào hoặc xe màu gì?', null);
       }
       const matches = findShopItems(command.params.item, shop.items);
-      if (matches.length > 1) {
+      // A request to show the car can use the learner's equipped car when it matches.
+      const equipped = command.params.preferEquipped ? matches.find((item) => item.slot === 'car' && item.equipped) : undefined;
+      if (matches.length > 1 && !equipped) {
         const options = matches.slice(0, 3);
         const names = options.map(({ name, price }) => `“${name}” (${price} RC)`).join(', ');
         const reply = answer(en ? `I found ${names}. Which one would you like to see?`
           : `Mình tìm thấy ${names}. Bạn muốn xem món nào?`, null);
         return { ...reply, followups: options.map(({ name }) => en ? `Show me ${name} in the shop` : `Xem ${name} trong Gara`) };
       }
-      const item = matches[0];
+      const item = equipped ?? matches[0];
       if (!item) {
         return answer(en ? 'I couldn’t find a matching item in the shop. What other details can you share?'
           : 'Mình chưa tìm thấy món phù hợp trong Gara. Bạn mô tả thêm tên, màu hoặc kiểu dáng nhé.', null);
       }
-      return answer(shopItemReply(item, shop.coins, en), {
-        kind: 'show_shop_item', tab: 'shop', itemCode: item.code,
-        label: en ? `View ${item.name}` : `Xem ${item.name}`,
-      });
+      return shopItemAnswer(item, shop.coins, en);
     }
     case 'shopCatalog': {
       const { items, coins } = snapshot.shop;
@@ -271,21 +381,29 @@ export function resolveBuddyCommand(
       const preferred = unfinished.length ? unfinished : pool;
       let video: VideoCatalogEntry | undefined;
       if (params.choice === 'topic') {
-        const visible = params.owned ? owned : [...videoCatalog, ...owned];
+        const accessible = params.owned ? owned : [...videoCatalog, ...owned];
         const current = /^(?:nay|dang xem|hien tai|this|current)$/.test(params.topic);
         const activeTitle = context?.tab === 'videos' ? /^Video: (.+)$/.exec(context.focus ?? '')?.[1] : undefined;
-        const query = current ? normalizeDestination(activeTitle ?? '') : params.topic;
+        const filter = !current && !params.code ? videoCatalogueQuery(params.topic) : null;
+        const visible = accessible.filter((item) => withinVideoDuration(item, filter?.maxSeconds));
+        const query = current ? normalizeDestination(activeTitle ?? '') : filter?.topic ?? params.topic;
         const codes = visible.filter(({ code }) => code && normalizeDestination(code) === query);
         if (!current && codes.length === 1) video = codes[0];
         if (!video && !current && /^\d+$/.test(query)) video = visible.find(({ id }) => id === Number(query));
         if (!video && !params.code && query) {
           const exact = visible.filter(({ title }) => normalizeDestination(title) === query);
-          const ranked = (params.owned ? owned : visible)
-            .map((item) => ({ item, score: scoreCatalogMatch(query, normalizeDestination(`${item.title} ${item.topic}`)) }))
-            .filter(({ score }) => score > 0)
-            .sort((a, b) => b.score - a.score || Number(a.item.completed) - Number(b.item.completed));
+          const ranked = current ? [] : rankCatalog(query, visible);
           if (exact.length === 1) video = exact[0];
-          if (exact.length === 0 && !current) video = ranked[0]?.item;
+          if (exact.length === 0 && ranked[0] && ranked[0].score > (ranked[1]?.score ?? 0)) video = ranked[0].item;
+          const choices = exact.length > 1 ? exact : !video ? ranked.slice(0, 3).map(({ item }) => item) : [];
+          if (choices.length > 1 && !params.lookupOnly && !current) {
+            const titles = choices.slice(0, 3).map(({ title }) => `“${title}”`).join(', ');
+            return {
+              ...answer(en ? `I found ${titles}. Which one would you like to open?`
+                : `Mình tìm thấy ${titles}. Bạn muốn mở video nào?`, null),
+              actions: choices.slice(0, 3).map(({ id, title }) => ({ kind: 'open_video', videoId: id, label: title })),
+            };
+          }
         }
       } else {
         video = params.choice === 'random' ? preferred[Math.floor(Math.random() * preferred.length)] : preferred[0];
@@ -294,13 +412,7 @@ export function resolveBuddyCommand(
         return answer(en ? 'I couldn’t find a matching video you can watch. Try its title or code.'
           : 'Mình chưa tìm thấy video phù hợp trong thư viện bạn có thể xem. Bạn thử tên đầy đủ hoặc mã video nhé.', null);
       }
-      if (params.choice === 'topic' && params.lookupOnly) {
-        return answer(en ? `The code for “${video.title}” is ${video.code ?? video.id}.`
-          : `Mã của “${video.title}” là ${video.code ?? video.id}.`, null);
-      }
-      return answer(en ? `Opened “${video.title}”.${video.code ? ` Code: ${video.code}.` : ''}`
-        : `Đã mở “${video.title}”.${video.code ? ` Mã video: ${video.code}.` : ''}`,
-        { kind: 'open_video', tab: 'videos', videoId: video.id, label: '' });
+      return videoAnswer(video, en, params.choice === 'topic' && params.lookupOnly);
     }
     case 'studyHistory': {
       const { view, title } = command.params;
@@ -364,9 +476,7 @@ export function resolveBuddyCommand(
         const matches = candidates.filter(({ title }) => normalizeDestination(title) === params.title);
         if (matches.length === 1) lesson = matches[0];
         if (matches.length === 0 && topic) {
-          const scored = candidates
-            .map((item) => ({ item, score: scoreCatalogMatch(topic, normalizeDestination(`${item.title} ${item.topic}`)) }))
-            .sort((a, b) => b.score - a.score);
+          const scored = rankCatalog(topic, candidates);
           if (scored[0]?.score > (scored[1]?.score ?? 0)) lesson = scored[0].item;
         }
       }
@@ -402,16 +512,6 @@ export function resolveBuddyCommand(
         ? (en ? `Equipped: ${items.join(', ')}.` : `Bạn đang dùng ${items.join(', ')}.`)
         : (en ? 'You have no items equipped.' : 'Bạn chưa trang bị vật phẩm nào.');
       return answer(reply, { kind: 'spotlight', tab: 'profile', highlight: 'profile:stats', label: en ? 'View profile' : 'Xem hồ sơ' });
-    }
-    case 'rank': {
-      const tier = TIER_NAMES[league.tier][en ? 1 : 0];
-      const rank = league.my_rank;
-      const reply = en
-        ? (rank === null ? `You’re in the ${tier} league with ${league.race_points} RP and no weekly rank yet.`
-          : `You’re ranked #${rank} in the ${tier} league this week with ${league.race_points} RP.`)
-        : (rank === null ? `Bạn ở giải ${tier}, có ${league.race_points} RP và chưa có hạng tuần này.`
-          : `Bạn đứng hạng ${rank} giải ${tier} tuần này với ${league.race_points} RP.`);
-      return answer(reply, { kind: 'spotlight', tab: 'rankings', highlight: 'rank:me', label: en ? 'View weekly rank' : 'Xem hạng tuần' });
     }
   }
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getSpeechStatusApi, practiceSpeechApi, synthesizeSpeechApi, transcribeAudioApi } from './speechService'
+import { speakText } from '../utils/speech'
 
 const g = globalThis as unknown as { fetch?: typeof fetch; localStorage?: unknown }
 const originalFetch = g.fetch
@@ -24,6 +25,36 @@ function restore() {
   g.fetch = originalFetch
   Object.defineProperty(g, 'localStorage', { value: originalStorage, configurable: true, writable: true })
 }
+
+test('playback retries Edge TTS and ends without using the browser voice after an outage', async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const originalCancel = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
+  let browserVoiceCalls = 0
+  let requests = 0
+  installStorage('token')
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { speechSynthesis: { speak: () => { browserVoiceCalls += 1 }, cancel: () => {} } },
+  })
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable: true, value: () => {} })
+  g.fetch = (async () => {
+    requests += 1
+    return new Response(null, { status: 503 })
+  }) as typeof fetch
+  try {
+    await new Promise<void>((onEnd) => {
+      assert.equal(speakText('Xin chào', 'vi', { onEnd }), true)
+    })
+    assert.equal(requests, 2)
+    assert.equal(browserVoiceCalls, 0)
+  } finally {
+    restore()
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow)
+    else Reflect.deleteProperty(globalThis, 'window')
+    if (originalCancel) Object.defineProperty(globalThis, 'cancelAnimationFrame', originalCancel)
+    else Reflect.deleteProperty(globalThis, 'cancelAnimationFrame')
+  }
+})
 
 test('the status probe reports which transcription provider is configured', async () => {
   installStorage('token')

@@ -1,21 +1,24 @@
 import { REVIEW_SESSION_LIMIT } from '../analytics/review.scheduler';
 import type { ShopItem } from '../gamification/gamification.types';
 import { buildLessonStates } from '../learning/learning.service';
-import { normalizeDestination } from './ai.language';
+import { normalizeDestination, normalizeOperationRequest } from './ai.language';
 import type { BuddyLanguage } from './ai.language';
 import type { StudyStats } from './ai.repository';
+import { rankCatalog } from './ai.search';
 import type {
   AiReply,
   ChatAction,
   ChatContext,
   ChatIntent,
   ChatTab,
-  LearnerContext,
+  StudyLearnerContext,
   StudySnapshot,
   StudyStep,
 } from './ai.types';
 
-function lessonStates(stats: StudyStats) {
+type LessonProgress = Pick<StudyStats, 'lessons' | 'completedLessonIds'>;
+
+function lessonStates(stats: LessonProgress) {
   return buildLessonStates(stats.lessons.map(({ id }) => id), new Set(stats.completedLessonIds));
 }
 
@@ -25,7 +28,7 @@ export function pickNextLesson(stats: StudyStats): StudySnapshot['nextLesson'] {
   return next ? { id: next.id, title: next.title, topic: next.topic } : null;
 }
 
-export function lessonPrerequisites(stats: StudyStats, lessonId: number) {
+export function lessonPrerequisites(stats: LessonProgress, lessonId: number) {
   const states = lessonStates(stats);
   if (states.get(lessonId)?.status !== 'locked') return null;
   const frontier = stats.lessons.findIndex(({ id }) => states.get(id)?.status === 'unlocked');
@@ -33,7 +36,7 @@ export function lessonPrerequisites(stats: StudyStats, lessonId: number) {
   return { frontier: stats.lessons[frontier], remaining: destination - frontier };
 }
 
-export function toStudySnapshot(learner: LearnerContext, stats: StudyStats): StudySnapshot {
+export function toStudySnapshot(learner: StudyLearnerContext, stats: StudyStats): StudySnapshot {
   return {
     level: learner.level,
     xp: stats.xp,
@@ -170,7 +173,10 @@ const SPOTLIGHT_TARGETS: Partial<Record<ChatTab, readonly string[]>> = {
  * cannot send the learner to a dead screen. */
 export function resolveChatAction(
   action: ChatAction | null,
-  stats: StudyStats,
+  stats: Partial<LessonProgress> & {
+    videoCatalog?: ReadonlyArray<Pick<StudyStats['videoCatalog'][number], 'id' | 'title'>>;
+    ownedVideoCatalog?: ReadonlyArray<Pick<StudyStats['videoCatalog'][number], 'id' | 'title'>>;
+  } = {},
   shopItems: readonly Pick<ShopItem, 'code' | 'name'>[] = [],
 ): ChatAction | null {
   if (!action || action.tab === 'admin') return null;
@@ -206,7 +212,8 @@ export function resolveChatAction(
     return { kind: 'spotlight', tab, highlight, label: action.label };
   }
   if (action.kind === 'open_video') {
-    const video = [...stats.videoCatalog, ...(stats.ownedVideoCatalog ?? [])].find((item) => item.id === action.videoId);
+    const video = stats.videoCatalog?.find((item) => item.id === action.videoId)
+      ?? stats.ownedVideoCatalog?.find((item) => item.id === action.videoId);
     if (!video) return null;
     return {
       kind: 'open_video',
@@ -218,14 +225,15 @@ export function resolveChatAction(
     };
   }
   if (action.kind === 'open_lesson') {
-    const lesson = stats.lessons.find((item) => item.id === action.lessonId);
-    if (!lesson) return null;
+    const { lessons, completedLessonIds } = stats;
+    const lesson = lessons?.find((item) => item.id === action.lessonId);
+    if (!lesson || !lessons || !completedLessonIds) return null;
     return {
       kind: 'open_lesson',
       tab: 'study',
       lessonId: lesson.id,
       lessonTitle: lesson.title,
-      mode: action.mode === 'reveal' || lessonPrerequisites(stats, lesson.id) ? 'reveal' : 'open',
+      mode: action.mode === 'reveal' || lessonPrerequisites({ lessons, completedLessonIds }, lesson.id) ? 'reveal' : 'open',
       label: `Mở bài: ${lesson.title}`.slice(0, 60),
       highlight: `lesson:${lesson.id}`,
     };
@@ -245,7 +253,8 @@ export function resolveChatAction(
     // still says "open_review" so the web can start the session in one tap.
     return { kind: 'open_review', tab: 'profile', label: action.label || 'Mở phiên ôn tập' };
   }
-  const tab = action.tab ?? 'study';
+  const tab = action.tab;
+  if (!tab) return null;
   const tabLabels: Record<ChatTab, string> = {
     study: 'Vào Lộ trình học',
     videos: 'Vào Học qua Video',
@@ -277,19 +286,12 @@ export function hasSpecificTopic(text: string): boolean {
   return text.split(' ').some((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
 }
 
-export function scoreCatalogMatch(query: string, candidate: string): number {
-  const words = query.split(' ').filter((word) => word.length > 2 && !DESTINATION_STOP_WORDS.has(word));
-  if (words.length === 0) return 0;
-  const haystack = ` ${candidate} `;
-  return words.reduce((score, word) => score + (haystack.includes(` ${word} `) ? 2 : haystack.includes(word) ? 1 : 0), 0);
-}
-
 /**
  * Deterministic navigation takes precedence over generative copy. Every video
  * and lesson target comes from the current database-backed study snapshot.
  */
-export function resolveNavigationRequest(message: string, stats: StudyStats): ChatAction | null {
-  const text = normalizeDestination(message);
+export function resolveNavigationRequest(message: string, stats?: StudyStats): ChatAction | null {
+  const text = normalizeOperationRequest(message);
   if (!text || isQuestionAboutDestination(text)
     || /\b(nhac (?:minh|toi|em|nho)|remind|dung (?:mo|chuyen|tim)|do not|don t)\b/.test(text)) return null;
   const destination = text
@@ -302,11 +304,15 @@ export function resolveNavigationRequest(message: string, stats: StudyStats): Ch
   if (/^(?:tim tran(?: dau)?|tim doi thu|ghep tran|vao tran|find (?:a match|an opponent)|matchmaking|start matchmaking)(?: (?:thi dua|thi dau|1v1))?$/.test(destination)) {
     return { kind: 'spotlight', tab: 'compete', highlight: 'control:arena-start', label: 'Tìm trận' };
   }
-  if (/^(?:on tap|on lai|bai can on|phien on tap|review)$/.test(destination)) {
+  if (/^(?:on tap|on lai|bai can on|phien on tap|review|(?:my )?review queue)$/.test(destination)) {
     return { kind: 'open_review', tab: 'profile', label: 'Bắt đầu ôn tập' };
   }
-  if (/^(?:so tu(?: vung)?|tu da luu|on tu|notebook|vocabulary notebook|saved words)$/.test(destination)) {
+  if (/^(?:so tu(?: vung)?|tu da luu|on tu|(?:my )?(?:notebook|vocabulary notebook|saved words))$/.test(destination)) {
     return { kind: 'open_notebook', tab: 'videos', label: 'Mở Sổ từ vựng', highlight: 'control:notebook' };
+  }
+  if (/^(?:bang xep hang(?: tuan)?|xep hang|leaderboard|weekly rankings?)(?: (?:cua|cho|va|and) .+)?$/.test(destination)
+    && (/\b(?:vi tri|hang cua (?:minh|toi)|my rank|my position|cua (?:minh|toi))\b/.test(destination) || text !== normalizeDestination(message))) {
+    return { kind: 'spotlight', tab: 'rankings', highlight: 'rank:me', label: 'Xem hạng tuần' };
   }
 
   const command = /^(?:(?:minh|toi) muon )?(?:mo|tim|xem|vao|chuyen|hoc|open|find|watch|study|take me|go to)\b/.test(text);
@@ -316,12 +322,11 @@ export function resolveNavigationRequest(message: string, stats: StudyStats): Ch
       && !/^(?:mo|xem|watch|play|open) video$/.test(text)) {
       return { kind: 'open_tab', tab: 'videos', label: 'Mở thư viện video' };
     }
-    const ranked = stats.videoCatalog
-      .map((video) => ({ video, score: scoreCatalogMatch(text, normalizeDestination(`${video.title} ${video.topic}`)) }))
-      .sort((a, b) => b.score - a.score || a.video.id - b.video.id);
+    if (!stats) return null;
+    const ranked = rankCatalog(text, stats.videoCatalog);
     const match = ranked[0];
-    if (match && match.score > 0) {
-      return { kind: 'open_video', tab: 'videos', videoId: match.video.id, videoTitle: match.video.title, label: `Mở video: ${match.video.title}`.slice(0, 80) };
+    if (match && match.score > (ranked[1]?.score ?? 0)) {
+      return { kind: 'open_video', tab: 'videos', videoId: match.item.id, videoTitle: match.item.title, label: `Mở video: ${match.item.title}`.slice(0, 80) };
     }
     // "Một video nào đó/bất kì" is a request for one concrete video, not for
     // the library. Prefer the next unwatched video, then any catalog entry when
@@ -362,14 +367,12 @@ export function resolveNavigationRequest(message: string, stats: StudyStats): Ch
   }
 
   const lessonMentioned = command && /\b(bai hoc|bai ve|hoc bai|hoc ve|lesson)\b/.test(text);
-  if (lessonMentioned) {
-    const ranked = stats.lessons
-      .map((lesson) => ({ lesson, score: scoreCatalogMatch(text, normalizeDestination(`${lesson.title} ${lesson.topic} ${lesson.stageTitle}`)) }))
-      .sort((a, b) => b.score - a.score || a.lesson.id - b.lesson.id);
+  if (lessonMentioned && stats) {
+    const ranked = rankCatalog(text, stats.lessons);
     const match = ranked[0];
     const next = pickNextLesson(stats);
-    const lesson = match && match.score > 0
-      ? match.lesson
+    const lesson = match && match.score > (ranked[1]?.score ?? 0)
+      ? match.item
       : !hasSpecificTopic(text) && next && stats.lessons.find((item) => item.id === next.id);
     if (lesson) {
       return { kind: 'open_lesson', tab: 'study', lessonId: lesson.id, lessonTitle: lesson.title, label: `Mở bài: ${lesson.title}`.slice(0, 80) };

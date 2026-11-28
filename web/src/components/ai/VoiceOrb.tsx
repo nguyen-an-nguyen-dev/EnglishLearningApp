@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import '@fontsource-variable/baloo-2'
 import {
   ArrowRight,
+  ArrowUp,
   BellRinging,
+  BookOpen,
+  Check,
   CheckCircle,
   Clock,
   Keyboard,
   Microphone,
-  MicrophoneSlash,
-  PaperPlaneTilt,
   Sparkle,
-  SpeakerSlash,
+  Stop,
   Trash,
   X,
 } from '@phosphor-icons/react'
 import { useI18n } from '../../i18n'
+import { TurboMascot } from '../cosmetics/TurboMascot'
 import {
   acceptReminderSuggestionApi,
   askBuddyApi,
@@ -38,7 +41,7 @@ import {
 } from '../../utils/buddyNotifications'
 import { detectLivePageContext, type BuddyContext } from './buddyContext'
 import { isNavigationAnswer, navigationToast } from './buddyRoute'
-import { AudioBars } from './AudioBars'
+import { VoiceIcon, type VoiceState } from './VoiceIcon'
 import { createMicMeter } from './micMeter'
 import { speakText } from '../../utils/speech'
 import { createRecorder, type Recorder } from './recorder'
@@ -64,7 +67,7 @@ interface VoiceOrbProps {
   onPositionChange: (position: BuddyDockPosition) => void
   onViewChange: (view: BuddyView) => void
   /** Navigate somewhere in the app, optionally circling an element there. */
-  onNavigate: (target: BuddyTarget) => void
+  onNavigate: (target: BuddyTarget, keepChatOpen?: boolean) => boolean
   /** Review is the profile's button, so a spoken "ôn tập" opens that session. */
   onOpenReview: () => void
 }
@@ -114,13 +117,10 @@ function localizedActionLabel(
   return action.label
 }
 
-/**
- * One voice, always in the middle of the bottom edge: tap and speak. A plain
- * destination opens immediately; anything else is answered by the coach. If the
- * browser cannot listen at all, the panel swaps the mic for a text field.
- */
+/** Docked voice and text access to Bác Turbo. */
 export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange, onViewChange, onNavigate, onOpenReview }: VoiceOrbProps) {
   const { t, lang } = useI18n()
+  const dockVisible = enabled && (!view || view === 'ask')
   const { areaRef, dockRef, handlers: dragHandlers, shouldSuppressClick } = useBuddyDockDrag(position, onPositionChange)
   const speechPlayback = useRef<AbortController | null>(null)
   const [feed, setFeed] = useState<BuddyFeed | null>(null)
@@ -131,14 +131,17 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   const [phase, setPhase] = useState<VoicePhase>('idle')
   const [heard, setHeard] = useState('')
   const [question, setQuestion] = useState('')
+  const [draft, setDraft] = useState('')
   const [askError, setAskError] = useState<string | null>(null)
   const [conversation, setConversation] = useState<ChatEntry[]>([])
   const [confirmation, setConfirmation] = useState('')
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [speechAvailable, setSpeechAvailable] = useState(false)
-  const [hasUsedVoice, setHasUsedVoice] = useState(() => {
-    try { return localStorage.getItem('engorace_voice_used') === '1' } catch { return false }
-  })
+  const [playbackState, setPlaybackState] = useState<'idle' | 'loading' | 'playing'>('idle')
+  const hasPlayback = playbackState !== 'idle'
+  const [speechAvailable, setSpeechAvailable] = useState<boolean | null>(null)
+  const [micDenied, setMicDenied] = useState(false)
+  const voiceReady = speechAvailable && !micDenied
+  const [typing, setTyping] = useState(false)
+  const streamingReply = phase === 'thinking' && Boolean(draft)
   const [reminderAccepted, setReminderAccepted] = useState(false)
   const [notificationPromptDismissed, setNotificationPromptDismissed] = useState(false)
 
@@ -147,13 +150,17 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   const voiceToken = useRef<(BuddyVoiceToken & { expiresAt: number }) | null>(null)
   const liveSpeech = useRef<ReturnType<typeof streamBuddyAudio>>(null)
   const stoppedAt = useRef<number | null>(null)
-  const pendingPaint = useRef<{ id: number; timing: BuddyTiming } | null>(null)
+  const pendingPaint = useRef<{ id: number; timing: BuddyTiming; firstText: boolean } | null>(null)
   const capture = useRef<'backend' | null>(null)
   const pending = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const orbRef = useRef<HTMLButtonElement | null>(null)
+  const typingTriggerRef = useRef<HTMLButtonElement | null>(null)
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
+  const followChat = useRef(true)
+  const cardTitleId = useId()
   const messageId = useRef(0)
-  const meter = useMemo(() => createMicMeter(5), [])
+  const meter = useMemo(() => createMicMeter(), [])
 
   // A short, self-closing line on the dock. Navigation uses it instead of
   // opening the chat panel; it disappears five seconds after the conversation ends.
@@ -169,7 +176,7 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     if (voiceToken.current && performance.now() < voiceToken.current.expiresAt) return
     voiceToken.current?.request.abort()
     const request = new AbortController()
-    const token = startBuddyVoiceSession(AbortSignal.any([request.signal, AbortSignal.timeout(2_500)]))
+    const token = startBuddyVoiceSession(AbortSignal.any([request.signal, AbortSignal.timeout(4_500)]))
       .then((session) => session.token)
       .catch(() => null)
     voiceToken.current = { token, expiresAt: performance.now() + 110_000, request }
@@ -198,16 +205,14 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     return () => window.clearTimeout(id)
   }, [load])
 
-  // The server reports whether AssemblyAI is configured. Every voice turn is
-  // recorded and posted; without the backend the panel swaps the mic for a
-  // text field instead of falling back to a browser speech vendor.
+  // The server reports whether AssemblyAI is configured for streaming and clip upload.
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
     getSpeechStatusApi()
       .then((status) => {
         if (cancelled) return
-        setSpeechAvailable(status.backend)
+        setSpeechAvailable(status.backend && Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== 'undefined')
         streamingEnabled.current = status.buddyStreaming === true
         prepareVoiceToken()
       })
@@ -244,45 +249,58 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   const stopSpeech = useCallback(() => {
     speechPlayback.current?.abort()
     speechPlayback.current = null
-    setIsSpeaking(false)
-  }, [])
+    meter.stop()
+    setPlaybackState('idle')
+  }, [meter])
 
   const speak = useCallback((text: string, replyLanguage = lang, timing?: BuddyTiming) => {
     speechPlayback.current?.abort()
+    // Text questions can reach speech without the microphone having prepared the graph.
+    meter.prepare()
     const playback = new AbortController()
+    const reset = () => {
+      if (speechPlayback.current !== playback) return
+      speechPlayback.current = null
+      meter.stop()
+      setPlaybackState('idle')
+    }
     const started = speakText(text, replyLanguage, {
       signal: playback.signal,
       onStart: timing ? () => measureBuddy('audio-ready', timing) : undefined,
-      onEnd: () => {
-        speechPlayback.current = null
-        setIsSpeaking(false)
+      onPlayback: (player) => {
+        if (speechPlayback.current !== playback) return
+        if (player) meter.attachPlayback(player)
+        else meter.stop()
+        setPlaybackState(player ? 'playing' : 'loading')
       },
-      browserFallback: false,
+      onEnd: reset,
+      onStop: reset,
     })
     speechPlayback.current = started ? playback : null
-    setIsSpeaking(started)
-  }, [lang])
+    setPlaybackState(started ? 'loading' : 'idle')
+  }, [lang, meter])
 
-  const goTo = useCallback((target: BuddyTarget) => {
-    onNavigate(target)
-    onViewChange(null)
+  const goTo = useCallback((target: BuddyTarget, keepChatOpen = false) => {
+    const opened = onNavigate(target, keepChatOpen)
+    if (opened && !keepChatOpen) onViewChange(null)
+    return opened
   }, [onNavigate, onViewChange])
 
-  const runAction = useCallback((action: BuddyAnswer['action'], toastText?: string, announce = false, replyLanguage = lang) => {
-    if (!action && !toastText) return
-    const line = toastText ?? (action ? t.voiceOpened(localizedActionLabel(action, t)) : '')
-    if (line) showToast(line)
-    if (announce && line && !isBuddyMuted()) speak(line, replyLanguage)
-    if (!action) {
-      onViewChange(null)
-      return
-    }
+  const runAction = useCallback((action: BuddyAnswer['action'], toastText?: string, announce = false, replyLanguage = lang, keepChatOpen = false) => {
+    if (!action) return false
     if (action.kind === 'open_review') {
-      onViewChange(null)
+      if (!keepChatOpen) onViewChange(null)
       onOpenReview()
-      return
+    } else if (!goTo({
+      tab: action.tab, lessonId: action.lessonId, lessonTitle: action.lessonTitle,
+      mode: action.mode, videoId: action.videoId, highlight: action.highlight,
+    }, keepChatOpen)) {
+      return false
     }
-    goTo({ tab: action.tab, lessonId: action.lessonId, lessonTitle: action.lessonTitle, mode: action.mode, videoId: action.videoId, highlight: action.highlight })
+    const line = toastText ?? t.voiceOpened(localizedActionLabel(action, t))
+    if (!keepChatOpen) showToast(line)
+    if (announce && line && !isBuddyMuted()) speak(line, replyLanguage)
+    return true
   }, [goTo, lang, onOpenReview, onViewChange, showToast, speak, t])
 
   const send = useCallback(async (
@@ -293,6 +311,7 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     const trimmed = text.trim()
     if (!trimmed || pending.current || capture.current) return
     stopSpeech()
+    setTyping(false)
 
     // Plain destinations are handled on device: switch screen + short toast,
     // never open the chat panel.
@@ -317,9 +336,9 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     }
 
     setPhase('thinking')
+    setDraft('')
+    onViewChange('ask')
     setAskError(null)
-    setHasUsedVoice(true)
-    try { localStorage.setItem('engorace_voice_used', '1') } catch { /* storage may be unavailable */ }
     setReminderAccepted(false)
     setQuestion('')
     const userId = (messageId.current += 1)
@@ -334,23 +353,34 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     const requestStarted = performance.now()
     const timing: BuddyTiming = options.timing ?? { started: requestStarted, path: 'typed' }
     try {
-      const result = await askBuddyApi(trimmed, context, intent, request.signal)
+      let sawDraft = false
+      const result = await askBuddyApi(trimmed, context, intent, request.signal, (text) => {
+        if (request.signal.aborted) return
+        if (text && !sawDraft) {
+          sawDraft = true
+          measureBuddy('text-first', timing)
+        }
+        setDraft(text)
+      })
       if (request.signal.aborted) return
       measureBuddy('answer-api', timing, requestStarted)
-      if (isNavigationAnswer(result)) {
-        // The backend found a destination, so switch screens and show a toast.
-        setConversation((current) => current.filter((entry) => entry.id !== userId))
-        runAction(
-          result.action,
-          navigationToast(result, t.voiceOpened(localizedActionLabel(result.action ?? {
-            kind: 'open_tab', tab: 'study', label: t.navStudy,
-          }, t))),
-          Boolean(options.spoken),
-          result.language,
-        )
-        return
+      if (isNavigationAnswer(result) && result.action) {
+        const keepChatOpen = result.keepChatOpen === true
+        const fallback = t.voiceOpened(localizedActionLabel(result.action, t))
+        const line = navigationToast(result, fallback)
+        const opened = runAction(result.action, line,
+          Boolean(options.spoken) && !keepChatOpen, line === fallback ? lang : result.language, keepChatOpen)
+        if (!opened) {
+          setConversation((current) => current.filter((entry) => entry.id !== userId))
+          showToast(t.buddyNavigationCancelled)
+          return
+        }
+        if (!keepChatOpen) {
+          setConversation((current) => current.filter((entry) => entry.id !== userId))
+          return
+        }
       }
-      pendingPaint.current = { id: replyId, timing }
+      pendingPaint.current = { id: replyId, timing, firstText: !sawDraft }
       setConversation((current) => [...current, { id: replyId, role: 'agent', text: result.reply, answer: result }])
       onViewChange('ask')
       if (shouldReadAloud(isBuddyMuted(), Boolean(options.spoken))) {
@@ -358,32 +388,37 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
       }
     } catch {
       if (request.signal.aborted) return
+      setConversation((current) => current.filter((entry) => entry.id !== userId))
+      if (!options.spoken) {
+        setQuestion((current) => current || trimmed)
+        setTyping(true)
+      }
       showToast(t.buddyErrorGeneric, true)
     } finally {
       if (pending.current === request) {
         pending.current = null
+        setDraft('')
         setPhase('idle')
       }
     }
-  }, [activeTab, onViewChange, runAction, showToast, speak, stopSpeech, t])
+  }, [activeTab, lang, onViewChange, runAction, showToast, speak, stopSpeech, t])
 
   // The recorder lives for the whole session, so its callbacks read the newest
   // handlers through refs instead of the values captured on the first render
   // (otherwise muting after the first recording has no effect on voice replies).
   const sendRef = useRef(send)
   const tRef = useRef(t)
-  const langRef = useRef(lang)
   useEffect(() => {
     sendRef.current = send
     tRef.current = t
-    langRef.current = lang
     reportVoiceErrorRef.current = reportVoiceError
-  }, [send, t, reportVoiceError, lang])
+  }, [send, t, reportVoiceError])
 
   const cancelWork = useCallback(() => {
     capture.current = null
     pending.current?.abort()
     pending.current = null
+    setDraft('')
     recorder.current?.cancel()
     liveSpeech.current?.cancel()
     liveSpeech.current = null
@@ -407,16 +442,22 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     recorder.current?.stop()
   }, [])
 
-  /** Records one clip and sends it to the backend transcription service. */
+  /** Streams mic audio and retains a clip for fallback. */
   const beginBackendListening = useCallback(() => {
     if (!recorder.current) {
       recorder.current = createRecorder({
         onStream: (stream) => {
+          setMicDenied(false)
           liveSpeech.current?.attach(stream)
-          meter.attach(stream)
+        },
+        onStopping: () => {
+          meter.stop()
+          stoppedAt.current ??= performance.now()
+          void liveSpeech.current?.finish()
         },
         onClip: (clip) => {
           if (capture.current !== 'backend') return
+          meter.stop()
           capture.current = null
           const request = new AbortController()
           pending.current = request
@@ -428,8 +469,9 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
             const streamed = await session?.finish()
             if (request.signal.aborted) return { text: '', timing: { started, path: 'recorded' } }
             liveSpeech.current = null
-            if (streamed) return { text: streamed, timing: { started, path: 'streaming' } }
-            const transcript = await transcribeAudioApi(clip, request.signal, langRef.current)
+            if (streamed != null) return { text: streamed, timing: { started, path: 'streaming' } }
+            const clipSignal = AbortSignal.any([request.signal, AbortSignal.timeout(15_000)])
+            const transcript = await transcribeAudioApi(clip, clipSignal, null)
             return { text: transcript.text?.trim() ?? '', timing: { started, path: session ? 'recorded-fallback' : 'recorded' } }
           }
           void transcribe()
@@ -456,6 +498,7 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
             })
         },
         onError: (kind) => {
+          meter.stop()
           liveSpeech.current?.cancel()
           liveSpeech.current = null
           stoppedAt.current = null
@@ -467,7 +510,8 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
           if (capture.current !== 'backend') return
           capture.current = null
           setPhase('idle')
-          if (kind === 'denied' || kind === 'unsupported') setSpeechAvailable(false)
+          if (kind === 'denied') setMicDenied(true)
+          if (kind === 'unsupported') setSpeechAvailable(false)
           reportVoiceErrorRef.current(
             kind === 'denied' ? tRef.current.voiceDenied
               : kind === 'unsupported' ? tRef.current.voiceUnsupported
@@ -480,11 +524,12 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
       return false
     }
     capture.current = 'backend'
+    meter.prepare()
     prepareVoiceToken()
     const session = voiceToken.current
     voiceToken.current = null
     if (session) {
-      liveSpeech.current = streamBuddyAudio(session)
+      liveSpeech.current = streamBuddyAudio(session, setHeard)
       if (!liveSpeech.current) session.request.abort()
     }
     setPhase('listening')
@@ -495,8 +540,6 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   const beginListening = useCallback(() => {
     if (phase !== 'idle' || capture.current || pending.current) return
     stopSpeech()
-    setHasUsedVoice(true)
-    try { localStorage.setItem('engorace_voice_used', '1') } catch { /* storage may be unavailable */ }
     setHeard('')
     setAskError(null)
     if (beginBackendListening()) return
@@ -508,8 +551,67 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     cancelWork()
     setPhase('idle')
     setHeard('')
+    setTyping(false)
+    setConfirmation('')
+    setAskError(null)
     onViewChange(null)
   }, [cancelWork, onViewChange])
+
+  function leaveTyping() {
+    setTyping(false)
+    window.requestAnimationFrame(() => (typingTriggerRef.current ?? orbRef.current)?.focus())
+  }
+
+  function closeVoiceCard() {
+    closePanel()
+    orbRef.current?.focus()
+  }
+
+  const openTyping = useCallback(() => {
+    if (phase === 'thinking') return
+    if (phase === 'listening') {
+      cancelWork()
+      setPhase('idle')
+      setHeard('')
+    }
+    onViewChange('ask')
+    setTyping(true)
+  }, [cancelWork, onViewChange, phase])
+
+  const toggleVoice = useCallback(() => {
+    if (hasPlayback) {
+      stopSpeech()
+    } else if (streamingReply) {
+      cancelWork()
+      setPhase('idle')
+    } else if (phase === 'listening') {
+      stopListening()
+    } else if (phase === 'idle') {
+      if (!speechAvailable) {
+        openTyping()
+        return
+      }
+      setTyping(false)
+      onViewChange('ask')
+      beginListening()
+    }
+  }, [beginListening, cancelWork, hasPlayback, onViewChange, openTyping, phase, speechAvailable, stopListening, stopSpeech, streamingReply])
+
+  useEffect(() => {
+    if (!enabled || (view && view !== 'ask')) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.defaultPrevented || event.repeat || event.isComposing
+        || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      const target = event.target
+      if (target instanceof HTMLElement && (target.isContentEditable
+        || target.closest('input, textarea, select, button, a[href], [role="button"], [role="dialog"]'))) return
+      if (!voiceReady || typing || document.querySelector('[aria-modal="true"]')) return
+      event.preventDefault()
+      toggleVoice()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [enabled, voiceReady, toggleVoice, typing, view])
 
   useEffect(() => {
     if (enabled) return
@@ -520,6 +622,7 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
       cancelWork()
       setPhase('idle')
       setHeard('')
+      setTyping(false)
       setConfirmation('')
       setAskError(null)
     }, 0)
@@ -542,11 +645,11 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   useEffect(() => {
     return () => {
       cancelWork()
-      meter.stop()
+      meter.dispose()
     }
   }, [cancelWork, meter])
 
-  const conversationIdle = phase === 'idle' && !isSpeaking
+  const conversationIdle = phase === 'idle' && !hasPlayback
   const hasDockLine = Boolean(confirmation || askError)
   useEffect(() => {
     if (!conversationIdle || !hasDockLine) return
@@ -557,34 +660,50 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
     return () => window.clearTimeout(id)
   }, [conversationIdle, hasDockLine, confirmation, askError])
 
-  // The recorder hands its stream to the meter; release the audio graph when
-  // the phase leaves "listening".
   useEffect(() => {
-    if (phase !== 'listening') meter.stop()
-  }, [phase, meter])
+    if (!typing) return
+    const area = areaRef.current
+    const viewport = window.visualViewport
+    if (!area || !viewport) return
+    function fitKeyboard() {
+      if (!area || !viewport) return
+      const covered = viewport.scale === 1
+        ? Math.max(0, document.documentElement.clientHeight - viewport.height - viewport.offsetTop)
+        : 0
+      area.style.setProperty('--dock-keyboard-bottom', `${covered ? covered + 12 : 0}px`)
+      area.style.setProperty('--dock-viewport-top', `${covered ? viewport.offsetTop + 12 : 0}px`)
+    }
+    fitKeyboard()
+    viewport.addEventListener('resize', fitKeyboard)
+    viewport.addEventListener('scroll', fitKeyboard)
+    return () => {
+      viewport.removeEventListener('resize', fitKeyboard)
+      viewport.removeEventListener('scroll', fitKeyboard)
+      area.style.removeProperty('--dock-keyboard-bottom')
+      area.style.removeProperty('--dock-viewport-top')
+    }
+  }, [areaRef, typing, dockVisible])
 
-  useEffect(() => {
-    if (view !== 'ask') return
-    const id = window.setTimeout(() => inputRef.current?.focus(), 120)
-    return () => window.clearTimeout(id)
-  }, [view])
+  useLayoutEffect(() => {
+    if (typing) inputRef.current?.focus({ preventScroll: true })
+  }, [typing])
 
   useEffect(() => {
     const reply = pendingPaint.current
     if (view !== 'ask' || !reply || conversation.at(-1)?.id !== reply.id) return
     pendingPaint.current = null
+    if (reply.firstText) measureBuddy('text-first', reply.timing)
     measureBuddy('text-ready', reply.timing)
   }, [conversation, view])
 
-  // Follow the conversation while it grows, unless the learner scrolled up to
-  // reread something.
-  useEffect(() => {
-    if (view !== 'ask') return
+  useLayoutEffect(() => {
     const node = chatBodyRef.current
-    if (!node) return
-    const distance = node.scrollHeight - node.scrollTop - node.clientHeight
-    if (distance < 120) node.scrollTop = node.scrollHeight
-  }, [view, conversation, phase])
+    if (!node) {
+      followChat.current = true
+    } else if (followChat.current) {
+      node.scrollTop = node.scrollHeight
+    }
+  }, [view, conversation, phase, reminderAccepted, askError, heard, draft])
 
   async function acceptSuggestion(suggestion: ReminderSuggestion) {
     try {
@@ -616,210 +735,223 @@ export function VoiceOrb({ activeTab, view, enabled, position, onPositionChange,
   }, [conversation])
   const latestIsAgent = conversation[conversation.length - 1]?.role === 'agent'
   const pendingSuggestion = latestIsAgent && phase === 'idle' ? latestAnswer?.suggestion ?? null : null
-  // The dock only announces state while the panel is closed. Chat messages live
-  // in the conversation, never in a floating bubble over the page.
-  const dockStatus = phase === 'listening'
-    ? (heard || t.voiceListening)
-    : phase === 'thinking'
-      ? t.voiceThinking
-      : confirmation || askError || null
-  const showDockHint = Boolean(dockStatus) || !hasUsedVoice
+  const latestActions = latestIsAgent && phase === 'idle'
+    ? latestAnswer?.actions ?? (latestAnswer?.action ? [latestAnswer.action] : [])
+    : []
+  const keepActionCards = latestActions.length > 1 || pendingSuggestion !== null
+  const waitingForReply = phase === 'thinking' && !streamingReply
+  const replying = hasPlayback || streamingReply
+  const audioActivity = playbackState === 'playing' ? 'speaking' : playbackState
+  const activity = streamingReply ? 'speaking' : phase === 'idle' ? audioActivity : phase
+  const micUnavailable = speechAvailable === false || micDenied
+  const activityLabel = {
+    idle: micUnavailable ? t.voiceMicError : t.voicePillPrompt,
+    listening: t.voiceListening,
+    thinking: t.voiceThinking,
+    loading: t.voiceReading,
+    speaking: t.voiceReading,
+  }[activity]
+  const voiceState: VoiceState = typing ? 'typing'
+    : activity === 'loading' ? 'speaking'
+      : activity === 'idle' && micUnavailable ? 'unavailable' : activity
+  const statusLabel = activity === 'idle' && !micUnavailable ? ''
+    : activity === 'loading' ? t.voicePreparingSpeech : activityLabel
+  const idleAction = micDenied ? t.voiceMicEnable : t.voiceAskByText
+  const stopLabel = hasPlayback ? t.voiceInterrupt : streamingReply ? t.voiceStopReply : t.voiceStopRecording
+  const canStopVoice = phase === 'listening' || replying
+  const showVoiceCard = view === 'ask' || (!view && hasDockLine)
   if (!enabled) return null
 
   return (
     <>
-      {!view && (
-        <div
-          ref={areaRef}
-          className="voice-dock-area"
-          data-positioned={position !== null}
-          data-upper={position !== null && position.y < 0.4}
-          data-caption-align={position && position.x < 0.2 ? 'start' : position && position.x > 0.8 ? 'end' : undefined}
-          style={position ? { '--dock-x': position.x, '--dock-y': position.y } as CSSProperties : undefined}
-        >
-          <div ref={dockRef} className="voice-dock voice-dock-row">
-            <button
-              type="button"
-              className={`voice-orb is-${!speechAvailable || askError ? 'muted' : isSpeaking ? 'speaking' : phase}`}
-              {...dragHandlers}
-              onPointerEnter={prepareVoiceToken}
-              onFocus={prepareVoiceToken}
+      {dockVisible && (
+        <div ref={areaRef} className="voice-dock-area"
+          data-positioned={position !== null} data-upper={position !== null && position.y < 0.5}
+          data-voice-state={voiceState}
+          style={position ? { '--dock-x': position.x, '--dock-y': position.y } as CSSProperties : undefined}>
+          <span className="sr-only" role="status">{statusLabel}</span>
+          {showVoiceCard && (
+            <section className="voice-card" role="dialog" aria-labelledby={cardTitleId}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return
+                event.stopPropagation()
+                closeVoiceCard()
+              }}>
+              <header className="voice-card-head">
+                <span className="voice-card-avatar" aria-hidden="true"><TurboMascot portrait /></span>
+                <h2 id={cardTitleId}>{t.voiceAgentName}</h2>
+                <button type="button" className="buddy-icon-btn voice-card-close" onClick={closeVoiceCard} aria-label={t.buddyClose}>
+                  <span aria-hidden="true"><X size={16} weight="bold" /></span>
+                </button>
+              </header>
+              {view === 'ask' ? (
+                <div className="voice-card-body voice-chat-body" ref={chatBodyRef} tabIndex={0}
+                  role="log" aria-labelledby={cardTitleId}
+                  onScroll={(event) => {
+                    const { scrollHeight, scrollTop, clientHeight } = event.currentTarget
+                    followChat.current = scrollHeight - scrollTop - clientHeight < 48
+                  }}>
+                  {conversation.length === 0 && phase === 'idle' && (
+                    <div className="voice-agent-line">
+                      <p className="voice-chat-bubble is-agent">{lang === 'vi' ? feed?.greeting ?? t.voiceGreeting : t.voiceGreeting}</p>
+                    </div>
+                  )}
+
+                  {conversation.map((entry) => entry.role === 'user' ? (
+                    <p key={entry.id} className="voice-chat-bubble is-user">{entry.text}</p>
+                  ) : (
+                    <div key={entry.id} className="voice-agent-line">
+                      <p className="voice-chat-bubble is-agent">{entry.text}</p>
+                    </div>
+                  ))}
+                  {phase === 'thinking' && draft && (
+                    <div className="voice-agent-line" aria-hidden="true">
+                      <p className="voice-chat-bubble is-agent">{draft}</p>
+                    </div>
+                  )}
+
+                  {phase === 'listening' && heard && (
+                    <p className="voice-chat-bubble is-live">{heard}</p>
+                  )}
+                  {askError && <p className="buddy-inline-error" role="alert">{askError}</p>}
+
+                  {latestActions.map((action) => {
+                    const title = action.lessonTitle || action.videoTitle || action.itemName
+                    const key = JSON.stringify([action.kind, action.tab, action.lessonId, action.videoId, action.mode, action.itemCode, action.highlight])
+                    return (
+                      <button key={key} type="button" className="voice-action"
+                        onClick={() => {
+                          if (!runAction(action, undefined, false, lang, keepActionCards)) {
+                            showToast(t.buddyNavigationCancelled, true)
+                          } else if (!keepActionCards) {
+                            orbRef.current?.focus()
+                          }
+                        }}>
+                        <span className="voice-action-icon" aria-hidden="true">
+                          {action.lessonId ?? <BookOpen size={17} weight="bold" />}
+                        </span>
+                        <span className="voice-action-copy">
+                          <strong>{title || localizedActionLabel(action, t)}</strong>
+                          {title && action.tab && <small>{t[TAB_LABEL_KEYS[action.tab]]}</small>}
+                        </span>
+                        <span className="voice-action-open"><Check size={13} weight="bold" aria-hidden="true" />{t.voiceActionOpen}</span>
+                      </button>
+                    )
+                  })}
+
+                  {latestIsAgent && phase === 'idle' && latestAnswer?.followups.length ? (
+                    <div className="buddy-followups">
+                      {latestAnswer.followups.map((followup) => (
+                        <button key={followup} type="button" className="voice-followup" onClick={() => void send(followup)}>
+                          <span>{followup}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {pendingSuggestion && !reminderAccepted && (
+                    <div className="buddy-reminder-offer">
+                      <span>
+                        <Clock size={13} weight="bold" />
+                        {pendingSuggestion.at_time
+                          ? `${t.buddyReminderAt} ${pendingSuggestion.at_time}`
+                          : `${t.buddyReminderIn} ${pendingSuggestion.in_minutes} ${t.buddyMinutesShort}`}
+                      </span>
+                      <strong>{pendingSuggestion.title}</strong>
+                      <button
+                        type="button"
+                        className="buddy-solid-btn"
+                        onClick={() => void acceptSuggestion(pendingSuggestion)}
+                      >
+                        <BellRinging size={13} weight="fill" /> {t.buddyReminderSet}
+                      </button>
+                    </div>
+                  )}
+
+                  {reminderAccepted && (
+                    <p className="buddy-ok">
+                      <CheckCircle size={14} weight="fill" /> {t.buddyReminderSaved}
+                    </p>
+                  )}
+                </div>
+              ) : <p className="voice-card-note" role={askError ? 'alert' : 'status'}>{confirmation || askError}</p>}
+            </section>
+          )}
+          <div ref={dockRef} className="voice-dock voice-pill" onKeyDown={(event) => {
+            if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
+            if (typing) {
+              event.stopPropagation()
+              leaveTyping()
+            } else if (showVoiceCard) {
+              event.stopPropagation()
+              closeVoiceCard()
+            }
+          }}>
+            <button ref={orbRef} type="button" className="voice-orb" data-state={voiceState} {...dragHandlers}
+              onPointerEnter={prepareVoiceToken} onFocus={prepareVoiceToken}
               onClick={(event) => {
                 if (shouldSuppressClick(event.detail)) return
-                if (isSpeaking) {
-                  stopSpeech()
-                  return
-                }
-                if (!speechAvailable) {
-                  onViewChange('ask')
-                  return
-                }
-                if (phase === 'listening') stopListening()
-                else if (phase === 'idle') beginListening()
+                if (typing && !speechAvailable) leaveTyping()
+                else toggleVoice()
               }}
-              aria-label={!speechAvailable ? t.voiceAskByText : isSpeaking ? t.voiceInterrupt : phase === 'listening' ? t.voiceTapToStop : t.voiceOpen}
-              aria-description={t.buddyDockMoveHint}
-              data-voice-orb="true"
-            >
-              <span className="voice-orb-halo" aria-hidden="true" />
-              <span className="voice-orb-core">
-                {isSpeaking
-                  ? <SpeakerSlash size={25} weight="bold" />
-                  : !speechAvailable || askError
-                    ? <MicrophoneSlash size={30} weight="bold" />
-                    : phase === 'thinking'
-                      ? <Microphone size={25} weight="bold" aria-hidden="true" />
-                      : <AudioBars meter={meter} active={phase === 'listening'} size={32} />}
-              </span>
-              {dueNudges.length > 0 && <span className="voice-orb-dot" aria-hidden="true" />}
+              aria-label={canStopVoice ? stopLabel : waitingForReply ? activityLabel : (typing
+                ? speechAvailable ? t.voiceSwitchToVoice : t.voiceCancelTyping
+                : voiceReady ? t.voiceOpen : idleAction)}
+              aria-keyshortcuts={voiceReady && !typing ? 'Space' : undefined} aria-description={t.buddyDockMoveHint}
+              aria-disabled={waitingForReply} data-voice-orb="true">
+              <VoiceIcon state={voiceState} meter={meter} playingAudio={playbackState === 'playing'} />
+              {dueNudges.length > 0 && <span className="voice-orb-badge" aria-hidden="true" />}
             </button>
-            {speechAvailable && (
-              <button type="button" className="buddy-icon-btn voice-type-trigger"
-                onClick={() => onViewChange('ask')} disabled={phase !== 'idle'}
-                aria-label={t.voiceAskByText} title={t.voiceAskByText}>
-                <Keyboard size={20} weight="bold" aria-hidden="true" />
-              </button>
+            {typing ? (
+              <form className="voice-pill-form voice-ask-form" onSubmit={(event) => {
+                event.preventDefault()
+                if (!question.trim()) return
+                followChat.current = true
+                orbRef.current?.focus()
+                void send(question)
+              }}>
+                <input ref={inputRef} type="text" value={question} onChange={(event) => setQuestion(event.target.value)}
+                  placeholder={t.voicePillPlaceholder} aria-label={t.voicePillPlaceholder} maxLength={2000} />
+                <button type="submit" className="voice-pill-send" disabled={!question.trim()}
+                  aria-label={t.voiceSend} title={t.voiceSend}>
+                  <ArrowUp size={20} weight="bold" aria-hidden="true" />
+                </button>
+              </form>
+            ) : (
+              <>
+                <button type="button" className="voice-pill-label" {...dragHandlers}
+                  onClick={(event) => { if (!shouldSuppressClick(event.detail)) toggleVoice() }}
+                  tabIndex={-1} aria-description={t.buddyDockMoveHint} aria-disabled={waitingForReply}>
+                  <span>{activityLabel}</span>
+                  {activity === 'idle' && voiceReady && <kbd>Space</kbd>}
+                  {voiceState === 'unavailable' && <span className="voice-pill-hint">{micDenied ? t.voiceMicEnable : t.voiceTypeShort}</span>}
+                </button>
+                {replying ? (
+                  <button type="button" className="voice-type-trigger"
+                    onClick={() => { orbRef.current?.focus(); toggleVoice() }} aria-label={stopLabel} title={stopLabel}>
+                    <Stop size={16} weight="fill" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <button ref={typingTriggerRef} type="button" className="voice-type-trigger"
+                    onClick={openTyping} aria-label={t.voiceAskByText} title={t.voiceAskByText}
+                    aria-disabled={waitingForReply}>
+                    <Keyboard size={20} weight="bold" aria-hidden="true" />
+                  </button>
+                )}
+              </>
             )}
           </div>
-
-          {showDockHint && (
-            <div className="voice-dock-caption">
-              <p className="voice-dock-hint" role="status" aria-live="polite">
-                {dockStatus ?? (speechAvailable ? t.voiceHint : t.voiceAskByText)}
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {view && (
+      {view && view !== 'ask' && (
         <div className="voice-panel" role="dialog" aria-label={t.voiceAgentName}>
           <header className="voice-panel-head">
-            <div className="voice-panel-identity">
-              <strong>{t.voiceAgentName}</strong>
-              <small className="voice-agent-status"><i aria-hidden="true" />{t.voiceAgentStatus}</small>
-            </div>
+            <div className="voice-panel-identity"><strong>{t.voiceAgentName}</strong></div>
             <button type="button" className="buddy-icon-btn voice-panel-close" onClick={closePanel} aria-label={t.buddyClose}>
-              <X size={16} weight="bold" />
+              <X size={16} weight="bold" aria-hidden="true" />
             </button>
           </header>
-
-          {view === 'ask' && (
-            <>
-              <div className="voice-panel-body voice-chat-body" ref={chatBodyRef}>
-                {conversation.length === 0 && phase === 'idle' && (
-                  <div className="voice-agent-line">
-                    <p className="voice-chat-bubble is-agent">{lang === 'vi' ? feed?.greeting ?? t.voiceGreeting : t.voiceGreeting}</p>
-                  </div>
-                )}
-
-                {conversation.map((entry) => entry.role === 'user' ? (
-                  <p key={entry.id} className="voice-chat-bubble is-user">{entry.text}</p>
-                ) : (
-                  <div key={entry.id} className="voice-agent-line">
-                    <p className="voice-chat-bubble is-agent">{entry.text}</p>
-                  </div>
-                ))}
-
-                {phase === 'listening' && (
-                  <p className="voice-chat-bubble is-live" role="status" aria-live="polite">
-                    {heard || t.voiceListening}
-                  </p>
-                )}
-                {phase === 'thinking' && (
-                  <div className="voice-agent-line">
-                    <p className="voice-chat-bubble is-agent" role="status">
-                      {t.voiceThinking}
-                    </p>
-                  </div>
-                )}
-                {askError && <p className="buddy-inline-error">{askError}</p>}
-
-                {pendingSuggestion && !reminderAccepted && (
-                  <div className="buddy-reminder-offer">
-                    <span>
-                      <Clock size={13} weight="bold" />
-                      {pendingSuggestion.at_time
-                        ? `${t.buddyReminderAt} ${pendingSuggestion.at_time}`
-                        : `${t.buddyReminderIn} ${pendingSuggestion.in_minutes} ${t.buddyMinutesShort}`}
-                    </span>
-                    <strong>{pendingSuggestion.title}</strong>
-                    <button
-                      type="button"
-                      className="buddy-solid-btn"
-                      onClick={() => void acceptSuggestion(pendingSuggestion)}
-                    >
-                      <BellRinging size={13} weight="fill" /> {t.buddyReminderSet}
-                    </button>
-                  </div>
-                )}
-
-                {reminderAccepted && (
-                  <p className="buddy-ok">
-                    <CheckCircle size={14} weight="fill" /> {t.buddyReminderSaved}
-                  </p>
-                )}
-              </div>
-
-              <div className="voice-composer">
-                {speechAvailable ? (
-                  <button
-                    type="button"
-                    className={`voice-talk-btn${phase === 'listening' ? ' is-live' : ''}${isSpeaking ? ' is-speaking' : ''}`}
-                    onPointerEnter={prepareVoiceToken}
-                    onFocus={prepareVoiceToken}
-                    onClick={() => {
-                      if (isSpeaking) {
-                        stopSpeech()
-                        return
-                      }
-                      if (phase === 'listening') stopListening()
-                      else if (phase === 'idle') beginListening()
-                    }}
-                    disabled={phase === 'thinking'}
-                    aria-label={phase === 'thinking' ? t.voiceThinking : phase === 'listening' ? t.voiceTapToStop : isSpeaking ? t.voiceInterrupt : t.voiceOpen}
-                  >
-                    {phase !== 'thinking' && <span className="voice-talk-icon" aria-hidden="true">
-                      {phase === 'listening'
-                          ? <AudioBars meter={meter} active size={20} />
-                          : isSpeaking
-                            ? <SpeakerSlash size={20} weight="bold" />
-                            : <Microphone size={20} weight="bold" />}
-                    </span>}
-                    <span>
-                      {phase === 'thinking' ? t.voiceThinking : phase === 'listening' ? t.voiceListening : isSpeaking ? t.voiceInterrupt : t.voiceHint}
-                    </span>
-                  </button>
-                ) : null}
-                <form
-                  className="voice-ask-form"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void send(question)
-                  }}
-                >
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={question}
-                    onChange={(event) => setQuestion(event.target.value)}
-                    placeholder={t.voiceTypePlaceholder}
-                    aria-label={t.voiceTypePlaceholder}
-                    disabled={phase !== 'idle'}
-                    maxLength={2000}
-                  />
-                  <button
-                    type="submit"
-                    className="buddy-send-btn"
-                    disabled={phase !== 'idle' || !question.trim()}
-                    aria-label={t.voiceSend}
-                  >
-                    <PaperPlaneTilt size={15} weight="fill" />
-                  </button>
-                </form>
-              </div>
-            </>
-          )}
 
           {view === 'home' && (
             <div className="voice-panel-body">

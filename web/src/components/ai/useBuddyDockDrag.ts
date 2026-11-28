@@ -30,7 +30,10 @@ function positionFromPoint(area: DOMRect, dock: DOMRect, left: number, top: numb
   }
 }
 
-export function useBuddyDockDrag(position: BuddyDockPosition | null, onMove: (position: BuddyDockPosition) => void) {
+export function useBuddyDockDrag(
+  position: BuddyDockPosition | null,
+  onMove: (position: BuddyDockPosition) => void,
+) {
   const areaRef = useRef<HTMLDivElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
   const gesture = useRef<DragGesture | null>(null)

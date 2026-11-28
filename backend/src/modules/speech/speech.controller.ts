@@ -12,6 +12,9 @@ import { parsePracticeText, parseSpeechAudio, parseSpeechLanguage, parseSpeechMi
  */
 function recognitionHandler(practice: boolean): RequestHandler {
   return async (request, response, next) => {
+    const connection = new AbortController();
+    const onClose = () => connection.abort();
+    response.once('close', onClose);
     try {
       if (!request.auth) throw new HttpError(401, 'Authentication required.');
       const mime = parseSpeechMimeType(request.headers['content-type']);
@@ -22,8 +25,8 @@ function recognitionHandler(practice: boolean): RequestHandler {
         throw new HttpError(422, 'Mô hình nhận diện không hợp lệ.');
       }
       const transcript = practice
-        ? await speechService.practiceSpeech(audio, mime, parsePracticeText(request.query.text))
-        : await speechService.transcribeSpeech(audio, mime, language, requestedModel || null);
+        ? await speechService.practiceSpeech(audio, mime, parsePracticeText(request.query.text), connection.signal)
+        : await speechService.transcribeSpeech(audio, mime, language, requestedModel || null, connection.signal);
       if (!transcript) {
         response.status(422).json({
           success: false,
@@ -34,7 +37,9 @@ function recognitionHandler(practice: boolean): RequestHandler {
       }
       response.json({ success: true, data: transcript });
     } catch (error) {
-      next(error);
+      if (!connection.signal.aborted) next(error);
+    } finally {
+      response.off('close', onClose);
     }
   };
 }
@@ -65,7 +70,7 @@ export const status: RequestHandler = (_request, response) => {
     success: true,
     data: {
       backend: Boolean(env.assemblyAiApiKey),
-      ...(env.assemblyAiApiKey && process.env.BUDDY_STREAMING_STT === 'true' ? { buddyStreaming: true } : {}),
+      ...(env.assemblyAiApiKey && env.buddyStreamingStt ? { buddyStreaming: true } : {}),
       speechModel: env.speechModel,
       maxBytes: env.speechMaxBytes,
     },

@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { validateRuntimeConfig } from './config/runtime';
 import { pool } from './db/pool';
 import { attachBattleSocket } from './modules/battle/battle.socket';
+import { closeIdleSpeechClients } from './modules/speech/speech.tts';
 import { logger } from './utils/logger';
 
 const configIssues = validateRuntimeConfig();
@@ -41,6 +42,8 @@ async function shutdown(signal: string): Promise<void> {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   }
+
+  closeIdleSpeechClients();
 
   try {
     await pool.end();

@@ -2,16 +2,17 @@ import { buddyLanguage, normalizeDestination } from './ai.language';
 import type { BuddyLanguage } from './ai.language';
 
 type SummaryKind = 'wallet' | 'stats' | 'path' | 'badges' | 'equipment' | 'rank';
+type SummaryCommand = { [Kind in SummaryKind]: { kind: Kind } }[SummaryKind];
 
 type LessonSelector = { number: number; stage?: number } | { title: string; stage?: number } | 'next';
 
 export type BuddyCommand = { language: BuddyLanguage } & (
-  | { kind: SummaryKind }
+  | SummaryCommand
   | { kind: 'studyHistory'; params: { view: 'recent' | 'current' | 'weak' | 'absence'; title?: string } }
   | { kind: 'videoLibrary'; params: { owned: boolean } }
   | { kind: 'lesson'; params: LessonSelector }
   | { kind: 'shopCatalog' }
-  | { kind: 'shopItem'; params: { item: string; buy: boolean } }
+  | { kind: 'shopItem'; params: { item: string; buy: boolean; preferEquipped?: boolean } }
   | { kind: 'video'; params: { choice: 'random' | 'next'; owned?: boolean }
     | { choice: 'topic'; topic: string; owned?: boolean; code?: boolean; lookupOnly?: boolean } }
 );

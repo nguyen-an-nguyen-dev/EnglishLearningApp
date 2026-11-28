@@ -16,7 +16,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollViewInstance,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import Colors from '@/constants/Colors';
 import CheckpointMarker, { getCheckpointPalette } from '@/components/map/CheckpointMarker';
@@ -26,6 +26,7 @@ import { useAppDialog } from '@/contexts/app-dialog-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
 import { fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
+import { routeId } from '@/services/aiDestinations';
 
 
 
@@ -92,11 +93,13 @@ export default function LearningPathScreen() {
   const { theme } = useAppTheme();
   const colors = Colors[theme];
   const router = useRouter();
+  const { buddyLessonId, buddyRequest } = useLocalSearchParams<{ buddyLessonId?: string; buddyRequest?: string }>();
   const { width } = useWindowDimensions();
   const carPosition = useRef(new Animated.Value(0)).current;
   const hasPositionedCar = useRef(false);
   const lastCarTarget = useRef<number | null>(null);
   const hasCenteredMap = useRef(false);
+  const revealedLesson = useRef<string | null>(null);
   const stageTrackingReadyAt = useRef(0);
   const pathScrollRef = useRef<ScrollViewInstance | null>(null);
   const stageColor = useRef(new Animated.Value(0)).current;
@@ -189,12 +192,12 @@ export default function LearningPathScreen() {
   }
 
   function startSelectedLesson() {
-    const lessonId = selectedFlagRef.current?.lesson.id;
-    if (lessonId === undefined || lessonId === null) return;
+    const lesson = selectedFlagRef.current?.lesson;
+    if (!lesson || lesson.state.status === 'locked') return;
     setSheetFlag(null);
     router.push({
       pathname: '/lesson/[id]',
-      params: { id: String(lessonId) },
+      params: { id: String(lesson.id) },
     });
   }
 
@@ -489,14 +492,24 @@ export default function LearningPathScreen() {
   useFocusEffect(useCallback(() => {
     if (totalLessons === 0 || currentLessonIndex < 0) return;
     const timer = setTimeout(() => {
+      const lessonId = routeId(buddyLessonId);
+      const key = `${buddyRequest ?? ''}:${lessonId ?? ''}`;
+      const revealIndex = lessonId && revealedLesson.current !== key
+        ? lessonNodesRef.current.findIndex((node) => node.lesson.id === lessonId) : -1;
       const wasCentered = hasCenteredMap.current;
-      const centered = centerMapOnLesson(currentLessonIndex, wasCentered);
+      const centered = centerMapOnLesson(revealIndex >= 0 ? revealIndex : currentLessonIndex, wasCentered);
       if (!centered) return;
       hasCenteredMap.current = true;
       if (!wasCentered) stageTrackingReadyAt.current = Date.now() + 320;
+      if (revealIndex >= 0) {
+        revealedLesson.current = key;
+        const node = lessonNodesRef.current[revealIndex];
+        setVisibleStageIndex(node.stageIndex);
+        setSheetFlag({ lesson: node.lesson, stageIndex: node.stageIndex });
+      }
     }, 60);
     return () => clearTimeout(timer);
-  }, [currentLessonIndex, scrollViewportHeight, totalLessons]));
+  }, [buddyLessonId, buddyRequest, currentLessonIndex, scrollViewportHeight, totalLessons]));
 
   const carLeft = roadMotionPoints.length > 1
     ? carPosition.interpolate({
@@ -943,7 +956,7 @@ export default function LearningPathScreen() {
               <Text style={[styles.sheetStateText, { color: sheetAccentInk }]}>
                 {selectedFlag.lesson.state.status === 'completed'
                   ? `Điểm ${selectedFlag.lesson.state.score ?? 0}`
-                  : 'Sẵn sàng'}
+                  : selectedFlag.lesson.state.status === 'locked' ? 'Đang khóa' : 'Sẵn sàng'}
               </Text>
             </View>
           </View>
@@ -954,7 +967,9 @@ export default function LearningPathScreen() {
             {`Chủ đề: ${selectedFlag.lesson.topic} · ${selectedFlag.lesson.total_questions} câu hỏi`}
           </Text>
           <View style={styles.sheetActions}>
-            <Pressable
+            {selectedFlag.lesson.state.status === 'locked' ? (
+              <Text style={[styles.sheetMeta, { color: colors.textMuted }]}>Hoàn thành bài trước để mở khóa.</Text>
+            ) : <Pressable
               accessibilityRole="button"
               onPress={startSelectedLesson}
               style={[
@@ -969,7 +984,7 @@ export default function LearningPathScreen() {
               <Text style={styles.sheetStartText}>
                 {selectedFlag.lesson.state.status === 'completed' ? 'Làm lại' : 'Bắt đầu'}
               </Text>
-            </Pressable>
+            </Pressable>}
             <Pressable
               accessibilityRole="button"
               onPress={dismissSheet}

@@ -87,23 +87,27 @@ export interface ReminderSuggestion {
   body: string | null
 }
 
+export interface BuddyAction {
+  kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review' | 'show_shop_item' | 'spotlight'
+  label: string
+  tab?: BuddyTarget['tab']
+  videoId?: number
+  videoTitle?: string
+  lessonId?: number
+  mode?: 'open' | 'reveal'
+  lessonTitle?: string
+  itemCode?: string
+  itemName?: string
+  highlight?: string
+}
+
 export interface BuddyAnswer {
   reply: string
   language?: 'vi' | 'en'
   followups: string[]
-  action: {
-    kind: 'open_video' | 'open_lesson' | 'open_tab' | 'open_notebook' | 'open_review' | 'show_shop_item' | 'spotlight'
-    label: string
-    tab?: BuddyTarget['tab']
-    videoId?: number
-    videoTitle?: string
-    lessonId?: number
-    mode?: 'open' | 'reveal'
-    lessonTitle?: string
-    itemCode?: string
-    itemName?: string
-    highlight?: string
-  } | null
+  keepChatOpen?: boolean
+  action: BuddyAction | null
+  actions?: BuddyAction[]
   suggestion: ReminderSuggestion | null
   /** 'navigate' means: switch screen and show a short toast, never open the chat panel. */
   route?: 'open_prompt' | 'navigate'
