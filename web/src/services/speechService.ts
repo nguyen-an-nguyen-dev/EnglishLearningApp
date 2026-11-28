@@ -3,13 +3,14 @@ import { authStorage } from './authStorage'
 export interface SpeechTranscript {
   text: string
   language: string | null
-  provider: 'whisper' | 'gemini'
+  provider: 'assemblyai'
+  model: string | null
 }
 
 export interface SpeechStatus {
   backend: boolean
-  whisper: boolean
-  gemini: boolean
+  buddyStreaming?: boolean
+  speechModel?: string
   maxBytes: number
 }
 
@@ -20,7 +21,7 @@ export async function getSpeechStatusApi(): Promise<SpeechStatus> {
     data?: SpeechStatus
   }
   if (!response.ok || !body.success || !body.data) {
-    return { backend: false, whisper: false, gemini: false, maxBytes: 0 }
+    return { backend: false, maxBytes: 0 }
   }
   return body.data
 }
@@ -39,8 +40,13 @@ export interface SpeechPractice {
   } | null
 }
 
-export function transcribeAudioApi(blob: Blob, signal?: AbortSignal): Promise<SpeechTranscript> {
-  return postSpeechAudio('/api/speech/transcribe', blob, signal)
+export function transcribeAudioApi(
+  blob: Blob,
+  signal?: AbortSignal,
+  lang: SpeechVoiceLang | null = 'vi',
+): Promise<SpeechTranscript> {
+  const path = lang ? `/api/speech/transcribe?${new URLSearchParams({ lang })}` : '/api/speech/transcribe'
+  return postSpeechAudio(path, blob, signal)
 }
 
 export function practiceSpeechApi(text: string, blob: Blob, signal?: AbortSignal): Promise<SpeechPractice> {
@@ -81,20 +87,27 @@ export async function synthesizeSpeechApi(
   text: string,
   lang: SpeechVoiceLang,
   signal?: AbortSignal,
+  { retryUnavailable = false }: { retryUnavailable?: boolean } = {},
 ): Promise<Blob> {
   const token = authStorage.getToken()
   if (!token) throw new Error('Bạn cần đăng nhập lại.')
 
   const timeout = AbortSignal.timeout(25_000)
-  const response = await fetch('/api/speech/synthesize', {
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
+  const synthesize = () => fetch('/api/speech/synthesize', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ text, lang }),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    signal: requestSignal,
   })
+  let response = await synthesize()
+  if (retryUnavailable && !requestSignal.aborted && [502, 503, 504].includes(response.status)) {
+    await response.body?.cancel().catch(() => {})
+    response = await synthesize()
+  }
   if (!response.ok) throw new Error(`Speech synthesis failed (${response.status}).`)
   return response.blob()
 }

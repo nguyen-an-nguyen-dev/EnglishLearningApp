@@ -15,5 +15,6 @@ export type SpeechVoiceLang = 'en' | 'vi';
 export interface SpeechTranscript {
   text: string;
   language: string | null;
-  provider: 'whisper' | 'gemini';
+  provider: 'assemblyai';
+  model: string | null;
 }

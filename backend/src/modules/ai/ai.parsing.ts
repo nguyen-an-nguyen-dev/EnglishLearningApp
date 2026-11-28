@@ -1,3 +1,4 @@
+import { isRecord } from '../../utils/validation';
 import { HttpError } from '../../middleware/error-handler';
 import { HIGHLIGHT_PATTERN } from '../reminders/reminders.validation';
 import { CHAT_ACTION_KINDS, CHAT_TABS } from './ai.types';
@@ -15,11 +16,7 @@ const FEEDBACK_TYPES = new Set<FeedbackType>(['GRAMMAR', 'VOCABULARY', 'TENSE', 
 const MAX_FOLLOWUPS = 3;
 const MAX_FEEDBACK_ITEMS = 6;
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function parseRawAction(value: unknown): ChatAction | null {
+export function parseChatAction(value: unknown): ChatAction | null {
   if (!isRecord(value) || typeof value.kind !== 'string'
     || !CHAT_ACTION_KINDS.includes(value.kind as ChatActionKind)) {
     return null;
@@ -180,11 +177,14 @@ export function parseAiReply(value: unknown): AiReply {
       .map((item) => item.trim().slice(0, 120))
       .slice(0, MAX_FOLLOWUPS)
     : [];
+  const actions = Array.isArray(value.actions)
+    ? value.actions.slice(0, 6).map(parseChatAction).filter((action) => action !== null) : [];
   return {
     reply: value.reply.trim().slice(0, 8000),
     feedback,
     followups,
-    action: parseRawAction(value.action),
+    action: parseChatAction(value.action),
+    ...(actions.length ? { actions } : {}),
     reminder: parseReminderSuggestion(value.reminder),
   };
 }

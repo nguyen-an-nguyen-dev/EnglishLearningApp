@@ -252,8 +252,7 @@ function VideoLessonView({
 }
 
 interface VideoLearningViewProps {
-  /** Deep-link from the buddy: open one video or the vocabulary notebook. */
-  videoRequest?: { kind: 'video' | 'notebook'; videoId?: number; nonce: number } | null
+  videoRequest?: { kind: 'video' | 'notebook' | 'library'; videoId?: number; nonce: number } | null
   onVideoRequestHandled?: () => void
 }
 
@@ -295,9 +294,9 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
     if (videoRequest.kind === 'notebook') {
       setView('notebook')
       setSelectedVideoId(null)
-    } else if (videoRequest.videoId) {
+    } else {
       setView('library')
-      setSelectedVideoId(videoRequest.videoId)
+      setSelectedVideoId(videoRequest.videoId ?? null)
     }
     onVideoRequestHandled?.()
   }, [videoRequest, onVideoRequestHandled])
@@ -771,6 +770,7 @@ export function VideoLearningView({ videoRequest, onVideoRequestHandled }: Video
           />
           <VideoCarousel
             title={t.videoSectionOwned}
+            buddyTarget="control:owned-videos"
             description={t.videoSectionOwnedDesc}
             countLabel={t.videoCount(ownedVideos.length)}
             tone="sun"

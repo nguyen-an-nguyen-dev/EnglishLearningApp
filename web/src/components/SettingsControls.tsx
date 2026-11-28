@@ -1,84 +1,49 @@
-import { Check } from '@phosphor-icons/react'
-import { useI18n } from '../i18n'
-import type { Lang } from '../i18n'
+import { Moon, Sun } from '@phosphor-icons/react'
+import { useId } from 'react'
+import { useI18n, type Lang } from '../i18n'
 import { useTheme } from '../theme'
-import type { Theme } from '../theme'
-
-/** Section label with the current value on the right, like a settings block header. */
-function GroupHead({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="settings-group-head">
-      <span className="settings-group-label">{label}</span>
-      {value && <span className="settings-group-value">{value}</span>}
-    </div>
-  )
-}
 
 export function LanguagePicker() {
   const { lang, setLang, t } = useI18n()
-
   const options: { value: Lang; label: string }[] = [
     { value: 'vi', label: t.langVi },
     { value: 'en', label: t.langEn },
   ]
 
   return (
-    <div className="settings-group">
-      <GroupHead label={t.language} value={lang.toUpperCase()} />
-      <div className="seg-track" role="group" aria-label={t.language}>
-        {options.map((option) => {
-          const active = option.value === lang
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={active ? 'is-active' : undefined}
-              aria-pressed={active}
-              onClick={() => setLang(option.value)}
-            >
-              {option.label}
-            </button>
-          )
-        })}
+    <div className="settings-row">
+      <span className="settings-label">{t.language}</span>
+      <div className="settings-options" role="group" aria-label={t.language}>
+        {options.map(({ value, label }) => (
+          <button key={value} type="button" aria-pressed={value === lang} onClick={() => setLang(value)}>
+            {label}
+          </button>
+        ))}
       </div>
     </div>
   )
 }
 
-export function ThemePicker() {
+export function ThemeSwitch() {
   const { t } = useI18n()
-  const { theme, setTheme } = useTheme()
-
-  const options: { value: Theme; label: string; swatch: string }[] = [
-    { value: 'light', label: t.light, swatch: 'theme-swatch-light' },
-    { value: 'dark', label: t.dark, swatch: 'theme-swatch-dark' },
-  ]
+  const { isDark, setTheme } = useTheme()
+  const labelId = useId()
+  const Icon = isDark ? Moon : Sun
 
   return (
-    <div className="settings-group">
-      <GroupHead label={t.appearance} />
-      <div className="theme-options" role="group" aria-label={t.appearance}>
-        {options.map((option) => {
-          const active = option.value === theme
-          return (
-            <button
-              key={option.value}
-              type="button"
-              className={`theme-option${active ? ' is-active' : ''}`}
-              aria-pressed={active}
-              onClick={() => setTheme(option.value)}
-            >
-              <span className={`theme-swatch ${option.swatch}`} aria-hidden="true" />
-              <span>{option.label}</span>
-              {active && (
-                <span className="theme-check" aria-hidden="true">
-                  <Check size={14} weight="bold" />
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+    <div className="settings-row">
+      <span className="settings-label" id={labelId}>{t.dark}</span>
+      <button
+        className="settings-switch settings-theme-switch"
+        type="button"
+        role="switch"
+        aria-labelledby={labelId}
+        aria-checked={isDark}
+        title={isDark ? t.dark : t.light}
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      >
+        <span aria-hidden="true"><Icon size={10} weight="bold" /></span>
+      </button>
     </div>
   )
 }

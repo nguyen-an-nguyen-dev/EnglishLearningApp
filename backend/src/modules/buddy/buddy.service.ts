@@ -82,8 +82,21 @@ export function buildNudges(
     });
   }
 
-  const next = pickNextLesson(stats);
+  // Keep due recall ahead of new material when the feed has little space.
+  if (stats.reviewDue > 0) {
+    // Kept plain: the learner sees a nudge, not a report. The session itself
+    // shows how many items are inside.
+    nudges.push({
+      id: 'review-due',
+      kind: 'review-due',
+      tone: 'push',
+      title: 'Có bài ôn tập',
+      body: 'Vài câu bạn từng làm sai đang tới lịch ôn lại.',
+      action: { label: 'Ôn ngay', target: { tab: 'profile' } },
+    });
+  }
 
+  const next = pickNextLesson(stats);
   if (next) {
     const remaining = stats.totalLessons - stats.completedLessons;
     nudges.push({
@@ -97,21 +110,6 @@ export function buildNudges(
         target: { tab: 'study', lessonId: next.id, mode: 'reveal', highlight: `lesson:${next.id}` },
       },
       highlight: `lesson:${next.id}`,
-    });
-  }
-
-  // Due recall outranks the generic "weak topic" hint: the schedule knows these
-  // items are on the edge of being forgotten.
-  if (stats.reviewDue > 0) {
-    // Kept plain: the learner sees a nudge, not a report. The session itself
-    // shows how many items are inside.
-    nudges.push({
-      id: 'review-due',
-      kind: 'review-due',
-      tone: 'push',
-      title: 'Có bài ôn tập',
-      body: 'Vài câu bạn từng làm sai đang tới lịch ôn lại.',
-      action: { label: 'Ôn ngay', target: { tab: 'profile' } },
     });
   }
 
@@ -206,11 +204,11 @@ export async function createFromSuggestion(
 }
 
 export async function getNudges(userId: number, now: Date = new Date()): Promise<NudgeFeed> {
-  const [stats, dueReminders, lastActivityAt, learner] = await Promise.all([
+  const [stats, dueReminders, lastActivityAt, weakTopics] = await Promise.all([
     aiRepository.getStudyStats(userId),
     remindersRepository.listDueReminders(userId),
     getLastActivityAt(userId),
-    aiRepository.getLearnerContext(userId),
+    aiRepository.getWeakTopics(userId),
   ]);
 
   const reminders: StudyReminder[] = dueReminders.map((row) => ({
@@ -236,7 +234,7 @@ export async function getNudges(userId: number, now: Date = new Date()): Promise
   };
 
   return {
-    nudges: buildNudges(stats, reminders, lastActivityAt, now, learner.weakTopics),
+    nudges: buildNudges(stats, reminders, lastActivityAt, now, weakTopics),
     summary,
     greeting: buildGreeting(stats, reminders, lastActivityAt, now),
   };

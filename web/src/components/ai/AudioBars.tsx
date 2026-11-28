@@ -1,56 +1,59 @@
-import { useEffect, useMemo, useRef } from 'react'
-import type { MicMeter } from './micMeter'
+import { useEffect, useRef } from 'react'
+import type { MicMeter, VoiceSignal } from './micMeter'
 
-export interface AudioBarsProps {
+const BAR_COUNT = 5
+const MIN_HEIGHT = 5
+const RANGE = 16
+
+interface AudioBarsProps {
   meter: MicMeter
-  /** True while the microphone is open: bars follow real voice. */
+  /** True while the spoken reply is playing. */
   active: boolean
-  bands?: number
-  /** Tallest a bar can grow, in px (the container is exactly this tall). */
-  size?: number
-  className?: string
 }
 
 /**
- * A compact row of rounded vertical bars. Idle they breathe (CSS); while listening
- * each bar is written to the DOM from the AnalyserNode every frame, so React never
- * re-renders for audio and the motion is real, not faked.
+ * Five rounded bars inside the voice button. During playback, each bar
+ * follows its own frequency band plus the overall level.
  */
-export function AudioBars({ meter, active, bands = 5, size = 26, className }: AudioBarsProps) {
+export function AudioBars({ meter, active }: AudioBarsProps) {
   const hostRef = useRef<HTMLSpanElement | null>(null)
-  const levels = useMemo(() => new Float32Array(bands), [bands])
-  const minHeight = Math.max(3, Math.round(size * 0.16))
-  const range = size - minHeight
+  const signal = useRef<VoiceSignal>({
+    level: 0,
+    pitch: 0,
+    bands: new Float32Array(BAR_COUNT),
+  })
 
   useEffect(() => {
-    if (!active) return
     const host = hostRef.current
     if (!host) return
     const bars = Array.from(host.children) as HTMLElement[]
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    if (!active || reduceMotion) {
+      for (const bar of bars) bar.style.removeProperty('--bar-live-height')
+      return
+    }
+
     let frame = 0
     const tick = () => {
-      meter.read(levels)
+      meter.readSignal(signal.current)
+      const level = signal.current.level
       for (let index = 0; index < bars.length; index += 1) {
-        const height = minHeight + levels[index] * range
-        bars[index].style.height = `${height.toFixed(1)}px`
+        const band = signal.current.bands[index] ?? 0
+        const energy = Math.min(1, band * 0.8 + level * 0.45)
+        bars[index].style.setProperty('--bar-live-height', `${(MIN_HEIGHT + energy * RANGE).toFixed(1)}px`)
       }
       frame = window.requestAnimationFrame(tick)
     }
     frame = window.requestAnimationFrame(tick)
     return () => {
       window.cancelAnimationFrame(frame)
-      for (const bar of bars) bar.style.height = ''
+      for (const bar of bars) bar.style.removeProperty('--bar-live-height')
     }
-  }, [active, meter, levels, minHeight, range])
+  }, [active, meter])
 
   return (
-    <span
-      ref={hostRef}
-      className={`audio-bars${active ? ' is-active' : ' is-idle'}${className ? ` ${className}` : ''}`}
-      style={{ height: `${size}px` }}
-      aria-hidden="true"
-    >
-      {Array.from({ length: bands }, (_, index) => <i key={index} />)}
+    <span ref={hostRef} className="voice-bars" aria-hidden="true">
+      {Array.from({ length: BAR_COUNT }, (_, index) => <i key={index} />)}
     </span>
   )
 }

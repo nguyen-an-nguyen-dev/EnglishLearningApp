@@ -85,16 +85,6 @@ export interface CompleteLessonResult {
   }>;
 }
 
-export async function fetchStages(): Promise<Stage[]> {
-  const data = await request<{ stages: Stage[] }>('/stages');
-  return data.stages;
-}
-
-export async function fetchStageLessons(stageId: number): Promise<Lesson[]> {
-  const data = await request<{ lessons: Lesson[] }>(`/stages/${stageId}/lessons`);
-  return data.lessons;
-}
-
 export async function fetchLessonDetail(lessonId: number): Promise<Lesson> {
   const data = await request<{ lesson: Lesson }>(`/lessons/${lessonId}`);
   return data.lesson;

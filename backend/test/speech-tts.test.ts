@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
+import { MsEdgeTTS } from 'msedge-tts';
 import { HttpError } from '../src/middleware/error-handler';
 import {
   CACHE_MAX_BYTES,
   cachedClipBytes,
+  closeIdleSpeechClients,
   escapeSsmlText,
   rememberClip,
+  synthesizeSpeech,
 } from '../src/modules/speech/speech.tts';
 import { MAX_TTS_CHARS, parseTtsRequest } from '../src/modules/speech/speech.validation';
 
@@ -46,4 +50,73 @@ test('the clip cache evicts the oldest clips once the byte budget is exceeded', 
   assert.equal(cachedClipBytes(), clipSize * 3);
   rememberClip('budget-oversized', Buffer.alloc(CACHE_MAX_BYTES + 1));
   assert.equal(cachedClipBytes(), clipSize * 3);
+});
+
+test('distinct clips reuse an idle client for the same voice and replays bypass synthesis', async (t) => {
+  t.after(closeIdleSpeechClients);
+  const turns: MsEdgeTTS[] = [];
+  const closed: MsEdgeTTS[] = [];
+  t.mock.method(MsEdgeTTS.prototype, 'setMetadata', async () => undefined);
+  t.mock.method(MsEdgeTTS.prototype, 'toStream', function (this: MsEdgeTTS, text: string) {
+    turns.push(this);
+    return { audioStream: Readable.from([Buffer.from(text)]), metadataStream: null };
+  });
+  t.mock.method(MsEdgeTTS.prototype, 'close', function (this: MsEdgeTTS) { closed.push(this); });
+
+  const first = await synthesizeSpeech('Reuse fixture one.', 'en');
+  await synthesizeSpeech('Giọng đọc kiểm thử.', 'vi');
+  await synthesizeSpeech('Reuse fixture two.', 'en');
+  assert.equal(await synthesizeSpeech('Reuse fixture one.', 'en'), first);
+  assert.equal(turns.length, 3);
+  assert.equal(turns[0], turns[2]);
+  assert.notEqual(turns[0], turns[1]);
+  assert.equal(closed.length, 0);
+  closeIdleSpeechClients();
+  assert.deepEqual(new Set(closed), new Set(turns));
+});
+
+test('concurrent clips use independent clients and a failed reused client is replaced', async (t) => {
+  t.after(closeIdleSpeechClients);
+  const releaseFirst = Promise.withResolvers<void>();
+  const releaseSecond = Promise.withResolvers<void>();
+  const turns: MsEdgeTTS[] = [];
+  const closed = new Set<MsEdgeTTS>();
+  t.mock.method(MsEdgeTTS.prototype, 'setMetadata', async () => undefined);
+  t.mock.method(MsEdgeTTS.prototype, 'toStream', function (this: MsEdgeTTS, text: string) {
+    turns.push(this);
+    const fail = text === 'Retry a stale voice socket.' && this === turns[0];
+    const clip = async function* () {
+      if (text === 'Parallel voice fixture one.') await releaseFirst.promise;
+      if (text === 'Parallel voice fixture two.') await releaseSecond.promise;
+      if (fail) throw new Error('Reused voice socket closed');
+      yield Buffer.from(text);
+    };
+    return { audioStream: Readable.from(clip()), metadataStream: null };
+  });
+  t.mock.method(MsEdgeTTS.prototype, 'close', function (this: MsEdgeTTS) { closed.add(this); });
+
+  const first = synthesizeSpeech('Parallel voice fixture one.', 'en');
+  const duplicate = synthesizeSpeech('Parallel voice fixture one.', 'en');
+  const second = synthesizeSpeech('Parallel voice fixture two.', 'en');
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(turns.length, 2);
+    assert.notEqual(turns[0], turns[1]);
+    assert.equal(closed.size, 0);
+    releaseFirst.resolve();
+    assert.equal(await first, await duplicate);
+    releaseSecond.resolve();
+    await second;
+  } finally {
+    releaseFirst.resolve();
+    releaseSecond.resolve();
+    await Promise.allSettled([first, duplicate, second]);
+  }
+  assert.ok(closed.has(turns[1]));
+
+  assert.equal((await synthesizeSpeech('Retry a stale voice socket.', 'en')).toString(), 'Retry a stale voice socket.');
+  assert.equal(turns.length, 4);
+  assert.equal(turns[2], turns[0]);
+  assert.notEqual(turns[3], turns[0]);
+  assert.ok(closed.has(turns[0]));
 });

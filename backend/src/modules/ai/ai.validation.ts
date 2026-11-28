@@ -64,6 +64,7 @@ function parseContext(value: unknown): ChatContext | null {
     : 'study';
   return {
     tab,
+    ...(raw.surface === 'mobile' ? { surface: 'mobile' as const } : {}),
     focus: shortText(raw.focus, 240),
     detail: shortText(raw.detail, 1000),
   };

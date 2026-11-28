@@ -266,14 +266,6 @@ export async function getCounts(userId: number): Promise<{
   };
 }
 
-export async function findItem(userId: number, itemId: number): Promise<ReviewRow | null> {
-  const [rows] = await pool.execute<ReviewRow[]>(
-    'SELECT * FROM review_items WHERE id = ? AND user_id = ? LIMIT 1',
-    [itemId, userId],
-  );
-  return rows[0] ?? null;
-}
-
 export async function listLapsedWords(userId: number, limit = 10): Promise<LapsedWord[]> {
   const safeLimit = Math.max(1, Math.trunc(limit));
   const [rows] = await pool.execute<Array<RowDataPacket & LapsedWord>>(
@@ -353,43 +345,43 @@ export async function enqueueBattleMistakes(
 export async function syncHistoricalMistakes(userId: number, limit = 40): Promise<number> {
   const safeLimit = Math.max(1, Math.trunc(limit));
 
-  const [questionRows] = await pool.execute<Array<RowDataPacket & { question_id: number; wrong: number }>>(
-    `SELECT a.question_id, COUNT(*) AS wrong
+  const [[questionRows], [wordRows]] = await Promise.all([
+    pool.execute<Array<RowDataPacket & { question_id: number; wrong: number; latest_wrong_at: Date }>>(
+    `SELECT a.question_id, COUNT(*) AS wrong, MAX(a.created_at) AS latest_wrong_at
        FROM learning_answer_attempts a
+       LEFT JOIN review_items ri ON ri.user_id = a.user_id AND ri.kind = 'question' AND ri.ref_id = a.question_id
       WHERE a.user_id = ? AND a.is_correct = 0
       GROUP BY a.question_id
-      ORDER BY wrong DESC, MAX(a.created_at) DESC
+     HAVING MAX(ri.last_reviewed_at) IS NULL OR latest_wrong_at > MAX(ri.last_reviewed_at)
+      ORDER BY wrong DESC, latest_wrong_at DESC
       LIMIT ${safeLimit}`,
     [userId],
-  );
-
-  const [wordRows] = await pool.execute<Array<RowDataPacket & { word_id: number; wrong: number }>>(
-    `SELECT ma.word_id, COUNT(*) AS wrong
+    ),
+    pool.execute<Array<RowDataPacket & { word_id: number; wrong: number; latest_wrong_at: Date }>>(
+    `SELECT ma.word_id, COUNT(*) AS wrong, MAX(ma.answered_at) AS latest_wrong_at
        FROM match_answers ma
+       LEFT JOIN review_items ri ON ri.user_id = ma.user_id AND ri.kind = 'word' AND ri.ref_id = ma.word_id
       WHERE ma.user_id = ? AND ma.is_correct = 0 AND ma.word_id IS NOT NULL
       GROUP BY ma.word_id
-      ORDER BY wrong DESC, MAX(ma.answered_at) DESC
+     HAVING MAX(ri.last_reviewed_at) IS NULL OR latest_wrong_at > MAX(ri.last_reviewed_at)
+      ORDER BY wrong DESC, latest_wrong_at DESC
       LIMIT ${safeLimit}`,
     [userId],
-  );
+    ),
+  ]);
 
-  const now = new Date();
-  const ease = initialState(now).ease;
-  const rows: Array<[number, ReviewKind, number, ReviewSource, number, number]> = [
-    ...questionRows.map((row): [number, ReviewKind, number, ReviewSource, number, number] => [
-      userId, 'question', Number(row.question_id), 'mistake', ease, Number(row.wrong),
+  const ease = initialState().ease;
+  const rows: Array<[number, ReviewKind, number, ReviewSource, number, number, Date]> = [
+    ...questionRows.map((row): [number, ReviewKind, number, ReviewSource, number, number, Date] => [
+      userId, 'question', Number(row.question_id), 'mistake', ease, Number(row.wrong), row.latest_wrong_at,
     ]),
-    ...wordRows.map((row): [number, ReviewKind, number, ReviewSource, number, number] => [
-      userId, 'word', Number(row.word_id), 'battle', ease, Number(row.wrong),
+    ...wordRows.map((row): [number, ReviewKind, number, ReviewSource, number, number, Date] => [
+      userId, 'word', Number(row.word_id), 'battle', ease, Number(row.wrong), row.latest_wrong_at,
     ]),
   ];
   if (rows.length === 0) return 0;
 
   const values = rows.map(() => '(?, ?, ?, ?, ?, 0, 0, 0, ?, ?)').join(', ');
-  const params: Array<string | number | Date> = [];
-  for (const [owner, kind, refId, source, baseEase, mistakes] of rows) {
-    params.push(owner, kind, refId, source, baseEase, mistakes, now);
-  }
   await pool.execute(
     `INSERT INTO review_items
        (user_id, kind, ref_id, source, ease, interval_days, repetitions, lapses,
@@ -397,8 +389,9 @@ export async function syncHistoricalMistakes(userId: number, limit = 40): Promis
      VALUES ${values}
      ON DUPLICATE KEY UPDATE
        mistake_count = GREATEST(mistake_count, VALUES(mistake_count)),
-       due_at = LEAST(due_at, VALUES(due_at))`,
-    params,
+       due_at = IF(last_reviewed_at IS NULL OR last_reviewed_at < VALUES(due_at),
+                   LEAST(due_at, VALUES(due_at)), due_at)`,
+    rows.flat(),
   );
   return rows.length;
 }
@@ -424,12 +417,4 @@ export async function recordGrade(
   );
   void responseMs;
   return next;
-}
-
-export async function getSavedWordIpa(userId: number, word: string): Promise<string | null> {
-  const [rows] = await pool.execute<Array<RowDataPacket & { ipa: string | null }>>(
-    'SELECT ipa FROM saved_words WHERE user_id = ? AND word = ? LIMIT 1',
-    [userId, word],
-  );
-  return rows[0]?.ipa ?? null;
 }

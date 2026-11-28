@@ -39,31 +39,6 @@ export interface CarSkin {
   trail: string
 }
 
-/** Ornament drawn around an avatar ring; each motif has its own silhouette. */
-export type FrameMotif =
-  | 'none'
-  | 'laurel'
-  | 'wings'
-  | 'crown'
-  | 'stars'
-  | 'crystal'
-  | 'sakura'
-  | 'dragon'
-  | 'ocean'
-  | 'neon'
-
-export const FRAME_MOTIFS: readonly FrameMotif[] = [
-  'none', 'laurel', 'wings', 'crown', 'stars',
-  'crystal', 'sakura', 'dragon', 'ocean', 'neon',
-]
-
-export interface FrameSkin {
-  ring: string
-  ringDark: string
-  accent: string | null
-  motif: FrameMotif
-}
-
 export interface NameplateSkin {
   /** CSS background value for blocks and bands; 'transparent' means text-only. */
   bg: string
@@ -84,13 +59,6 @@ export const DEFAULT_CAR_SKIN: CarSkin = {
   wheel: '#42586B',
   light: '#FFF4C7',
   trail: '#F2B544',
-}
-
-export const DEFAULT_FRAME_SKIN: FrameSkin = {
-  ring: '#C9E0EB',
-  ringDark: '#A3C9DA',
-  accent: null,
-  motif: 'none',
 }
 
 export const DEFAULT_NAMEPLATE_SKIN: NameplateSkin = {
@@ -158,22 +126,6 @@ export const CAR_SKINS: Record<string, CarSkin> = {
   },
 }
 
-/** Legacy frame palette retained for old rows; live frame art lives in `garage/frames`. */
-export const FRAME_SKINS: Record<string, FrameSkin> = {
-  frame_plain: DEFAULT_FRAME_SKIN,
-  // Palette mirrors the raster frame art. The motif is only used by the
-  // procedural fallback when a custom style targets one of these keys.
-  frame_bronze: { ring: '#F2B544', ringDark: '#C88A22', accent: '#FFF0B8', motif: 'laurel' },
-  frame_silver: { ring: '#D8E2EA', ringDark: '#93A3B3', accent: '#FFFFFF', motif: 'stars' },
-  frame_gold: { ring: '#E8BE55', ringDark: '#C2963A', accent: '#FFF3C4', motif: 'crown' },
-  frame_violet: { ring: '#9A7BE0', ringDark: '#6E52B4', accent: '#FFE9A8', motif: 'stars' },
-  frame_prism: { ring: '#7FD8E8', ringDark: '#4E9FB5', accent: '#E7C6F7', motif: 'crystal' },
-  frame_sakura: { ring: '#F2A7C3', ringDark: '#C86B92', accent: '#FFE3EF', motif: 'sakura' },
-  frame_dragon: { ring: '#2E8B57', ringDark: '#1B5E3B', accent: '#FFB03A', motif: 'dragon' },
-  frame_ocean: { ring: '#3AA6C9', ringDark: '#1F6F8B', accent: '#C8F4FF', motif: 'ocean' },
-  frame_neon: { ring: '#5B4BC4', ringDark: '#312A78', accent: '#3EF2E0', motif: 'neon' },
-}
-
 /** Scenic plate backed by a photo when one exists, else the procedural scene. */
 function photoPlate(
   key: string,
@@ -211,20 +163,6 @@ export function carSkin(visualKey: string | null | undefined, style?: Record<str
     merged.model = style.model as CarModel
   }
   return merged
-}
-
-export function frameSkin(visualKey: string | null | undefined, style?: Record<string, string | null> | null): FrameSkin {
-  const base = (visualKey && FRAME_SKINS[visualKey]) || DEFAULT_FRAME_SKIN
-  if (!style) return base
-  const motif = style.motif && FRAME_MOTIFS.includes(style.motif as FrameMotif)
-    ? style.motif as FrameMotif
-    : base.motif
-  return {
-    ring: style.ring || base.ring,
-    ringDark: style.ringDark || base.ringDark,
-    accent: style.accent === undefined ? base.accent : (style.accent || null),
-    motif,
-  }
 }
 
 export function nameplateSkin(
@@ -268,12 +206,4 @@ function mergeKnown(base: CarSkin, style: Record<string, string | null>): Partia
     if (style[key]) colours[key] = style[key] as string
   }
   return merged
-}
-
-/** Rarity → label + token colours, shared by shop rows and tooltips. */
-export const RARITY_META: Record<string, { label: string; fg: string; bg: string }> = {
-  common: { label: 'Cơ bản', fg: 'var(--rarity-common-fg)', bg: 'var(--rarity-common-bg)' },
-  rare: { label: 'Hiếm', fg: 'var(--rarity-rare-fg)', bg: 'var(--rarity-rare-bg)' },
-  epic: { label: 'Sử thi', fg: 'var(--rarity-epic-fg)', bg: 'var(--rarity-epic-bg)' },
-  legendary: { label: 'Huyền thoại', fg: 'var(--rarity-legendary-fg)', bg: 'var(--rarity-legendary-bg)' },
 }

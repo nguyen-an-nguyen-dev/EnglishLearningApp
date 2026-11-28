@@ -111,7 +111,6 @@ export function ProfileView({ onLogout, onOpenReview, onOpenGarage, onOpenLesson
   const balance = `${coins.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')} RC`
   const level = wallet?.level ?? user?.level ?? 1
   const frameKey = wallet?.equipment.frame?.visual_key ?? null
-  const frameStyle = wallet?.equipment.frame?.style ?? null
   const plate = nameplateSurface(
     wallet?.equipment.nameplate?.visual_key ?? null,
     wallet?.equipment.nameplate?.style ?? null,
@@ -174,7 +173,7 @@ export function ProfileView({ onLogout, onOpenReview, onOpenGarage, onOpenLesson
             <div className="profile-hero-body">
               <button type="button" className="profile-avatar-edit" aria-label={t.avatarUpload}
                 onClick={() => avatarInputRef.current?.click()} disabled={avatarProgress !== null}>
-                <AvatarFrame name={displayName} avatarUrl={avatarPreview ?? user?.avatar_url} visualKey={frameKey} style={frameStyle} size={120} />
+                <AvatarFrame avatarUrl={avatarPreview ?? user?.avatar_url} visualKey={frameKey} size={120} />
                 <span className="profile-hero-level" aria-label={`${t.walletLevel} ${level}`}>{level}</span>
               </button>
               <div className="profile-identity-copy">

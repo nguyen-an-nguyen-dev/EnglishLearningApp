@@ -1,107 +1,77 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-export const BUDDY_TARGET_ATTR = 'data-buddy-target'
-const HIGHLIGHT_MS = 4_200
-
-export function findBuddyTarget(token: string): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`[${BUDDY_TARGET_ATTR}="${CSS.escape(token)}"]`)
+export interface SpotlightRequest {
+  token: string
 }
 
 export interface SpotlightState {
-  token: string
-  /** Viewport-space box of the circled element. */
+  request: SpotlightRequest
   rect: { top: number; left: number; width: number; height: number }
 }
 
-/**
- * Follows a highlight token to its element, scrolls it into view and reports its
- * box so a ring can be drawn. The ring is a plain overlay, so the target's own
- * layout and hit area are unchanged.
- */
-export function useBuddySpotlight(token: string | null, enabled: boolean): SpotlightState | null {
+export function useBuddySpotlight(request: SpotlightRequest | null): SpotlightState | null {
   const [spot, setSpot] = useState<SpotlightState | null>(null)
-  const frame = useRef<number | null>(null)
-  const targetRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    if (!token || !enabled) {
-      // Cleared from a deferred callback, not synchronously in the effect body.
-      const id = window.setTimeout(() => {
+    if (!request) return
+    const activeRequest = request
+    const delay = request.token === 'control:arena-start' ? 1_000 : 0
+    const startedAt = performance.now()
+    let target: HTMLElement | null = null
+    let timer: number | undefined
+    let frame: number | undefined
+
+    function measure() {
+      frame = undefined
+      if (!target?.isConnected || !target.getClientRects().length) {
         setSpot(null)
-        targetRef.current = null
-      }, 0)
-      return () => window.clearTimeout(id)
-    }
-
-    let stopped = false
-    let attempts = 0
-    let measureFrame: number | null = null
-
-    const measure = () => {
-      const element = targetRef.current
-      if (!element || stopped) return
-      const box = element.getBoundingClientRect()
-      setSpot((previous) => {
-        if (
-          previous &&
-          previous.token === token &&
-          previous.rect.top === box.top &&
-          previous.rect.left === box.left &&
-          previous.rect.width === box.width &&
-          previous.rect.height === box.height
-        ) {
-          return previous
-        }
-        return {
-          token,
-          rect: { top: box.top, left: box.left, width: box.width, height: box.height },
-        }
-      })
-    }
-
-    // Scroll and resize can fire several times per frame; measuring once per
-    // frame avoids repeated layout reads and redundant React renders.
-    const scheduleMeasure = () => {
-      if (measureFrame !== null || stopped) return
-      measureFrame = window.requestAnimationFrame(() => {
-        measureFrame = null
-        measure()
-      })
-    }
-
-    // The destination screen may render after the navigation, so retry briefly.
-    const find = () => {
-      if (stopped) return
-      const element = findBuddyTarget(token)
-      if (!element) {
-        attempts += 1
-        if (attempts < 24) frame.current = window.requestAnimationFrame(() => window.setTimeout(find, 60))
         return
       }
-      targetRef.current = element
-      element.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      measure()
+      const { top, left, width, height } = target.getBoundingClientRect()
+      setSpot((previous) => {
+        const rect = previous?.rect
+        return previous?.request === activeRequest && rect?.top === top && rect.left === left &&
+          rect.width === width && rect.height === height ? previous : { request: activeRequest, rect: { top, left, width, height } }
+      })
     }
 
-    find()
+    function scheduleMeasure() {
+      frame ??= window.requestAnimationFrame(measure)
+    }
+
+    const observer = new ResizeObserver(scheduleMeasure)
+    const selector = `[data-buddy-target="${CSS.escape(request.token)}"]`
+    function find() {
+      target = document.querySelector<HTMLElement>(selector)
+      if (!target?.getClientRects().length) {
+        if (performance.now() - startedAt < 8_000) timer = window.setTimeout(find, 80)
+        return
+      }
+      target.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      })
+      observer.observe(target)
+      scheduleMeasure()
+      timer = window.setTimeout(() => {
+        target = null
+        observer.disconnect()
+        setSpot(null)
+      }, 4_200)
+    }
+
+    timer = window.setTimeout(find, delay)
+    window.addEventListener('scroll', scheduleMeasure, { capture: true, passive: true })
     window.addEventListener('resize', scheduleMeasure)
-    window.addEventListener('scroll', scheduleMeasure, { passive: true })
-    const clear = window.setTimeout(() => {
-      stopped = true
-      setSpot(null)
-      targetRef.current = null
-    }, HIGHLIGHT_MS)
-
     return () => {
-      stopped = true
-      window.clearTimeout(clear)
-      if (frame.current !== null) window.cancelAnimationFrame(frame.current)
-      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
+      window.clearTimeout(timer)
+      if (frame !== undefined) window.cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener('scroll', scheduleMeasure, true)
       window.removeEventListener('resize', scheduleMeasure)
-      window.removeEventListener('scroll', scheduleMeasure)
     }
-  }, [token, enabled])
+  }, [request])
 
-  return spot
+  return spot?.request === request ? spot : null
 }
-

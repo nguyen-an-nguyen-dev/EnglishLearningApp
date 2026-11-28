@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useEventListener } from 'expo';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as Speech from 'expo-speech';
 import YoutubeWebView from './YoutubeWebView';
@@ -21,6 +22,8 @@ import type { YoutubeWebViewHandle } from './YoutubeWebView.types';
 import type { WebViewMessageEvent } from 'react-native-webview/lib/WebViewTypes';
 import Colors from '@/constants/Colors';
 import { useAppTheme } from '@/contexts/theme-context';
+import { useSetBuddyVideoPage } from '@/contexts/buddy-video-context';
+import { routeId } from '@/services/aiDestinations';
 import { translateText } from '@/services/translations';
 import {
   deleteSavedWord,
@@ -224,6 +227,11 @@ function PracticePlayer(props: PlayerProps) {
 
 export default function VideoLearningScreen() {
   const { theme } = useAppTheme();
+  const { buddyVideoId, buddyVideoView, buddyRequest } = useLocalSearchParams<{
+    buddyVideoId?: string; buddyVideoView?: string; buddyRequest?: string;
+  }>();
+  const lastBuddyRequest = useRef<string | null>(null);
+  const setBuddyPage = useSetBuddyVideoPage();
   const colors = Colors[theme];
   const dark = theme === 'dark';
   const [screen, setScreen] = useState<Screen>('library');
@@ -235,6 +243,7 @@ export default function VideoLearningScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [ownedOnly, setOwnedOnly] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [importModel, setImportModel] = useState<VideoAnalysisModel>('bolt');
   const [importing, setImporting] = useState(false);
@@ -262,6 +271,7 @@ export default function VideoLearningScreen() {
   const videoIdRef = useRef<number | null>(null);
   const durationRef = useRef(0);
   const savingProgressRef = useRef(false);
+  const detailRequest = useRef(0);
 
   const palette = useMemo(() => ({
     background: colors.background,
@@ -356,6 +366,8 @@ export default function VideoLearningScreen() {
   }, [persistProgress]);
 
   const openVideo = useCallback(async (videoId: number) => {
+    const requestId = ++detailRequest.current;
+    void persistProgress();
     setScreen('detail');
     setDetailLoading(true);
     setError(null);
@@ -368,19 +380,57 @@ export default function VideoLearningScreen() {
     setPlayerError(null);
     previousTimeRef.current = null;
     videoIdRef.current = videoId;
+    watchRef.current = 0;
+    savedWatchRef.current = 0;
+    durationRef.current = 0;
     try {
       const detail = await getVideo(videoId);
+      if (detailRequest.current !== requestId) return;
       setVideo(detail);
       watchRef.current = detail.progress?.watched_seconds ?? 0;
       savedWatchRef.current = watchRef.current;
       setWatchedSeconds(watchRef.current);
       durationRef.current = detail.duration_seconds;
     } catch (loadError) {
+      if (detailRequest.current !== requestId) return;
       setError(loadError instanceof Error ? loadError.message : 'Không thể tải bài học video.');
     } finally {
-      setDetailLoading(false);
+      if (detailRequest.current === requestId) setDetailLoading(false);
     }
-  }, []);
+  }, [persistProgress]);
+
+  useFocusEffect(useCallback(() => {
+    const id = routeId(buddyVideoId);
+    const view = typeof buddyVideoView === 'string' ? buddyVideoView : '';
+    const key = `${buddyRequest ?? ''}:${view}:${id ?? ''}`;
+    if ((!view && id === null) || lastBuddyRequest.current === key) return;
+    lastBuddyRequest.current = key;
+    if (view === 'notebook' || view === 'library' || view === 'owned') {
+      ++detailRequest.current;
+      void persistProgress();
+      setPlaying(false);
+      setError(null);
+      setOwnedOnly(view === 'owned');
+      setQuery('');
+      setScreen(view === 'notebook' ? 'notebook' : 'library');
+    } else if (id !== null) {
+      void openVideo(id);
+    }
+  }, [buddyVideoId, buddyVideoView, buddyRequest, openVideo, persistProgress]));
+
+  const videoTitle = video?.title;
+  const videoTopic = video?.topic;
+  const videoLevel = video?.cefr_level;
+  useFocusEffect(useCallback(() => {
+    if (screen === 'detail' && videoTitle) {
+      setBuddyPage({ focus: `Video: ${videoTitle}`, detail: `Chủ đề: ${videoTopic}. Trình độ: ${videoLevel}.` });
+    } else {
+      const focus = screen === 'notebook' ? 'Sổ từ' : screen === 'review' ? 'Ôn từ trong Sổ từ'
+        : ownedOnly ? 'Video của tôi' : 'Thư viện video';
+      setBuddyPage({ focus });
+    }
+    return () => setBuddyPage(null);
+  }, [ownedOnly, screen, setBuddyPage, videoTitle, videoTopic, videoLevel]));
 
   const handlePlayerTime = useCallback((time: PlayerTime) => {
     if (time.seeked || previousTimeRef.current === null) {
@@ -411,11 +461,9 @@ export default function VideoLearningScreen() {
   );
   const filteredVideos = useMemo(() => {
     const value = query.trim().toLocaleLowerCase();
-    if (!value) return videos;
-    return videos.filter((item) =>
-      `${item.title} ${item.description ?? ''} ${item.topic} ${item.cefr_level}`.toLocaleLowerCase().includes(value),
-    );
-  }, [videos, query]);
+    return videos.filter((item) => (!ownedOnly || item.is_owned) && (!value
+      || `${item.title} ${item.description ?? ''} ${item.topic} ${item.cefr_level}`.toLocaleLowerCase().includes(value)));
+  }, [videos, query, ownedOnly]);
 
   const handlePlayerError = useCallback((message: string) => {
     setPlayerError(message);
@@ -859,6 +907,11 @@ export default function VideoLearningScreen() {
             <Text style={{ color: palette.tint, fontWeight: '700' }}>↻ Làm mới</Text>
           </Pressable>
         </View>
+        {ownedOnly ? (
+          <Pressable accessibilityRole="button" onPress={() => setOwnedOnly(false)} style={[styles.secondaryButton, { borderColor: palette.border }]}>
+            <Text style={{ color: palette.tint, fontWeight: '700' }}>Xem tất cả video</Text>
+          </Pressable>
+        ) : null}
         <TextInput
           value={query}
           onChangeText={setQuery}

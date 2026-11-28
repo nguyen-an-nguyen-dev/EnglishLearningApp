@@ -917,7 +917,7 @@
     border-top: 1px solid rgb(255 255 255 / 10%);
     background: #0C2932;
   }
-  .admin-mobile-nav button {
+  .admin-mobile-nav a {
     display: grid;
     justify-items: center;
     gap: 3px;
@@ -931,7 +931,7 @@
     font-weight: 550;
     cursor: pointer;
   }
-  .admin-mobile-nav button.is-active { color: #FFFFFF; font-weight: 650; }
+  .admin-mobile-nav a.is-active { color: #FFFFFF; font-weight: 650; }
 }
 
 @media (max-width: 720px) {

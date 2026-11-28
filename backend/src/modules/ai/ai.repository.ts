@@ -1,24 +1,37 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../../db/pool';
 import { HttpError } from '../../middleware/error-handler';
+import { VISIBLE_TO_USER_SQL } from '../video/video.repository';
+import { isRecord } from '../../utils/validation';
+import { parseChatAction } from './ai.parsing';
 import type {
+  CoachLearnerContext,
   AiFeedbackInput,
   AiTopic,
+  ChatAction,
   ChatRow,
+  CoachMessageRow,
   FeedbackRow,
   LearnerContext,
   MessageRow,
+  StudyLearnerContext,
 } from './ai.types';
 
 interface ChatDbRow extends ChatRow, RowDataPacket {}
 interface MessageDbRow extends MessageRow, RowDataPacket {}
+interface CoachMessageDbRow extends Omit<MessageRow, 'role'>, RowDataPacket { role: 'USER' | 'AI' | 'SYSTEM' }
 interface FeedbackDbRow extends FeedbackRow, RowDataPacket {}
+
+const COACH_DESTINATIONS = 'engorace:buddy-destinations:v1\n';
+const FIRST_COACH_CHAT = "SELECT id FROM chats WHERE user_id = ? AND topic = 'STUDY_COACH' ORDER BY id ASC LIMIT 1";
 
 export interface VideoCatalogEntry {
   id: number;
+  code?: string;
   title: string;
   topic: string;
   level: string;
+  durationSeconds?: number;
   completed: boolean;
 }
 
@@ -28,6 +41,9 @@ export interface StudyStats {
   completedLessonIds: number[];
   lessons: Array<{ id: number; title: string; topic: string; stageTitle: string }>;
   videoCatalog: VideoCatalogEntry[];
+  ownedVideoCatalog?: VideoCatalogEntry[];
+  lessonHistory?: LessonHistoryEntry[];
+  daysSinceStudy?: number | null;
   videosTotal: number;
   videosCompleted: number;
   nextVideo: { id: number; title: string } | null;
@@ -46,7 +62,18 @@ export interface StudyStats {
   ownedVideoTitles: string[];
 }
 
+interface LessonHistoryEntry {
+  id: number;
+  title: string;
+  topic: string;
+  status: 'in_progress' | 'completed';
+  score: number | null;
+  attempts: number;
+  studiedAt: string;
+}
+
 interface CountDbRow extends RowDataPacket {
+  days_since_study: number | null;
   total_lessons: number;
   completed_lessons: number;
   saved_words: number;
@@ -67,12 +94,56 @@ interface LessonDbRow extends RowDataPacket {
   stage_title: string;
 }
 interface IdDbRow extends RowDataPacket { id: number; }
-interface VideoDbRow extends RowDataPacket { id: number; title: string; }
-interface VideoCatalogDbRow extends RowDataPacket { id: number; title: string; topic: string; level: string; completed: number; }
-interface CountOnlyRow extends RowDataPacket { n: number; }
+interface VideoCatalogDbRow extends RowDataPacket {
+  id: number; code: string; title: string; topic: string; level: string; duration_seconds: number; completed: number; is_owned: number;
+}
+interface LessonHistoryDbRow extends RowDataPacket {
+  id: number; title: string; topic: string; status: LessonHistoryEntry['status'];
+  score: string | null; attempts: number; studied_at: Date;
+}
 
-export async function getStudyStats(userId: number): Promise<StudyStats> {
-  const [countRows, lessonRows, completedRows, ownedCountRows, ownedRows, catalogRows] = await Promise.all([
+function toVideoEntry({ id, code, title, topic, level, duration_seconds, completed }: VideoCatalogDbRow): VideoCatalogEntry {
+  return { id, code, title, topic, level, durationSeconds: duration_seconds, completed: Number(completed) === 1 };
+}
+
+async function readVideoCatalog(userId: number, scope: 'all' | 'private' | 'public'): Promise<VideoCatalogDbRow[]> {
+  const library = scope === 'private' ? 'AND v.owner_user_id IS NOT NULL'
+    : scope === 'public' ? 'AND v.owner_user_id IS NULL' : '';
+  const [rows] = await pool.execute<VideoCatalogDbRow[]>(
+    `SELECT v.id, v.code, v.title, v.topic, v.cefr_level AS level, v.duration_seconds, COALESCE(vp.completed, 0) AS completed,
+            (v.owner_user_id IS NOT NULL) AS is_owned
+     FROM video_lessons v
+     LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.user_id = ?
+     WHERE ${VISIBLE_TO_USER_SQL} ${library}
+     ORDER BY is_owned, CASE WHEN v.owner_user_id IS NULL THEN v.sort_order END,
+              CASE WHEN v.owner_user_id IS NOT NULL THEN v.created_at END DESC, v.id`,
+    [userId, userId],
+  );
+  return rows;
+}
+
+export async function getBuddyVideoCatalog(userId: number, owned: boolean): Promise<VideoCatalogEntry[]> {
+  return (await readVideoCatalog(userId, owned ? 'private' : 'public')).map(toVideoEntry);
+}
+
+export async function getVisibleVideoReference(userId: number, videoId: number): Promise<Pick<VideoCatalogEntry, 'id' | 'title'> | undefined> {
+  const [rows] = await pool.execute<Array<RowDataPacket & Pick<VideoCatalogEntry, 'id' | 'title'>>>(
+    `SELECT id, title FROM video_lessons WHERE id = ? AND ${VISIBLE_TO_USER_SQL} LIMIT 1`,
+    [videoId, userId],
+  );
+  return rows[0];
+}
+
+export async function getBuddyVideoLibraries(userId: number) {
+  const rows = await readVideoCatalog(userId, 'all');
+  return {
+    videoCatalog: rows.filter((row) => !Number(row.is_owned)).map(toVideoEntry),
+    ownedVideoCatalog: rows.filter((row) => Number(row.is_owned)).map(toVideoEntry),
+  };
+}
+
+export async function getStudyStats(userId: number, libraries = getBuddyVideoLibraries(userId)): Promise<StudyStats> {
+  const [countRows, lessonRows, completedRows, videoLibraries, historyRows] = await Promise.all([
     pool.execute<CountDbRow[]>(
       `SELECT
          (SELECT COUNT(*) FROM lessons) AS total_lessons,
@@ -86,8 +157,13 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
          (SELECT streak FROM users WHERE id = ?) AS streak,
          (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND due_at <= NOW()) AS review_due,
          (SELECT COUNT(*) FROM review_items WHERE user_id = ?) AS review_total,
-         (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND kind = 'word') AS review_words`,
-      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
+         (SELECT COUNT(*) FROM review_items WHERE user_id = ? AND kind = 'word') AS review_words,
+         (SELECT TIMESTAMPDIFF(DAY, MAX(studied_at), NOW()) FROM (
+            SELECT MAX(updated_at) AS studied_at FROM progress WHERE user_id = ? AND status <> 'not_started'
+            UNION ALL SELECT MAX(created_at) FROM learning_answer_attempts WHERE user_id = ?
+            UNION ALL SELECT MAX(updated_at) FROM video_progress WHERE user_id = ?
+          ) AS activity) AS days_since_study`,
+      [userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId, userId],
     ),
     pool.execute<LessonDbRow[]>(
       `SELECT l.id, l.title, l.topic, s.title AS stage_title
@@ -98,20 +174,12 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
       "SELECT lesson_id AS id FROM progress WHERE user_id = ? AND status = 'completed' AND score = 100",
       [userId],
     ),
-    pool.execute<CountOnlyRow[]>(
-      'SELECT COUNT(*) AS n FROM video_lessons WHERE owner_user_id = ?',
-      [userId],
-    ),
-    pool.execute<VideoDbRow[]>(
-      'SELECT id, title FROM video_lessons WHERE owner_user_id = ? ORDER BY created_at DESC, id DESC LIMIT 6',
-      [userId],
-    ),
-    pool.execute<VideoCatalogDbRow[]>(
-      `SELECT v.id, v.title, v.topic, v.cefr_level AS level, COALESCE(vp.completed, 0) AS completed
-       FROM video_lessons v
-       LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.user_id = ?
-       WHERE v.owner_user_id IS NULL AND v.published_at IS NOT NULL
-       ORDER BY v.sort_order, v.id`,
+    libraries,
+    pool.execute<LessonHistoryDbRow[]>(
+      `SELECT l.id, l.title, l.topic, p.status, p.score, p.attempts, p.updated_at AS studied_at
+       FROM progress p JOIN lessons l ON l.id = p.lesson_id
+       WHERE p.user_id = ? AND p.status <> 'not_started'
+       ORDER BY p.updated_at DESC, p.id DESC`,
       [userId],
     ),
   ]);
@@ -119,9 +187,11 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
   const counts: CountDbRow | undefined = countRows[0][0];
   const lessonList = lessonRows[0];
   const completedList = completedRows[0];
-  const ownedList = ownedRows[0];
-  const videoCatalog: VideoCatalogEntry[] = catalogRows[0].map(({ id, title, topic, level, completed }) => ({
-    id, title, topic, level, completed: Number(completed) === 1,
+  const { videoCatalog, ownedVideoCatalog } = videoLibraries;
+  const lessonHistory: LessonHistoryEntry[] = historyRows[0].map((row) => ({
+    id: row.id, title: row.title, topic: row.topic, status: row.status,
+    score: row.score === null ? null : Number(row.score), attempts: row.attempts,
+    studiedAt: row.studied_at.toISOString(),
   }));
   const nextVideo = videoCatalog.find(({ completed }) => !completed);
   const num = (value: unknown): number => Number(value ?? 0);
@@ -130,6 +200,9 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
     completedLessons: num(counts?.completed_lessons),
     completedLessonIds: completedList.map((row) => row.id),
     videoCatalog,
+    ownedVideoCatalog,
+    lessonHistory,
+    daysSinceStudy: counts?.days_since_study == null ? null : Number(counts.days_since_study),
     lessons: lessonList.map((row) => ({
       id: row.id,
       title: row.title,
@@ -149,8 +222,8 @@ export async function getStudyStats(userId: number): Promise<StudyStats> {
     reviewDue: num(counts?.review_due),
     reviewTotal: num(counts?.review_total),
     reviewWords: num(counts?.review_words),
-    ownedVideos: num(ownedCountRows[0][0]?.n),
-    ownedVideoTitles: ownedList.map((row) => row.title),
+    ownedVideos: ownedVideoCatalog.length,
+    ownedVideoTitles: ownedVideoCatalog.slice(0, 6).map((row) => row.title),
   };
 }
 
@@ -198,23 +271,33 @@ export async function getChat(userId: number, chatId: number): Promise<ChatRow |
  * long-lived STUDY_COACH chat per learner keeps that history in one place.
  */
 export async function ensureCoachChat(userId: number): Promise<number> {
-  const [rows] = await pool.execute<IdDbRow[]>(
-    `SELECT id FROM chats WHERE user_id = ? AND topic = 'STUDY_COACH' ORDER BY id ASC LIMIT 1`,
-    [userId],
-  );
+  const [rows] = await pool.execute<IdDbRow[]>(FIRST_COACH_CHAT, [userId]);
   if (rows[0]) return rows[0].id;
 
+  const connection = await pool.getConnection();
   try {
-    const chat = await createChat(userId, 'STUDY_COACH');
-    return chat.id;
+    await connection.beginTransaction();
+    // Only automatic creation takes this lock. Learners can still create
+    // additional coach chats explicitly from the chat API.
+    const [owners] = await connection.execute<IdDbRow[]>('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
+    if (!owners[0]) throw new HttpError(401, 'Invalid authentication token.');
+    // The owner row serializes this read for one learner and avoids locking
+    // gaps in the chat index shared by concurrent learners.
+    const [existing] = await connection.execute<IdDbRow[]>(FIRST_COACH_CHAT, [userId]);
+    let id = existing[0]?.id;
+    if (id === undefined) {
+      const [created] = await connection.execute<ResultSetHeader>(
+        "INSERT INTO chats (user_id, topic, title) VALUES (?, 'STUDY_COACH', 'En Buddy')", [userId],
+      );
+      id = created.insertId;
+    }
+    await connection.commit();
+    return id;
   } catch (error) {
-    // A parallel first question can win the race; reuse whatever exists then.
-    const [again] = await pool.execute<IdDbRow[]>(
-      `SELECT id FROM chats WHERE user_id = ? AND topic = 'STUDY_COACH' ORDER BY id ASC LIMIT 1`,
-      [userId],
-    );
-    if (again[0]) return again[0].id;
+    await connection.rollback();
     throw error;
+  } finally {
+    connection.release();
   }
 }
 
@@ -244,6 +327,54 @@ export async function getConversationHistory(chatId: number, limit = 20): Promis
   return rows.reverse();
 }
 
+function storedDestinations(value: unknown): ChatAction[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 3).flatMap((entry) => {
+    const action = parseChatAction(entry);
+    if (!action || !isRecord(entry)) return [];
+    for (const key of ['lessonTitle', 'videoTitle', 'itemName'] as const) {
+      if (typeof entry[key] === 'string') action[key] = entry[key].trim().slice(0, 255);
+    }
+    return [action];
+  });
+}
+
+export async function getCoachConversationHistory(chatId: number, limit?: number): Promise<CoachMessageRow[]> {
+  const [rows] = await pool.execute<CoachMessageDbRow[]>(
+    `SELECT id, chat_id, role, content, created_at
+     FROM messages
+     WHERE chat_id = ? AND (role <> 'SYSTEM' OR content LIKE ?)
+     ORDER BY id DESC${limit === undefined ? '' : ' LIMIT ?'}`,
+    [chatId, `${COACH_DESTINATIONS}%`, ...(limit === undefined ? [] : [Math.ceil(limit * 1.5) + 2])],
+  );
+  const history: CoachMessageRow[] = [];
+  for (const [index, row] of rows.entries()) {
+    if (row.role === 'SYSTEM') continue;
+    const preceding = rows[index + 1];
+    let destinations: ChatAction[] = [];
+    let presentedDestinations: ChatAction[] | undefined;
+    if (row.role === 'AI' && preceding?.role === 'SYSTEM' && preceding.content.startsWith(COACH_DESTINATIONS)) {
+      try {
+        const stored: unknown = JSON.parse(preceding.content.slice(COACH_DESTINATIONS.length));
+        destinations = storedDestinations(stored);
+        const presentation = Array.isArray(stored) ? stored.at(-1) : undefined;
+        if (isRecord(presentation) && Array.isArray(presentation.presented)) {
+          presentedDestinations = storedDestinations(presentation.presented);
+        }
+      } catch {
+        // A malformed internal record leaves the visible chat usable.
+      }
+    }
+    history.push({
+      ...row, role: row.role,
+      ...(destinations.length ? { destinations } : {}),
+      ...(presentedDestinations ? { presentedDestinations } : {}),
+    });
+    if (history.length === limit) break;
+  }
+  return history.reverse();
+}
+
 export async function getFeedback(userId: number, chatId: number): Promise<FeedbackRow[]> {
   const [rows] = await pool.execute<FeedbackDbRow[]>(
     `SELECT f.id, f.message_id, f.type, f.original_text, f.corrected_text,
@@ -258,20 +389,9 @@ export async function getFeedback(userId: number, chatId: number): Promise<Feedb
   return rows;
 }
 
-export async function getLearnerContext(userId: number): Promise<LearnerContext> {
-  interface TopicRow extends RowDataPacket { topic: string; }
+export async function getWeakTopics(userId: number): Promise<LearnerContext['weakTopics']> {
   interface WeakTopicRow extends RowDataPacket { topic: string; mistakes: number; }
-  interface MistakeRow extends RowDataPacket { topic: string; prompt: string; answer: string; }
-  interface LevelRow extends RowDataPacket { level: LearnerContext['level'] | null; }
-
-  const [completedRows] = await pool.execute<TopicRow[]>(
-    `SELECT DISTINCT l.topic
-     FROM progress p JOIN lessons l ON l.id = p.lesson_id
-     WHERE p.user_id = ? AND p.status = 'completed'
-     ORDER BY l.topic LIMIT 12`,
-    [userId],
-  );
-  const [weakRows] = await pool.execute<WeakTopicRow[]>(
+  const [rows] = await pool.execute<WeakTopicRow[]>(
     `SELECT l.topic, COUNT(*) AS mistakes
      FROM learning_answer_attempts a
      JOIN questions q ON q.id = a.question_id
@@ -280,27 +400,41 @@ export async function getLearnerContext(userId: number): Promise<LearnerContext>
      GROUP BY l.topic ORDER BY mistakes DESC, l.topic LIMIT 5`,
     [userId],
   );
-  const [mistakeRows] = await pool.execute<MistakeRow[]>(
-    `SELECT l.topic, q.question_text AS prompt, a.submitted_answer AS answer
-     FROM learning_answer_attempts a
-     JOIN questions q ON q.id = a.question_id
-     JOIN lessons l ON l.id = q.lesson_id
-     WHERE a.user_id = ? AND a.is_correct = FALSE
-     ORDER BY a.created_at DESC LIMIT 8`,
-    [userId],
-  );
-  const [levelRows] = await pool.execute<LevelRow[]>(
-    `SELECT CASE MAX(CASE q.difficulty
-                       WHEN 'advanced' THEN 3 WHEN 'intermediate' THEN 2 ELSE 1 END)
-              WHEN 3 THEN 'advanced' WHEN 2 THEN 'intermediate' ELSE 'beginner'
-            END AS level
-     FROM progress p
-     JOIN lessons l ON l.id = p.lesson_id
-     JOIN questions q ON q.lesson_id = l.id
-     WHERE p.user_id = ? AND p.status = 'completed'`,
-    [userId],
-  );
-  const [feedbackRows] = await pool.execute<FeedbackDbRow[]>(
+  return rows.map((row) => ({ topic: row.topic, mistakes: Number(row.mistakes) }));
+}
+
+export async function getStudyLearnerContext(userId: number): Promise<StudyLearnerContext> {
+  interface MistakeRow extends RowDataPacket { topic: string; prompt: string; answer: string; }
+  interface LevelRow extends RowDataPacket { level: LearnerContext['level'] | null; }
+
+  const [weakTopics, [mistakes], [levels]] = await Promise.all([
+    getWeakTopics(userId),
+    pool.execute<MistakeRow[]>(
+      `SELECT l.topic, q.question_text AS prompt, a.submitted_answer AS answer
+       FROM learning_answer_attempts a
+       JOIN questions q ON q.id = a.question_id
+       JOIN lessons l ON l.id = q.lesson_id
+       WHERE a.user_id = ? AND a.is_correct = FALSE
+       ORDER BY a.created_at DESC LIMIT 8`,
+      [userId],
+    ),
+    pool.execute<LevelRow[]>(
+      `SELECT CASE MAX(CASE q.difficulty
+                         WHEN 'advanced' THEN 3 WHEN 'intermediate' THEN 2 ELSE 1 END)
+                WHEN 3 THEN 'advanced' WHEN 2 THEN 'intermediate' ELSE 'beginner'
+              END AS level
+       FROM progress p
+       JOIN lessons l ON l.id = p.lesson_id
+       JOIN questions q ON q.lesson_id = l.id
+       WHERE p.user_id = ? AND p.status = 'completed'`,
+      [userId],
+    ),
+  ]);
+  return { level: levels[0]?.level ?? 'beginner', weakTopics, recentMistakes: mistakes };
+}
+
+export async function getRecentLearnerFeedback(userId: number): Promise<LearnerContext['previousFeedback']> {
+  const [rows] = await pool.execute<FeedbackDbRow[]>(
     `SELECT f.id, f.message_id, f.type, f.original_text, f.corrected_text,
             f.explanation, f.created_at
      FROM ai_feedback f
@@ -310,33 +444,38 @@ export async function getLearnerContext(userId: number): Promise<LearnerContext>
      ORDER BY f.id DESC LIMIT 5`,
     [userId],
   );
+  return rows.map(({ type, original_text, corrected_text, explanation }) => ({
+    type, original_text, corrected_text, explanation,
+  })).reverse();
+}
 
-  interface ReviewRow extends RowDataPacket { title: string; practice_seconds: number | null; attempts: number; }
-  const [reviewRows] = await pool.execute<ReviewRow[]>(
-    `SELECT l.title, p.practice_seconds, p.attempts
-     FROM progress p JOIN lessons l ON l.id = p.lesson_id
-     WHERE p.user_id = ? AND p.status = 'completed'
-       AND (p.attempts > 1 OR p.practice_seconds >= 300)
-     ORDER BY p.attempts DESC, p.practice_seconds DESC LIMIT 5`,
-    [userId],
-  );
+export async function getCoachLearnerContext(userId: number): Promise<CoachLearnerContext> {
+  const [study, previousFeedback] = await Promise.all([
+    getStudyLearnerContext(userId),
+    getRecentLearnerFeedback(userId),
+  ]);
+  return { ...study, previousFeedback };
+}
+
+export async function getLearnerContext(userId: number): Promise<LearnerContext> {
+  interface TopicRow extends RowDataPacket { topic: string; }
+
+  const [study, previousFeedback, [completedRows]] = await Promise.all([
+    getStudyLearnerContext(userId),
+    getRecentLearnerFeedback(userId),
+    pool.execute<TopicRow[]>(
+      `SELECT DISTINCT l.topic
+       FROM progress p JOIN lessons l ON l.id = p.lesson_id
+       WHERE p.user_id = ? AND p.status = 'completed'
+       ORDER BY l.topic LIMIT 12`,
+      [userId],
+    ),
+  ]);
 
   return {
-    level: levelRows[0]?.level ?? 'beginner',
+    ...study,
     completedTopics: completedRows.map((row) => row.topic),
-    weakTopics: weakRows.map((row) => ({ topic: row.topic, mistakes: Number(row.mistakes) })),
-    recentMistakes: mistakeRows,
-    previousFeedback: feedbackRows.map(({ type, original_text, corrected_text, explanation }) => ({
-      type,
-      original_text,
-      corrected_text,
-      explanation,
-    })).reverse(),
-    reviewLessons: reviewRows.map((row) => ({
-      title: row.title,
-      practiceSeconds: Number(row.practice_seconds ?? 0),
-      attempts: Number(row.attempts ?? 1),
-    })),
+    previousFeedback,
   };
 }
 
@@ -346,6 +485,8 @@ export async function saveConversation(
   userText: string,
   aiText: string,
   feedback: AiFeedbackInput[],
+  destinations: readonly ChatAction[] = [],
+  presentedDestinations?: readonly ChatAction[],
 ): Promise<{ userMessage: MessageRow; aiMessage: MessageRow }> {
   const connection: PoolConnection = await pool.getConnection();
   try {
@@ -361,6 +502,18 @@ export async function saveConversation(
       "INSERT INTO messages (chat_id, role, content) VALUES (?, 'USER', ?)",
       [chatId, userText],
     );
+    if (destinations.length) {
+      const remembered = destinations.slice(0, 3);
+      // Older readers still see the same ordered destinations. The trailing
+      // presentation object records which option the assistant actually opened.
+      const metadata = presentedDestinations
+        ? [...remembered, { presented: presentedDestinations.slice(0, 3) }]
+        : remembered;
+      await connection.execute(
+        "INSERT INTO messages (chat_id, role, content) VALUES (?, 'SYSTEM', ?)",
+        [chatId, COACH_DESTINATIONS + JSON.stringify(metadata)],
+      );
+    }
     const [aiResult] = await connection.execute<ResultSetHeader>(
       "INSERT INTO messages (chat_id, role, content) VALUES (?, 'AI', ?)",
       [chatId, aiText],

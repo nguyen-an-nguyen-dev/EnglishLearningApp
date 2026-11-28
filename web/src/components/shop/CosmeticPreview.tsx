@@ -23,7 +23,7 @@ export function CosmeticPreview({ slot, visualKey, style, sampleName = 'Engorace
   if (slot === 'frame') {
     return (
       <div className="cosmetic-preview-frame" style={{ width: size, height: size }}>
-        <AvatarFrame name={sampleName} visualKey={visualKey} style={style} size={Math.round(size * 0.82)} />
+        <AvatarFrame visualKey={visualKey} size={Math.round(size * 0.82)} />
       </div>
     )
   }

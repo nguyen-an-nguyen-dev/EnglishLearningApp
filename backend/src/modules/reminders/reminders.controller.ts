@@ -1,12 +1,7 @@
+import { requireUserId } from '../../middleware/authenticate';
 import type { RequestHandler } from 'express';
-import { HttpError } from '../../middleware/error-handler';
 import * as service from './reminders.service';
 import { parseReminderId } from './reminders.validation';
-
-function requireUserId(request: Parameters<RequestHandler>[0]): number {
-  if (!request.auth) throw new HttpError(401, 'Authentication required.');
-  return request.auth.userId;
-}
 
 export const listReminders: RequestHandler = async (request, response, next) => {
   try {

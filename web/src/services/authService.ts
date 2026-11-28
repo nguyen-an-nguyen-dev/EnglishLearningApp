@@ -3,7 +3,6 @@ import type {
   LoginPayload,
   RegisterPayload,
   LoginResponseData,
-  RegisterResponseData,
   LinkedProvider,
   SocialProvider,
   StartRegistrationResult,
@@ -151,25 +150,6 @@ export async function loginApi(payload: LoginPayload): Promise<LoginResponseData
       const fallback = error.status >= 500
         ? `Không thể đăng nhập. Máy chủ không khả dụng (HTTP ${error.status}).`
         : 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.';
-      throw new Error(error.message || fallback, { cause: error });
-    }
-    throw error;
-  }
-}
-
-export async function registerApi(payload: RegisterPayload): Promise<RegisterResponseData> {
-  try {
-    const data = await requestPublicApi<RegisterResponseData>(AUTH_ENDPOINTS.register, jsonRequest(payload));
-    if (!isAuthUser(data.user)) throw new Error('Đăng ký không thành công.');
-    return data;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      if (error.status === 409) {
-        throw new Error('Email này đã được sử dụng. Vui lòng chọn email khác.', { cause: error });
-      }
-      const fallback = error.status >= 500
-        ? `Không thể đăng ký. Máy chủ không khả dụng (HTTP ${error.status}).`
-        : 'Đăng ký không thành công.';
       throw new Error(error.message || fallback, { cause: error });
     }
     throw error;

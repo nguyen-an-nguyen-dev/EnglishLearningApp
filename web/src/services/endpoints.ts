@@ -3,7 +3,6 @@ import type { SocialProvider } from '../types/auth';
 /** Every auth URL in one place; services never inline endpoint strings. */
 export const AUTH_ENDPOINTS = {
   login: '/api/auth/login',
-  register: '/api/auth/register',
   registerStart: '/api/auth/register/start',
   registerVerify: '/api/auth/register/verify',
   registerResend: '/api/auth/register/resend',

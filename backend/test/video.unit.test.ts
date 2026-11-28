@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { env } from '../src/config/env';
+
+// These tests exercise the Gemini fallback path; keep Token Harbor out of the
+// way so a real key in .env never reaches the network.
+env.thApiKey = '';
 import {
   completionThreshold,
   hasWatchedEnough,
@@ -273,7 +278,6 @@ test('one sentence per segment, with short reactions glued to the line before', 
 test('AI sentence ends cut caption fragments at spoken sentence boundaries', async () => {
   const { env } = await import('../src/config/env');
   const originalGeminiKey = env.aiApiKey;
-  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
   const fallback = [
     { startMs: 0, endMs: 22000, text: 'The weather was beautiful how was the food the food was amazing' },
@@ -287,7 +291,6 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
 
   try {
     env.aiApiKey = 'test-only-gemini-key';
-    env.cfAccounts = [];
     globalThis.fetch = (async () => new Response(JSON.stringify({
       choices: [{ message: { content: '{"sentence_ends":[2,4]}' } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
@@ -302,7 +305,6 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
     );
   } finally {
     env.aiApiKey = originalGeminiKey;
-    env.cfAccounts = originalAccounts;
     globalThis.fetch = originalFetch;
   }
 });
@@ -310,10 +312,8 @@ test('AI sentence ends cut caption fragments at spoken sentence boundaries', asy
 test('an AI answer with unquoted keys or a fenced block is still understood', async () => {
   const { env } = await import('../src/config/env');
   const originalGeminiKey = env.aiApiKey;
-  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
   env.aiApiKey = 'test-only-gemini-key';
-  env.cfAccounts = [];
   const cues = [
     { startMs: 0, endMs: 3000, text: 'How was your trip' },
     { startMs: 3000, endMs: 6000, text: 'it was really fun' },
@@ -336,8 +336,7 @@ test('an AI answer with unquoted keys or a fenced block is still understood', as
       );
     } finally {
       env.aiApiKey = originalGeminiKey;
-      env.cfAccounts = originalAccounts;
-      globalThis.fetch = originalFetch;
+        globalThis.fetch = originalFetch;
     }
   }
 });
@@ -345,7 +344,6 @@ test('an AI answer with unquoted keys or a fenced block is still understood', as
 test('AI grouping is used when the provider answers, and rule-based segments win on failure', async () => {
   const { env } = await import('../src/config/env');
   const originalAiKey = env.aiApiKey;
-  const originalAccounts = env.cfAccounts;
   const originalFetch = globalThis.fetch;
   const sentences = [
     { startMs: 0, endMs: 2000, text: 'Hello there.' },
@@ -359,7 +357,6 @@ test('AI grouping is used when the provider answers, and rule-based segments win
 
   try {
     env.aiApiKey = 'test-only-gemini-key';
-    env.cfAccounts = [];
     globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
       requestedUrl = String(input);
       return successResponse();
@@ -380,7 +377,6 @@ test('AI grouping is used when the provider answers, and rule-based segments win
     assert.deepEqual(await refineSegmentsWithAi(sentences), sentences);
   } finally {
     env.aiApiKey = originalAiKey;
-    env.cfAccounts = originalAccounts;
     globalThis.fetch = originalFetch;
   }
 });

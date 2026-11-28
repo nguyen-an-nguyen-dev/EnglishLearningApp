@@ -20,6 +20,3 @@ export const palette = {
   danger: '#A83A3A',
   neutral: '#9DB3BD',
 } as const
-
-/** Ordered teal ramp for categorical charts. */
-export const chartSeries = [palette.primary, palette.primaryMid, palette.primarySoft] as const

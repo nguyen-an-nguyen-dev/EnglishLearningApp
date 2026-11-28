@@ -2,7 +2,7 @@
  * One-off: re-run AI sentence segmentation for every YouTube video in the
  * database. Backs the two tables it touches up first, then, per video:
  *   fetchYouTubeImportSource → analyzeSegments → replaceSegments(transaction).
- * The chain is Llama 3.3 70B (Workers AI) then Gemini Flash. Videos whose AI call
+ * The chain is Token Harbor (DeepSeek) then Gemini Flash. Videos whose AI call
  * fails keep their existing segments untouched.
  *
  * Run: npx tsx scripts/reprocess-videos.ts

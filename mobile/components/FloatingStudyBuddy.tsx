@@ -23,6 +23,7 @@ import Colors from '@/constants/Colors';
 import { useAppDialog } from '@/contexts/app-dialog-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppTheme } from '@/contexts/theme-context';
+import { useBuddyVideoPage } from '@/contexts/buddy-video-context';
 import {
   createAiChat,
   deleteAiChat,
@@ -32,6 +33,7 @@ import {
   listAiChats,
   sendAiMessage,
   type AiChat,
+  type AiChatAction,
   type AiFeedback,
   type AiMessage,
   type ChatContext,
@@ -40,6 +42,7 @@ import {
   type StudyPlan,
   type StudyStep,
 } from '@/services/ai';
+import { aiDestination, planDestination, replyActions, type AiDestination } from '@/services/aiDestinations';
 import { fetchLessonDetail, fetchUserProgress, type Lesson, type UserProgress } from '@/services/learning';
 
 type BuddyView = 'chat' | 'plan' | 'history';
@@ -48,6 +51,7 @@ type BuddyBubble = {
   role: 'USER' | 'AI';
   content: string;
   feedback?: AiFeedback[];
+  actions?: AiChatAction[];
 };
 type QuickAction = {
   key: string;
@@ -125,12 +129,13 @@ function quickActions(tab: ChatTab): QuickAction[] {
   }
 }
 
-function toBubbles(messages: AiMessage[]): BuddyBubble[] {
-  return messages.map((message) => ({
-    id: message.id,
-    role: message.role,
-    content: message.content,
-  }));
+function toBubbles(messages: AiMessage[], feedback: AiFeedback[] = []): BuddyBubble[] {
+  let questionId: number | undefined;
+  return messages.map(({ id, role, content, actions }) => {
+    if (role === 'USER') questionId = id;
+    return { id, role, content, actions,
+      feedback: role === 'AI' ? feedback.filter(({ message_id }) => message_id === questionId) : undefined };
+  });
 }
 
 function formatDate(value: string): string {
@@ -155,6 +160,7 @@ export default function FloatingStudyBuddy() {
   const colors = Colors[theme];
   const dark = theme === 'dark';
   const { token, user } = useAuth();
+  const videoPage = useBuddyVideoPage();
   const { showAppDialog } = useAppDialog();
   const router = useRouter();
   const segments = useSegments();
@@ -174,6 +180,7 @@ export default function FloatingStudyBuddy() {
   const [bubbles, setBubbles] = useState<BuddyBubble[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [draft, setDraft] = useState<{ chatId: number; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [plan, setPlan] = useState<StudyPlan | null>(null);
@@ -183,7 +190,11 @@ export default function FloatingStudyBuddy() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
 
   const initializedRef = useRef(false);
-  const wasVisibleRef = useRef(false);
+  const openedPlanRef = useRef(false);
+  const planInFlightRef = useRef(false);
+  const selectionRef = useRef<{ chatId: number | null }>({ chatId: null });
+  const sendingRef = useRef(false);
+  const followReply = useRef(true);
   const positionRef = useRef(position);
   const dragOriginRef = useRef(position);
   const movedRef = useRef(false);
@@ -191,15 +202,18 @@ export default function FloatingStudyBuddy() {
   const breathe = useRef(new Animated.Value(0)).current;
 
   const route = segments.map(String).join('/');
+  const inReview = segments.some((segment) => String(segment) === 'review');
   const routeTab: ChatTab = route.includes('battle')
     ? 'compete'
     : route.includes('translate')
       ? 'translate'
       : route.includes('ranking')
         ? 'rankings'
-        : route.includes('settings')
-          ? 'profile'
-          : 'study';
+        : route.includes('talk')
+          ? 'videos'
+          : route.includes('settings') || inReview
+            ? 'profile'
+            : 'study';
   const inTabs = segments.some((segment) => String(segment) === '(tabs)');
 
   const nextLesson = useMemo(
@@ -215,10 +229,16 @@ export default function FloatingStudyBuddy() {
         ? 'Đấu trường từ vựng'
         : routeTab === 'rankings'
           ? 'Bảng xếp hạng'
-          : routeTab === 'profile'
-            ? 'Hồ sơ cá nhân'
-            : nextLesson?.title ?? 'Lộ trình học';
+          : routeTab === 'videos'
+            ? videoPage?.focus ?? 'Học video'
+            : routeTab === 'profile'
+              ? inReview ? 'Ôn tập đến hạn' : 'Hồ sơ cá nhân'
+              : nextLesson?.title ?? 'Lộ trình học';
   const actions = useMemo(() => quickActions(routeTab), [routeTab]);
+  const draftText = draft?.chatId === activeChatId ? draft.text : '';
+  const threadBubbles: BuddyBubble[] = draftText
+    ? [...bubbles, { id: 'draft', role: 'AI', content: draftText }]
+    : bubbles;
   const panelBackground = { backgroundColor: colors.cardBackground, borderColor: colors.border };
   const softBackground = { backgroundColor: dark ? '#13212B' : '#F3FAFC' };
   const panelHeight = Math.max(360, Math.min(640, height - insets.top - insets.bottom - 28));
@@ -289,6 +309,7 @@ export default function FloatingStudyBuddy() {
     if (route.includes('lesson')) {
       return {
         tab: 'study',
+        surface: 'mobile',
         focus: lesson ? `Bài học: ${lesson.title}` : `Bài học: ${focusLabel}`,
         detail: [
           'Người dùng đang làm bài học tương tác trên ứng dụng di động.',
@@ -300,72 +321,88 @@ export default function FloatingStudyBuddy() {
     }
     const tabDetails: Record<ChatTab, string> = {
       study: `Người dùng đang ở lộ trình học tiếng Anh.${nextLesson ? ` Bài tiếp theo: "${nextLesson.title}".` : ''}`,
-      videos: 'Ứng dụng di động hiện không có màn học video.',
+      videos: 'Người dùng đang ở màn Học video trên ứng dụng di động, có thư viện, video riêng tư và Sổ từ.',
       translate: 'Người dùng đang ở công cụ dịch Anh - Việt trên ứng dụng di động.',
       compete: 'Người dùng đang ở khu vực đấu trường từ vựng 1v1 trên ứng dụng di động.',
       rankings: 'Người dùng đang xem bảng xếp hạng trên ứng dụng di động.',
-      profile: 'Người dùng đang ở khu vực hồ sơ và cài đặt trên ứng dụng di động.',
+      profile: inReview ? 'Người dùng đang ôn từ và câu hỏi đến hạn.' : 'Người dùng đang ở khu vực hồ sơ và cài đặt trên ứng dụng di động.',
     };
     return {
       tab: routeTab,
+      surface: 'mobile',
       focus: focusLabel,
       detail: [
         tabDetails[routeTab],
+        routeTab === 'videos' ? videoPage?.detail : undefined,
         user?.name ? `Tên học viên: ${user.name}` : '',
         routeTab === 'study' && progress
           ? `Tiến độ: ${progress.completed_lesson_ids.length}/${progress.stages.reduce((sum, stage) => sum + stage.lessons.length, 0)} bài học.`
           : '',
       ].filter(Boolean).join(' | '),
     };
-  }, [focusLabel, lesson, nextLesson, progress, route, routeTab, user?.name]);
+  }, [focusLabel, inReview, lesson, nextLesson, progress, route, routeTab, user?.name, videoPage?.detail]);
 
   const loadPlan = useCallback(async () => {
+    if (planInFlightRef.current) return;
+    planInFlightRef.current = true;
     setPlanLoading(true);
     setPlanError(null);
     try {
-      setPlan(await getStudyPlan());
+      setPlan(await getStudyPlan(setPlan));
     } catch (loadError) {
       setPlanError(loadError instanceof Error ? loadError.message : 'Không tải được kế hoạch học.');
     } finally {
+      planInFlightRef.current = false;
       setPlanLoading(false);
     }
   }, []);
 
+  const selectChat = useCallback((chatId: number | null) => {
+    const selection = { chatId };
+    selectionRef.current = selection;
+    followReply.current = true;
+    setActiveChatId(chatId);
+    return selection;
+  }, []);
+
   const loadChats = useCallback(async () => {
+    const selection = selectionRef.current;
     setHistoryError(null);
     try {
       const list = (await listAiChats()).filter((chat) => chat.topic === 'STUDY_COACH');
       setChats(list);
       const latest = list[0];
       if (latest) {
-        setActiveChatId(latest.id);
         const data = await getAiChat(latest.id);
-        setBubbles(toBubbles(data.messages));
-      } else {
-        setActiveChatId(null);
+        if (selectionRef.current === selection) {
+          selectChat(latest.id);
+          setBubbles(toBubbles(data.messages));
+        }
+      } else if (selectionRef.current === selection) {
         setBubbles([]);
       }
     } catch (loadError) {
       setHistoryError(loadError instanceof Error ? loadError.message : 'Không thể tải lịch sử hội thoại.');
     }
-  }, []);
+  }, [selectChat]);
 
   useEffect(() => {
     if (!visible) {
-      wasVisibleRef.current = false;
+      openedPlanRef.current = false;
       return;
     }
-    const reopened = !wasVisibleRef.current;
-    wasVisibleRef.current = true;
     if (!initializedRef.current) {
       initializedRef.current = true;
       void loadChats();
     }
-    if (reopened) void loadPlan();
-  }, [loadChats, loadPlan, visible]);
+    if (view === 'plan' && !openedPlanRef.current) {
+      openedPlanRef.current = true;
+      void loadPlan();
+    }
+  }, [loadChats, loadPlan, view, visible]);
 
   useEffect(() => {
-    if (view === 'chat') threadRef.current?.scrollToEnd({ animated: true });
+    if (view === 'chat' && followReply.current) threadRef.current?.scrollToEnd({ animated: true });
   }, [bubbles, sending, view]);
 
   const openBuddy = useCallback(() => {
@@ -413,37 +450,47 @@ export default function FloatingStudyBuddy() {
 
   async function send(text: string, intent: ChatIntent = 'chat') {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sendingRef.current) return;
+    sendingRef.current = true;
+    let selection = selectChat(selectionRef.current.chatId);
     setSending(true);
+    setDraft(null);
     setError(null);
     const optimisticId = `local-${Date.now()}`;
     setBubbles((current) => [...current, { id: optimisticId, role: 'USER', content: trimmed }]);
     setInput('');
     try {
-      let chatId = activeChatId;
+      let chatId = selection.chatId;
       if (!chatId) {
         const chat = await createAiChat('STUDY_COACH');
         chatId = chat.id;
-        setActiveChatId(chat.id);
+        if (selectionRef.current === selection) selection = selectChat(chat.id);
         setChats((current) => [chat, ...current]);
       }
-      const result = await sendAiMessage(chatId, trimmed, intent, chatContext);
-      setBubbles((current) => [
-        ...current.filter((bubble) => bubble.id !== optimisticId),
-        { id: result.userMessage.id, role: 'USER', content: result.userMessage.content },
-        {
-          id: result.aiMessage.id,
-          role: 'AI',
-          content: result.aiMessage.content,
-          feedback: result.feedback,
-        },
-      ]);
+      const replyChatId = chatId;
+      const result = await sendAiMessage(chatId, trimmed, intent, chatContext,
+        (text) => setDraft({ chatId: replyChatId, text }));
+      if (selectionRef.current.chatId === replyChatId) {
+        setBubbles((current) => [
+          ...current.filter(({ id }) => id !== optimisticId && id !== result.userMessage.id && id !== result.aiMessage.id),
+          { id: result.userMessage.id, role: 'USER', content: result.userMessage.content },
+          {
+            id: result.aiMessage.id,
+            role: 'AI',
+            content: result.aiMessage.content,
+            feedback: result.feedback,
+            actions: replyActions(result),
+          },
+        ]);
+      }
       void refreshChats();
     } catch (sendError) {
       setBubbles((current) => current.filter((bubble) => bubble.id !== optimisticId));
-      setInput(trimmed);
+      if (selectionRef.current === selection) setInput(trimmed);
       setError(sendError instanceof Error ? sendError.message : 'Tin nhắn chưa gửi được. Thử lại nhé.');
     } finally {
+      sendingRef.current = false;
+      setDraft(null);
       setSending(false);
     }
   }
@@ -458,17 +505,12 @@ export default function FloatingStudyBuddy() {
 
   async function openChat(chat: AiChat) {
     setHistoryError(null);
+    const opening = selectChat(selectionRef.current.chatId);
     try {
       const [data, feedback] = await Promise.all([getAiChat(chat.id), getAiFeedback(chat.id)]);
-      setActiveChatId(chat.id);
-      setBubbles(data.messages.map((message) => ({
-        id: message.id,
-        role: message.role,
-        content: message.content,
-        feedback: message.role === 'AI'
-          ? feedback.filter((item) => item.message_id === data.messages.find((entry) => entry.role === 'USER' && entry.id < message.id)?.id)
-          : [],
-      })));
+      if (selectionRef.current !== opening) return;
+      selectChat(chat.id);
+      setBubbles(toBubbles(data.messages, feedback));
       setView('chat');
     } catch (loadError) {
       setHistoryError(loadError instanceof Error ? loadError.message : 'Không thể mở hội thoại này.');
@@ -480,8 +522,8 @@ export default function FloatingStudyBuddy() {
     try {
       await deleteAiChat(chatId);
       setChats((current) => current.filter((chat) => chat.id !== chatId));
-      if (activeChatId === chatId) {
-        setActiveChatId(null);
+      if (selectionRef.current.chatId === chatId) {
+        selectChat(null);
         setBubbles([]);
       }
     } catch (deleteError) {
@@ -490,48 +532,29 @@ export default function FloatingStudyBuddy() {
   }
 
   function newChat() {
-    setActiveChatId(null);
+    selectChat(null);
     setBubbles([]);
     setInput('');
     setError(null);
     setView('chat');
   }
 
-  function performPlanAction(step: StudyStep) {
-    if (step.kind === 'video' || step.target.tab === 'videos') {
-      showAppDialog({
-        title: 'Tính năng video chưa có trên mobile',
-        message: 'Video học hiện chỉ dùng được trên web. Bạn vẫn có thể xem kế hoạch và tiếp tục các hoạt động khác trong mobile.',
-        buttons: [{ text: 'Đã hiểu' }],
-      });
-      return;
-    }
+  function openDestination(destination: AiDestination | null) {
+    if (!destination) return;
     const navigate = () => {
-      setVisible(false);
-      if (step.target.lessonId) {
-        router.push({ pathname: '/lesson/[id]', params: { id: String(step.target.lessonId) } });
-        return;
-      }
-      switch (step.target.tab) {
-        case 'study':
-          router.replace('/(tabs)');
-          break;
-        case 'translate':
-          router.replace('/(tabs)/translate');
-          break;
-        case 'compete':
-          router.replace('/battle');
-          break;
-        case 'rankings':
-          router.replace('/(tabs)/ranking');
-          break;
-        case 'profile':
-          router.replace('/(tabs)/settings');
-          break;
-      }
+      closeBuddy();
+      const { href } = destination;
+      if (destination.push) router.push(href);
+      else if (typeof href === 'object' && (href.pathname === '/(tabs)' || href.pathname === '/(tabs)/talk')) {
+        router.navigate({ pathname: href.pathname, params: { ...href.params, buddyRequest: String(Date.now()) } });
+      } else router.navigate(href);
     };
 
     if (route.includes('battle')) {
+      if (destination.href === '/battle') {
+        closeBuddy();
+        return;
+      }
       showAppDialog({
         title: 'Rời khỏi trận đấu?',
         message: 'Chuyển sang hoạt động khác sẽ rời khỏi trận đấu hiện tại.',
@@ -633,7 +656,14 @@ export default function FloatingStudyBuddy() {
                   ref={threadRef}
                   contentContainerStyle={styles.thread}
                   keyboardShouldPersistTaps="handled"
-                  onContentSizeChange={() => threadRef.current?.scrollToEnd({ animated: true })}
+                  onScroll={({ nativeEvent }) => {
+                    const { contentSize, contentOffset, layoutMeasurement } = nativeEvent;
+                    followReply.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 56;
+                  }}
+                  scrollEventThrottle={32}
+                  onContentSizeChange={() => {
+                    if (followReply.current) threadRef.current?.scrollToEnd({ animated: !draftText });
+                  }}
                 >
                   {bubbles.length === 0 && !sending ? (
                     <View style={styles.empty}>
@@ -643,9 +673,11 @@ export default function FloatingStudyBuddy() {
                       </Text>
                     </View>
                   ) : null}
-                  {bubbles.map((bubble) => (
+                  {threadBubbles.map((bubble) => (
                     <View
                       key={bubble.id}
+                      accessibilityElementsHidden={bubble.id === 'draft'}
+                      importantForAccessibility={bubble.id === 'draft' ? 'no-hide-descendants' : undefined}
                       style={[styles.turn, bubble.role === 'USER' ? styles.userTurn : styles.aiTurn]}
                     >
                       {bubble.role === 'AI' ? (
@@ -675,13 +707,32 @@ export default function FloatingStudyBuddy() {
                             ))}
                           </View>
                         ) : null}
+                        {bubble.actions?.length ? (
+                          <View style={styles.messageDestinations}>
+                            {bubble.actions.slice(0, 3).map((action, index) => {
+                              const destination = aiDestination(action);
+                              return destination ? (
+                                <Pressable
+                                  key={index}
+                                  accessibilityRole="button"
+                                  onPress={() => openDestination(destination)}
+                                  style={[styles.destinationButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                                >
+                                  <Text style={[styles.destinationLabel, { color: colors.text }]}>{destination.label}</Text>
+                                </Pressable>
+                              ) : action.tab === 'shop' || action.kind === 'show_shop_item' || action.kind === 'buy_shop_item' ? (
+                                <Text key={index} style={[styles.feedbackLine, { color: colors.textMuted }]}>Gara có trên Engorace web.</Text>
+                              ) : null;
+                            })}
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   ))}
-                  {sending ? (
+                  {sending && !draftText ? (
                     <View style={[styles.typing, panelBackground]}>
                       <ActivityIndicator size="small" color={colors.tint} />
-                      <Text style={[styles.typingText, { color: colors.textMuted }]}>Đang lật sổ tay…</Text>
+                      <Text accessibilityLiveRegion="polite" style={[styles.typingText, { color: colors.textMuted }]}>Đang nghĩ…</Text>
                     </View>
                   ) : null}
                 </ScrollView>
@@ -697,6 +748,7 @@ export default function FloatingStudyBuddy() {
 
                 <ScrollView
                   horizontal
+                  style={styles.quickActionRail}
                   contentContainerStyle={styles.quickActions}
                   showsHorizontalScrollIndicator={false}
                 >
@@ -783,7 +835,7 @@ export default function FloatingStudyBuddy() {
                       <Text style={[styles.stepTitle, { color: colors.text }]}>{step.title}</Text>
                       <Text style={[styles.stepReason, { color: colors.textMuted }]}>{step.reason}</Text>
                       <Text style={[styles.stepMinutes, { color: colors.tint }]}>{step.minutes} phút</Text>
-                      <Pressable accessibilityRole="button" onPress={() => performPlanAction(step)} style={styles.stepAction}>
+                      <Pressable accessibilityRole="button" onPress={() => openDestination(planDestination(step))} style={styles.stepAction}>
                         <Text style={[styles.stepActionText, { color: colors.tint }]}>Làm ngay  ›</Text>
                       </Pressable>
                     </View>
@@ -931,13 +983,17 @@ const styles = StyleSheet.create({
   feedbackTitle: { fontSize: 10, fontWeight: '900' },
   feedbackItem: { gap: 2 },
   feedbackLine: { fontSize: 10.5, lineHeight: 16 },
+  messageDestinations: { gap: 6, marginTop: 8 },
+  destinationButton: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
+  destinationLabel: { fontSize: 12, fontWeight: '700', lineHeight: 17 },
   typing: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginHorizontal: 14, marginBottom: 8, padding: 9, borderWidth: 1, borderRadius: 14 },
   typingText: { fontSize: 11 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 },
   errorText: { flex: 1, fontSize: 11, lineHeight: 16 },
   dismissError: { fontSize: 20, paddingHorizontal: 3 },
-  quickActions: { gap: 7, paddingHorizontal: 12, paddingVertical: 9 },
-  quickChip: { paddingHorizontal: 11, paddingVertical: 7, borderWidth: 1, borderRadius: 20 },
+  quickActionRail: { flexGrow: 0, flexShrink: 0 },
+  quickActions: { alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9 },
+  quickChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 11, paddingVertical: 7, borderWidth: 1, borderRadius: 22 },
   quickText: { fontSize: 10.5, fontWeight: '800' },
   composerWrap: { paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
   composer: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 13, paddingRight: 5, borderWidth: 1, borderRadius: 24 },

@@ -402,8 +402,6 @@ const en: ReviewCopy = {
   retry: 'Retry',
 }
 
-export const reviewCopy = { vi, en } as const
-
 export function copyFor(lang: 'vi' | 'en'): ReviewCopy {
   return lang === 'en' ? en : vi
 }

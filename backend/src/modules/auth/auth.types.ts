@@ -53,14 +53,6 @@ export interface LinkedProvider {
   last_login_at: string | null;
 }
 
-export interface ProviderLinkCandidate {
-  provider: SocialProvider;
-  provider_user_id: string;
-  email: string;
-  display_name: string | null;
-  avatar_url: string | null;
-}
-
 declare global {
   namespace Express {
     interface Request {

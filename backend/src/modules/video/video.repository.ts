@@ -407,13 +407,22 @@ export async function completeVideo(
   }
 }
 
-export async function getSavedWords(userId: number): Promise<SavedWordRow[]> {
+export async function getSavedWords(userId: number, limit?: number): Promise<SavedWordRow[]> {
   const [rows] = await pool.execute<SavedWordRow[]>(
     `SELECT id, user_id, video_id, word, ipa, meaning_vi, detail_vi, created_at
-     FROM saved_words WHERE user_id = ? ORDER BY created_at DESC, id DESC`,
-    [userId],
+     FROM saved_words WHERE user_id = ? ORDER BY created_at DESC, id DESC${limit === undefined ? '' : ' LIMIT ?'}`,
+    limit === undefined ? [userId] : [userId, limit],
   );
   return rows;
+}
+
+export async function getSavedWord(userId: number, word: string): Promise<SavedWordRow | undefined> {
+  const [rows] = await pool.execute<SavedWordRow[]>(
+    `SELECT id, user_id, video_id, word, ipa, meaning_vi, detail_vi, created_at
+     FROM saved_words WHERE user_id = ? AND word = ? LIMIT 1`,
+    [userId, word],
+  );
+  return rows[0];
 }
 
 export async function saveWord(
@@ -434,12 +443,9 @@ export async function saveWord(
        video_id = COALESCE(VALUES(video_id), video_id)`,
     [userId, videoId, word, ipa, meaningVi, detailVi],
   );
-  const [rows] = await pool.execute<SavedWordRow[]>(
-    `SELECT id, user_id, video_id, word, ipa, meaning_vi, detail_vi, created_at
-     FROM saved_words WHERE user_id = ? AND word = ? LIMIT 1`,
-    [userId, word],
-  );
-  return rows[0];
+  const saved = await getSavedWord(userId, word);
+  if (!saved) throw new Error('Saved word was removed before it could be read.');
+  return saved;
 }
 
 export async function deleteSavedWord(userId: number, word: string): Promise<boolean> {

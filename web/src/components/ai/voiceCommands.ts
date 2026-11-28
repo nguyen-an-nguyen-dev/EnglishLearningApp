@@ -84,7 +84,7 @@ for (const phrase of [
 for (const phrase of ['bảng xếp hạng', 'xếp hạng', 'bảng hạng', 'league', 'bxh']) {
   add(phrase, { kind: 'tab', tab: 'rankings' })
 }
-for (const phrase of ['thi đua', 'đấu trường', 'đấu từ vựng', 'vào trận', '1v1', 'đấu 1v1']) {
+for (const phrase of ['thi đua', 'thi đấu', 'đấu trường', 'đấu từ vựng', '1v1', 'đấu 1v1']) {
   add(phrase, { kind: 'tab', tab: 'compete' })
 }
 for (const phrase of ['dịch', 'dịch tài liệu', 'trang dịch', 'translate']) {

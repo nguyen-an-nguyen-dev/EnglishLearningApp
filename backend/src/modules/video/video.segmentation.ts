@@ -1,10 +1,6 @@
+import { isRecord } from '../../utils/validation';
 import { env } from '../../config/env';
 import { MAX_SEGMENT_MS, stripPunctuation, type TranscriptSegment } from './video.youtube';
-import {
-  cfAccountTargets,
-  isDailyQuotaError,
-  markCfAccountExhausted,
-} from '../../utils/cf-rotate';
 
 const MAX_GROUP_CHARS = 200;
 // Caption cues can be word-level (a 5-minute song easily has 600+). A prompt
@@ -29,10 +25,6 @@ const SYSTEM_PROMPT = [
   'Example: fragments 1 "how was your" 2 "trip it was really" 3 "fun how was the" 4 "weather the weather" 5 "was beautiful" spoken as "How was your trip? It was really fun. How was the weather? The weather was beautiful." give {"sentence_ends":[2,3,4,5]} because each sentence finishes inside the fragment carrying its last word.',
   'Return only JSON with this exact shape: {"sentence_ends":[3,7,11]}',
 ].join('\n');
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function parseJsonContent(content: string): unknown {
   const normalized = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -166,20 +158,22 @@ export function buildSegmentsFromEnds(
 }
 
 interface AnalysisTarget {
-  name: 'Cloudflare Workers AI' | 'Gemini';
+  name: 'Token Harbor' | 'Gemini';
   apiUrl: string;
   apiKey: string;
   model: string;
 }
 
-// Llama 3.3 70B on Workers AI is the primary and Gemini Flash the fallback,
-// the same chain the chat answers use.
+// Token Harbor (DeepSeek) is primary and Gemini Flash is the fallback, the same
+// chain the chat answers use.
 function analysisTargets(): AnalysisTarget[] {
   return [
-    ...cfAccountTargets<Omit<AnalysisTarget, 'apiKey' | 'apiUrl'>>({
-      name: 'Cloudflare Workers AI',
-      model: env.cfModel,
-    }),
+    {
+      name: 'Token Harbor',
+      apiUrl: env.thApiUrl,
+      apiKey: env.thApiKey,
+      model: env.thModel,
+    },
     {
       name: 'Gemini',
       apiUrl: env.aiApiUrl,
@@ -222,10 +216,6 @@ async function requestSentenceEnds(
   });
 
   if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    if (response.status === 429 && isDailyQuotaError(detail)) {
-      markCfAccountExhausted(target.apiKey);
-    }
     throw new Error(`${target.name} responded with status ${response.status}.`);
   }
 
@@ -241,7 +231,7 @@ async function requestSentenceEnds(
 }
 
 // Mark the end of every spoken sentence in the caption stream. When cues are
-// unavailable the rule-based sentences are units. Tries Llama then Gemini;
+// unavailable the rule-based sentences are units. Tries DeepSeek then Gemini;
 // any failure silently keeps the rule-based segmentation so importing never
 // fails on AI.
 export interface SegmentationOutcome {
@@ -302,8 +292,7 @@ export async function analyzeSegments(
     }
   }
 
-  // Only warn when every provider actually failed; a 429 from the first
-  // Cloudflare account is harmless when the second account answered.
+  // Only warn when every provider actually failed.
   if (!sawValidAi && failures.length > 0) {
     console.warn(
       'Video AI segmentation failed for all providers; kept rule-based segments:',

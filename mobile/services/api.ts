@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { fetch as fetchStream } from 'expo/fetch';
 
 const TOKEN_KEY = 'english-learning.auth-token';
 let inMemoryWebToken: string | null = null;
@@ -67,13 +68,15 @@ export async function request<T>(
   path: string,
   options: RequestInit = {},
   tokenOverride?: string | null,
+  alternate?: { contentType: string; read: (response: Response) => Promise<T> },
 ): Promise<T> {
   const token = tokenOverride !== undefined ? tokenOverride : await readToken();
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    const fetcher = alternate ? fetchStream : fetch;
+    response = await fetcher(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -86,6 +89,9 @@ export async function request<T>(
     throw new Error(`Cannot reach the server at ${API_BASE_URL}. Check your connection or backend status.`);
   }
 
+  if (response.ok && alternate && response.headers.get('content-type')?.startsWith(alternate.contentType)) {
+    return alternate.read(response);
+  }
   let body: ApiEnvelope<T> | ApiError;
   try {
     body = (await response.json()) as ApiEnvelope<T> | ApiError;
